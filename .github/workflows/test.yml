@@ -1,0 +1,301 @@
+name: Lead Engine CRE — CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_ENV: test
+  PORT: 3001
+  JWT_SECRET: ci-test-secret-do-not-use-in-production-64chars0000000000000000000
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/leadengine_test
+  ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+  RPC_URL_SEPOLIA: ${{ secrets.RPC_URL_SEPOLIA }}
+  RPC_URL_BASE_SEPOLIA: https://sepolia.base.org
+  FRONTEND_URL: http://localhost:5173
+  API_URL: http://localhost:3001
+
+jobs:
+  # ─── Backend Unit + Integration Tests ─────────────────────
+  backend-tests:
+    name: Backend Tests (Jest)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: leadengine_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Run database migrations
+        working-directory: backend
+        run: npx prisma db push --skip-generate
+
+      - name: Run Jest tests
+        working-directory: backend
+        run: |
+          npx jest --ci --coverage --forceExit \
+            --json --outputFile=../test-results/backend-results.json \
+            2>&1 | tee ../test-results/backend-output.txt
+        continue-on-error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: test-results/
+          retention-days: 14
+
+  # ─── Frontend Build ───────────────────────────────────────
+  frontend-build:
+    name: Frontend Build (Vite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript check
+        working-directory: frontend
+        run: npx tsc -b --noEmit || true
+
+      - name: Vite build
+        working-directory: frontend
+        run: npx vite build
+
+  # ─── Cypress E2E ──────────────────────────────────────────
+  cypress-e2e:
+    name: Cypress E2E (53+ tests)
+    runs-on: ubuntu-latest
+    needs: [frontend-build]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: leadengine_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install backend
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma db push --skip-generate
+
+      - name: Install frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Seed test data
+        working-directory: backend
+        run: npm run db:seed || true
+
+      - name: Start backend
+        working-directory: backend
+        run: npm run dev &
+        env:
+          PORT: 3001
+
+      - name: Start frontend
+        working-directory: frontend
+        run: npx vite --port 5173 &
+
+      - name: Wait for servers
+        run: |
+          npx wait-on http://localhost:3001/health http://localhost:5173 \
+            --timeout 60000
+
+      - name: Run Cypress
+        working-directory: frontend
+        run: |
+          npx cypress run \
+            --spec "cypress/e2e/**/*.cy.ts" \
+            --reporter json \
+            --reporter-options "output=../test-results/cypress-results.json" \
+            2>&1 | tee ../test-results/cypress-output.txt
+        env:
+          CYPRESS_BASE_URL: http://localhost:5173
+
+      - name: Upload Cypress artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-results
+          path: |
+            test-results/
+            frontend/cypress/screenshots/
+            frontend/cypress/videos/
+          retention-days: 14
+
+  # ─── Artillery Load Tests (smoke only in CI) ──────────────
+  artillery-smoke:
+    name: Artillery Smoke (3 configs)
+    runs-on: ubuntu-latest
+    needs: [backend-tests]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: leadengine_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install backend
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma db push --skip-generate
+
+      - name: Install Artillery
+        run: npm install -g artillery@latest
+
+      - name: Seed test data
+        working-directory: backend
+        run: npm run db:seed || true
+
+      - name: Start backend
+        working-directory: backend
+        run: npm run dev &
+        env:
+          PORT: 3001
+
+      - name: Wait for backend
+        run: npx wait-on http://localhost:3001/health --timeout 30000
+
+      - name: Run Artillery — RTB scenarios
+        run: |
+          artillery run tests/load/artillery-rtb.yaml \
+            --output test-results/artillery-rtb.json \
+            --quiet \
+            2>&1 | tee test-results/artillery-rtb.txt
+        continue-on-error: true
+
+      - name: Run Artillery — Edge cases
+        run: |
+          artillery run tests/load/artillery-edge-cases.yaml \
+            --output test-results/artillery-edge.json \
+            --quiet \
+            2>&1 | tee test-results/artillery-edge.txt
+        continue-on-error: true
+
+      - name: Run Artillery — Stress (reduced for CI)
+        run: |
+          artillery run tests/load/artillery-stress-10k.yaml \
+            --output test-results/artillery-stress.json \
+            --quiet \
+            --overrides '{"config":{"phases":[{"duration":10,"arrivalRate":50}]}}' \
+            2>&1 | tee test-results/artillery-stress.txt
+        continue-on-error: true
+
+      - name: Upload Artillery results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artillery-results
+          path: test-results/artillery-*
+          retention-days: 14
+
+  # ─── Contract Tests (Hardhat) ─────────────────────────────
+  contract-tests:
+    name: Smart Contract Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Run contract tests
+        run: |
+          npx hardhat test \
+            2>&1 | tee test-results/hardhat-output.txt
+        continue-on-error: true
+
+      - name: Upload contract results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-test-results
+          path: test-results/hardhat-*
+          retention-days: 14

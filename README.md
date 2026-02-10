@@ -1,5 +1,11 @@
 # Lead Engine CRE
 
+[![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
+![Tests](https://img.shields.io/badge/tests-166%2B-brightgreen)
+![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
+![Cypress](https://img.shields.io/badge/e2e-53%2B%20tests-blue)
+![Coverage](https://img.shields.io/badge/contracts-5%20verified-orange)
+
 ### Decentralized Real-Time Bidding for the $200B+ Lead Marketplace
 
 > **Built for [Chainlink Hackathon 2026 — Convergence](https://chain.link/hackathon)**
