@@ -1,0 +1,151 @@
+config:
+  target: "http://localhost:3001"
+  phases:
+    # Phase 1: Warm up (50 users/sec)
+    - duration: 30
+      arrivalRate: 50
+      name: "Warm up"
+
+    # Phase 2: Sustained load (200 users/sec)
+    - duration: 60
+      arrivalRate: 200
+      name: "Sustained load"
+
+    # Phase 3: Spike — 500 users/sec (geo-filtered bids)
+    - duration: 30
+      arrivalRate: 500
+      name: "Spike: geo-filtered bids"
+
+    # Phase 4: Peak — 1000+ concurrent across markets
+    - duration: 30
+      arrivalRate: 1000
+      name: "Peak: 1000 concurrent"
+      rampTo: 1500
+
+    # Phase 5: Cool down
+    - duration: 15
+      arrivalRate: 50
+      name: "Cool down"
+
+  plugins:
+    expect: {}
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # Custom metrics
+  ensure:
+    maxErrorRate: 5
+    max: 
+      p99: 2000  # p99 latency under 2s
+
+scenarios:
+  # ─── Health check (5% traffic) ───────────────
+  - name: "Health check"
+    weight: 5
+    flow:
+      - get:
+          url: "/health"
+
+  # ─── List leads (10% traffic) ────────────────
+  - name: "List leads"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/leads"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode: 200
+
+  # ─── Place bid — geo-filtered (35% traffic) ──
+  - name: "Place bid (geo-filtered)"
+    weight: 35
+    flow:
+      - post:
+          url: "/api/v1/bids"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          json:
+            leadId: "{{ $randomString() }}"
+            amount: "{{ $randomNumber(10, 500) }}"
+            geoState: "{{ $randomItem(['FL', 'CA', 'TX', 'NY', 'WA', 'CO', 'IL', 'OH', 'PA', 'GA']) }}"
+          expect:
+            - statusCode:
+                - 201
+                - 400
+                - 403
+                - 404
+
+  # ─── Compliance check (15% traffic) ──────────
+  - name: "ACE compliance check"
+    weight: 15
+    flow:
+      - post:
+          url: "/api/v1/demo/compliance-check"
+          json:
+            walletAddress: "0x{{ $randomString(40) }}"
+            vertical: "{{ $randomItem(['solar', 'mortgage', 'insurance', 'roofing']) }}"
+            geoState: "{{ $randomItem(['FL', 'CA', 'TX', 'NY', 'WA', 'CO']) }}"
+          expect:
+            - statusCode: 200
+
+  # ─── ZK verify (10% traffic) ─────────────────
+  - name: "ZK proof verification"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/v1/demo/zk-verify"
+          json:
+            vertical: "{{ $randomItem(['solar', 'mortgage', 'roofing']) }}"
+            geoState: "{{ $randomItem(['FL', 'CA', 'TX', 'NY']) }}"
+            geoZip: "{{ $randomNumber(10000, 99999) }}"
+            targetStates:
+              - FL
+              - CA
+              - TX
+          expect:
+            - statusCode: 200
+
+  # ─── List asks / marketplace (15% traffic) ───
+  - name: "List asks geo-filtered"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/v1/asks?vertical={{ $randomItem(['solar', 'mortgage']) }}&geo={{ $randomItem(['FL', 'CA', 'TX']) }}&limit=20"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode: 200
+
+  # ─── E2E demo flow (5% traffic) ─────────────
+  - name: "E2E demo bid flow"
+    weight: 5
+    flow:
+      - post:
+          url: "/api/v1/demo/e2e-bid"
+          json:
+            vertical: "{{ $randomItem(['solar', 'mortgage', 'roofing']) }}"
+            geoState: "{{ $randomItem(['FL', 'CA', 'TX']) }}"
+            geoZip: "33101"
+            reservePrice: "{{ $randomNumber(10, 100) }}"
+            bidAmount: "{{ $randomNumber(20, 200) }}"
+            buyerAddress: "0x{{ $randomString(40) }}"
+          expect:
+            - statusCode:
+                - 200
+                - 400
+                - 500
+
+  # ─── Privacy test (5% traffic) ───────────────
+  - name: "Privacy encrypt/decrypt"
+    weight: 5
+    flow:
+      - post:
+          url: "/api/v1/demo/privacy-test"
+          json:
+            amount: "{{ $randomNumber(10, 500) }}"
+            buyerAddress: "0x{{ $randomString(40) }}"
+          expect:
+            - statusCode: 200

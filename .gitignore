@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Environment files — NEVER commit secrets
+.env
+.env.*
+!.env.example
+!.env.local.example
+backend/.env
+frontend/.env.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Hardhat / Solidity
+contracts/cache/
+contracts/artifacts/
+contracts/typechain-types/
+contracts/coverage/
+contracts/coverage.json
+
+# Testing
+coverage/
+*.lcov
+
+# Security scan reports (may contain vulnerability details)
+reports/
+*-audit.json
+slither-report.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Misc
+.cache/
+*.tsbuildinfo
+frontend/tsc_errors.txt
+
+# Private keys — CRITICAL: never commit
+*.pem
+*.key
+*.p12

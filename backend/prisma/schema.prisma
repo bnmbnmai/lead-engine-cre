@@ -1,0 +1,432 @@
+// Prisma Schema for Lead Engine CRE
+// RTB Platform Database Models
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Core User & Auth Models
+// ============================================
+
+model User {
+  id            String   @id @default(cuid())
+  email         String?  @unique
+  walletAddress String   @unique
+  role          UserRole @default(BUYER)
+  nonce         String   @default(uuid())  // For SIWE
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  buyerProfile  BuyerProfile?
+  sellerProfile SellerProfile?
+  bids          Bid[]
+  transactions  Transaction[]
+  sessions      Session[]
+  apiKeys       ApiKey[]
+
+  @@index([walletAddress])
+  @@index([email])
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  lastActiveAt DateTime @default(now())
+  userAgent    String?
+  ipAddress    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  keyHash     String   @unique  // Hashed API key
+  prefix      String             // First 8 chars for identification
+  permissions String[] @default(["leads:write"])
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([keyHash])
+  @@index([userId])
+}
+
+model BuyerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  companyName       String?
+  
+  // Filtering preferences
+  verticals         String[] // ["solar", "mortgage", "roofing"]
+  geoFilters        Json?    // { "states": ["CA", "TX"], "excludeZips": ["90210"] }
+  
+  // Budget settings
+  budgetMin         Decimal? @db.Decimal(10, 2)
+  budgetMax         Decimal? @db.Decimal(10, 2)
+  dailyBudget       Decimal? @db.Decimal(10, 2)
+  monthlyBudget     Decimal? @db.Decimal(10, 2)
+  
+  // Toggles
+  acceptOffSite     Boolean  @default(true)
+  requireVerified   Boolean  @default(false)
+  autoAcceptLeads   Boolean  @default(false)
+  
+  // Compliance
+  kycStatus         KycStatus @default(PENDING)
+  kycVerifiedAt     DateTime?
+  jurisdictionHash  String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SellerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  companyName     String?
+  verticals       String[]
+  reputationScore Decimal  @default(5000) @db.Decimal(5, 0)  // 0-10000 basis points
+  totalLeadsSold  Int      @default(0)
+  
+  // Compliance
+  isVerified      Boolean  @default(false)
+  kycStatus       KycStatus @default(PENDING)
+  kycVerifiedAt   DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads Lead[]
+  asks  Ask[]
+}
+
+enum KycStatus {
+  PENDING
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+// ============================================
+// Marketplace Ask Model
+// ============================================
+
+model Ask {
+  id              String    @id @default(cuid())
+  sellerId        String
+  
+  // What the seller is looking for
+  vertical        String
+  geoTargets      Json      // { "states": ["CA"], "radius": { "lat": 34.0, "lng": -118.2, "miles": 50 } }
+  
+  // Pricing
+  reservePrice    Decimal   @db.Decimal(10, 2)
+  buyNowPrice     Decimal?  @db.Decimal(10, 2)
+  
+  // Parameters (seller requirements)
+  parameters      Json?     // { "minCreditScore": 650, "propertyType": ["single_family"] }
+  
+  // Status
+  status          AskStatus @default(ACTIVE)
+  
+  // Toggles
+  acceptOffSite   Boolean   @default(true)
+  
+  // Auction settings
+  auctionDuration Int       @default(3600)  // seconds
+  revealWindow    Int       @default(900)   // seconds
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  expiresAt       DateTime?
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id])
+  leads  Lead[]
+
+  @@index([vertical, status])
+  @@index([sellerId])
+  @@index([status, createdAt])
+}
+
+enum AskStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  CANCELLED
+}
+
+// ============================================
+// Lead & RTB Models
+// ============================================
+
+model Lead {
+  id              String      @id @default(cuid())
+  sellerId        String
+  askId           String?     // Optional link to Ask
+  vertical        String      // "solar", "mortgage", "roofing", etc.
+  geo             Json        // { "state": "CA", "zip": "90210", "city": "Beverly Hills", "geoHash": "9q5" }
+  source          LeadSource  @default(PLATFORM)
+  status          LeadStatus  @default(PENDING_AUCTION)
+  
+  // Lead data (encrypted/hashed sensitive fields)
+  dataHash        String?     // Hash of PII for ZK verification
+  encryptedData   String?     // Encrypted lead details
+  
+  // Custom parameters (for matching)
+  parameters      Json?       // { "creditScore": 720, "propertyType": "single_family", "loanAmount": 350000 }
+  
+  // Pricing
+  reservePrice    Decimal?    @db.Decimal(10, 2)
+  winningBid      Decimal?    @db.Decimal(10, 2)
+  
+  // NFT tokenization
+  nftTokenId      String?     @unique
+  nftContractAddr String?
+  
+  // Compliance
+  tcpaConsentAt   DateTime?
+  consentProof    String?     // IPFS hash or on-chain reference
+  isVerified      Boolean     @default(false)
+  
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  auctionStartAt  DateTime?
+  auctionEndAt    DateTime?
+  soldAt          DateTime?
+  expiresAt       DateTime?
+
+  // Relations
+  seller       SellerProfile @relation(fields: [sellerId], references: [id])
+  ask          Ask?          @relation(fields: [askId], references: [id])
+  bids         Bid[]
+  transactions Transaction[]
+  auctionRoom  AuctionRoom?
+
+  @@index([vertical, status])
+  @@index([sellerId])
+  @@index([status, createdAt])
+  @@index([askId])
+}
+
+enum LeadSource {
+  PLATFORM     // Platform-hosted form
+  API          // Seller API submission
+  OFFSITE      // Off-site form (buyer toggle)
+}
+
+enum LeadStatus {
+  PENDING_AUCTION
+  IN_AUCTION
+  REVEAL_PHASE
+  SOLD
+  EXPIRED
+  CANCELLED
+  DISPUTED
+}
+
+// ============================================
+// Auction Room (Socket.IO tracking)
+// ============================================
+
+model AuctionRoom {
+  id              String   @id @default(cuid())
+  leadId          String   @unique
+  roomId          String   @unique  // Socket.IO room identifier
+  
+  // State
+  phase           AuctionPhase @default(BIDDING)
+  bidCount        Int          @default(0)
+  highestBid      Decimal?     @db.Decimal(10, 2)
+  highestBidder   String?
+  
+  // Timing
+  startedAt       DateTime     @default(now())
+  biddingEndsAt   DateTime
+  revealEndsAt    DateTime
+  
+  // Participants (cached for quick lookup)
+  participants    String[]     // Array of user IDs
+  
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([phase, biddingEndsAt])
+}
+
+enum AuctionPhase {
+  BIDDING
+  REVEAL
+  RESOLVED
+  CANCELLED
+}
+
+model Bid {
+  id           String    @id @default(cuid())
+  leadId       String
+  buyerId      String
+  
+  // Commit-reveal
+  commitment   String?   // Hash of (amount, salt) for sealed bids
+  amount       Decimal?  @db.Decimal(10, 2)  // Revealed amount
+  salt         String?   // Revealed salt
+  
+  status       BidStatus @default(PENDING)
+  
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  revealedAt   DateTime?
+  processedAt  DateTime?
+
+  // Relations
+  lead  Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  buyer User @relation(fields: [buyerId], references: [id])
+
+  @@unique([leadId, buyerId]) // One bid per buyer per lead
+  @@index([leadId, status])
+  @@index([buyerId])
+  @@index([leadId, amount(sort: Desc)])  // For finding highest bid
+}
+
+enum BidStatus {
+  PENDING      // Committed but not revealed
+  REVEALED     // Revealed, awaiting resolution
+  ACCEPTED     // Won the auction
+  OUTBID       // Lost to higher bid
+  REJECTED     // Failed compliance or below reserve
+  WITHDRAWN    // Buyer withdrew
+  EXPIRED      // Not revealed in time
+}
+
+// ============================================
+// Payment & Transaction Models
+// ============================================
+
+model Transaction {
+  id              String            @id @default(cuid())
+  leadId          String
+  buyerId         String
+  amount          Decimal           @db.Decimal(10, 2)
+  platformFee     Decimal?          @db.Decimal(10, 2)
+  currency        String            @default("USDC")
+  status          TransactionStatus @default(PENDING)
+  
+  // Blockchain details
+  txHash          String?           @unique
+  chainId         Int?
+  blockNumber     Int?
+  
+  // Escrow
+  escrowAddress   String?
+  escrowId        String?           // On-chain escrow ID
+  escrowReleased  Boolean           @default(false)
+  
+  // Timestamps
+  createdAt       DateTime          @default(now())
+  confirmedAt     DateTime?
+  releasedAt      DateTime?
+
+  // Relations
+  lead  Lead @relation(fields: [leadId], references: [id])
+  buyer User @relation(fields: [buyerId], references: [id])
+
+  @@index([leadId])
+  @@index([buyerId])
+  @@index([txHash])
+  @@index([status, createdAt])
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  ESCROWED
+  RELEASED
+  FAILED
+  REFUNDED
+  DISPUTED
+}
+
+// ============================================
+// Compliance & Audit Models
+// ============================================
+
+model ComplianceCheck {
+  id           String           @id @default(cuid())
+  entityType   String           // "lead", "user", "transaction"
+  entityId     String
+  checkType    ComplianceType
+  status       ComplianceStatus @default(PENDING)
+  result       Json?
+  message      String?
+  checkedAt    DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@index([entityType, entityId])
+  @@index([entityId, checkType])
+  @@index([status, createdAt])
+}
+
+enum ComplianceType {
+  TCPA_CONSENT
+  KYC
+  AML
+  GEO_VALIDATION
+  FRAUD_CHECK
+  PARAMETER_MATCH
+}
+
+enum ComplianceStatus {
+  PENDING
+  PASSED
+  FAILED
+  MANUAL_REVIEW
+  EXPIRED
+}
+
+// ============================================
+// Analytics (MVP)
+// ============================================
+
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  eventType  String   // "lead_submitted", "bid_placed", "auction_resolved"
+  entityType String?  // "lead", "bid", "user"
+  entityId   String?
+  userId     String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+}

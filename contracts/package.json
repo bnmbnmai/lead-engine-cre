@@ -1,0 +1,21 @@
+{
+    "name": "contracts",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "compile": "hardhat compile",
+        "test": "hardhat test",
+        "coverage": "hardhat coverage",
+        "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+        "deploy:base-sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
+        "verify": "hardhat verify",
+        "clean": "hardhat clean"
+    },
+    "devDependencies": {
+        "@chainlink/contracts": "^1.1.0",
+        "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+        "@openzeppelin/contracts": "^5.0.1",
+        "hardhat": "^2.20.1",
+        "dotenv": "^16.4.5"
+    }
+}
