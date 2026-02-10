@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, MapPin, Clock, ArrowUpRight, Plus } from 'lucide-react';
+import { FileText, MapPin, Clock, ArrowUpRight, Plus, Download, CheckCircle, Send } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,38 @@ export function SellerLeads() {
     const [leads, setLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all');
+    const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
+    const [crmExporting, setCrmExporting] = useState(false);
+
+    const handleCrmExportAll = () => {
+        if (leads.length === 0) return;
+        setCrmExporting(true);
+        const headers = ['ID', 'Vertical', 'Country', 'State', 'Status', 'Source', 'Created At', 'Winning Bid'];
+        const rows = leads.map((l: any) => [
+            l.id,
+            l.vertical || '',
+            l.geo?.country || 'US',
+            l.geo?.state || '',
+            l.status || '',
+            l.source || '',
+            l.createdAt ? new Date(l.createdAt).toISOString() : '',
+            l.winningBid?.amount || '',
+        ].join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `crm-leads-export-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setTimeout(() => setCrmExporting(false), 1500);
+    };
+
+    const handleCrmPushSingle = (leadId: string) => {
+        setCrmPushed((prev) => new Set(prev).add(leadId));
+        // In production, this would POST to /api/v1/crm/push with the lead ID
+    };
 
     useEffect(() => {
         const fetchLeads = async () => {
@@ -63,6 +95,19 @@ export function SellerLeads() {
                                 Submit Lead
                             </Link>
                         </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={handleCrmExportAll}
+                            disabled={leads.length === 0 || crmExporting}
+                            className="gap-2"
+                        >
+                            {crmExporting ? (
+                                <><CheckCircle className="h-4 w-4 text-emerald-500" /> Exported!</>
+                            ) : (
+                                <><Download className="h-4 w-4" /> Push to CRM</>
+                            )}
+                        </Button>
                     </div>
                 </div>
 
@@ -91,7 +136,7 @@ export function SellerLeads() {
                                             <th className="text-left p-4 font-medium text-muted-foreground">Bids</th>
                                             <th className="text-left p-4 font-medium text-muted-foreground">Status</th>
                                             <th className="text-left p-4 font-medium text-muted-foreground">Created</th>
-                                            <th className="p-4"></th>
+                                            <th className="text-right p-4 font-medium text-muted-foreground">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border">
@@ -135,11 +180,27 @@ export function SellerLeads() {
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
-                                                    <Button variant="ghost" size="sm" asChild>
-                                                        <Link to={`/lead/${lead.id}`}>
-                                                            View <ArrowUpRight className="h-4 w-4 ml-1" />
-                                                        </Link>
-                                                    </Button>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleCrmPushSingle(lead.id)}
+                                                            disabled={crmPushed.has(lead.id)}
+                                                            className="gap-1"
+                                                            title="Push to CRM"
+                                                        >
+                                                            {crmPushed.has(lead.id) ? (
+                                                                <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Pushed</>
+                                                            ) : (
+                                                                <><Send className="h-3.5 w-3.5" /> CRM</>
+                                                            )}
+                                                        </Button>
+                                                        <Button variant="ghost" size="sm" asChild>
+                                                            <Link to={`/lead/${lead.id}`}>
+                                                                View <ArrowUpRight className="h-4 w-4 ml-1" />
+                                                            </Link>
+                                                        </Button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
