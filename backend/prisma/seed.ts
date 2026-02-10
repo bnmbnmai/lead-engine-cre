@@ -371,6 +371,72 @@ async function seedBids(leads: { id: string; status: string }[], buyerUsers: { i
     }
 }
 
+async function seedTransactions(leads: { id: string; status: string; winningBid: any; sellerId: string }[], buyerUsers: { id: string }[]) {
+    const soldLeads = leads.filter((l) => l.status === 'SOLD');
+    console.log(`  Creating transactions for ${soldLeads.length} sold leads...`);
+
+    for (const lead of soldLeads) {
+        const buyer = faker.helpers.arrayElement(buyerUsers);
+        const amount = lead.winningBid ? parseFloat(lead.winningBid.toString()) : faker.number.float({ min: 30, max: 200, fractionDigits: 2 });
+        const platformFee = +(amount * 0.05).toFixed(2);
+
+        try {
+            await prisma.transaction.create({
+                data: {
+                    leadId: lead.id,
+                    buyerId: buyer.id,
+                    amount,
+                    platformFee,
+                    currency: 'USDC',
+                    status: faker.helpers.arrayElement(['CONFIRMED', 'ESCROWED', 'RELEASED']),
+                    txHash: `0xMOCKTX${faker.string.hexadecimal({ length: 60, casing: 'lower' }).replace('0x', '')}`,
+                    chainId: 11155111,
+                    createdAt: faker.date.recent({ days: 60 }),
+                },
+            });
+        } catch {
+            // Unique constraint — skip
+        }
+    }
+}
+
+async function seedAnalyticsEvents(leads: { id: string; vertical: string; sellerId: string }[], buyerUsers: { id: string }[]) {
+    console.log('  Creating analytics events...');
+    let count = 0;
+
+    for (const lead of leads.slice(0, 100)) {
+        await prisma.analyticsEvent.create({
+            data: {
+                eventType: 'lead_submitted',
+                entityType: 'lead',
+                entityId: lead.id,
+                userId: lead.sellerId,
+                metadata: { vertical: lead.vertical },
+                createdAt: faker.date.recent({ days: 90 }),
+            },
+        });
+        count++;
+    }
+
+    for (let i = 0; i < 60; i++) {
+        const buyer = faker.helpers.arrayElement(buyerUsers);
+        const lead = faker.helpers.arrayElement(leads);
+        await prisma.analyticsEvent.create({
+            data: {
+                eventType: faker.helpers.arrayElement(['bid_placed', 'auction_resolved', 'lead_purchased']),
+                entityType: faker.helpers.arrayElement(['bid', 'lead']),
+                entityId: lead.id,
+                userId: buyer.id,
+                metadata: { vertical: lead.vertical, amount: faker.number.float({ min: 20, max: 200, fractionDigits: 2 }) },
+                createdAt: faker.date.recent({ days: 60 }),
+            },
+        });
+        count++;
+    }
+
+    console.log(`    ${count} analytics events created`);
+}
+
 // ─── Main Seed Runner ───────────────────────
 
 async function main() {
@@ -394,6 +460,8 @@ async function main() {
     console.log(`  • ${ASK_COUNT} asks (across ${GEO_CONFIGS.length} countries)`);
     console.log(`  • ${LEAD_COUNT} leads (10 verticals × global geos)`);
     console.log(`  • ${BID_COUNT} bids (on auction leads)`);
+    console.log(`  • Transactions for all SOLD leads`);
+    console.log(`  • ~160 analytics events`);
     console.log('');
 
     // 1. Users
@@ -416,8 +484,16 @@ async function main() {
     const leads = await seedLeads(sellers, asks, LEAD_COUNT);
 
     // 5. Bids
-    console.log('→ Step 5/5: Bids');
+    console.log('→ Step 5/7: Bids');
     await seedBids(leads, buyerUsers, BID_COUNT);
+
+    // 6. Transactions
+    console.log('→ Step 6/7: Transactions');
+    await seedTransactions(leads, buyerUsers);
+
+    // 7. Analytics events
+    console.log('→ Step 7/7: Analytics Events');
+    await seedAnalyticsEvents(leads, buyerUsers);
 
     // Summary
     const counts = {
@@ -427,6 +503,8 @@ async function main() {
         asks: await prisma.ask.count(),
         leads: await prisma.lead.count(),
         bids: await prisma.bid.count(),
+        transactions: await prisma.transaction.count(),
+        analyticsEvents: await prisma.analyticsEvent.count(),
     };
 
     console.log('');
@@ -434,6 +512,16 @@ async function main() {
     console.log('');
     console.log('  Database totals (including any pre-existing data):');
     Object.entries(counts).forEach(([k, v]) => console.log(`    ${k}: ${v}`));
+
+    // Write JSON example snapshot
+    const sampleLeads = await prisma.lead.findMany({ take: 5, orderBy: { createdAt: 'desc' }, include: { bids: { take: 2 } } });
+    const sampleAsks = await prisma.ask.findMany({ take: 3, orderBy: { createdAt: 'desc' } });
+    const example = { _note: 'Auto-generated mock data snapshot (TEST_MODE only)', summary: counts, sampleLeads, sampleAsks };
+    const fs = await import('fs');
+    const path = await import('path');
+    const outPath = path.join(__dirname, 'seed-example.json');
+    fs.writeFileSync(outPath, JSON.stringify(example, null, 2));
+    console.log(`\n  📄 JSON example written to ${outPath}`);
     console.log('');
     console.log('  📌 Mock users use wallet prefix 0xMOCK...');
     console.log('     and email domain @mockdemo.test');
