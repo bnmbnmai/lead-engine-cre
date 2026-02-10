@@ -183,11 +183,45 @@ const zh = { translation: { ...en.translation, common: { ...en.translation.commo
 const ar = { translation: { ...en.translation, common: { ...en.translation.common, loading: 'جار التحميل...' } } };
 
 // ============================================
+// Expanded Locale Stubs (EU + APAC coverage)
+// ============================================
+
+const de = {
+    translation: {
+        ...en.translation,
+        common: { ...en.translation.common, loading: 'Laden...', error: 'Fehler', success: 'Erfolg', cancel: 'Abbrechen', save: 'Speichern', submit: 'Einreichen', search: 'Suche', filter: 'Filter' },
+        nav: { ...en.translation.nav, home: 'Startseite', marketplace: 'Marktplatz', dashboard: 'Dashboard', analytics: 'Analytik' },
+        auth: { ...en.translation.auth, connectWallet: 'Wallet verbinden', signOut: 'Abmelden', kycRequired: 'KYC-Verifizierung erforderlich' },
+        verticals: { solar: 'Solar', mortgage: 'Hypothek', roofing: 'Dachdeckung', insurance: 'Versicherung', homeServices: 'Hausservice', b2bSaas: 'B2B SaaS', realEstate: 'Immobilien', auto: 'Auto', legal: 'Recht', financial: 'Finanzen' },
+    },
+};
+
+const fr = {
+    translation: {
+        ...en.translation,
+        common: { ...en.translation.common, loading: 'Chargement...', error: 'Erreur', success: 'Succès', cancel: 'Annuler', save: 'Enregistrer', submit: 'Soumettre', search: 'Recherche', filter: 'Filtre' },
+        nav: { ...en.translation.nav, home: 'Accueil', marketplace: 'Marché', dashboard: 'Tableau de bord', analytics: 'Analytique' },
+        auth: { ...en.translation.auth, connectWallet: 'Connecter le portefeuille', signOut: 'Déconnexion', kycRequired: 'Vérification KYC requise' },
+        verticals: { solar: 'Solaire', mortgage: 'Hypothèque', roofing: 'Toiture', insurance: 'Assurance', homeServices: 'Services à domicile', b2bSaas: 'B2B SaaS', realEstate: 'Immobilier', auto: 'Auto', legal: 'Juridique', financial: 'Finance' },
+    },
+};
+
+const ja = {
+    translation: {
+        ...en.translation,
+        common: { ...en.translation.common, loading: '読み込み中...', error: 'エラー', success: '成功', cancel: 'キャンセル', save: '保存', submit: '送信', search: '検索', filter: 'フィルター' },
+        nav: { ...en.translation.nav, home: 'ホーム', marketplace: 'マーケットプレイス', dashboard: 'ダッシュボード', analytics: '分析' },
+        auth: { ...en.translation.auth, connectWallet: 'ウォレット接続', signOut: 'サインアウト', kycRequired: 'KYC認証が必要です' },
+        verticals: { solar: 'ソーラー', mortgage: '住宅ローン', roofing: '屋根', insurance: '保険', homeServices: 'ホームサービス', b2bSaas: 'B2B SaaS', realEstate: '不動産', auto: '自動車', legal: '法律', financial: '金融' },
+    },
+};
+
+// ============================================
 // i18n Setup
 // ============================================
 
 i18n.use(initReactI18next).init({
-    resources: { en, es, pt, zh, ar },
+    resources: { en, es, pt, zh, ar, de, fr, ja },
     lng: 'en',
     fallbackLng: 'en',
     interpolation: {

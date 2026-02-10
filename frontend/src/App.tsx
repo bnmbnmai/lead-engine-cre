@@ -5,6 +5,8 @@ import { wagmiConfig } from '@/lib/wagmi';
 import { AuthProvider } from '@/hooks/useAuth';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import '@/lib/i18n';
+import { initSentry } from '@/lib/sentry';
+initSentry();
 
 // Pages
 import HomePage from '@/pages/HomePage';

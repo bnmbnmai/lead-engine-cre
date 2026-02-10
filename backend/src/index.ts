@@ -9,6 +9,41 @@ import swaggerUi from 'swagger-ui-express';
 import { prisma } from './lib/prisma';
 import RTBSocketServer from './rtb/socket';
 
+// Load environment variables FIRST
+dotenv.config();
+
+// ─── Sentry Monitoring ───────────────────────────────────────
+let Sentry: any = null;
+if (process.env.SENTRY_DSN) {
+    try {
+        Sentry = require('@sentry/node');
+        Sentry.init({
+            dsn: process.env.SENTRY_DSN,
+            environment: process.env.NODE_ENV || 'development',
+            tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
+            integrations: [
+                ...(Sentry.autoDiscoverNodePerformanceMonitoringIntegrations?.() ?? []),
+            ],
+            beforeSend(event: any) {
+                // Scrub PII from Sentry events
+                if (event.request?.data) {
+                    const sensitive = ['ssn', 'password', 'privateKey', 'secret'];
+                    for (const key of sensitive) {
+                        if (event.request.data[key]) event.request.data[key] = '[REDACTED]';
+                    }
+                }
+                return event;
+            },
+        });
+        console.log('  ✅ Sentry monitoring initialized');
+    } catch {
+        console.log('  ⚠️  Sentry SDK not installed — monitoring disabled');
+        Sentry = null;
+    }
+}
+export { Sentry };
+// ─────────────────────────────────────────────────────────────
+
 // Routes
 import authRoutes from './routes/auth.routes';
 import marketplaceRoutes from './routes/marketplace.routes';
@@ -19,9 +54,6 @@ import crmRoutes from './routes/crm.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
@@ -127,6 +159,11 @@ app.post('/api/v1/rtb/bid', (req: Request, res: Response) => {
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error('Error:', err.message);
     console.error('Stack:', err.stack);
+
+    // Report to Sentry
+    if (Sentry) {
+        Sentry.captureException(err);
+    }
 
     res.status(500).json({
         error: 'Internal server error',

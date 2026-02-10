@@ -219,22 +219,115 @@ router.delete('/webhooks/:id', authMiddleware, async (req: AuthenticatedRequest,
 // CRM Webhook Fire — Called on lead status change
 // ============================================
 
+// ─── Webhook Hardening: Rate Limit + Retry + Circuit Breaker ───
+
+const WEBHOOK_RATE_LIMIT = 60; // max fires per minute per webhook
+const WEBHOOK_RATE_WINDOW_MS = 60_000;
+const WEBHOOK_MAX_RETRIES = 3;
+const WEBHOOK_CIRCUIT_THRESHOLD = 5; // consecutive failures to trip
+const WEBHOOK_CIRCUIT_COOLDOWN_MS = 5 * 60_000; // 5 minutes
+
+interface WebhookHealth {
+    fires: number[];           // timestamps of recent fires
+    consecutiveFailures: number;
+    circuitOpenUntil: number;  // timestamp when circuit re-closes
+}
+
+const webhookHealthMap = new Map<string, WebhookHealth>();
+
+function getWebhookHealth(id: string): WebhookHealth {
+    if (!webhookHealthMap.has(id)) {
+        webhookHealthMap.set(id, { fires: [], consecutiveFailures: 0, circuitOpenUntil: 0 });
+    }
+    return webhookHealthMap.get(id)!;
+}
+
+function isRateLimited(health: WebhookHealth): boolean {
+    const now = Date.now();
+    health.fires = health.fires.filter((t) => now - t < WEBHOOK_RATE_WINDOW_MS);
+    return health.fires.length >= WEBHOOK_RATE_LIMIT;
+}
+
+function isCircuitOpen(health: WebhookHealth): boolean {
+    if (health.circuitOpenUntil === 0) return false;
+    if (Date.now() >= health.circuitOpenUntil) {
+        // Cooldown expired — half-open: allow one attempt
+        health.circuitOpenUntil = 0;
+        health.consecutiveFailures = 0;
+        return false;
+    }
+    return true;
+}
+
+async function fetchWithRetry(url: string, body: string, retries = WEBHOOK_MAX_RETRIES): Promise<void> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+                signal: AbortSignal.timeout(10000),
+            });
+            if (resp.ok) return;
+            // Only retry on 5xx (server errors)
+            if (resp.status >= 500 && attempt < retries) {
+                await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+                continue;
+            }
+            throw new Error(`HTTP ${resp.status}`);
+        } catch (err: any) {
+            if (attempt >= retries) throw err;
+            // Retry on network errors
+            if (err.name === 'AbortError' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+                await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+                continue;
+            }
+            throw err;
+        }
+    }
+}
+
 export async function fireCRMWebhooks(eventType: string, leads: any[]) {
     const activeWebhooks = webhookStore.filter(
         (w) => w.active && w.events.includes(eventType)
     );
 
     for (const webhook of activeWebhooks) {
+        const health = getWebhookHealth(webhook.id);
+
+        // Circuit breaker check
+        if (isCircuitOpen(health)) {
+            console.warn(`[Webhook] ${webhook.id} circuit OPEN — skipping until ${new Date(health.circuitOpenUntil).toISOString()}`);
+            continue;
+        }
+
+        // Rate limit check
+        if (isRateLimited(health)) {
+            console.warn(`[Webhook] ${webhook.id} rate limited (${WEBHOOK_RATE_LIMIT}/min) — skipping`);
+            continue;
+        }
+
         try {
             const payload = formatWebhookPayload(webhook.format, leads);
-            await fetch(webhook.url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                signal: AbortSignal.timeout(10000),
-            });
+            await fetchWithRetry(webhook.url, JSON.stringify(payload));
+            health.fires.push(Date.now());
+            health.consecutiveFailures = 0; // reset on success
         } catch (err: any) {
-            console.error(`Webhook ${webhook.id} failed:`, err.message);
+            health.consecutiveFailures++;
+            console.error(JSON.stringify({
+                event: 'webhook_failure',
+                webhookId: webhook.id,
+                url: webhook.url,
+                error: err.message,
+                consecutiveFailures: health.consecutiveFailures,
+                timestamp: new Date().toISOString(),
+            }));
+
+            // Trip circuit breaker
+            if (health.consecutiveFailures >= WEBHOOK_CIRCUIT_THRESHOLD) {
+                health.circuitOpenUntil = Date.now() + WEBHOOK_CIRCUIT_COOLDOWN_MS;
+                console.error(`[Webhook] ${webhook.id} circuit TRIPPED after ${WEBHOOK_CIRCUIT_THRESHOLD} failures — cooldown ${WEBHOOK_CIRCUIT_COOLDOWN_MS / 1000}s`);
+            }
         }
     }
 }
