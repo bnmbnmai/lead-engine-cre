@@ -32,6 +32,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     const [preferences, setPreferences] = useState({
         verticals: [] as string[],
         geoFilters: {
+            country: 'US',
             states: [] as string[],
             excludeStates: [] as string[],
         },
@@ -115,14 +116,21 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
             <Card>
                 <CardHeader>
                     <CardTitle>Geographic Filters</CardTitle>
-                    <CardDescription>Target or exclude specific states</CardDescription>
+                    <CardDescription>Target or exclude regions across any supported country</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div>
-                        <label className="text-sm font-medium mb-3 block">Include States</label>
+                        <label className="text-sm font-medium mb-3 block">Include Regions</label>
                         <GeoFilter
-                            selected={preferences.geoFilters.states}
-                            onChange={(states) =>
+                            country={preferences.geoFilters.country}
+                            onCountryChange={(country) =>
+                                setPreferences((prev) => ({
+                                    ...prev,
+                                    geoFilters: { ...prev.geoFilters, country, states: [], excludeStates: [] },
+                                }))
+                            }
+                            selectedRegions={preferences.geoFilters.states}
+                            onRegionsChange={(states) =>
                                 setPreferences((prev) => ({
                                     ...prev,
                                     geoFilters: { ...prev.geoFilters, states },
@@ -133,16 +141,19 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                     </div>
 
                     <div>
-                        <label className="text-sm font-medium mb-3 block">Exclude States</label>
+                        <label className="text-sm font-medium mb-3 block">Exclude Regions</label>
                         <GeoFilter
-                            selected={preferences.geoFilters.excludeStates}
-                            onChange={(excludeStates) =>
+                            country={preferences.geoFilters.country}
+                            onCountryChange={() => { }}
+                            selectedRegions={preferences.geoFilters.excludeStates}
+                            onRegionsChange={(excludeStates) =>
                                 setPreferences((prev) => ({
                                     ...prev,
                                     geoFilters: { ...prev.geoFilters, excludeStates },
                                 }))
                             }
                             mode="exclude"
+                            showCountrySelector={false}
                         />
                     </div>
                 </CardContent>

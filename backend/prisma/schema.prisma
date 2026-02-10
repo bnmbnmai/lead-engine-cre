@@ -83,7 +83,7 @@ model BuyerProfile {
   
   // Filtering preferences
   verticals         String[] // ["solar", "mortgage", "roofing"]
-  geoFilters        Json?    // { "states": ["CA", "TX"], "excludeZips": ["90210"] }
+  geoFilters        Json?    // { "country": "US", "states": ["CA", "TX"], "excludeStates": ["NY"] }
   
   // Budget settings
   budgetMin         Decimal? @db.Decimal(10, 2)
@@ -146,7 +146,7 @@ model Ask {
   
   // What the seller is looking for
   vertical        String
-  geoTargets      Json      // { "states": ["CA"], "radius": { "lat": 34.0, "lng": -118.2, "miles": 50 } }
+  geoTargets      Json      // { "country": "US", "states": ["CA"], "radius": { "lat": 34.0, "lng": -118.2, "miles": 50 } }
   
   // Pricing
   reservePrice    Decimal   @db.Decimal(10, 2)
@@ -194,7 +194,7 @@ model Lead {
   sellerId        String
   askId           String?     // Optional link to Ask
   vertical        String      // "solar", "mortgage", "roofing", etc.
-  geo             Json        // { "state": "CA", "zip": "90210", "city": "Beverly Hills", "geoHash": "9q5" }
+  geo             Json        // { "country": "US", "state": "CA", "zip": "90210", "city": "Beverly Hills", "region": "West" }
   source          LeadSource  @default(PLATFORM)
   status          LeadStatus  @default(PENDING_AUCTION)
   

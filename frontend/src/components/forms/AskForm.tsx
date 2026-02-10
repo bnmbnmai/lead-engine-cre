@@ -16,6 +16,7 @@ const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services',
 const askSchema = z.object({
     vertical: z.string().min(1, 'Select a vertical'),
     geoTargets: z.object({
+        country: z.string().length(2).default('US'),
         states: z.array(z.string()).optional(),
     }),
     reservePrice: z.number().positive('Reserve price required'),
@@ -41,7 +42,7 @@ export function AskForm({ onSuccess }: AskFormProps) {
     const { register, handleSubmit, control, formState: { errors } } = useForm<AskFormData>({
         resolver: zodResolver(askSchema),
         defaultValues: {
-            geoTargets: { states: [] },
+            geoTargets: { country: 'US', states: [] },
             acceptOffSite: true,
             auctionDuration: 3600,
             revealWindow: 900,
@@ -135,16 +136,22 @@ export function AskForm({ onSuccess }: AskFormProps) {
                             </div>
 
                             <div>
-                                <label className="text-sm font-medium mb-2 block">Target States</label>
+                                <label className="text-sm font-medium mb-2 block">Target Geography</label>
                                 <Controller
-                                    name="geoTargets.states"
+                                    name="geoTargets"
                                     control={control}
                                     render={({ field }) => (
-                                        <GeoFilter selected={field.value || []} onChange={field.onChange} mode="include" />
+                                        <GeoFilter
+                                            country={field.value?.country || 'US'}
+                                            onCountryChange={(country) => field.onChange({ ...field.value, country, states: [] })}
+                                            selectedRegions={field.value?.states || []}
+                                            onRegionsChange={(states) => field.onChange({ ...field.value, states })}
+                                            mode="include"
+                                        />
                                     )}
                                 />
                                 <p className="text-xs text-muted-foreground mt-2">
-                                    Leave empty to accept leads from all states
+                                    Select a country and optionally narrow by region. Leave regions empty to accept all.
                                 </p>
                             </div>
                         </div>
