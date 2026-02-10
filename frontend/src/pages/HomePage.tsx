@@ -26,13 +26,18 @@ const COUNTRIES = [
     { code: 'FR', label: 'France' },
     { code: 'BR', label: 'Brazil' },
     { code: 'MX', label: 'Mexico' },
+    { code: 'AR', label: 'Argentina' },
+    { code: 'CL', label: 'Chile' },
     { code: 'IN', label: 'India' },
     { code: 'JP', label: 'Japan' },
     { code: 'KR', label: 'South Korea' },
     { code: 'SG', label: 'Singapore' },
+    { code: 'ID', label: 'Indonesia' },
+    { code: 'PH', label: 'Philippines' },
     { code: 'AE', label: 'UAE' },
     { code: 'ZA', label: 'South Africa' },
     { code: 'NG', label: 'Nigeria' },
+    { code: 'KE', label: 'Kenya' },
 ];
 
 const US_STATES = ['All', 'CA', 'TX', 'FL', 'NY', 'AZ', 'NV', 'CO', 'WA', 'OR', 'GA', 'IL', 'PA', 'OH', 'NC'];
@@ -58,25 +63,25 @@ const FEATURES = [
     {
         icon: Zap,
         title: 'CRE — Lead Verification Engine',
-        description: 'Real-time TCPA compliant quality scoring with on-chain data integrity proofs.',
+        description: 'On-chain quality scoring (0–10,000) with TCPA compliance proofs. Buyers see verified scores before bidding.',
         color: 'from-blue-500 to-cyan-400',
     },
     {
         icon: Shield,
         title: 'ACE — Autonomous Compliance',
-        description: 'Cross-border KYC, MiCA attestation, and reputation-based access control for every market.',
+        description: 'Cross-border KYC, MiCA attestation, and state-level jurisdiction enforcement — automatic for every trade.',
         color: 'from-emerald-500 to-teal-400',
     },
     {
         icon: Lock,
-        title: 'ZK Privacy Layer',
-        description: 'AES-256-GCM encrypted bids with zero-knowledge proofs. Your data stays yours.',
+        title: 'Auto-Bid + ZK Privacy',
+        description: 'Set rules once — bids fire instantly on matching leads. AES-256-GCM encryption ensures your strategy stays private.',
         color: 'from-violet-500 to-purple-400',
     },
     {
         icon: Globe,
-        title: '15+ Global Markets',
-        description: 'US, EU, APAC, LATAM, Africa — compliant lead trading across jurisdictions.',
+        title: '20+ Global Markets',
+        description: 'US, EU, LATAM, APAC, Africa — including new markets in Argentina, Indonesia, Philippines, Chile, and Kenya.',
         color: 'from-orange-500 to-amber-400',
     },
 ];
@@ -84,8 +89,8 @@ const FEATURES = [
 const STATS = [
     { label: 'Active Leads', value: '2,847' },
     { label: 'Avg Bid', value: '$127' },
-    { label: 'Countries', value: '15+' },
-    { label: 'Verticals', value: '8' },
+    { label: 'Countries', value: '20+' },
+    { label: 'Verticals', value: '10' },
 ];
 
 // ============================================
@@ -122,9 +127,9 @@ function LandingHero() {
 
                     {/* Subtext */}
                     <p className="text-center text-base sm:text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">
-                        The first institutional-grade lead marketplace powered by Chainlink oracles.
-                        Verified leads, encrypted sealed-bid auctions, and autonomous compliance —
-                        across 15+ countries and 8 verticals.
+                        Serving a <span className="text-foreground font-semibold">$200B+</span> lead generation market.
+                        Verified leads, auto-bid automation, instant x402 settlements, and
+                        autonomous compliance — across 20+ countries and 10 verticals.
                     </p>
 
                     {/* CTAs */}
@@ -164,8 +169,8 @@ function LandingHero() {
                 <div className="text-center mb-12">
                     <h2 className="text-2xl sm:text-3xl font-bold mb-3">Built Different</h2>
                     <p className="text-muted-foreground max-w-xl mx-auto">
-                        Not another SaaS marketplace. Lead Engine is infrastructure — on-chain verification,
-                        privacy-preserving auctions, and autonomous compliance from day one.
+                        Not another SaaS marketplace. Lead Engine is trust infrastructure for a $200B+ industry —
+                        on-chain verification, auto-bid automation, and instant USDC settlements from day one.
                     </p>
                 </div>
 
@@ -192,9 +197,9 @@ function LandingHero() {
                     <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">How It Works</h2>
                     <div className="grid sm:grid-cols-3 gap-8 text-center">
                         {[
-                            { step: '01', title: 'Submit or Browse', desc: 'Sellers submit verified leads. Buyers browse live auctions filtered by vertical, geography, and quality.' },
-                            { step: '02', title: 'Sealed-Bid Auction', desc: 'Place encrypted bids with ZK proofs. ACE validates compliance and reputation before matching.' },
-                            { step: '03', title: 'On-Chain Settlement', desc: 'Winning bids settle via x402 escrow on Base Sepolia. PII revealed only to the winner.' },
+                            { step: '01', title: 'Submit or Browse', desc: 'Sellers submit verified leads across 10 verticals. Buyers browse live auctions filtered by vertical, geography, and quality score.' },
+                            { step: '02', title: 'Auto-Bid or Seal', desc: 'Set auto-bid rules to fire instantly on matching leads — or place encrypted sealed bids with ZK proofs. ACE validates compliance automatically.' },
+                            { step: '03', title: 'Instant Settlement', desc: 'Winning bids settle via x402 USDC escrow in seconds. Sellers reinvest in their next ad campaign instantly. PII revealed only to the winner.' },
                         ].map((item) => (
                             <div key={item.step}>
                                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#375BD2]/20 text-[#375BD2] font-bold text-lg mb-4">
@@ -213,7 +218,8 @@ function LandingHero() {
                 <div className="text-center">
                     <h2 className="text-2xl sm:text-3xl font-bold mb-4">Ready to trade leads on-chain?</h2>
                     <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
-                        Connect your wallet to access the global marketplace. No sign-up forms, no gatekeeping.
+                        Connect your wallet to access 20+ markets. Auto-bid on leads while you sleep.
+                        Instant USDC settlements. No sign-up forms, no gatekeeping.
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Button variant="gradient" size="lg" className="w-full sm:w-auto text-base px-8 py-6 gap-2" asChild>
@@ -287,7 +293,7 @@ export function HomePage() {
     const marketplaceStats = [
         { label: 'Active Leads', value: '2,847', icon: Zap, color: 'text-primary' },
         { label: 'Avg. Bid', value: '$127', icon: TrendingUp, color: 'text-emerald-500' },
-        { label: 'Countries', value: '15+', icon: Globe, color: 'text-chainlink-steel' },
+        { label: 'Countries', value: '20+', icon: Globe, color: 'text-chainlink-steel' },
     ];
 
     // ─── Signed-out: show landing page ─────────

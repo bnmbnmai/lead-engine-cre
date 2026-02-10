@@ -54,7 +54,7 @@ export function BuyerDashboard() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Buyer Dashboard</h1>
-                        <p className="text-muted-foreground">Track your bids and discover new leads</p>
+                        <p className="text-muted-foreground">Track bids, auto-bid activity, and CRM pipeline</p>
                     </div>
                     <div className="flex items-center gap-3">
                         <CRMExportButton />

@@ -168,8 +168,9 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                 <CardHeader>
                     <CardTitle>Preference Sets</CardTitle>
                     <CardDescription>
-                        Create one set per vertical / geo combination. Each set has its own budget, auto-bid config,
-                        and quality filters. Sets are matched in priority order (top = highest).
+                        Create one set per vertical / geo combination. Enable auto-bid to place bids automatically
+                        when matching leads appear. Each set has its own budget cap, quality gate (0–10,000), and geo
+                        targeting. Sets are matched in priority order (top = highest).
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

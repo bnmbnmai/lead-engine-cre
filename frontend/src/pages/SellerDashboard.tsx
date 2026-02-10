@@ -65,7 +65,7 @@ export function SellerDashboard() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Seller Dashboard</h1>
-                        <p className="text-muted-foreground">Pipeline, auctions, and analytics</p>
+                        <p className="text-muted-foreground">Pipeline, auctions, and instant USDC settlements via x402</p>
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" asChild>
