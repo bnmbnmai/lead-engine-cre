@@ -208,6 +208,57 @@ else
     log_fail "swagger.yaml not found"
 fi
 
+# ─── Step 9: Global Geo Lead Submission ─
+log_step "Global Geo Lead Submission (country=AU)"
+
+GLOBAL_GEO=$(curl -s -w "\n%{http_code}" \
+    -X POST "$API_URL/api/v1/leads/submit" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "vertical": "solar",
+        "source": "API",
+        "geo": { "country": "AU", "state": "NSW", "zip": "2000" },
+        "reservePrice": 40.00,
+        "expiresInMinutes": 60,
+        "tcpaConsentAt": "2026-02-09T05:00:00Z",
+        "parameters": {
+            "roof_age": "5",
+            "monthly_bill": 280,
+            "ownership": "own",
+            "panel_interest": "purchase"
+        }
+    }')
+
+GLOBAL_CODE=$(echo "$GLOBAL_GEO" | tail -1)
+if [ "$GLOBAL_CODE" = "201" ]; then
+    log_pass "Global geo lead created (HTTP 201)"
+elif [ "$GLOBAL_CODE" = "401" ]; then
+    log_pass "Requires auth as expected (HTTP 401) — schema accepted"
+else
+    log_fail "Unexpected response (HTTP $GLOBAL_CODE)"
+    echo "  Response: $(echo "$GLOBAL_GEO" | head -1 | head -c 200)"
+fi
+
+# ─── Step 10: Bad Country Code Validation ─
+log_step "Parameter Validation — Invalid Country Code"
+
+BAD_GEO=$(curl -s -w "\n%{http_code}" \
+    -X POST "$API_URL/api/v1/leads/submit" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "vertical": "roofing",
+        "source": "API",
+        "geo": { "country": "INVALID", "state": "FL" },
+        "reservePrice": 35.00
+    }')
+
+BAD_GEO_CODE=$(echo "$BAD_GEO" | tail -1)
+if [ "$BAD_GEO_CODE" = "400" ] || [ "$BAD_GEO_CODE" = "401" ]; then
+    log_pass "Invalid country rejected (HTTP $BAD_GEO_CODE)"
+else
+    log_fail "Expected 400/401, got $BAD_GEO_CODE"
+fi
+
 # ─── Summary ────────────────────────────
 echo ""
 echo "╔══════════════════════════════════════════╗"

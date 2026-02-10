@@ -16,8 +16,18 @@ const TABS: { key: SourceTab; label: string; icon: React.ElementType; desc: stri
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-function CurlExample({ vertical = 'roofing', state = 'FL' }: { vertical?: string; state?: string }) {
+function CurlExample({ vertical = 'roofing', state = 'FL', country = 'US', zip = '33101', params = {} as Record<string, unknown> }: {
+    vertical?: string; state?: string; country?: string; zip?: string; params?: Record<string, unknown>;
+}) {
     const [copied, setCopied] = useState(false);
+
+    const paramsStr = Object.keys(params).length > 0
+        ? JSON.stringify(params, null, 6).replace(/^/gm, '    ').trim()
+        : `{
+      "roof_type": "shingle",
+      "damage_type": "storm",
+      "insurance_claim": true
+    }`;
 
     const curlCmd = `curl -X POST ${API_BASE}/api/v1/leads/submit \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
@@ -25,15 +35,11 @@ function CurlExample({ vertical = 'roofing', state = 'FL' }: { vertical?: string
   -d '{
     "vertical": "${vertical}",
     "source": "API",
-    "geo": { "state": "${state}", "zip": "33101" },
+    "geo": { "country": "${country}", "state": "${state}", "zip": "${zip}" },
     "reservePrice": 35.00,
     "expiresInMinutes": 60,
     "tcpaConsentAt": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
-    "parameters": {
-      "roof_type": "shingle",
-      "damage_type": "storm",
-      "insurance_claim": true
-    }
+    "parameters": ${paramsStr}
   }'`;
 
     const handleCopy = () => {
@@ -81,8 +87,8 @@ export function SellerSubmit() {
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === tab.key
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
                         >
                             <tab.icon className="h-4 w-4" />
@@ -146,8 +152,10 @@ export function SellerSubmit() {
                                             <tbody className="divide-y divide-border">
                                                 <tr><td className="p-3 font-mono text-xs">vertical</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">solar, mortgage, roofing, insurance, etc.</td></tr>
                                                 <tr><td className="p-3 font-mono text-xs">source</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">"API" for programmatic submissions</td></tr>
-                                                <tr><td className="p-3 font-mono text-xs">geo.state</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">2-letter US state code (e.g. "FL")</td></tr>
-                                                <tr><td className="p-3 font-mono text-xs">geo.zip</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">5-digit ZIP (optional, improves matching)</td></tr>
+                                                <tr><td className="p-3 font-mono text-xs">geo.country</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">ISO 3166-1 alpha-2 (e.g. "US", "GB", "AU")</td></tr>
+                                                <tr><td className="p-3 font-mono text-xs">geo.state</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">State/province code (e.g. "FL", "ON", "NSW")</td></tr>
+                                                <tr><td className="p-3 font-mono text-xs">geo.region</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">Free-text region (for countries without state lists)</td></tr>
+                                                <tr><td className="p-3 font-mono text-xs">geo.zip</td><td className="p-3 text-muted-foreground">string</td><td className="p-3 text-muted-foreground">Postal code — any format (ZIP, postcode, etc.)</td></tr>
                                                 <tr><td className="p-3 font-mono text-xs">reservePrice</td><td className="p-3 text-muted-foreground">number</td><td className="p-3 text-muted-foreground">Min acceptable bid in USDC</td></tr>
                                                 <tr><td className="p-3 font-mono text-xs">tcpaConsentAt</td><td className="p-3 text-muted-foreground">datetime</td><td className="p-3 text-muted-foreground">ISO 8601 timestamp of consent</td></tr>
                                                 <tr><td className="p-3 font-mono text-xs">parameters</td><td className="p-3 text-muted-foreground">object</td><td className="p-3 text-muted-foreground">Vertical-specific fields (roof_type, loan_type, etc.)</td></tr>
@@ -157,10 +165,30 @@ export function SellerSubmit() {
                                     </div>
                                 </div>
 
-                                {/* Curl Example */}
                                 <div>
-                                    <h3 className="text-sm font-semibold mb-2">Example: Roofing Lead (FL)</h3>
-                                    <CurlExample vertical="roofing" state="FL" />
+                                    <div className="flex gap-2 mb-3">
+                                        <span className="text-sm font-semibold">Example: Roofing Lead (US/FL)</span>
+                                    </div>
+                                    <CurlExample vertical="roofing" state="FL" country="US" zip="33101" />
+                                </div>
+
+                                <div>
+                                    <div className="flex gap-2 mb-3">
+                                        <span className="text-sm font-semibold">Example: Solar Lead (AU/NSW)</span>
+                                    </div>
+                                    <CurlExample
+                                        vertical="solar"
+                                        state="NSW"
+                                        country="AU"
+                                        zip="2000"
+                                        params={{
+                                            roof_age: '5',
+                                            monthly_bill: 280,
+                                            ownership: 'own',
+                                            panel_interest: 'purchase',
+                                            shade_level: 'none',
+                                        }}
+                                    />
                                 </div>
 
                                 {/* Response */}
@@ -217,16 +245,15 @@ export function SellerSubmit() {
                             </CardContent>
                         </Card>
 
-                        {/* Swagger Link */}
                         <div className="text-center">
                             <a
-                                href="/swagger.yaml"
+                                href={`${API_BASE}/api/swagger`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                             >
                                 <ExternalLink className="h-4 w-4" />
-                                View Full OpenAPI Spec (Swagger)
+                                View Full OpenAPI Spec (Swagger UI)
                             </a>
                         </div>
                     </div>

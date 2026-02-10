@@ -111,7 +111,10 @@ export function SellerLeads() {
                                                 <td className="p-4">
                                                     <div className="flex items-center gap-1 text-sm">
                                                         <MapPin className="h-3 w-3 text-muted-foreground" />
-                                                        {lead.geo?.city && `${lead.geo.city}, `}{lead.geo?.state || 'Unknown'}
+                                                        {lead.geo?.country && lead.geo.country !== 'US' && (
+                                                            <span className="text-xs text-muted-foreground">{lead.geo.country} ·</span>
+                                                        )}
+                                                        {lead.geo?.city && `${lead.geo.city}, `}{lead.geo?.state || lead.geo?.region || 'Unknown'}
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
