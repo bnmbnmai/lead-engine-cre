@@ -10,11 +10,11 @@
 
 **Show:** Landing page hero — "Decentralized Lead RTB / Global. Compliant. Private."
 **Actions:**
-1. Load homepage (signed out) → stats bar (2,847 active leads, $127 avg bid, 15+ countries, 8 verticals)
-2. Quick scroll through feature cards (CRE, ACE, ZK Privacy, 15+ Global Markets)
+1. Load homepage (signed out) → stats bar (2,847 active leads, $127 avg bid, 20+ countries, 10 verticals)
+2. Quick scroll through feature cards (CRE, ACE, Auto-Bid + ZK Privacy, 20+ Global Markets)
 
 **Say:**
-> "Lead Engine is a decentralized RTB platform for the $100 billion lead marketplace. Today, lead trading relies on opaque intermediaries — no trust, no privacy, no compliance. We're fixing that with Chainlink."
+> "Lead Engine is a decentralized RTB platform for the $200 billion-plus lead marketplace. Today, lead trading relies on opaque intermediaries — no trust, no privacy, no compliance. We're fixing that with Chainlink."
 
 ---
 
@@ -106,7 +106,20 @@
 
 ---
 
-## Scene 7: CRM Webhooks + Testnet Sim (2:45 – 3:10)
+## Scene 6B: Instant Settlement Benefit (2:45 – 2:55)
+
+**Show:** Seller Dashboard — settlement confirmation + wallet balance
+**Actions:**
+1. Point to the settlement timestamp — seconds, not days
+2. Highlight the USDC balance increase in wallet
+3. Show the "reinvest" narrative: seller goes to Google Ads tab
+
+**Say:**
+> "Settlement took 4 seconds. In a traditional marketplace, this seller would wait 7-30 days for a check. With x402, USDC hits their wallet instantly — and they reinvest in their next ad campaign before their competitor even knows the lead was sold."
+
+---
+
+## Scene 7: CRM Webhooks + Testnet Sim (2:55 – 3:15)
 
 **Show:** Buyer Dashboard → CRM webhook config + testnet sim output
 **Actions:**
@@ -120,25 +133,25 @@
 
 ---
 
-## Scene 8: Global Scale + Testing (3:10 – 3:35)
+## Scene 8: Global Scale + Testing (3:15 – 3:35)
 
 **Show:** Marketplace filters + test results
 **Actions:**
-1. Show 10 verticals × 15+ countries in dropdowns
+1. Show 10 verticals × 20+ countries in dropdowns
 2. Security sim: 29/29 passing
-3. Artillery: 13 scenarios, 1,500 concurrent users
-4. 200+ mock data entries seeded
+3. Artillery: 23+ scenarios, 10K concurrent users
+4. 53+ Cypress UI tests, 200+ mock data entries
 
 **Say:**
-> "10 verticals, 15 countries, 29 security tests, 1,500 concurrent users validated. This isn't a prototype — it's production-grade infrastructure."
+> "10 verticals, 20 countries, 29 security tests, 10,000 concurrent users validated. This isn't a prototype — it's production-grade infrastructure."
 
 ---
 
-## Scene 9: Close (3:35 – 3:50)
+## Scene 9: Close (3:35 – 3:55)
 
 **Show:** Architecture diagram + repo link
 **Say:**
-> "Lead Engine combines Chainlink CRE, ACE, DECO, Data Streams, Confidential Compute, ZK proofs, and NFT tokenization to build the trust layer the lead marketplace needs. Repo at github.com/bnmbnmai/lead-engine-cre. Thank you."
+> "Lead Engine disrupts the $200 billion lead marketplace with instant x402 settlements, 9-criteria auto-bidding, and ZK fraud proofs — powered by 5 Chainlink services. Sellers reinvest in seconds. Buyers bid while they sleep. Enterprises plug in via MCP. Repo at github.com/bnmbnmai/lead-engine-cre. Thank you."
 
 ---
 

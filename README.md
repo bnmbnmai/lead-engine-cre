@@ -169,6 +169,41 @@ All markets enforce ACE compliance (auto-KYC, jurisdiction policies, reputation 
 
 ---
 
+## 🚀 Why Use Lead Engine?
+
+### Vertical × Geo Examples
+
+| Vertical | Geo | Scenario | Lead Engine Advantage |
+|----------|-----|----------|----------------------|
+| **Solar** | 🇩🇪 Germany | Lead for 12kW rooftop in Bavaria | DECO attests subsidy eligibility without revealing income; auto-bid fires for 2 buyers within 90ms; USDC settles instantly so the seller funds the next Google Ads campaign |
+| **Mortgage** | 🇺🇸 US (FL → NY) | $450K refinance lead | ACE blocks NY buyer (cross-border licensing required); FL-licensed buyer auto-bids $120 at quality gate 6,000+; commit-reveal hides bid from competitors |
+| **Insurance** | 🇬🇧 UK | Life insurance lead, age 35 | MiCA compliance auto-checked; ZK proof confirms credit tier without exposing PII; lead minted as NFT for resale marketplace |
+| **B2B SaaS** | 🇧🇷 Brazil | Enterprise CRM demo request | LATAM geo targeting pre-filters; auto-bid set to $85 with daily budget $2,000; CRM webhook pushes to HubSpot on purchase |
+| **Auto** | 🇯🇵 Japan | Used vehicle loan inquiry | APAC geo burst handled at 10K concurrent; quality score 7,200 passes gate; MCP agent places bid programmatically via JSON-RPC |
+| **Real Estate** | 🇰🇪 Kenya | Commercial property listing | Africa-tier KYC + geo; seller receives USDC in seconds, bypassing 30-day wire transfer delays; reinvests in Facebook Lead Ads same day |
+
+### What Makes Us Different
+
+| Legacy Marketplace | Lead Engine |
+|-------------------|-------------|
+| 7-30 day payouts | **Seconds** via x402 USDC escrow |
+| Opaque pricing, bid manipulation | **Commit-reveal** sealed bids, on-chain transparency |
+| No lead verification | **CRE** quality scoring (0–10,000) + ZK fraud proofs |
+| Manual compliance review | **ACE** auto-KYC, jurisdiction matrix, MiCA (zero manual) |
+| No buyer automation | **9-criteria auto-bid** fires 24/7 across 20+ markets |
+| No API access | **MCP agent server** — 8 tools, LangChain integration, CCIP-ready |
+| Single-region | **20+ countries** across 6 regions, state-level enforcement |
+
+### Marketing Blurbs
+
+> **For Sellers:** "Sell a lead at 2pm. Have USDC in your wallet at 2:01pm. Fund your next Google Ads campaign before your competitor's check clears."
+
+> **For Buyers:** "Set your rules — vertical, geo, quality, budget — and go to sleep. Auto-bid captures high-quality leads 24/7 across 20+ markets. Average 40% lower CPA vs. manual bidding."
+
+> **For Enterprises:** "Plug in via MCP agent server or CRM webhook. AI agents search, bid, and export leads programmatically. No wallet popups, no manual review — just structured JSON-RPC at scale."
+
+---
+
 ## 📜 Smart Contracts
 
 | Contract | Network | Description |

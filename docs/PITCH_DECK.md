@@ -7,7 +7,7 @@
 ## Slide 1: Title
 
 **Lead Engine**
-*Decentralized Real-Time Bidding for the $100B+ Lead Marketplace*
+*Decentralized Real-Time Bidding for the $200B+ Lead Marketplace*
 
 Built with Chainlink CRE + ACE + DECO + Data Streams + Confidential Compute
 Chainlink Hackathon 2026 — Convergence
@@ -25,7 +25,7 @@ Chainlink Hackathon 2026 — Convergence
 - 🌍 **No Global Infrastructure** — No standard for cross-border lead trading
 - 🤖 **No Automation** — No API for programmatic bidding at scale
 
-> $100B+ market with zero on-chain verification
+> $200B+ market with zero on-chain verification
 
 ---
 
@@ -39,7 +39,7 @@ Chainlink Hackathon 2026 — Convergence
 | No privacy | ZK proofs + encrypted commit-reveal bids + Confidential Compute |
 | No compliance | ACE automates KYC + jurisdiction + MiCA enforcement |
 | No transparency | NFT leads + USDC escrow with on-chain settlement |
-| No global infra | 10 verticals × 15+ countries out of the box |
+| No global infra | 10 verticals × 20+ countries out of the box |
 | No automation | MCP agent server for programmatic bidding + CRM exports |
 
 ---
@@ -60,7 +60,7 @@ Chainlink Hackathon 2026 — Convergence
 ┌───▼──────────┐  ┌─────▼───────────┐  ┌▼──────────────┐
 │  Chainlink   │  │  Smart Contracts│  │  MCP Server   │
 │  CRE + ACE   │  │  CREVerifier    │  │  :3002        │
-│  DECO        │  │  ACECompliance  │  │  5 Agent Tools│
+│  DECO        │  │  ACECompliance  │  │  8 Agent Tools│
 │  Data Streams│  │  LeadNFTv2      │  │  CCIP-ready   │
 │  Confid Comp │  │  RTBEscrow      │  │  JSON-RPC     │
 └──────────────┘  │  Marketplace    │  └───────────────┘
@@ -115,7 +115,7 @@ Chainlink Hackathon 2026 — Convergence
 
 ## Slide 7: Demo Highlights
 
-1. **Landing page** — geo-enhanced hero with live stats across 15+ countries
+1. **Landing page** — geo-enhanced hero with live stats across 20+ countries
 2. **Mortgage lead** — seller submits $450K NY mortgage → CRE scores 7,850/10,000
 3. **DECO + Data Streams** — solar subsidy attestation + real-time bid floor $85–$220
 4. **ACE auto-rules** — auto-bid: "FL mortgage, max $120, min quality 6,000"
@@ -131,27 +131,27 @@ Chainlink Hackathon 2026 — Convergence
 | Metric | Value |
 |--------|-------|
 | Verticals | 10 (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial) |
-| Countries | 15+ (US, CA, GB, AU, DE, FR, BR, MX, IN, JP, KR, SG, AE, ZA, NG) |
+| Countries | 20+ (US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE) |
 | Chainlink Services | 5 (CRE, ACE, DECO, Data Streams, Confidential Compute) |
 | Security Sim | 29/29 tests passing (7 categories incl. off-site fraud, cross-border ACE) |
-| Load Test | 13 scenarios, 1,500 peak concurrent users (Artillery) |
+| Load Test | 23+ scenarios, 10K peak concurrent users (Artillery) |
 | Testnet Sim | 500+ on-chain txs (mints, bids, escrows) via 10 HD wallets |
-| Cypress E2E | 38 UI tests (seller, buyer, off-site toggle, hybrid roles) |
+| Cypress E2E | 53+ UI tests (seller, buyer, stress, copy assertions) |
 | Smart Contracts | 5 (Sepolia + Base Sepolia) |
 | Mock Data | 200+ seeded entries across all verticals/geos |
-| MCP Agent Tools | 5 (search, bid, bid-floor, export, preferences) |
+| MCP Agent Tools | 8 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping) |
 
 ---
 
 ## Slide 9: Market Opportunity
 
-- **TAM:** $100B+ global lead generation market
+- **TAM:** $200B+ global lead generation market (Martal Group 2024)
 - **Initial verticals:** Solar + mortgage (highest value: $15–150/lead)
 - **Expansion:** Auto, insurance, real estate, B2B SaaS, legal, financial
-- **Global reach:** 15+ countries from day one — US, EU, APAC, LATAM, Africa
+- **Global reach:** 20+ countries from day one — US, EU, APAC, LATAM, Africa
 - **Multi-chain:** Sepolia today → Base mainnet for low-cost production
 - **Revenue:** 2.5% platform fee on every transaction via `RTBEscrow.sol`
-- **Moat:** MCP agent server + CCIP cross-chain bidding = programmatic scale no competitor has
+- **Moat:** x402 instant settlement + 9-criteria auto-bid + MCP agent server + CCIP = no competitor has this stack
 
 ---
 
@@ -170,11 +170,11 @@ Chainlink Hackathon 2026 — Convergence
 
 | Criteria | Lead Engine |
 |----------|-------------|
-| **Innovation** | 5 Chainlink services + MCP agent server + CCIP-ready |
-| **Technical depth** | 5 smart contracts, ZK proofs, commit-reveal, TEE scoring |
+| **Innovation** | 5 Chainlink services + MCP agent server + CCIP-ready + x402 instant settlement |
+| **Technical depth** | 5 smart contracts, ZK proofs, commit-reveal, TEE scoring, 9-criteria auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
-| **Traction** | 500+ testnet txs, 29 security tests, 1,500 concurrent users |
-| **Market** | $100B TAM, 10 verticals, 15 countries, 2.5% revenue model |
+| **Traction** | 500+ testnet txs, 29 security tests, 10K concurrent users |
+| **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |
 
 ---
 
