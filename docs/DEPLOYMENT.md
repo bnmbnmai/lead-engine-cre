@@ -78,6 +78,15 @@ CRE_CONTRACT_ADDRESS=0x...
 4. Add PostgreSQL (New → PostgreSQL)
 5. Set env vars per `docs/ENV_HANDOFF.md`
 
+### Seed Mock Data (optional — for demo)
+
+```bash
+# SSH into Render shell or run locally with DATABASE_URL pointed at Render PostgreSQL
+cd backend
+npm run db:seed        # Seeds 200+ mock entries (TEST_MODE=true auto-set)
+npm run db:clear-mock  # Removes only mock data (0xMOCK prefix)
+```
+
 ### Verify
 
 ```bash
@@ -86,6 +95,9 @@ curl https://your-api.onrender.com/health
 
 curl https://your-api.onrender.com/api/v1/demo/e2e-bid
 # Expected: 200 with pipeline results
+
+# Swagger UI
+open https://your-api.onrender.com/api/swagger
 ```
 
 ---
@@ -100,19 +112,25 @@ curl https://your-api.onrender.com/api/v1/demo/e2e-bid
 
 | Variable | Value |
 |---------|-------|
-| `NEXT_PUBLIC_API_URL` | `https://your-api.onrender.com/api/v1` |
-| `NEXT_PUBLIC_APP_URL` | `https://your-app.vercel.app` |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | From WalletConnect Cloud |
-| `NEXT_PUBLIC_ALCHEMY_API_KEY` | Your Alchemy key |
-| `NEXT_PUBLIC_DEFAULT_CHAIN_ID` | `11155111` (Sepolia) |
-| `NEXT_PUBLIC_ENABLE_TESTNET` | `true` |
+| `VITE_API_URL` | `https://your-api.onrender.com/api/v1` |
+| `VITE_APP_URL` | `https://your-app.vercel.app` |
+| `VITE_WALLETCONNECT_PROJECT_ID` | From WalletConnect Cloud |
+| `VITE_ALCHEMY_API_KEY` | Your Alchemy key |
+| `VITE_DEFAULT_CHAIN_ID` | `11155111` (Sepolia) |
+| `VITE_ENABLE_TESTNET` | `true` |
+
+> **Note:** This is a Vite app — use `VITE_` prefix, not `NEXT_PUBLIC_`.
 
 6. Deploy
 7. Go back to Render → set `FRONTEND_URL` to the Vercel URL
 
 ### Verify
 
-Open `https://your-app.vercel.app` — frontend should load and show wallet connect option.
+Open `https://your-app.vercel.app`:
+- Signed-out users see the landing page hero ("Decentralized Lead RTB / Global. Compliant. Private.")
+- No sidebar visible pre-login
+- Wallet connect dropdown is opaque (not translucent)
+- After connecting, users see the marketplace with geo filters (15+ countries)
 
 ---
 
@@ -120,12 +138,38 @@ Open `https://your-app.vercel.app` — frontend should load and show wallet conn
 
 - [ ] Backend health check returns 200
 - [ ] Frontend loads without console errors
+- [ ] Landing page hero renders with stats bar and feature cards
 - [ ] Wallet connects (MetaMask on Sepolia)
+- [ ] No sidebar visible before login
+- [ ] Wallet dropdown is opaque (not translucent glass)
 - [ ] `/api/v1/demo/e2e-bid` returns full pipeline results
 - [ ] `/api/v1/demo/compliance-check` shows ACE enforcement
+- [ ] `/api/swagger` loads Swagger UI
 - [ ] Contracts verified on Sepolia Etherscan
 - [ ] CORS: frontend can call backend API
 - [ ] WebSocket connection established (real-time updates)
+- [ ] Mock data seeded (200+ entries across 10 verticals, 15+ countries)
+
+---
+
+## 5. Run Full Test Suite (Pre-Submission)
+
+```bash
+# Backend type-check
+cd backend && npx tsc --noEmit
+
+# Frontend build
+cd frontend && npm run build
+
+# Security compliance sim (29 tests)
+cd backend && npx ts-node --compiler-options '{"module":"commonjs"}' ../scripts/security-compliance-sim.ts
+
+# Artillery load test (13 scenarios, 1500 peak)
+cd backend && npm run test:load
+
+# Cypress E2E (38 UI tests)
+cd frontend && npx cypress run
+```
 
 ---
 
@@ -135,6 +179,8 @@ Open `https://your-app.vercel.app` — frontend should load and show wallet conn
 |-------|-----|
 | `prisma generate` fails on Render | Ensure `prisma` is in `devDependencies` and `npm install` runs first |
 | Frontend proxy 404 | In production, frontend calls absolute API URL (not `/api` proxy) |
-| Wallet won't connect on Vercel | Ensure `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is set |
+| Wallet won't connect on Vercel | Ensure `VITE_WALLETCONNECT_PROJECT_ID` is set |
 | Contract deploy fails | Check deployer has Sepolia ETH: `npx hardhat balance --network sepolia` |
 | CORS blocked | Set `FRONTEND_URL` on Render to exact Vercel domain (no trailing slash) |
+| `ERR_UNKNOWN_FILE_EXTENSION` for ts-node | Use `--compiler-options '{"module":"commonjs"}'` flag |
+| Mock data not appearing | Ensure `TEST_MODE=true` is set; the `db:seed` script sets it via `cross-env` |

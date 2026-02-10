@@ -5,7 +5,7 @@
 > **Built for [Chainlink Hackathon 2026 — Convergence](https://chain.link/hackathon)**
 > Powered by **Chainlink CRE** (Custom Functions) + **ACE** (Automated Compliance Engine)
 
-Lead Engine brings web3 trust, privacy, and compliance to the global lead marketplace — enabling transparent, verifiable real-time bidding across mortgage, solar, insurance, roofing, and any vertical.
+Lead Engine brings web3 trust, privacy, and compliance to the global lead marketplace — enabling transparent, verifiable real-time bidding across 10 verticals and 15+ countries.
 
 ---
 
@@ -44,12 +44,14 @@ Lead Engine deeply integrates two Chainlink services as its trust infrastructure
 ## ⚡ Features
 
 - 🔄 **RTB Engine** — Sub-second real-time matching and bidding with WebSocket streaming
-- ✅ **Automated Compliance** — KYC/AML, TCPA, jurisdiction checks with zero manual review
+- ✅ **Automated Compliance** — KYC/AML, TCPA, MiCA, jurisdiction checks with zero manual review
 - 🔒 **Privacy-Preserving** — ZK proofs + encrypted bids; buyers never see PII before purchase
 - 💰 **Instant Settlement** — USDC escrow with automated release upon bid acceptance
 - 🎨 **Lead NFTs** — ERC-721 tokenized leads for provenance, resale, and portfolio management
-- 🌍 **Multi-Vertical** — Mortgage, solar, roofing, insurance, home services, B2B SaaS
+- 🌍 **10 Verticals, 15+ Countries** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial — across US, CA, GB, AU, DE, FR, BR, MX, IN, JP, KR, SG, AE, ZA, NG
+- 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - 🤖 **AI Agent Ready** — Programmatic bidding API for automated lead acquisition
+- 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
 
 ---
 
@@ -167,15 +169,17 @@ npm run dev
 |---------|-------------|
 | `npm run dev` | Start backend + frontend (parallel) |
 | `npm run build` | Build all workspaces |
-| `npm test` | Run all 123 tests (9 suites) |
+| `npm test` | Run all tests |
 | `npm run contracts:compile` | Compile Solidity contracts |
 | `npm run db:studio` | Open Prisma Studio |
+| `npm run db:seed` | Seed 200+ mock entries (requires `TEST_MODE=true`) |
+| `npm run db:clear-mock` | Remove only mock data (safe — uses `0xMOCK` prefix) |
 
 ---
 
 ## 🧪 Testing
 
-**123 tests passing across 9 suites:**
+### Unit & Integration Tests
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
@@ -188,6 +192,32 @@ npm run dev
 | E2E Demo Flow | 5 | Full 8-step pipeline simulation |
 | Security Audit | 10 | Plaintext leakage, commitment integrity, AAD |
 | Compliance Sim | 31 | 17 state pairs, 8 reputation values, fraud |
+
+### Security Compliance Sim (29 tests — all passing)
+
+Standalone simulation covering 7 categories: off-site fraud (toggle, source spoofing, anomaly detection), ACE compliance (cross-border EU, sanctioned countries), privacy, on-chain gas, KYC gating, TCPA/MiCA.
+
+```bash
+cd backend && npx ts-node --compiler-options '{"module":"commonjs"}' ../scripts/security-compliance-sim.ts
+```
+
+### Artillery Load Test (13 scenarios, 1500 peak concurrent)
+
+Scenarios include cross-border ACE (EU→non-EU solar), EU geo-match batch (50 leads), off-site fraud toggle, and bid burst spike (10x rapid-fire → 429 rate limiting).
+
+```bash
+cd backend && npx artillery run tests/load-test.yml
+```
+
+### Cypress E2E (38 UI tests)
+
+Covers marketplace browsing, seller flows (submit tabs, API curl examples, 10 vertical forms), buyer flows, off-site toggle/fraud edge cases, hybrid buyer/seller role switching.
+
+```bash
+cd frontend && npx cypress run
+```
+
+### Commands
 
 ```bash
 cd backend
@@ -241,11 +271,12 @@ lead-engine-cre/
 
 Lead Engine is designed for global scalability across diverse markets and high volume:
 
-- **Multi-Vertical** — Configuration-driven vertical support: any industry with leads (mortgage, solar, insurance, roofing, B2B SaaS, auto, legal)
+- **10 Verticals** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial
+- **15+ Countries** — US, CA, GB, AU, DE, FR, BR, MX, IN, JP, KR, SG, AE, ZA, NG — with state/province-level geo targeting
 - **Multi-Chain** — Deployed to Sepolia + Base Sepolia; production targets Base mainnet for low-cost, high-speed transactions
-- **LRU Caching** — In-memory cache for quality scores, parameter matches, compliance checks, and KYC validity
+- **LRU Caching** — In-memory cache for marketplace asks (30s TTL), quality scores, parameter matches, compliance checks, and KYC validity
 - **WebSocket Streaming** — Real-time bid updates and lead notifications via Socket.io
-- **Load Tested** — Artillery tests validate 1000+ concurrent users with p99 latency < 2s
+- **Load Tested** — 13 Artillery scenarios validate 1500 peak concurrent users with cross-border ACE, geo-match batches, and bid burst spikes
 
 ---
 
@@ -277,4 +308,6 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full step-by-step guide.
 
 ## 📜 License
 
-MIT — see [LICENSE](LICENSE) for details.
+**Proprietary** — All rights reserved. This software is not open source. Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited without express written permission from the author.
+
+© 2026 Lead Engine CRE. All rights reserved.
