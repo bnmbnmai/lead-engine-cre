@@ -1,0 +1,446 @@
+##
+## Artillery Stress Test — 10,000+ Concurrent Bids
+##
+## Scales to 10K arrivals/s with geo-specific bursts (LATAM/APAC),
+## x402 tx failure injection, auto-bid budget exhaustion, Chainlink
+## stub latency simulation, CRM webhook bursts, and duplicate bid storms.
+##
+## Usage: npx artillery run tests/load/artillery-stress-10k.yaml
+##
+## Requires: TEST_API_TOKEN env var for auth header
+##
+
+config:
+  target: "http://localhost:3001"
+  phases:
+    # Phase 1: Warm-up
+    - duration: 30
+      arrivalRate: 50
+      name: "Warm-up"
+
+    # Phase 2: Ramp 50 → 500
+    - duration: 60
+      arrivalRate: 50
+      rampTo: 500
+      name: "Ramp-up"
+
+    # Phase 3: Sustained baseline
+    - duration: 120
+      arrivalRate: 2000
+      name: "Sustained 2K"
+
+    # Phase 4: LATAM geo burst (BR/MX/AR only)
+    - duration: 30
+      arrivalRate: 5000
+      name: "LATAM burst"
+
+    # Phase 5: APAC geo burst (JP/KR/SG/IN/AU only)
+    - duration: 30
+      arrivalRate: 5000
+      name: "APAC burst"
+
+    # Phase 6: Global peak — all geos
+    - duration: 60
+      arrivalRate: 10000
+      name: "Peak 10K"
+
+    # Phase 7: Cool-down
+    - duration: 30
+      arrivalRate: 100
+      name: "Cool-down"
+
+  processor: "./artillery-processor.js"
+
+  plugins:
+    expect: {}
+    apdex:
+      threshold: 2000  # 2s target
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ $processEnvironment.TEST_API_TOKEN }}"
+
+  ensure:
+    thresholds:
+      - http.response_time.p99: 2000    # p99 < 2s
+      - http.response_time.p95: 1000    # p95 < 1s
+    conditions:
+      - expression: "http.response_time.p99 < 2000"
+        strict: true
+
+  variables:
+    verticals:
+      - "solar"
+      - "mortgage"
+      - "roofing"
+      - "insurance"
+      - "auto"
+      - "legal"
+      - "home_services"
+      - "real_estate"
+      - "b2b_saas"
+      - "financial"
+
+scenarios:
+  # ─── 1. Submit Lead + Place Bid (baseline) ──────
+  - name: "Submit + Bid (baseline)"
+    weight: 30
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+              zip: "{{ zip }}"
+              city: "{{ city }}"
+            firstName: "Stress"
+            lastName: "Test{{ $randomInt(1, 99999) }}"
+            email: "stress{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "API"
+            parameters:
+              creditScore: "{{ $randomInt(600, 850) }}"
+              propertyType: "single_family"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      - think: 0.3
+      - function: "generateBidCommitment"
+      - post:
+          url: "/api/v1/bids"
+          json:
+            leadId: "{{ leadId }}"
+            amount: "{{ bidAmount }}"
+            commitment: "{{ commitment }}"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+
+  # ─── 2. Browse Marketplace ─────────────────────
+  - name: "Browse + Filter Marketplace"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/v1/leads?page=1&limit=20"
+          expect:
+            - statusCode: 200
+      - think: 0.5
+      - function: "pickRandomVertical"
+      - get:
+          url: "/api/v1/leads?vertical={{ vertical }}&page=1&limit=20"
+          expect:
+            - statusCode: 200
+      - function: "pickRandomCountry"
+      - get:
+          url: "/api/v1/leads?country={{ country }}&page=1&limit=20"
+          expect:
+            - statusCode: 200
+
+  # ─── 3. Auction Batch (3 rapid bids per lead) ──
+  - name: "Auction Batch Resolution"
+    weight: 10
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+              zip: "{{ zip }}"
+            firstName: "Auction"
+            lastName: "Batch{{ $randomInt(1, 99999) }}"
+            email: "auction{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "PLATFORM"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      - think: 0.1
+      - loop:
+          - function: "generateBidCommitment"
+          - post:
+              url: "/api/v1/bids"
+              json:
+                leadId: "{{ leadId }}"
+                amount: "{{ bidAmount }}"
+                commitment: "{{ commitment }}"
+              expect:
+                - statusCode:
+                    - 201
+                    - 200
+                    - 409
+        count: 3
+
+  # ─── 4. LATAM Geo Spike (BR/MX/AR) ────────────
+  - name: "LATAM Geo Burst"
+    weight: 10
+    flow:
+      - function: "generateLatamPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+              zip: "{{ zip }}"
+              city: "{{ city }}"
+            firstName: "Latam"
+            lastName: "Burst{{ $randomInt(1, 99999) }}"
+            email: "latam{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+55{{ $randomInt(10000000, 99999999) }}"
+            source: "API"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+      - think: 0.2
+      - function: "generateBidCommitment"
+      - post:
+          url: "/api/v1/bids"
+          json:
+            leadId: "{{ leadId }}"
+            amount: "{{ bidAmount }}"
+            commitment: "{{ commitment }}"
+          afterResponse: "validateResponse"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+                - 403  # Cross-border compliance may block
+
+  # ─── 5. APAC Geo Spike (JP/KR/SG/IN/AU) ───────
+  - name: "APAC Geo Burst"
+    weight: 10
+    flow:
+      - function: "generateApacPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+              zip: "{{ zip }}"
+              city: "{{ city }}"
+            firstName: "Apac"
+            lastName: "Burst{{ $randomInt(1, 99999) }}"
+            email: "apac{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+81{{ $randomInt(10000000, 99999999) }}"
+            source: "API"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+      - think: 0.2
+      - function: "generateBidCommitment"
+      - post:
+          url: "/api/v1/bids"
+          json:
+            leadId: "{{ leadId }}"
+            amount: "{{ bidAmount }}"
+            commitment: "{{ commitment }}"
+          afterResponse: "validateResponse"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+
+  # ─── 6. x402 Transaction Failure + Retry ───────
+  - name: "x402 Tx Failure Simulation"
+    weight: 5
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+            firstName: "X402Fail"
+            lastName: "Test{{ $randomInt(1, 99999) }}"
+            email: "x402{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "API"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      - think: 0.1
+      # Intentionally bid with amount that triggers escrow edge case
+      - function: "simulateX402Failure"
+      - post:
+          url: "/api/v1/bids"
+          json:
+            leadId: "{{ leadId }}"
+            amount: "{{ bidAmount }}"
+            commitment: "{{ commitment }}"
+            x402SimulateFailure: true
+          afterResponse: "trackX402Metrics"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+                - 402  # Payment required
+                - 500  # Escrow failure
+                - 503  # Service unavailable
+      # Retry after failure
+      - think: 1
+      - function: "generateBidCommitment"
+      - post:
+          url: "/api/v1/bids"
+          json:
+            leadId: "{{ leadId }}"
+            amount: "{{ bidAmount }}"
+            commitment: "{{ commitment }}"
+          afterResponse: "trackX402Metrics"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+                - 409  # Already bid
+
+  # ─── 7. Auto-Bid Budget Cap Exhaust ────────────
+  - name: "Auto-Bid Budget Exhaust"
+    weight: 10
+    flow:
+      # Submit 5 leads rapidly to drain buyer's daily budget
+      - loop:
+          - function: "generateAutoBidBudgetExhaust"
+          - post:
+              url: "/api/v1/bids/auto-bid/evaluate"
+              json:
+                leadId: "{{ leadId }}"
+              afterResponse: "trackBudgetMetrics"
+              expect:
+                - statusCode:
+                    - 200
+                    - 400  # Budget limit or validation
+                    - 401  # Auth required
+        count: 5
+
+  # ─── 8. Chainlink Stub Latency > 5s ────────────
+  - name: "Chainlink Stub Latency"
+    weight: 5
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+            firstName: "Latency"
+            lastName: "Test{{ $randomInt(1, 99999) }}"
+            email: "latency{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "API"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      # Simulate slow CRE verification
+      - function: "simulateChainlinkLatency"
+      - get:
+          url: "/api/v1/bids/bid-floor?vertical={{ vertical }}&country={{ country }}&stubDelay=6000"
+          afterResponse: "trackLatencyMetrics"
+          expect:
+            - statusCode:
+                - 200
+                - 504  # Gateway timeout acceptable
+      # Compliance check under latency
+      - post:
+          url: "/api/v1/demo/compliance-check"
+          json:
+            buyerWallet: "0xStressTest{{ $randomInt(1000, 9999) }}"
+            sellerCountry: "{{ country }}"
+            buyerCountry: "US"
+            vertical: "{{ vertical }}"
+          afterResponse: "trackLatencyMetrics"
+          expect:
+            - statusCode:
+                - 200
+                - 504
+
+  # ─── 9. CRM Webhook Burst ──────────────────────
+  - name: "CRM Webhook Burst"
+    weight: 3
+    flow:
+      - function: "fireCrmWebhookBurst"
+      - post:
+          url: "/api/v1/crm/webhooks"
+          json:
+            url: "https://httpbin.org/post"
+            format: "generic"
+            events:
+              - "lead.sold"
+          afterResponse: "trackWebhookMetrics"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+                - 429  # Rate limited
+      - get:
+          url: "/api/v1/crm/webhooks"
+          expect:
+            - statusCode: 200
+
+  # ─── 10. Duplicate Bid Storm ───────────────────
+  - name: "Duplicate Bid Storm"
+    weight: 2
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+            firstName: "DupeBid"
+            lastName: "Storm{{ $randomInt(1, 99999) }}"
+            email: "dupe{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "API"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      # 5 rapid duplicate bids on same lead — expect 409 conflicts
+      - function: "generateDuplicateBid"
+      - loop:
+          - post:
+              url: "/api/v1/bids"
+              json:
+                leadId: "{{ leadId }}"
+                amount: "{{ bidAmount }}"
+                commitment: "{{ commitment }}"
+              afterResponse: "trackDuplicateMetrics"
+              expect:
+                - statusCode:
+                    - 201
+                    - 200
+                    - 409  # Conflict — already bid
+        count: 5
