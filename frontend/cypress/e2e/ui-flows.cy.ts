@@ -68,9 +68,54 @@ describe('Seller Flows', () => {
         cy.contains(/Dashboard|Overview/).should('be.visible');
     });
 
-    it('navigates to submit lead page', () => {
+    it('shows quick-action cards on dashboard', () => {
+        cy.contains('Submit Lead').should('be.visible');
+        cy.contains('Create Auction').should('be.visible');
+        cy.contains('View Analytics').should('be.visible');
+    });
+
+    it('navigates to submit lead page with source tabs', () => {
         cy.visit('/seller/submit');
         cy.contains(/Submit|Lead/).should('be.visible');
+        // Source tabs should be present
+        cy.contains('Platform').should('be.visible');
+        cy.contains('API').should('be.visible');
+        cy.contains('Hosted Lander').should('be.visible');
+    });
+
+    it('switches to API tab and shows curl examples', () => {
+        cy.visit('/seller/submit');
+        cy.contains('API').click();
+        cy.contains('REST API Integration').should('be.visible');
+        cy.contains('Example: Roofing Lead').should('be.visible');
+        cy.contains('Example: Mortgage Lead').should('be.visible');
+        cy.contains('Example: Auto Insurance').should('be.visible');
+    });
+
+    it('API tab shows all 10 vertical parameter references', () => {
+        cy.visit('/seller/submit');
+        cy.contains('API').click();
+        ['roofing', 'mortgage', 'solar', 'insurance', 'auto', 'home_services', 'real_estate', 'b2b_saas', 'legal', 'financial'].forEach((v) => {
+            cy.contains(v).should('exist');
+        });
+    });
+
+    it('switches to Offsite tab and shows lander info', () => {
+        cy.visit('/seller/submit');
+        cy.contains('Hosted Lander').click();
+        cy.contains('Hosted Landing Pages').should('be.visible');
+        cy.contains('Webhook Integration').should('be.visible');
+    });
+
+    it('platform form shows vertical-specific fields for roofing', () => {
+        cy.visit('/seller/submit');
+        // Select roofing vertical
+        cy.get('[role="combobox"]').first().click();
+        cy.contains('roofing').click();
+        // Should show roofing-specific fields
+        cy.contains('Roof Type').should('be.visible');
+        cy.contains('Damage Type').should('be.visible');
+        cy.contains('Insurance Claim').should('be.visible');
     });
 
     it('navigates to analytics page with charts', () => {

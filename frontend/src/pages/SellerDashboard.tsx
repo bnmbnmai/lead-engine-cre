@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3 } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -65,7 +65,7 @@ export function SellerDashboard() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Seller Dashboard</h1>
-                        <p className="text-muted-foreground">Manage your leads and asks</p>
+                        <p className="text-muted-foreground">Pipeline, auctions, and analytics</p>
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" asChild>
@@ -87,8 +87,8 @@ export function SellerDashboard() {
                             key={tab.key}
                             onClick={() => navigate(tab.path)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.key
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
                         >
                             <tab.icon className="h-4 w-4" />
@@ -111,6 +111,47 @@ export function SellerDashboard() {
                                 </div>
                             </div>
                         </GlassCard>
+                    ))}
+                </div>
+
+                {/* Quick Actions */}
+                <div className="grid sm:grid-cols-3 gap-4">
+                    {[
+                        {
+                            title: 'Submit Lead',
+                            desc: 'Add a new lead via form, API, or webhook',
+                            href: '/seller/submit',
+                            icon: Zap,
+                            color: 'from-blue-500 to-cyan-400',
+                        },
+                        {
+                            title: 'Create Auction',
+                            desc: 'Post an ask to start receiving sealed bids',
+                            href: '/seller/asks/new',
+                            icon: Tag,
+                            color: 'from-emerald-500 to-teal-400',
+                        },
+                        {
+                            title: 'View Analytics',
+                            desc: 'Revenue, conversion rates, and gas costs',
+                            href: '/seller/analytics',
+                            icon: BarChart3,
+                            color: 'from-violet-500 to-purple-400',
+                        },
+                    ].map((action) => (
+                        <Link
+                            key={action.href}
+                            to={action.href}
+                            className="group flex items-start gap-4 p-5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.12] transition-all"
+                        >
+                            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${action.color} flex items-center justify-center flex-shrink-0`}>
+                                <action.icon className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <div className="font-medium text-sm text-foreground group-hover:text-primary transition">{action.title}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">{action.desc}</div>
+                            </div>
+                        </Link>
                     ))}
                 </div>
 

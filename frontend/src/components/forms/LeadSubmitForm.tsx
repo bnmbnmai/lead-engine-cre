@@ -87,6 +87,33 @@ const VERTICAL_FIELDS: Record<string, { key: string; label: string; type: 'text'
         { key: 'price_range', label: 'Price Range', type: 'select', options: ['under_200k', '200k-500k', '500k-1m', 'over_1m'] },
         { key: 'timeline', label: 'Timeline', type: 'select', options: ['asap', '1-3_months', '3-6_months', '6+_months'] },
     ],
+    auto: [
+        { key: 'vehicle_year', label: 'Vehicle Year', type: 'text' },
+        { key: 'vehicle_make', label: 'Make', type: 'text' },
+        { key: 'vehicle_model', label: 'Model', type: 'text' },
+        { key: 'mileage', label: 'Mileage', type: 'text' },
+        { key: 'coverage_type', label: 'Coverage', type: 'select', options: ['liability', 'collision', 'comprehensive', 'full', 'minimum'] },
+        { key: 'current_insured', label: 'Currently Insured', type: 'boolean' },
+    ],
+    b2b_saas: [
+        { key: 'company_size', label: 'Company Size', type: 'select', options: ['1-10', '11-50', '51-200', '201-1000', '1000+'] },
+        { key: 'industry', label: 'Industry', type: 'select', options: ['technology', 'finance', 'healthcare', 'retail', 'manufacturing', 'other'] },
+        { key: 'budget_range', label: 'Monthly Budget', type: 'select', options: ['under_500', '500-2000', '2000-10000', '10000+'] },
+        { key: 'decision_timeline', label: 'Decision Timeline', type: 'select', options: ['immediate', '1-3_months', '3-6_months', 'evaluating'] },
+        { key: 'current_solution', label: 'Current Solution', type: 'text' },
+    ],
+    legal: [
+        { key: 'case_type', label: 'Case Type', type: 'select', options: ['personal_injury', 'family_law', 'criminal_defense', 'immigration', 'business', 'estate_planning', 'bankruptcy'] },
+        { key: 'urgency', label: 'Urgency', type: 'select', options: ['emergency', 'this_week', 'this_month', 'planning'] },
+        { key: 'has_representation', label: 'Has Attorney', type: 'boolean' },
+        { key: 'case_value', label: 'Estimated Case Value ($)', type: 'text' },
+    ],
+    financial: [
+        { key: 'service_type', label: 'Service Type', type: 'select', options: ['tax_prep', 'bookkeeping', 'financial_planning', 'debt_consolidation', 'investment', 'retirement'] },
+        { key: 'portfolio_size', label: 'Portfolio/Revenue', type: 'select', options: ['under_50k', '50k-250k', '250k-1m', 'over_1m'] },
+        { key: 'risk_tolerance', label: 'Risk Tolerance', type: 'select', options: ['conservative', 'moderate', 'aggressive'] },
+        { key: 'existing_advisor', label: 'Has Existing Advisor', type: 'boolean' },
+    ],
 };
 
 const leadSchema = z.object({

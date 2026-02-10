@@ -338,19 +338,39 @@ export function SellerSubmit() {
 
                                 <div>
                                     <div className="flex gap-2 mb-3">
-                                        <span className="text-sm font-semibold">Example: Solar Lead (AU/NSW)</span>
+                                        <span className="text-sm font-semibold">Example: Mortgage Lead (US/NY)</span>
                                     </div>
                                     <CurlExample
-                                        vertical="solar"
+                                        vertical="mortgage"
+                                        state="NY"
+                                        country="US"
+                                        zip="10001"
+                                        params={{
+                                            loan_type: 'purchase',
+                                            credit_range: 'good_700-749',
+                                            property_type: 'condo',
+                                            purchase_price: 450000,
+                                            down_payment_pct: 20,
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <div className="flex gap-2 mb-3">
+                                        <span className="text-sm font-semibold">Example: Auto Insurance (AU/NSW)</span>
+                                    </div>
+                                    <CurlExample
+                                        vertical="auto"
                                         state="NSW"
                                         country="AU"
                                         zip="2000"
                                         params={{
-                                            roof_age: '5',
-                                            monthly_bill: 280,
-                                            ownership: 'own',
-                                            panel_interest: 'purchase',
-                                            shade_level: 'none',
+                                            vehicle_year: '2022',
+                                            vehicle_make: 'Toyota',
+                                            vehicle_model: 'Camry',
+                                            mileage: '15000',
+                                            coverage_type: 'comprehensive',
+                                            current_insured: true,
                                         }}
                                     />
                                 </div>
@@ -388,23 +408,24 @@ export function SellerSubmit() {
                                 <CardTitle className="text-base">Vertical-Specific Parameters</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4 text-sm">
-                                    <div>
-                                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">roofing</span>
-                                        <p className="text-muted-foreground mt-1 text-xs">roof_type, damage_type, insurance_claim, roof_age, square_footage</p>
-                                    </div>
-                                    <div>
-                                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">mortgage</span>
-                                        <p className="text-muted-foreground mt-1 text-xs">loan_type, credit_range, property_type, purchase_price, down_payment_pct</p>
-                                    </div>
-                                    <div>
-                                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">solar</span>
-                                        <p className="text-muted-foreground mt-1 text-xs">roof_age, monthly_bill, ownership, panel_interest, shade_level</p>
-                                    </div>
-                                    <div>
-                                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">insurance</span>
-                                        <p className="text-muted-foreground mt-1 text-xs">coverage_type, current_provider, policy_expiry, num_drivers</p>
-                                    </div>
+                                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                                    {[
+                                        { v: 'roofing', fields: 'roof_type, damage_type, insurance_claim, roof_age, square_footage' },
+                                        { v: 'mortgage', fields: 'loan_type, credit_range, property_type, purchase_price, down_payment_pct' },
+                                        { v: 'solar', fields: 'roof_age, monthly_bill, ownership, panel_interest, shade_level' },
+                                        { v: 'insurance', fields: 'coverage_type, current_provider, policy_expiry, num_drivers' },
+                                        { v: 'auto', fields: 'vehicle_year, vehicle_make, vehicle_model, mileage, coverage_type, current_insured' },
+                                        { v: 'home_services', fields: 'service_type, urgency, property_type' },
+                                        { v: 'real_estate', fields: 'transaction_type, property_type, price_range, timeline' },
+                                        { v: 'b2b_saas', fields: 'company_size, industry, budget_range, decision_timeline, current_solution' },
+                                        { v: 'legal', fields: 'case_type, urgency, has_representation, case_value' },
+                                        { v: 'financial', fields: 'service_type, portfolio_size, risk_tolerance, existing_advisor' },
+                                    ].map(({ v, fields }) => (
+                                        <div key={v} className="p-3 rounded-lg bg-muted/30">
+                                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">{v}</span>
+                                            <p className="text-muted-foreground mt-1.5 text-xs leading-relaxed">{fields}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </CardContent>
                         </Card>
