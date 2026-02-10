@@ -104,9 +104,7 @@ describe("Integration Tests", function () {
             // 3. Buyer commits bid
             const bidAmount = ethers.parseUnits("100", 6);
             const salt = ethers.encodeBytes32String("mysalt");
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(["uint96", "bytes32"], [bidAmount, salt])
-            );
+            const commitment = ethers.solidityPackedKeccak256(["uint96", "bytes32"], [bidAmount, salt]);
 
             await marketplace.connect(buyer).commitBid(1, commitment);
 
@@ -144,12 +142,12 @@ describe("Integration Tests", function () {
             // Both buyers bid
             const bid1 = ethers.parseUnits("75", 6);
             const salt1 = ethers.encodeBytes32String("salt1");
-            const commit1 = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["uint96", "bytes32"], [bid1, salt1]));
+            const commit1 = ethers.solidityPackedKeccak256(["uint96", "bytes32"], [bid1, salt1]);
             await marketplace.connect(buyer).commitBid(1, commit1);
 
             const bid2 = ethers.parseUnits("120", 6);
             const salt2 = ethers.encodeBytes32String("salt2");
-            const commit2 = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["uint96", "bytes32"], [bid2, salt2]));
+            const commit2 = ethers.solidityPackedKeccak256(["uint96", "bytes32"], [bid2, salt2]);
             await marketplace.connect(buyer2).commitBid(1, commit2);
 
             // Reveal phase
@@ -180,11 +178,9 @@ describe("Integration Tests", function () {
             await marketplace.connect(seller).createListing(1, reservePrice, 0, 3600, 900, true);
 
             // Try to bid
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
             );
 
             await expect(

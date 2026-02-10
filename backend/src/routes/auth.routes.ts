@@ -51,8 +51,8 @@ router.get('/nonce/:address', async (req: Request, res: Response) => {
         const message = generateSiweMessage(address, user.nonce, domain);
 
         res.json({ nonce: user.nonce, message });
-    } catch (error) {
-        console.error('Nonce generation error:', error);
+    } catch (error: any) {
+        console.error('Nonce generation error:', error?.message || error, error?.stack);
         res.status(500).json({ error: 'Failed to generate nonce' });
     }
 });

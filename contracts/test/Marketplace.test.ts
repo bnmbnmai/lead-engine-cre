@@ -158,11 +158,9 @@ describe("Marketplace", function () {
         it("Should commit a bid", async function () {
             const bidAmount = ethers.parseUnits("100", 6);
             const salt = ethers.randomBytes(32);
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [bidAmount, salt]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [bidAmount, salt]
             );
 
             await expect(marketplace.connect(buyer1).commitBid(listingId, commitment))
@@ -173,11 +171,9 @@ describe("Marketplace", function () {
         it("Should reveal a bid correctly", async function () {
             const bidAmount = ethers.parseUnits("100", 6);
             const salt = ethers.encodeBytes32String("secret_salt");
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [bidAmount, salt]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [bidAmount, salt]
             );
 
             // Commit
@@ -196,11 +192,9 @@ describe("Marketplace", function () {
             const bidAmount = ethers.parseUnits("100", 6);
             const salt = ethers.encodeBytes32String("secret_salt");
             const wrongSalt = ethers.encodeBytes32String("wrong_salt");
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [bidAmount, salt]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [bidAmount, salt]
             );
 
             await marketplace.connect(buyer1).commitBid(listingId, commitment);
@@ -215,17 +209,13 @@ describe("Marketplace", function () {
             // Buyer 1 bids 100
             const bid1Amount = ethers.parseUnits("100", 6);
             const salt1 = ethers.encodeBytes32String("salt1");
-            const commit1 = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(["uint96", "bytes32"], [bid1Amount, salt1])
-            );
+            const commit1 = ethers.solidityPackedKeccak256(["uint96", "bytes32"], [bid1Amount, salt1]);
             await marketplace.connect(buyer1).commitBid(listingId, commit1);
 
             // Buyer 2 bids 150
             const bid2Amount = ethers.parseUnits("150", 6);
             const salt2 = ethers.encodeBytes32String("salt2");
-            const commit2 = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(["uint96", "bytes32"], [bid2Amount, salt2])
-            );
+            const commit2 = ethers.solidityPackedKeccak256(["uint96", "bytes32"], [bid2Amount, salt2]);
             await marketplace.connect(buyer2).commitBid(listingId, commit2);
 
             // Move to reveal phase
@@ -277,11 +267,9 @@ describe("Marketplace", function () {
                 requireVerified: false
             });
 
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
             );
 
             await expect(
@@ -299,11 +287,9 @@ describe("Marketplace", function () {
                 requireVerified: false
             });
 
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
             );
 
             await expect(
@@ -321,11 +307,9 @@ describe("Marketplace", function () {
                 requireVerified: false
             });
 
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["uint96", "bytes32"],
-                    [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
-                )
+            const commitment = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [ethers.parseUnits("100", 6), ethers.encodeBytes32String("salt")]
             );
 
             await expect(marketplace.connect(buyer1).commitBid(listingId, commitment))
@@ -396,9 +380,7 @@ describe("Marketplace", function () {
 
             const lowBid = ethers.parseUnits("10", 6);  // Below reserve
             const salt = ethers.encodeBytes32String("salt");
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(["uint96", "bytes32"], [lowBid, salt])
-            );
+            const commitment = ethers.solidityPackedKeccak256(["uint96", "bytes32"], [lowBid, salt]);
 
             await marketplace.connect(buyer1).commitBid(1, commitment);
             await time.increase(3601);
