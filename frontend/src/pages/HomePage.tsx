@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Search, MapPin, TrendingUp, Zap, X } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
@@ -10,6 +8,7 @@ import { LeadCard } from '@/components/marketplace/LeadCard';
 import { GlassCard } from '@/components/ui/card';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 import api from '@/lib/api';
 import useAuth from '@/hooks/useAuth';
 
@@ -55,14 +54,21 @@ export function HomePage() {
         }
     }, [view, vertical, state, isAuthenticated]);
 
+    const hasFilters = vertical !== 'all' || state !== 'All';
+
+    const clearFilters = () => {
+        setVertical('all');
+        setState('All');
+    };
+
     const stats = [
-        { label: 'Active Leads', value: '2,847', icon: Zap, color: 'text-blue-500' },
-        { label: 'Avg. Bid', value: '$127', icon: TrendingUp, color: 'text-green-500' },
-        { label: 'States', value: '48', icon: MapPin, color: 'text-purple-500' },
+        { label: 'Active Leads', value: '2,847', icon: Zap, color: 'text-primary' },
+        { label: 'Avg. Bid', value: '$127', icon: TrendingUp, color: 'text-emerald-500' },
+        { label: 'States', value: '48', icon: MapPin, color: 'text-chainlink-steel' },
     ];
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background node-grid">
             <Navbar />
 
             <main className="pt-20 pb-12">
@@ -92,20 +98,20 @@ export function HomePage() {
 
                     {/* Filters */}
                     <section className="mb-8">
-                        <div className="glass rounded-2xl p-6">
+                        <div className="glass rounded-xl p-6">
                             <div className="flex flex-col md:flex-row gap-4">
                                 {/* View Toggle */}
-                                <div className="flex gap-2 p-1 rounded-xl bg-muted">
+                                <div className="flex gap-1 p-1 rounded-lg bg-muted">
                                     <button
                                         onClick={() => setView('leads')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${view === 'leads' ? 'bg-background shadow' : ''
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'leads' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
                                         Live Leads
                                     </button>
                                     <button
                                         onClick={() => setView('asks')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${view === 'asks' ? 'bg-background shadow' : ''
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
                                         Browse Asks
@@ -152,7 +158,7 @@ export function HomePage() {
                             </div>
 
                             {/* Active Filters */}
-                            {(vertical !== 'all' || state !== 'All') && (
+                            {hasFilters && (
                                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
                                     <span className="text-sm text-muted-foreground">Filters:</span>
                                     {vertical !== 'all' && (
@@ -179,12 +185,11 @@ export function HomePage() {
                     {/* Results */}
                     <section>
                         {!isAuthenticated ? (
-                            <div className="text-center py-16">
-                                <div className="text-muted-foreground mb-4">Connect your wallet to browse the marketplace</div>
-                                <Button asChild variant="gradient" size="lg">
-                                    <Link to="/">Get Started</Link>
-                                </Button>
-                            </div>
+                            <EmptyState
+                                icon={Zap}
+                                title="Connect to browse the marketplace"
+                                description="Connect your wallet to view live leads, place bids, and manage your pipeline."
+                            />
                         ) : isLoading ? (
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -194,9 +199,12 @@ export function HomePage() {
                         ) : view === 'asks' ? (
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {asks.length === 0 ? (
-                                    <div className="col-span-full text-center py-12 text-muted-foreground">
-                                        No asks found matching your filters
-                                    </div>
+                                    <EmptyState
+                                        icon={Search}
+                                        title="No asks match your filters"
+                                        description="Try broadening your search or adjusting vertical and state filters."
+                                        action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
+                                    />
                                 ) : (
                                     asks.map((ask) => <AskCard key={ask.id} ask={ask} />)
                                 )}
@@ -204,9 +212,12 @@ export function HomePage() {
                         ) : (
                             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {leads.length === 0 ? (
-                                    <div className="col-span-full text-center py-12 text-muted-foreground">
-                                        No active leads found. Check back soon!
-                                    </div>
+                                    <EmptyState
+                                        icon={Search}
+                                        title="No active leads found"
+                                        description="There are no leads matching your current filters. Try adjusting or check back soon."
+                                        action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
+                                    />
                                 ) : (
                                     leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
                                 )}

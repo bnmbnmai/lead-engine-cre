@@ -82,7 +82,7 @@ export function AuctionPage() {
                     <div className="container mx-auto px-6 text-center py-20">
                         <h1 className="text-2xl font-bold mb-4">Lead Not Found</h1>
                         <Button asChild>
-                            <Link to="/marketplace">Back to Marketplace</Link>
+                            <Link to="/">Back to Marketplace</Link>
                         </Button>
                     </div>
                 </main>
@@ -100,7 +100,7 @@ export function AuctionPage() {
                 <div className="container mx-auto px-6">
                     {/* Back Link */}
                     <Link
-                        to="/marketplace"
+                        to="/"
                         className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition mb-6"
                     >
                         <ArrowLeft className="h-4 w-4" />

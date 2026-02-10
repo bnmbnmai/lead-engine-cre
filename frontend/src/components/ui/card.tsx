@@ -57,7 +57,7 @@ const GlassCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
         <div
             ref={ref}
             className={cn(
-                'glass rounded-2xl p-6 transition-all duration-200 hover:bg-white/10',
+                'glass rounded-2xl p-6 transition-all duration-200 hover:bg-white/[0.06] hover:border-primary/20',
                 className
             )}
             {...props}

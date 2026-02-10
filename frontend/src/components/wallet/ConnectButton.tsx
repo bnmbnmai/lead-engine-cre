@@ -64,7 +64,7 @@ export function ConnectButton() {
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition text-left"
                                 >
-                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-lg bg-[#375BD2] flex items-center justify-center">
                                         <Wallet className="h-4 w-4 text-white" />
                                     </div>
                                     <div>
@@ -97,7 +97,7 @@ export function ConnectButton() {
                 variant="glass"
                 className="gap-2"
             >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs text-white font-bold">
+                <div className="w-6 h-6 rounded-full bg-[#375BD2] flex items-center justify-center text-xs text-white font-bold">
                     {user.role[0]}
                 </div>
                 <span className="hidden sm:inline">{shortenAddress(address!)}</span>

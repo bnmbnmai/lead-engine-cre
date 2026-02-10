@@ -40,10 +40,10 @@ export function BuyerDashboard() {
     }, []);
 
     const stats = [
-        { label: 'Total Bids', value: overview?.totalBids || 0, icon: Gavel, color: 'text-blue-500' },
-        { label: 'Won Bids', value: overview?.wonBids || 0, icon: Target, color: 'text-green-500' },
-        { label: 'Win Rate', value: `${overview?.winRate || 0}%`, icon: TrendingUp, color: 'text-purple-500' },
-        { label: 'Total Spent', value: formatCurrency(overview?.totalSpent || 0), icon: DollarSign, color: 'text-yellow-500' },
+        { label: 'Total Bids', value: overview?.totalBids || 0, icon: Gavel, color: 'text-primary' },
+        { label: 'Won Bids', value: overview?.wonBids || 0, icon: Target, color: 'text-emerald-500' },
+        { label: 'Win Rate', value: `${overview?.winRate || 0}%`, icon: TrendingUp, color: 'text-chainlink-steel' },
+        { label: 'Total Spent', value: formatCurrency(overview?.totalSpent || 0), icon: DollarSign, color: 'text-amber-500' },
     ];
 
     return (
@@ -56,7 +56,7 @@ export function BuyerDashboard() {
                         <p className="text-muted-foreground">Track your bids and discover new leads</p>
                     </div>
                     <Button asChild>
-                        <Link to="/marketplace">Browse Marketplace</Link>
+                        <Link to="/">Browse Marketplace</Link>
                     </Button>
                 </div>
 
@@ -133,7 +133,7 @@ export function BuyerDashboard() {
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">Live Auctions</h2>
                             <Button variant="outline" size="sm" asChild>
-                                <Link to="/marketplace">
+                                <Link to="/">
                                     See All <ArrowUpRight className="h-4 w-4 ml-1" />
                                 </Link>
                             </Button>

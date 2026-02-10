@@ -68,7 +68,7 @@ export function BuyerBids() {
                                 <Gavel className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                                 <p className="text-muted-foreground mb-4">No bids found</p>
                                 <Button asChild>
-                                    <Link to="/marketplace">Browse Marketplace</Link>
+                                    <Link to="/">Browse Marketplace</Link>
                                 </Button>
                             </div>
                         ) : (

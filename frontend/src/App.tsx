@@ -33,14 +33,15 @@ function App() {
                 <AuthProvider>
                     <Router>
                         <Routes>
-                            {/* Public */}
+                            {/* Marketplace (public landing) */}
                             <Route path="/" element={<HomePage />} />
-                            <Route path="/marketplace" element={<HomePage />} />
+                            <Route path="/marketplace" element={<Navigate to="/" replace />} />
                             <Route path="/auction/:leadId" element={<AuctionPage />} />
 
                             {/* Buyer Routes */}
                             <Route path="/buyer" element={<BuyerDashboard />} />
                             <Route path="/buyer/bids" element={<BuyerBids />} />
+                            <Route path="/buyer/analytics" element={<BuyerDashboard />} />
                             <Route path="/buyer/preferences" element={<BuyerPreferences />} />
 
                             {/* Seller Routes */}
@@ -49,6 +50,7 @@ function App() {
                             <Route path="/seller/asks" element={<SellerAsks />} />
                             <Route path="/seller/asks/new" element={<CreateAsk />} />
                             <Route path="/seller/submit" element={<SellerSubmit />} />
+                            <Route path="/seller/analytics" element={<SellerDashboard />} />
 
                             {/* Fallback */}
                             <Route path="*" element={<Navigate to="/" replace />} />

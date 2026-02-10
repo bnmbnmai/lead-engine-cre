@@ -48,6 +48,11 @@ export default {
                     DEFAULT: 'hsl(var(--card))',
                     foreground: 'hsl(var(--card-foreground))',
                 },
+                chainlink: {
+                    blue: '#375BD2',
+                    navy: '#0C1220',
+                    steel: '#8A9BB5',
+                },
             },
             borderRadius: {
                 lg: 'var(--radius)',
@@ -84,8 +89,8 @@ export default {
                     to: { transform: 'translateY(0)' },
                 },
                 'pulse-glow': {
-                    '0%, 100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' },
-                    '50%': { boxShadow: '0 0 40px rgba(59, 130, 246, 0.5)' },
+                    '0%, 100%': { boxShadow: '0 0 20px rgba(55, 91, 210, 0.2)' },
+                    '50%': { boxShadow: '0 0 40px rgba(55, 91, 210, 0.35)' },
                 },
             },
             animation: {

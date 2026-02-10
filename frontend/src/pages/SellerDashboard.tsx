@@ -40,10 +40,10 @@ export function SellerDashboard() {
     }, []);
 
     const stats = [
-        { label: 'Total Leads', value: overview?.totalLeads || 0, icon: FileText, color: 'text-blue-500' },
-        { label: 'Leads Sold', value: overview?.soldLeads || 0, icon: Users, color: 'text-green-500' },
-        { label: 'Conversion', value: `${overview?.conversionRate || 0}%`, icon: TrendingUp, color: 'text-purple-500' },
-        { label: 'Revenue', value: formatCurrency(overview?.totalRevenue || 0), icon: DollarSign, color: 'text-yellow-500' },
+        { label: 'Total Leads', value: overview?.totalLeads || 0, icon: FileText, color: 'text-primary' },
+        { label: 'Leads Sold', value: overview?.soldLeads || 0, icon: Users, color: 'text-emerald-500' },
+        { label: 'Conversion', value: `${overview?.conversionRate || 0}%`, icon: TrendingUp, color: 'text-chainlink-steel' },
+        { label: 'Revenue', value: formatCurrency(overview?.totalRevenue || 0), icon: DollarSign, color: 'text-amber-500' },
     ];
 
     return (

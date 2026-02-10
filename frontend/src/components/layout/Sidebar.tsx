@@ -21,7 +21,7 @@ interface SidebarItem {
 
 const buyerItems: SidebarItem[] = [
     { href: '/buyer', label: 'Overview', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: '/marketplace', label: 'Marketplace', icon: <Search className="h-5 w-5" /> },
+    { href: '/', label: 'Marketplace', icon: <Search className="h-5 w-5" /> },
     { href: '/buyer/bids', label: 'My Bids', icon: <Gavel className="h-5 w-5" /> },
     { href: '/buyer/analytics', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { href: '/buyer/preferences', label: 'Preferences', icon: <Settings className="h-5 w-5" /> },
@@ -42,7 +42,7 @@ export function Sidebar() {
     const items = user?.role === 'SELLER' ? sellerItems : buyerItems;
 
     return (
-        <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-border bg-background/50 backdrop-blur-xl hidden lg:block">
+        <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-border bg-background/80 backdrop-blur-xl hidden lg:block">
             <div className="p-4 space-y-1">
                 {items.map((item) => {
                     const isActive = location.pathname === item.href;
@@ -51,10 +51,10 @@ export function Sidebar() {
                             key={item.href}
                             to={item.href}
                             className={cn(
-                                'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
+                                'flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm',
                                 isActive
                                     ? 'bg-primary text-primary-foreground'
-                                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
+                                    : 'text-muted-foreground hover:bg-white/[0.04] hover:text-foreground'
                             )}
                         >
                             {item.icon}
@@ -62,18 +62,6 @@ export function Sidebar() {
                         </Link>
                     );
                 })}
-            </div>
-
-            {/* Pro Tips */}
-            <div className="absolute bottom-4 left-4 right-4">
-                <div className="glass rounded-xl p-4">
-                    <div className="text-sm font-medium mb-1">Pro Tip</div>
-                    <p className="text-xs text-muted-foreground">
-                        {user?.role === 'SELLER'
-                            ? 'Toggle "Accept Off-site" to expand your lead sources.'
-                            : 'Set geographic filters to focus on your target markets.'}
-                    </p>
-                </div>
             </div>
         </aside>
     );
