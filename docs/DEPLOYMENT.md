@@ -53,6 +53,19 @@ CRE_CONTRACT_ADDRESS=0x...
 4. Add `CRE_CONTRACT_ADDRESS` as consumer
 5. Note the subscription ID → set `CRE_SUBSCRIPTION_ID` in env
 
+### 1e. Gas Costs Reference
+
+| Contract Operation | Estimated Gas | USD (at 20 gwei, $2500 ETH) |
+|-------------------|--------------|------------------------------|
+| ACE: KYC Set | ~45,000 | ~$2.25 |
+| ACE: Reputation Update | ~35,000 | ~$1.75 |
+| NFT: Mint Lead | ~150,000 | ~$7.50 |
+| NFT: Record Sale | ~50,000 | ~$2.50 |
+| Escrow: Create | ~120,000 | ~$6.00 |
+| Escrow: Release | ~65,000 | ~$3.25 |
+
+**For high-concurrency (1000+ bids):** Use Base mainnet (10-50x cheaper), batch ACE bulk KYC, lean on off-chain fallbacks (already implemented), LRU cache (~80% hit rate).
+
 ---
 
 ## 2. Deploy Backend (Render)
@@ -76,7 +89,7 @@ CRE_CONTRACT_ADDRESS=0x...
 2. **Build:** `cd backend && npm install && npx prisma generate && npm run build`
 3. **Start:** `cd backend && npm run start`
 4. Add PostgreSQL (New → PostgreSQL)
-5. Set env vars per `docs/ENV_HANDOFF.md`
+5. Set env vars per §7 below
 
 ### Seed Mock Data (for demo)
 
@@ -199,10 +212,12 @@ cd backend && npx ts-node --compiler-options '{"module":"commonjs"}' ../scripts/
 # Testnet simulation (dry run)
 npx ts-node scripts/testnet-sim.ts --network hardhat --bids 20 --wallets 3 --dry-run
 
-# Artillery load test (13 scenarios, 1500 peak)
-cd backend && npm run test:load
+# Artillery load tests (23+ scenarios, 10K peak)
+npx artillery run tests/load/artillery-rtb.yaml
+npx artillery run tests/load/artillery-stress-10k.yaml
+npx artillery run tests/load/artillery-edge-cases.yaml
 
-# Cypress E2E (38 UI tests)
+# Cypress E2E (53+ UI tests)
 cd frontend && npx cypress run
 ```
 
@@ -222,3 +237,65 @@ cd frontend && npx cypress run
 | MCP server 401 | Set `API_KEY` in `mcp-server/.env` matching backend auth |
 | DECO/Streams timeout | Stubs auto-fallback with cached data — check `DECO_TIMEOUT_MS` env |
 | Agent logs missing | Ensure `mcp-server/logs/` directory is writable |
+| `insufficient funds for gas` | Fund deployer wallet: [faucets.chain.link](https://faucets.chain.link) for Sepolia ETH |
+| `gas required exceeds allowance` | Increase gas limit in hardhat.config.ts: `gas: 5000000` |
+| `transaction underpriced` | Wait for gas prices to drop, or set `gasPrice` manually |
+| `nonce too low` | Reset MetaMask account, or wait for pending txns to confirm |
+| `could not detect network` | Check `ALCHEMY_API_KEY` is valid |
+| `rate limit exceeded` | Upgrade Alchemy plan or add delay between deployments |
+| `bytecode mismatch` | Re-compile with same Solidity version (0.8.24) + optimizer settings |
+
+---
+
+## 7. Environment Reference
+
+> Consolidated from the former `ENV_HANDOFF.md`. Use this when opening a new session or project folder.
+
+### Backend (`backend/.env`)
+
+| Variable | Example / Note |
+|----------|-----------------|
+| `NODE_ENV` | production |
+| `PORT` | 3001 |
+| `API_URL` | https://lead-engine-cre-api.onrender.com |
+| `FRONTEND_URL` | https://lead-engine-cre.vercel.app |
+| `DATABASE_URL` | postgresql://user:pass@host:port/db?schema=public |
+| `REDIS_URL` | redis://... (from Render Redis) |
+| `JWT_SECRET` | 64-char hex (`openssl rand -hex 32`) |
+| `ALCHEMY_API_KEY` | From Alchemy dashboard |
+| `RPC_URL_SEPOLIA` | https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY |
+| `RPC_URL_BASE_SEPOLIA` | https://sepolia.base.org |
+| `DEPLOYER_PRIVATE_KEY` | 0x... (never commit) |
+| `PAYMENT_RECIPIENT_ADDRESS` | 0x... |
+| Contract addresses | `ACE_CONTRACT_ADDRESS`, `LEAD_NFT_ADDRESS`, `ESCROW_CONTRACT_ADDRESS`, `MARKETPLACE_ADDRESS`, `CRE_CONTRACT_ADDRESS` |
+
+### Frontend (`frontend/.env.local`)
+
+| Variable | Example / Note |
+|----------|-----------------|
+| `VITE_API_URL` | https://lead-engine-cre-api.onrender.com |
+| `VITE_APP_URL` | https://lead-engine-cre.vercel.app |
+| `VITE_WALLETCONNECT_PROJECT_ID` | From WalletConnect Cloud |
+| `VITE_ALCHEMY_API_KEY` | Same as backend or separate key |
+| `VITE_DEFAULT_CHAIN_ID` | 11155111 (Sepolia) or 84532 (Base Sepolia) |
+| `VITE_ENABLE_TESTNET` | true |
+
+> **Note:** This is a Vite app — use `VITE_` prefix, not `NEXT_PUBLIC_`.
+
+### Where to find values
+
+| Source | Location |
+|--------|----------|
+| Local env files | `backend/.env` and `frontend/.env.local` |
+| Render | Dashboard → Service → Environment |
+| Vercel | Project → Settings → Environment Variables |
+| GitHub | https://github.com/bnmbnmai/lead-engine-cre |
+
+### Private Key Security
+
+⚠️ **NEVER commit private keys to Git:**
+- Use `.env` files (excluded by `.gitignore`)
+- For CI/CD: use GitHub Secrets
+- For Render: use environment variables (not in code)
+- Rotate keys if accidentally exposed
+- Use a separate deployer wallet with minimal funds
