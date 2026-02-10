@@ -1,0 +1,758 @@
+openapi: 3.0.3
+info:
+  title: Lead Engine CRE API
+  description: |
+    REST API for the Lead Engine CRE marketplace — a decentralized lead exchange with
+    sealed-bid auctions, ZK-verified compliance, and x402 USDC settlement.
+
+    ## Authentication
+    All endpoints require a JWT Bearer token obtained via the wallet auth flow:
+    1. `GET /api/v1/auth/nonce/{address}` — get signing message
+    2. `POST /api/v1/auth/wallet` — submit signature, receive JWT
+    3. Include `Authorization: Bearer <token>` on all subsequent requests
+
+    ## Lead Sources
+    Leads can be submitted via three channels:
+    - **PLATFORM** — the built-in web form
+    - **API** — programmatic submission (this endpoint)
+    - **OFFSITE** — hosted landers and webhook integrations
+  version: 1.0.0
+  contact:
+    name: Lead Engine CRE
+    url: https://github.com/bnmbnmai/lead-engine-cre
+
+servers:
+  - url: http://localhost:3001
+    description: Local development
+  - url: https://lead-engine-cre-api.onrender.com
+    description: Production
+
+tags:
+  - name: Auth
+    description: Wallet authentication and session management
+  - name: Leads
+    description: Lead submission and listing
+  - name: Asks
+    description: Seller ask listings (buy-side demand)
+  - name: Bids
+    description: Sealed-bid auction operations
+  - name: Analytics
+    description: Dashboard analytics and reporting
+
+paths:
+  # ─── Auth ───────────────────────────────
+  /api/v1/auth/nonce/{address}:
+    get:
+      tags: [Auth]
+      summary: Get signing nonce
+      description: Returns a nonce and EIP-4361 message for the given wallet address.
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^0x[a-fA-F0-9]{40}$"
+          example: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18"
+      responses:
+        "200":
+          description: Nonce and signing message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nonce:
+                    type: string
+                  message:
+                    type: string
+
+  /api/v1/auth/wallet:
+    post:
+      tags: [Auth]
+      summary: Authenticate with wallet signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletAuth"
+      responses:
+        "200":
+          description: JWT token and user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    type: object
+
+  # ─── Leads ──────────────────────────────
+  /api/v1/leads/submit:
+    post:
+      tags: [Leads]
+      summary: Submit a lead
+      description: |
+        Submit a new lead to the marketplace. The lead is automatically verified by
+        the CRE (Compliance & Risk Engine), matched against active asks, and enters
+        auction if a match is found.
+
+        **Hybrid sources**: Use `source: "API"` for programmatic submissions or
+        `source: "OFFSITE"` for webhook/lander integrations.
+
+        **Geo-mismatch handling**: If no active ask matches the lead's geo, the lead
+        is created but won't enter auction until a matching ask appears. It expires
+        after `expiresInMinutes`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadSubmit"
+            examples:
+              roofing_lead:
+                summary: Roofing lead from FL
+                value:
+                  vertical: roofing
+                  source: API
+                  geo:
+                    state: FL
+                    zip: "33101"
+                  reservePrice: 35.00
+                  expiresInMinutes: 60
+                  tcpaConsentAt: "2026-02-09T05:00:00Z"
+                  parameters:
+                    roof_type: shingle
+                    damage_type: storm
+                    insurance_claim: true
+              mortgage_lead:
+                summary: Mortgage lead from CA
+                value:
+                  vertical: mortgage
+                  source: API
+                  geo:
+                    state: CA
+                    city: Los Angeles
+                    zip: "90001"
+                  reservePrice: 50.00
+                  expiresInMinutes: 120
+                  tcpaConsentAt: "2026-02-09T05:00:00Z"
+                  parameters:
+                    loan_type: purchase
+                    credit_range: good_700-749
+                    property_type: single_family
+                    purchase_price: 650000
+      responses:
+        "201":
+          description: Lead created and optionally matched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lead:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      vertical:
+                        type: string
+                      status:
+                        type: string
+                        enum: [PENDING_AUCTION, IN_AUCTION]
+                      isVerified:
+                        type: boolean
+                      matchingAsks:
+                        type: integer
+                      auctionEndAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Lead failed CRE verification
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: object
+
+  /api/v1/leads:
+    get:
+      tags: [Leads]
+      summary: List leads
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vertical
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING_AUCTION, IN_AUCTION, REVEAL_PHASE, SOLD, EXPIRED]
+        - name: state
+          in: query
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, reservePrice, auctionEndAt]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Paginated list of leads
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leads:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+
+  /api/v1/leads/{id}:
+    get:
+      tags: [Leads]
+      summary: Get lead details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lead details with bids and verification
+        "404":
+          description: Lead not found
+
+  # ─── Asks ───────────────────────────────
+  /api/v1/asks:
+    get:
+      tags: [Asks]
+      summary: List asks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vertical
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, PAUSED, EXPIRED, CANCELLED]
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated ask listings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Ask"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+
+    post:
+      tags: [Asks]
+      summary: Create ask
+      description: Create a new ask listing. Requires seller role.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskCreate"
+      responses:
+        "201":
+          description: Ask created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ask:
+                    $ref: "#/components/schemas/Ask"
+
+  /api/v1/asks/{id}:
+    get:
+      tags: [Asks]
+      summary: Get ask details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ask with seller info and leads
+        "404":
+          description: Ask not found
+
+  # ─── Bids ───────────────────────────────
+  /api/v1/bids:
+    post:
+      tags: [Bids]
+      summary: Place a bid
+      description: |
+        Submit a sealed bid on a lead. Supports two modes:
+        - **Sealed bid**: provide `commitment` (keccak256 hash of amount + salt)
+        - **Direct bid**: provide `amount` directly (for non-ZK auctions)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/BidCommit"
+                - $ref: "#/components/schemas/BidDirect"
+      responses:
+        "201":
+          description: Bid placed
+        "400":
+          description: Invalid bid
+
+  /api/v1/bids/{bidId}/reveal:
+    post:
+      tags: [Bids]
+      summary: Reveal a sealed bid
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BidReveal"
+      responses:
+        "200":
+          description: Bid revealed
+
+  /api/v1/bids/my:
+    get:
+      tags: [Bids]
+      summary: List my bids
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of user's bids
+
+  /api/v1/bids/preferences:
+    put:
+      tags: [Bids]
+      summary: Update buyer preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyerPreferences"
+      responses:
+        "200":
+          description: Preferences updated
+
+  # ─── Analytics ──────────────────────────
+  /api/v1/analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Dashboard overview stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Overview statistics
+
+  /api/v1/analytics/leads:
+    get:
+      tags: [Analytics]
+      summary: Lead analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: vertical
+          in: query
+          schema:
+            type: string
+        - name: groupBy
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+      responses:
+        "200":
+          description: Lead analytics data
+
+  /api/v1/analytics/bids:
+    get:
+      tags: [Analytics]
+      summary: Bid analytics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Bid analytics data
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    WalletAuth:
+      type: object
+      required: [address, message, signature]
+      properties:
+        address:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{40}$"
+        message:
+          type: string
+        signature:
+          type: string
+          pattern: "^0x[a-fA-F0-9]+$"
+
+    LeadSubmit:
+      type: object
+      required: [vertical, geo]
+      properties:
+        vertical:
+          type: string
+          enum: [solar, mortgage, roofing, insurance, home_services, b2b_saas, real_estate, auto, legal, financial]
+        geo:
+          $ref: "#/components/schemas/Geo"
+        source:
+          type: string
+          enum: [PLATFORM, API, OFFSITE]
+          default: PLATFORM
+        reservePrice:
+          type: number
+          minimum: 0.01
+        tcpaConsentAt:
+          type: string
+          format: date-time
+        consentProof:
+          type: string
+        encryptedData:
+          type: string
+        dataHash:
+          type: string
+        expiresInMinutes:
+          type: integer
+          minimum: 5
+          maximum: 10080
+          default: 60
+        parameters:
+          type: object
+          description: |
+            Vertical-specific fields. Examples:
+            - **roofing**: roof_type, damage_type, insurance_claim, roof_age, square_footage
+            - **mortgage**: loan_type, credit_range, property_type, purchase_price, down_payment_pct
+            - **solar**: roof_age, monthly_bill, ownership, panel_interest, shade_level
+            - **insurance**: coverage_type, current_provider, policy_expiry, num_drivers
+          additionalProperties: true
+
+    Geo:
+      type: object
+      properties:
+        state:
+          type: string
+          minLength: 2
+          maxLength: 2
+        city:
+          type: string
+        zip:
+          type: string
+          pattern: "^\\d{5}(-\\d{4})?$"
+        geoHash:
+          type: string
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+
+    AskCreate:
+      type: object
+      required: [vertical, geoTargets, reservePrice]
+      properties:
+        vertical:
+          type: string
+        geoTargets:
+          type: object
+          properties:
+            states:
+              type: array
+              items:
+                type: string
+            zips:
+              type: array
+              items:
+                type: string
+            excludeZips:
+              type: array
+              items:
+                type: string
+            radius:
+              type: object
+              properties:
+                lat:
+                  type: number
+                lng:
+                  type: number
+                miles:
+                  type: number
+        reservePrice:
+          type: number
+          minimum: 0.01
+        buyNowPrice:
+          type: number
+        acceptOffSite:
+          type: boolean
+          default: true
+        auctionDuration:
+          type: integer
+          minimum: 300
+          maximum: 604800
+          default: 3600
+        revealWindow:
+          type: integer
+          minimum: 60
+          maximum: 3600
+          default: 900
+        expiresInDays:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 30
+        parameters:
+          type: object
+          additionalProperties: true
+
+    Ask:
+      type: object
+      properties:
+        id:
+          type: string
+        vertical:
+          type: string
+        geoTargets:
+          type: object
+        reservePrice:
+          type: number
+        buyNowPrice:
+          type: number
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED, EXPIRED, CANCELLED]
+        acceptOffSite:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    BidCommit:
+      type: object
+      required: [leadId, commitment]
+      properties:
+        leadId:
+          type: string
+        commitment:
+          type: string
+          pattern: "^0x[a-fA-F0-9]{64}$"
+          description: keccak256(abi.encodePacked(amount, salt))
+
+    BidDirect:
+      type: object
+      required: [leadId, amount]
+      properties:
+        leadId:
+          type: string
+        amount:
+          type: number
+          minimum: 0.01
+
+    BidReveal:
+      type: object
+      required: [amount, salt]
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+        salt:
+          type: string
+
+    BuyerPreferences:
+      type: object
+      properties:
+        verticals:
+          type: array
+          items:
+            type: string
+        geoFilters:
+          type: object
+          properties:
+            states:
+              type: array
+              items:
+                type: string
+            excludeStates:
+              type: array
+              items:
+                type: string
+            zips:
+              type: array
+              items:
+                type: string
+            excludeZips:
+              type: array
+              items:
+                type: string
+        budgetMin:
+          type: number
+        budgetMax:
+          type: number
+        dailyBudget:
+          type: number
+        monthlyBudget:
+          type: number
+        acceptOffSite:
+          type: boolean
+        requireVerified:
+          type: boolean
+        autoAcceptLeads:
+          type: boolean
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: object

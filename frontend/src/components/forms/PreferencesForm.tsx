@@ -157,7 +157,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                 <CardContent className="space-y-4">
                     <LabeledSwitch
                         label="Accept Off-site Leads"
-                        description="Receive leads from external landers and sources"
+                        description="Receive leads captured from external landing pages, partner sites, and webhook integrations. Off-site leads may have different quality profiles than platform-generated leads, but expand your supply volume significantly."
                         checked={preferences.acceptOffSite}
                         onCheckedChange={(checked) =>
                             setPreferences((prev) => ({ ...prev, acceptOffSite: checked }))
@@ -166,7 +166,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
 
                     <LabeledSwitch
                         label="Require Verified Leads Only"
-                        description="Only show leads that have passed CRE verification"
+                        description="Only show leads that have passed CRE (Compliance & Risk Engine) verification — including TCPA consent validation, geo accuracy checks, and duplicate detection. Reduces volume but increases lead quality and protects against fraud."
                         checked={preferences.requireVerified}
                         onCheckedChange={(checked) =>
                             setPreferences((prev) => ({ ...prev, requireVerified: checked }))
@@ -175,7 +175,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
 
                     <LabeledSwitch
                         label="Enable Auto-Bidding"
-                        description="Automatically bid on matching leads up to your max budget"
+                        description="Automatically place bids on leads matching your vertical, geo, and budget filters. Bids are placed at your max-per-lead limit. Ideal for high-volume buyers who want to compete in real-time auctions without manual intervention — but be sure to set budget caps below."
                         checked={preferences.autoBid}
                         onCheckedChange={(checked) =>
                             setPreferences((prev) => ({ ...prev, autoBid: checked }))
@@ -188,7 +188,10 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
             <Card>
                 <CardHeader>
                     <CardTitle>Budget Settings</CardTitle>
-                    <CardDescription>Set your bidding limits</CardDescription>
+                    <CardDescription>
+                        Set spending limits to control costs. Budgets are enforced in USDC and reset daily at midnight UTC.
+                        When auto-bidding is enabled, these limits prevent runaway spending.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div>
