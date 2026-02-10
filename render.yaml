@@ -1,5 +1,5 @@
 # Render Blueprint — Lead Engine CRE
-# Deploy: Dashboard → New → Blueprint → Connect this repo
+# Deploy: Dashboard > New > Blueprint > Connect this repo
 
 databases:
   - name: lead-engine-db
@@ -12,8 +12,9 @@ services:
     name: lead-engine-api
     runtime: node
     plan: free
-    buildCommand: cd backend && npm install && npx prisma generate && npm run build
-    startCommand: cd backend && npm run start
+    rootDir: backend
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
+    startCommand: npm run start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -25,7 +26,7 @@ services:
           name: lead-engine-db
           property: connectionString
       - key: FRONTEND_URL
-        sync: false            # Set to your Vercel URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: ALCHEMY_API_KEY
