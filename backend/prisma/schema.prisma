@@ -127,6 +127,7 @@ model BuyerPreferenceSet {
   // Auto-bid
   autoBidEnabled  Boolean  @default(false)
   autoBidAmount   Decimal? @db.Decimal(10, 2) // Fixed bid amount when auto-bid fires
+  minQualityScore Int?     // 0-10000 scale; "bid if score > 80" = 8000
 
   // Toggles
   acceptOffSite   Boolean  @default(true)
@@ -336,6 +337,7 @@ model Bid {
   salt         String?   // Revealed salt
   
   status       BidStatus @default(PENDING)
+  source       BidSource @default(MANUAL)
   
   // Timestamps
   createdAt    DateTime  @default(now())
@@ -360,6 +362,12 @@ enum BidStatus {
   REJECTED     // Failed compliance or below reserve
   WITHDRAWN    // Buyer withdrew
   EXPIRED      // Not revealed in time
+}
+
+enum BidSource {
+  MANUAL       // Human via UI
+  AUTO_BID     // Auto-bid engine
+  AGENT        // MCP agent
 }
 
 // ============================================

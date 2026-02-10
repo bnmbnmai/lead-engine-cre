@@ -80,18 +80,64 @@ Read buyer preference sets (per-vertical auto-bid, geo, budgets).
 { "method": "get_preferences", "params": {} }
 ```
 
-## LangChain Integration Example
+### `set_auto_bid_rules`
+Configure auto-bid rules for a vertical with score gates, geo, and budgets.
 
-Autonomous solar bid agent that checks bid floors and places bids:
+```json
+{
+  "method": "set_auto_bid_rules",
+  "params": {
+    "vertical": "solar",
+    "autoBidEnabled": true,
+    "autoBidAmount": 120,
+    "minQualityScore": 8000,
+    "maxBidPerLead": 150,
+    "dailyBudget": 2000,
+    "geoCountry": "US",
+    "geoInclude": ["CA", "FL", "TX"],
+    "acceptOffSite": false,
+    "requireVerified": true
+  }
+}
+```
+
+### `configure_crm_webhook`
+Register a CRM webhook (HubSpot, Zapier, or generic).
+
+```json
+{
+  "method": "configure_crm_webhook",
+  "params": {
+    "url": "https://hooks.zapier.com/hooks/catch/12345/abcdef/",
+    "format": "zapier",
+    "events": ["lead.sold"]
+  }
+}
+```
+
+### `ping_lead`
+Programmatic ping/post for a specific lead (status or trigger auto-bid evaluation).
+
+```json
+{
+  "method": "ping_lead",
+  "params": { "leadId": "lead_abc123", "action": "evaluate" }
+}
+```
+
+## LangChain Autonomous Bidding Agent
+
+Full autonomous agent with score-based rules, budget management, and CRM integration:
 
 ```python
-# solar_bid_agent.py
-from langchain.agents import Tool, AgentExecutor
+# autonomous_bid_agent.py
+from langchain.agents import Tool, AgentExecutor, create_openai_tools_agent
 from langchain.chat_models import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
 import requests
 
 MCP_URL = "http://localhost:3002/rpc"
-AGENT_ID = "solar-bid-agent-v1"
+AGENT_ID = "auto-bid-agent-v2"
 
 def mcp_call(method: str, params: dict) -> dict:
     """Call an MCP tool and return the result."""
@@ -106,51 +152,93 @@ def mcp_call(method: str, params: dict) -> dict:
         raise Exception(f"MCP error: {data['error']}")
     return data.get("result", {})
 
-def search_solar_leads(query: str) -> str:
-    """Search for solar leads in a given state."""
-    # Parse state from query (e.g., "CA leads under $120")
+def search_leads(query: str) -> str:
+    """Search for leads by vertical and state."""
     result = mcp_call("search_leads", {
         "vertical": "solar",
         "state": query[:2].upper(),
         "maxPrice": 200,
-        "limit": 5,
+        "limit": 10,
     })
     leads = result.get("asks", [])
-    return f"Found {len(leads)} solar leads: " + ", ".join(
+    return f"Found {len(leads)} leads: " + ", ".join(
         f"{l['id']} (${l.get('reservePrice', '?')})" for l in leads[:5]
     )
 
-def get_solar_floor(country: str = "US") -> str:
-    """Get current bid floor for solar leads."""
-    result = mcp_call("get_bid_floor", {"vertical": "solar", "country": country})
-    floor = result.get("bidFloor", {})
-    return f"Solar bid floor: ${floor.get('bidFloor', '?')} - ${floor.get('bidCeiling', '?')}"
+def setup_auto_bid(vertical_config: str) -> str:
+    """Set up auto-bid rules. Input: 'solar,120,8000,CA|FL|TX'"""
+    parts = vertical_config.split(",")
+    vertical, amount = parts[0], float(parts[1])
+    score = int(parts[2]) if len(parts) > 2 else 0
+    states = parts[3].split("|") if len(parts) > 3 else []
 
-def place_solar_bid(lead_id: str) -> str:
-    """Place a $150 bid on a solar lead."""
-    result = mcp_call("place_bid", {"leadId": lead_id, "amount": 150})
-    return f"Bid placed: {result}"
+    mcp_call("set_auto_bid_rules", {
+        "vertical": vertical,
+        "autoBidEnabled": True,
+        "autoBidAmount": amount,
+        "minQualityScore": score,
+        "geoInclude": states,
+        "dailyBudget": 2000,
+        "acceptOffSite": False,
+        "requireVerified": True,
+    })
+    return f"Auto-bid configured: {vertical} at ${amount}, min score {score}"
+
+def register_crm(webhook_url: str) -> str:
+    """Register a CRM webhook. Input: URL"""
+    result = mcp_call("configure_crm_webhook", {
+        "url": webhook_url,
+        "format": "zapier",
+        "events": ["lead.sold"],
+    })
+    return f"Webhook registered: {result}"
+
+def ping_and_evaluate(lead_id: str) -> str:
+    """Ping a lead and evaluate it for auto-bidding."""
+    result = mcp_call("ping_lead", {
+        "leadId": lead_id,
+        "action": "evaluate",
+    })
+    return f"Evaluation result: {result}"
 
 # Define tools
 tools = [
-    Tool(name="SearchSolarLeads", func=search_solar_leads,
-         description="Search for solar leads by state"),
-    Tool(name="GetSolarFloor", func=get_solar_floor,
-         description="Get current solar bid floor price"),
-    Tool(name="PlaceSolarBid", func=place_solar_bid,
-         description="Place a $150 bid on a solar lead by ID"),
+    Tool(name="SearchLeads", func=search_leads,
+         description="Search for leads by state code (e.g., 'CA')"),
+    Tool(name="SetupAutoBid", func=setup_auto_bid,
+         description="Set auto-bid rules: 'vertical,amount,minScore,STATE1|STATE2'"),
+    Tool(name="RegisterCRM", func=register_crm,
+         description="Register Zapier webhook URL for CRM push"),
+    Tool(name="PingLead", func=ping_and_evaluate,
+         description="Ping a lead and evaluate for auto-bidding"),
 ]
 
 # Create agent
 llm = ChatOpenAI(model="gpt-4", temperature=0)
-agent = AgentExecutor.from_agent_and_tools(
-    agent=...,  # Your agent config
-    tools=tools,
-    verbose=True,
-)
+prompt = ChatPromptTemplate.from_messages([
+    ("system", """You are an autonomous lead bidding agent for the Lead Engine CRE platform.
+    Your job is to:
+    1. Set up auto-bid rules for specific verticals with quality score gates
+    2. Register CRM webhooks so won leads flow to the buyer's CRM
+    3. Search for and evaluate leads that match the buyer's criteria
+    Always check bid floors before setting bid amounts.
+    """),
+    ("human", "{input}"),
+])
 
-# Run: "Find CA solar leads under $120 and bid on the best one"
-agent.run("Find solar leads in California under $120 and place a bid on the cheapest one")
+agent = create_openai_tools_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# Example: Full autonomous setup
+executor.invoke({
+    "input": """Set up auto-bidding for solar leads:
+    - Bid $120 on leads with quality score > 80 (8000)
+    - Only CA, FL, TX
+    - Daily budget $2000
+    - Register Zapier webhook: https://hooks.zapier.com/hooks/catch/12345/abcdef/
+    - Then search for CA solar leads and evaluate the top one
+    """
+})
 ```
 
 ## Signless Abstraction

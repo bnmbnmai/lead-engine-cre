@@ -14,7 +14,10 @@
 ## Testing Verification
 
 - [ ] Security compliance sim: 29/29 passing
-- [ ] Cypress E2E: 38 UI tests
+- [ ] Auto-bid engine: 18/18 passing
+- [ ] CRM webhooks: 10/10 passing
+- [ ] Cypress E2E: 38+ UI tests
+- [ ] On-chain E2E: settlement (6), reorg (4), Chainlink stubs (5)
 - [ ] Artillery load test: 13 scenarios, 1,500 peak concurrent users
 - [ ] Mock data seeded: 200+ entries (`cd backend && npm run db:seed`)
 - [ ] Testnet sim: 500+ on-chain txs (`npx ts-node scripts/testnet-sim.ts --dry-run`)
@@ -40,15 +43,18 @@
 ## MCP Agent Server
 
 - [ ] `mcp-server/` builds and runs on port 3002
-- [ ] 5 tools: search_leads, place_bid, get_bid_floor, export_leads, get_preferences
-- [ ] `SKILL.md` with LangChain example, signless abstraction, CCIP notes
+- [ ] 8 tools: search_leads, place_bid, get_bid_floor, export_leads, get_preferences, set_auto_bid_rules, configure_crm_webhook, ping_lead
+- [ ] `SKILL.md` with LangChain autonomous bidding agent, signless abstraction, CCIP notes
 - [ ] Agent logger writes to `mcp-server/logs/`
 - [ ] Error codes documented: RATE_LIMITED, BID_TOO_LOW, AUTH_FAILED, etc.
 
 ## CRM Exports
 
 - [ ] `GET /api/v1/crm/export?format=csv|json` — download endpoint
-- [ ] `POST /api/v1/crm/push` — webhook integration
+- [ ] `POST /api/v1/crm/push` — legacy webhook push
+- [ ] `POST /api/v1/crm/webhooks` — register HubSpot/Zapier/generic webhook
+- [ ] `GET /api/v1/crm/webhooks` — list registered webhooks
+- [ ] `DELETE /api/v1/crm/webhooks/:id` — remove webhook
 - [ ] "Push to CRM" button on Buyer Dashboard (CSV/JSON/webhook dropdown)
 
 ## Live Deployment
@@ -59,6 +65,8 @@
 - [ ] Health check returns 200 (`/health`)
 - [ ] Swagger UI functional (`/api/swagger`)
 - [ ] Demo endpoints: `/api/v1/demo/e2e-bid`, `/api/v1/demo/compliance-check`
+- [ ] Auto-bid evaluate: `POST /api/v1/bids/auto-bid/evaluate`
+- [ ] CRM webhooks: `POST /api/v1/crm/webhooks`
 - [ ] CRM export: `/api/v1/crm/export?format=json`
 - [ ] Bid floor: `/api/v1/bids/bid-floor?vertical=solar&country=US`
 - [ ] CORS configured (frontend ↔ backend)
@@ -69,10 +77,11 @@
 
 - [ ] Recorded (3–4 min) per `docs/DEMO_SCRIPT.md`
 - [ ] Uploaded to Loom (unlisted)
-- [ ] Covers 9 scenes: landing → mortgage submit → DECO/Streams → ACE auto-rules → MCP agent → encrypted bid → CRM export → global scale → close
-- [ ] Shows all 5 Chainlink services
-- [ ] Shows MCP agent programmatic bidding
-- [ ] Shows CRM "Push to CRM" button
+- [ ] Covers 10 scenes: landing → seller submit → DECO/Streams → ACE → EU solar auto-bid → MCP agent (8 tools) → encrypted bid → CRM webhooks → global scale → close
+- [ ] Shows all 5 Chainlink services (CRE, ACE + DECO, Streams, Confidential stubs)
+- [ ] Shows auto-bid engine firing on EU solar lead
+- [ ] Shows MCP agent: set_auto_bid_rules + configure_crm_webhook + ping_lead
+- [ ] Shows CRM webhook delivery (HubSpot + Zapier)
 - [ ] Backup segments pre-recorded
 
 ## Pitch Deck
@@ -86,7 +95,7 @@
 
 - [ ] Project name: **Lead Engine CRE**
 - [ ] Category: **Chainlink CRE + ACE**
-- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, MCP agent server for programmatic bidding, and CRM integration — 10 verticals, 15+ countries, 500+ testnet txs
+- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 15+ countries, 151 tests, 500+ testnet txs
 - [ ] GitHub repo URL: `https://github.com/bnmbnmai/lead-engine-cre`
 - [ ] Demo video URL (Loom)
 - [ ] Live frontend URL: `https://lead-engine-cre.vercel.app`

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Globe, Layout, Copy, Check, ExternalLink, Wallet, UserPlus, Building2, CheckCircle } from 'lucide-react';
+import { ErrorDetail, parseApiError } from '@/components/ui/ErrorDetail';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { LeadSubmitForm } from '@/components/forms/LeadSubmitForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +80,7 @@ export function SellerSubmit() {
     const [wizardCompany, setWizardCompany] = useState('');
     const [wizardVerticals, setWizardVerticals] = useState<string[]>([]);
     const [wizardSubmitting, setWizardSubmitting] = useState(false);
+    const [profileError, setProfileError] = useState<any>(null);
 
     const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'];
 
@@ -105,6 +107,7 @@ export function SellerSubmit() {
     const handleProfileCreate = async () => {
         if (!wizardCompany.trim() || wizardVerticals.length === 0) return;
         setWizardSubmitting(true);
+        setProfileError(null);
         try {
             const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
             const token = localStorage.getItem('auth_token');
@@ -121,10 +124,12 @@ export function SellerSubmit() {
             });
             if (resp.ok) {
                 setHasProfile(true);
+            } else {
+                const body = await resp.json().catch(() => ({}));
+                setProfileError(body.code ? body : { error: body.error || 'Failed to create profile. Please try again.' });
             }
-        } catch {
-            // Profile may already exist — treat as success
-            setHasProfile(true);
+        } catch (err) {
+            setProfileError(parseApiError(err));
         } finally {
             setWizardSubmitting(false);
         }
@@ -213,6 +218,10 @@ export function SellerSubmit() {
                             <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
                                 <strong>KYC Notice:</strong> Full identity verification will be required before your leads can settle on-chain. You can start submitting leads now and complete KYC later.
                             </div>
+
+                            {profileError && (
+                                <ErrorDetail error={profileError} onDismiss={() => setProfileError(null)} />
+                            )}
 
                             <Button
                                 className="w-full"

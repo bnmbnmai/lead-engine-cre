@@ -84,9 +84,115 @@ const GEO_CONFIGS: GeoConfig[] = [
     },
     {
         country: 'IN',
-        states: ['Maharashtra', 'Karnataka', 'Tamil Nadu', 'Delhi', 'Gujarat'],
+        states: ['MH', 'KA', 'TN', 'DL', 'GJ'],
         zipFn: () => `${faker.number.int({ min: 100000, max: 999999 })}`,
         cities: ['Mumbai', 'Bangalore', 'Chennai', 'New Delhi', 'Ahmedabad'],
+    },
+    // ─── LATAM ──────────────────────────────
+    {
+        country: 'MX',
+        states: ['CDMX', 'JAL', 'NLE', 'YUC', 'QRO', 'PUE'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Mexico City', 'Guadalajara', 'Monterrey', 'Mérida', 'Querétaro'],
+    },
+    {
+        country: 'CO',
+        states: ['BOG', 'ANT', 'VAC', 'ATL', 'SAN'],
+        zipFn: () => `${faker.number.int({ min: 100000, max: 999999 })}`,
+        cities: ['Bogotá', 'Medellín', 'Cali', 'Barranquilla', 'Bucaramanga'],
+    },
+    {
+        country: 'AR',
+        states: ['CABA', 'BUE', 'COR', 'SFE', 'MZA'],
+        zipFn: () => `${faker.string.alpha({ length: 1, casing: 'upper' })}${faker.number.int({ min: 1000, max: 9999 })}${faker.string.alpha({ length: 3, casing: 'upper' })}`,
+        cities: ['Buenos Aires', 'Córdoba', 'Rosario', 'Mendoza', 'Tucumán'],
+    },
+    {
+        country: 'CL',
+        states: ['RM', 'VAL', 'BIO', 'ARA', 'MAU'],
+        zipFn: () => `${faker.number.int({ min: 1000000, max: 9999999 })}`,
+        cities: ['Santiago', 'Valparaíso', 'Concepción', 'Temuco', 'Talca'],
+    },
+    {
+        country: 'PE',
+        states: ['LIM', 'ARE', 'LAL', 'PIU', 'CUS'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Lima', 'Arequipa', 'Trujillo', 'Piura', 'Cusco'],
+    },
+    {
+        country: 'EC',
+        states: ['GYE', 'UIO', 'AZU', 'MAN', 'TUN'],
+        zipFn: () => `${faker.number.int({ min: 100000, max: 999999 })}`,
+        cities: ['Guayaquil', 'Quito', 'Cuenca', 'Portoviejo', 'Ambato'],
+    },
+    // ─── APAC ───────────────────────────────
+    {
+        country: 'JP',
+        states: ['TYO', 'OSK', 'AIC', 'FKO', 'HKD'],
+        zipFn: () => `${faker.number.int({ min: 100, max: 999 })}-${faker.number.int({ min: 1000, max: 9999 })}`,
+        cities: ['Tokyo', 'Osaka', 'Nagoya', 'Fukuoka', 'Sapporo'],
+    },
+    {
+        country: 'KR',
+        states: ['SEL', 'BSN', 'ICN', 'DGU', 'GGI'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Seoul', 'Busan', 'Incheon', 'Daegu', 'Suwon'],
+    },
+    {
+        country: 'SG',
+        states: ['CTR', 'NE', 'NW', 'SE'],
+        zipFn: () => `${faker.number.int({ min: 100000, max: 999999 })}`,
+        cities: ['Singapore'],
+    },
+    // ─── Middle East ────────────────────────
+    {
+        country: 'AE',
+        states: ['DXB', 'AUH', 'SHJ', 'AJM'],
+        zipFn: () => '',
+        cities: ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman'],
+    },
+    // ─── Africa ─────────────────────────────
+    {
+        country: 'ZA',
+        states: ['GP', 'WC', 'KZN', 'EC', 'LP', 'MP'],
+        zipFn: () => `${faker.number.int({ min: 1000, max: 9999 })}`,
+        cities: ['Johannesburg', 'Cape Town', 'Durban', 'Pretoria', 'Port Elizabeth'],
+    },
+    {
+        country: 'NG',
+        states: ['LA', 'ABJ', 'KN', 'RV', 'OY', 'EDO'],
+        zipFn: () => `${faker.number.int({ min: 100000, max: 999999 })}`,
+        cities: ['Lagos', 'Abuja', 'Kano', 'Port Harcourt', 'Ibadan'],
+    },
+    {
+        country: 'KE',
+        states: ['NBO', 'MBA', 'KSM', 'NKR', 'ELD'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'],
+    },
+    {
+        country: 'GH',
+        states: ['GAR', 'ASH', 'WR', 'CR', 'ER'],
+        zipFn: () => `${faker.string.alpha({ length: 2, casing: 'upper' })}-${faker.number.int({ min: 100, max: 9999 })}-${faker.number.int({ min: 1000, max: 9999 })}`,
+        cities: ['Accra', 'Kumasi', 'Sekondi-Takoradi', 'Cape Coast', 'Koforidua'],
+    },
+    {
+        country: 'EG',
+        states: ['CAI', 'ALX', 'GIZ', 'ASW', 'LUX'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Cairo', 'Alexandria', 'Giza', 'Aswan', 'Luxor'],
+    },
+    {
+        country: 'TZ',
+        states: ['DSM', 'ARU', 'MWZ', 'DGM', 'ZNZ'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma', 'Zanzibar City'],
+    },
+    {
+        country: 'MA',
+        states: ['CAS', 'RBT', 'TNG', 'MRK', 'FES'],
+        zipFn: () => `${faker.number.int({ min: 10000, max: 99999 })}`,
+        cities: ['Casablanca', 'Rabat', 'Tangier', 'Marrakech', 'Fès'],
     },
 ];
 

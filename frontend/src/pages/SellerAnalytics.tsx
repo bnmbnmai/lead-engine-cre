@@ -15,7 +15,7 @@ import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 // ============================================
-// Mock data generators (populated from API or seed)
+// Mock data fallback (used when API unavailable)
 // ============================================
 
 function generateRevenueData(days: number) {
@@ -34,7 +34,7 @@ function generateRevenueData(days: number) {
     return data;
 }
 
-const VERTICAL_DATA = [
+const FALLBACK_VERTICAL_DATA = [
     { vertical: 'Solar', leads: 142, revenue: 8540, avgBid: 60.14, winRate: 72, color: '#f59e0b' },
     { vertical: 'Mortgage', leads: 98, revenue: 12740, avgBid: 130.00, winRate: 65, color: '#3b82f6' },
     { vertical: 'Roofing', leads: 76, revenue: 3800, avgBid: 50.00, winRate: 80, color: '#8b5cf6' },
@@ -58,7 +58,7 @@ const GEO_DATA = [
     { country: 'FR', region: 'IDF', leads: 14, revenue: 1540, pct: 5 },
 ];
 
-const ACTIVITY_LOG = [
+const ACTIVITY_LOG: { time: string; event: string; detail: string; icon: React.ElementType; color: string }[] = [
     { time: '2 min ago', event: 'Lead #4821 sold', detail: 'Solar — CA, US · Winning bid $65.00', icon: DollarSign, color: 'text-emerald-500' },
     { time: '18 min ago', event: 'Ask #312 expired', detail: 'Mortgage — TX, US · No bids received', icon: Clock, color: 'text-amber-500' },
     { time: '1h ago', event: 'New lead submitted', detail: 'Roofing — NSW, AU · Pending auction', icon: FileText, color: 'text-primary' },
@@ -77,20 +77,49 @@ const PIE_COLORS = ['#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#06b
 
 export function SellerAnalytics() {
     const [period, setPeriod] = useState('30d');
+    const [liveTimeSeries, setLiveTimeSeries] = useState<any[] | null>(null);
+    const [liveVerticals, setLiveVerticals] = useState<any[] | null>(null);
 
     const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
-    const revenueData = useMemo(() => generateRevenueData(days), [days]);
+    const revenueData = useMemo(() => {
+        if (liveTimeSeries && liveTimeSeries.length > 0) {
+            return liveTimeSeries.map((d: any) => ({
+                date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                revenue: d.revenue || 0,
+                leads: d.count || 0,
+                gasCost: +(Math.random() * 2.5 + 0.1).toFixed(2), // gas still simulated
+            }));
+        }
+        return generateRevenueData(days);
+    }, [liveTimeSeries, days]);
 
     useEffect(() => {
-        const fetchOverview = async () => {
+        const fetchAnalytics = async () => {
             try {
-                await api.getOverview();
+                const [, leadsRes] = await Promise.all([
+                    api.getOverview(),
+                    api.getLeadAnalytics({ groupBy: 'day' }),
+                ]);
+                if (leadsRes.data?.timeSeries) setLiveTimeSeries(leadsRes.data.timeSeries);
+                if (leadsRes.data?.byVertical) {
+                    const colors = ['#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#06b6d4', '#ec4899', '#f97316'];
+                    setLiveVerticals(leadsRes.data.byVertical.map((v: any, i: number) => ({
+                        vertical: v.vertical.charAt(0).toUpperCase() + v.vertical.slice(1).replace('_', ' '),
+                        leads: v.count,
+                        revenue: v.revenue,
+                        avgBid: v.count > 0 ? Math.round(v.revenue / v.count) : 0,
+                        winRate: v.count > 0 ? Math.round((v.sold / v.count) * 100) : 0,
+                        color: colors[i % colors.length],
+                    })));
+                }
             } catch {
-                // Graceful fallback
+                // Graceful fallback to mock data
             }
         };
-        fetchOverview();
-    }, []);
+        fetchAnalytics();
+    }, [period]);
+
+    const VERTICAL_DATA = liveVerticals && liveVerticals.length > 0 ? liveVerticals : FALLBACK_VERTICAL_DATA;
 
     const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
     const totalLeads = revenueData.reduce((sum, d) => sum + d.leads, 0);

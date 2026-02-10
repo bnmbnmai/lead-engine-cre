@@ -174,12 +174,28 @@ export async function apiKeyMiddleware(
 export function requireRole(...roles: string[]) {
     return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
         if (!req.user) {
-            res.status(401).json({ error: 'Authentication required' });
+            res.status(401).json({
+                error: 'Authentication required',
+                code: 'AUTH_REQUIRED',
+                resolution: 'Connect your wallet and sign in to access this resource.',
+            });
             return;
         }
 
         if (!roles.includes(req.user.role)) {
-            res.status(403).json({ error: 'Insufficient permissions' });
+            const roleLabels: Record<string, string> = {
+                SELLER: 'seller',
+                BUYER: 'buyer',
+                ADMIN: 'admin',
+            };
+            const needed = roles.map((r) => roleLabels[r] || r).join(' or ');
+            res.status(403).json({
+                error: `This action requires a ${needed} account.`,
+                code: 'ROLE_REQUIRED',
+                currentRole: req.user.role,
+                requiredRoles: roles,
+                resolution: `Your account is registered as "${req.user.role}". To access this feature, switch to a ${needed} account or register a new one at /auth/register.`,
+            });
             return;
         }
 

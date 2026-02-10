@@ -19,6 +19,7 @@ import SellerSubmit from '@/pages/SellerSubmit';
 import CreateAsk from '@/pages/CreateAsk';
 import FormBuilder from '@/pages/FormBuilder';
 import SellerAnalytics from '@/pages/SellerAnalytics';
+import BuyerAnalytics from '@/pages/BuyerAnalytics';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -44,7 +45,7 @@ function App() {
                             {/* Buyer Routes (auth required) */}
                             <Route path="/buyer" element={<ProtectedRoute><BuyerDashboard /></ProtectedRoute>} />
                             <Route path="/buyer/bids" element={<ProtectedRoute><BuyerBids /></ProtectedRoute>} />
-                            <Route path="/buyer/analytics" element={<ProtectedRoute><BuyerDashboard /></ProtectedRoute>} />
+                            <Route path="/buyer/analytics" element={<ProtectedRoute><BuyerAnalytics /></ProtectedRoute>} />
                             <Route path="/buyer/preferences" element={<ProtectedRoute><BuyerPreferences /></ProtectedRoute>} />
 
                             {/* Seller Routes (auth required) */}

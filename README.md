@@ -50,7 +50,9 @@ Lead Engine deeply integrates two Chainlink services as its trust infrastructure
 - 🎨 **Lead NFTs** — ERC-721 tokenized leads for provenance, resale, and portfolio management
 - 🌍 **10 Verticals, 15+ Countries** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial — across US, CA, GB, AU, DE, FR, BR, MX, IN, JP, KR, SG, AE, ZA, NG
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
-- 🤖 **AI Agent Ready** — Programmatic bidding API for automated lead acquisition
+- ⚙️ **Auto-Bid Engine** — 9-criteria matching (vertical, geo include/exclude, quality score gate, off-site, verified-only, reserve price, max bid, daily budget, duplicate prevention) — set rules once, bids fire automatically
+- 🔗 **CRM Webhooks** — HubSpot and Zapier integrations with format-specific payload transformers; push won leads to any CRM on `lead.sold` events
+- 🤖 **MCP Agent Server** — 8 JSON-RPC tools for programmatic bidding, auto-bid configuration, CRM webhook management, and lead pinging — with full LangChain autonomous bidding agent example
 - 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
 
 ---
@@ -67,6 +69,7 @@ graph TB
     subgraph Backend["Backend (Render)"]
         API[Express API]
         RTB[RTB Engine]
+        AB[Auto-Bid Engine]
         WS[WebSocket Server]
         DB[(PostgreSQL)]
     end
@@ -74,6 +77,9 @@ graph TB
     subgraph Chainlink["Chainlink Services"]
         CRE[CRE Functions]
         ACE[ACE Compliance]
+        DECO[DECO Attestation]
+        DS[Data Streams]
+        CC[Confidential Compute]
     end
 
     subgraph Contracts["Smart Contracts (Sepolia / Base)"]
@@ -88,22 +94,36 @@ graph TB
         ZK[ZK Fraud Detection]
         PRI[Privacy Suite]
         X4[x402 Payments]
+        CRM[CRM Webhooks]
+    end
+
+    subgraph Agent["MCP Agent Server (port 3002)"]
+        MCP[8 JSON-RPC Tools]
+        LC[LangChain Agent]
     end
 
     UI --> API
     UI --> WS
     WC --> UI
     API --> RTB
+    API --> AB
+    AB --> RTB
     RTB --> ZK
     RTB --> PRI
     RTB --> X4
     API --> DB
+    API --> CRM
     CRE --> CV
     ACE --> AC
+    DECO --> CV
+    DS --> RTB
+    CC --> CRE
     CV --> NFT
     AC --> MKT
     ESC --> MKT
     NFT --> MKT
+    MCP --> API
+    LC --> MCP
 ```
 
 ---
@@ -189,9 +209,19 @@ npm run dev
 | Privacy Service | 12 | AES-256-GCM, commit-reveal, PII protection |
 | NFT Service | 6 | Mint, sale recording, metadata |
 | ZK Service | 10 | Fraud proofs, geo-matching, bid commitments |
+| **Auto-Bid Engine** | **18** | Score gate, geo include/exclude, budget, off-site, multi-buyer, verticals |
+| **CRM Webhooks** | **10** | HubSpot/Zapier formatters, CRUD, payload transforms |
 | E2E Demo Flow | 5 | Full 8-step pipeline simulation |
 | Security Audit | 10 | Plaintext leakage, commitment integrity, AAD |
 | Compliance Sim | 31 | 17 state pairs, 8 reputation values, fraud |
+
+### On-Chain E2E Tests (Hardhat)
+
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| E2E Settlement | 6 | Full auction lifecycle: 5 wallets, escrow, dispute/refund, buy-now, gas bench |
+| E2E Reorg | 4 | State restoration, re-bidding, timestamp consistency, double-spend |
+| Chainlink Stubs | 5 | MockFunctionsRouter, parameter match, geo validation, quality scoring, ZK proofs |
 
 ### Security Compliance Sim (29 tests — all passing)
 
@@ -209,9 +239,9 @@ Scenarios include cross-border ACE (EU→non-EU solar), EU geo-match batch (50 l
 cd backend && npx artillery run tests/load-test.yml
 ```
 
-### Cypress E2E (38 UI tests)
+### Cypress E2E (38+ UI tests)
 
-Covers marketplace browsing, seller flows (submit tabs, API curl examples, 10 vertical forms), buyer flows, off-site toggle/fraud edge cases, hybrid buyer/seller role switching.
+Covers marketplace browsing, seller flows (submit tabs, API curl examples, 10 vertical forms), buyer flows, off-site toggle/fraud edge cases, hybrid buyer/seller role switching, multi-wallet auction lifecycle.
 
 ```bash
 cd frontend && npx cypress run
@@ -227,6 +257,7 @@ npm run test:security      # Security audit
 npm run test:compliance    # 50+ compliance scenarios
 npm run test:coverage      # With coverage report
 npm run test:load          # Artillery load test (requires running server)
+npx jest --testPathPattern="auto-bid|crm-webhook"  # Auto-bid + CRM tests
 ```
 
 ---
@@ -247,11 +278,11 @@ npm run test:load          # Artillery load test (requires running server)
 lead-engine-cre/
 ├── backend/               # Node.js/Express API
 │   ├── src/
-│   │   ├── services/      # CRE, ACE, x402, Privacy, NFT, ZK
-│   │   ├── routes/        # API + integration demo endpoints
+│   │   ├── services/      # CRE, ACE, x402, Privacy, NFT, ZK, Auto-Bid
+│   │   ├── routes/        # API + CRM webhooks + bidding + auto-bid
 │   │   ├── middleware/     # Auth, rate-limiting, CORS
-│   │   └── lib/           # Prisma, cache, utils
-│   ├── tests/             # 123 tests (unit, e2e, security, compliance)
+│   │   └── lib/           # Prisma, cache, geo-registry, utils
+│   ├── tests/             # 151 tests (unit, e2e, security, compliance, auto-bid, CRM)
 │   └── prisma/            # Schema + migrations
 ├── frontend/              # React/Vite SPA
 │   └── src/
@@ -260,8 +291,10 @@ lead-engine-cre/
 │       └── hooks/         # Wallet, WebSocket, API hooks
 ├── contracts/             # Solidity/Hardhat
 │   ├── contracts/         # 6 contracts + interfaces + mocks
-│   └── scripts/           # Deploy + gas profiling
-├── docs/                  # ENV_HANDOFF, deployment guide, demo script
+│   └── test/              # E2E settlement, reorg, Chainlink stubs
+├── mcp-server/            # MCP Agent Server (8 tools, LangChain agent)
+├── docs/                  # Demo script, pitch deck, submission checklist
+├── tests/load/            # Artillery load tests (13 scenarios)
 └── scripts/               # Security scan, contract deployment
 ```
 
@@ -292,17 +325,29 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full step-by-step guide.
 
 ---
 
-## 🏆 Hackathon
+## 🏆 Hackathon — Convergence 2026
 
-**Category:** Chainlink CRE + ACE
+**Category:** Chainlink CRE + ACE  
+**Theme:** Convergence — bridging traditional lead generation with decentralized trust infrastructure
 
-**What we built:** A decentralized lead marketplace that uses Chainlink CRE for on-chain lead verification and quality scoring, and Chainlink ACE for automated KYC/AML and jurisdiction compliance — enabling trustless, privacy-preserving real-time bidding across any vertical.
+**What we built:** A decentralized lead marketplace that uses **5 Chainlink services** as its trust layer: CRE for on-chain verification and quality scoring, ACE for automated compliance, DECO for privacy-preserving attestation, Data Streams for real-time bid floor pricing, and Confidential Compute for TEE-based lead scoring — enabling trustless, privacy-preserving real-time bidding across 10 verticals and 15+ countries.
+
+**Chainlink Depth:**
+| Service | Status | Integration |
+|---------|--------|-------------|
+| **CRE (Functions)** | ✅ Live | `CREVerifier.sol` — on-chain parameter matching, quality scoring, geo-validation |
+| **ACE (Compliance)** | ✅ Live | `ACECompliance.sol` — KYC, jurisdiction matrix, reputation system |
+| **DECO** | 🔌 Stub-ready | `deco.service.ts` — attestation + fallback; activates when access granted |
+| **Data Streams** | 🔌 Stub-ready | `datastreams.service.ts` — bid floor pricing; activates when access granted |
+| **Confidential Compute** | 🔌 Stub-ready | `confidential.service.ts` — TEE lead scoring; activates when access granted |
 
 **Key differentiators:**
 1. First marketplace to tokenize leads as NFTs with on-chain verification
 2. Privacy-preserving commit-reveal bidding with ZK fraud detection
 3. Cross-border compliance engine with state-level enforcement
-4. Designed for immediate post-hackathon production launch
+4. **Autonomous bidding** — 9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration
+5. **CRM pipeline** — HubSpot and Zapier webhook integrations for enterprise buyers
+6. Designed for immediate post-hackathon production launch
 
 ---
 

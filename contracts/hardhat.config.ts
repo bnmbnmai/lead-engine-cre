@@ -27,6 +27,14 @@ const config: HardhatUserConfig = {
     networks: {
         hardhat: {
             chainId: 31337,
+            accounts: { count: 10 },
+            // Optional: fork Sepolia for realistic E2E tests
+            ...(ALCHEMY_API_KEY ? {
+                forking: {
+                    url: `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+                    enabled: process.env.FORK_SEPOLIA === "true",
+                },
+            } : {}),
         },
         sepolia: {
             url: `https://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,

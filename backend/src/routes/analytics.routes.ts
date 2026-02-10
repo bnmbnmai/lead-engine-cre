@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { AnalyticsQuerySchema } from '../utils/validation';
 import { analyticsLimiter } from '../middleware/rateLimit';
+import { analyticsOverviewCache, analyticsLeadCache } from '../lib/cache';
 
 const router = Router();
 
@@ -14,6 +15,12 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
     try {
         const userId = req.user!.id;
         const role = req.user!.role;
+        const cacheKey = `overview:${role}:${userId}`;
+        const cached = analyticsOverviewCache.get(cacheKey);
+        if (cached) {
+            res.json(cached);
+            return;
+        }
 
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -62,7 +69,7 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
                 ? avgBidsPerLead.reduce((sum, l) => sum + l._count, 0) / avgBidsPerLead.length
                 : 0;
 
-            res.json({
+            const result = {
                 role: 'SELLER',
                 stats: {
                     totalLeads,
@@ -73,7 +80,9 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
                     avgBidsPerLead: Math.round(avgBids * 10) / 10,
                     conversionRate: totalLeads > 0 ? (soldLeads / totalLeads * 100).toFixed(1) : 0,
                 },
-            });
+            };
+            analyticsOverviewCache.set(cacheKey, result);
+            res.json(result);
         } else if (role === 'BUYER') {
             const [
                 totalBids,
@@ -103,7 +112,7 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
                 }),
             ]);
 
-            res.json({
+            const result = {
                 role: 'BUYER',
                 stats: {
                     totalBids,
@@ -114,7 +123,9 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
                     avgBidAmount: avgBidAmount._avg.amount || 0,
                     winRate: totalBids > 0 ? (wonBids / totalBids * 100).toFixed(1) : 0,
                 },
-            });
+            };
+            analyticsOverviewCache.set(cacheKey, result);
+            res.json(result);
         } else {
             // Admin overview
             const [totalUsers, totalLeads, totalTransactions, platformRevenue] = await Promise.all([

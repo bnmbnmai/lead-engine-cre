@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
+import { crossBorderRequirements, getPolicy } from '../lib/jurisdiction-policies';
+import { isValidRegion } from '../lib/geo-registry';
 
 // ============================================
 // ACE Compliance Service
@@ -226,9 +228,10 @@ class ACEService {
     async enforceJurisdictionPolicy(
         walletAddress: string,
         vertical: string,
-        geoState: string
+        geoState: string,
+        country: string = 'US'
     ): Promise<{ allowed: boolean; reason?: string }> {
-        const jurisdictionHash = ethers.keccak256(ethers.toUtf8Bytes(geoState));
+        const jurisdictionHash = ethers.keccak256(ethers.toUtf8Bytes(`${country}:${geoState}`));
         const verticalHash = ethers.keccak256(ethers.toUtf8Bytes(vertical));
 
         // Check on-chain if available
@@ -240,7 +243,7 @@ class ACEService {
                 if (!allowed) {
                     return {
                         allowed: false,
-                        reason: `Jurisdiction ${geoState} not allowed for ${vertical}`,
+                        reason: `Jurisdiction ${country}/${geoState} not allowed for ${vertical}`,
                     };
                 }
                 return { allowed: true };
@@ -249,11 +252,20 @@ class ACEService {
             }
         }
 
+        // Check jurisdiction policy for restricted verticals
+        const policy = getPolicy(country);
+        if (policy?.restrictedVerticals.includes(vertical)) {
+            return {
+                allowed: false,
+                reason: `Vertical "${vertical}" is restricted in ${country} under ${policy.framework}`,
+            };
+        }
+
         // Off-chain fallback: check database for known restrictions
         const restriction = await prisma.complianceCheck.findFirst({
             where: {
                 entityType: 'jurisdiction',
-                entityId: `${geoState}-${vertical}`,
+                entityId: `${country}:${geoState}-${vertical}`,
                 checkType: 'GEO_VALIDATION',
                 status: 'FAILED',
             },
@@ -262,7 +274,7 @@ class ACEService {
         if (restriction) {
             return {
                 allowed: false,
-                reason: `Jurisdiction ${geoState} restricted for ${vertical}`,
+                reason: `Jurisdiction ${country}/${geoState} restricted for ${vertical}`,
             };
         }
 
@@ -329,26 +341,43 @@ class ACEService {
     async checkCrossBorderCompliance(
         sellerGeo: string,
         buyerGeo: string,
-        vertical: string
-    ): Promise<{ allowed: boolean; reason?: string }> {
+        vertical: string,
+        sellerCountry: string = 'US',
+        buyerCountry: string = 'US'
+    ): Promise<{ allowed: boolean; reason?: string; requirements?: string[] }> {
         // Same jurisdiction: always allowed
-        if (sellerGeo === buyerGeo) {
+        if (sellerCountry === buyerCountry && sellerGeo === buyerGeo) {
             return { allowed: true };
         }
 
-        // Cross-state rules for specific verticals
-        const restrictedCrossState: Record<string, string[]> = {
-            mortgage: ['NY', 'CA', 'FL'],  // Requires state-specific licensing
-            insurance: ['NY'],              // Strict cross-state rules
-        };
-
-        const restricted = restrictedCrossState[vertical];
-        if (restricted) {
-            if (restricted.includes(sellerGeo) || restricted.includes(buyerGeo)) {
+        // ── Cross-country compliance (jurisdiction policies) ──
+        if (sellerCountry !== buyerCountry) {
+            const xbResult = crossBorderRequirements(sellerCountry, buyerCountry);
+            if (xbResult.requirements.length > 0) {
+                // Allow but flag requirements — don't block
                 return {
-                    allowed: false,
-                    reason: `Cross-border ${vertical} trade between ${sellerGeo} and ${buyerGeo} requires additional compliance`,
+                    allowed: true,
+                    reason: xbResult.reason,
+                    requirements: xbResult.requirements,
                 };
+            }
+        }
+
+        // ── US-specific cross-state rules ──
+        if (sellerCountry === 'US' && buyerCountry === 'US') {
+            const restrictedCrossState: Record<string, string[]> = {
+                mortgage: ['NY', 'CA', 'FL'],
+                insurance: ['NY'],
+            };
+
+            const restricted = restrictedCrossState[vertical];
+            if (restricted) {
+                if (restricted.includes(sellerGeo) || restricted.includes(buyerGeo)) {
+                    return {
+                        allowed: false,
+                        reason: `Cross-state ${vertical} trade between ${sellerGeo} and ${buyerGeo} requires additional compliance`,
+                    };
+                }
             }
         }
 

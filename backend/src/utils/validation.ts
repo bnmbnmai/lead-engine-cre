@@ -71,7 +71,9 @@ export const LeadQuerySchema = z.object({
 export const AskCreateSchema = z.object({
     vertical: z.string(),
     geoTargets: z.object({
-        states: z.array(z.string().length(2)).optional(),
+        country: z.string().length(2).toUpperCase().optional(),
+        regions: z.array(z.string().max(4)).optional(),
+        states: z.array(z.string().length(2)).optional(), // backward compat alias
         zips: z.array(z.string()).optional(),
         excludeZips: z.array(z.string()).optional(),
         radius: z.object({
@@ -79,7 +81,10 @@ export const AskCreateSchema = z.object({
             lng: z.number(),
             miles: z.number().positive(),
         }).optional(),
-    }),
+    }).transform(data => ({
+        ...data,
+        regions: data.regions || data.states, // merge legacy "states" into "regions"
+    })),
     reservePrice: z.number().positive(),
     buyNowPrice: z.number().positive().optional(),
     parameters: z.record(z.unknown()).optional(),
@@ -125,11 +130,18 @@ export const BidDirectSchema = z.object({
 export const BuyerPreferencesSchema = z.object({
     verticals: z.array(z.string()).optional(),
     geoFilters: z.object({
-        states: z.array(z.string().length(2)).optional(),
-        excludeStates: z.array(z.string().length(2)).optional(),
+        country: z.string().length(2).toUpperCase().optional(),
+        regions: z.array(z.string().max(4)).optional(),
+        excludeRegions: z.array(z.string().max(4)).optional(),
+        states: z.array(z.string().length(2)).optional(), // backward compat
+        excludeStates: z.array(z.string().length(2)).optional(), // backward compat
         zips: z.array(z.string()).optional(),
         excludeZips: z.array(z.string()).optional(),
-    }).optional(),
+    }).transform(data => ({
+        ...data,
+        regions: data.regions || data.states,
+        excludeRegions: data.excludeRegions || data.excludeStates,
+    })).optional(),
     budgetMin: z.number().positive().optional(),
     budgetMax: z.number().positive().optional(),
     dailyBudget: z.number().positive().optional(),
@@ -156,6 +168,7 @@ export const PreferenceSetSchema = z.object({
     dailyBudget: z.number().positive().optional(),
     autoBidEnabled: z.boolean().default(false),
     autoBidAmount: z.number().positive().optional(),
+    minQualityScore: z.number().int().min(0).max(10000).optional(),
     acceptOffSite: z.boolean().default(true),
     requireVerified: z.boolean().default(false),
     isActive: z.boolean().default(true),

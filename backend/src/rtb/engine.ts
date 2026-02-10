@@ -120,8 +120,16 @@ class RTBEngine {
         for (const ask of asks) {
             const geoTargets = ask.geoTargets as any;
 
-            // Check state match
-            if (geoTargets?.states?.length > 0 && geoData?.state) {
+            // Check country match first
+            if (geoTargets?.country && geoData?.country) {
+                if (geoTargets.country !== geoData.country) continue;
+            }
+
+            // Check region/state match
+            if (geoTargets?.regions?.length > 0 && geoData?.state) {
+                if (!geoTargets.regions.includes(geoData.state)) continue;
+            } else if (geoTargets?.states?.length > 0 && geoData?.state) {
+                // Backward compat: legacy "states" field
                 if (!geoTargets.states.includes(geoData.state)) continue;
             }
 
@@ -172,10 +180,17 @@ class RTBEngine {
 
             // Check geo filters
             const geoFilters = buyer.geoFilters as any;
-            if (geoFilters?.states?.length > 0 && geoData?.state) {
-                if (!geoFilters.states.includes(geoData.state)) continue;
+            // Country match
+            if (geoFilters?.country && geoData?.country) {
+                if (geoFilters.country !== geoData.country) continue;
             }
-            if (geoFilters?.excludeStates?.includes(geoData?.state)) continue;
+            // Region match (support both "regions" and legacy "states")
+            const regionList = geoFilters?.regions || geoFilters?.states;
+            if (regionList?.length > 0 && geoData?.state) {
+                if (!regionList.includes(geoData.state)) continue;
+            }
+            const excludeList = geoFilters?.excludeRegions || geoFilters?.excludeStates;
+            if (excludeList?.includes(geoData?.state)) continue;
 
             // TODO: Send notification (email, push, websocket)
             // For now, log
@@ -230,20 +245,32 @@ class RTBEngine {
         const geoData = lead.geo as any;
         const geoFilters = buyer.geoFilters as any;
 
-        if (geoFilters?.states?.length > 0 && geoData?.state) {
-            if (!geoFilters.states.includes(geoData.state)) {
+        // Country match
+        if (geoFilters?.country && geoData?.country) {
+            if (geoFilters.country !== geoData.country) {
+                return { matches: false, buyerId, score: 0, reason: 'Country mismatch' };
+            }
+        }
+
+        // Region match (support both "regions" and legacy "states")
+        const regionList = geoFilters?.regions || geoFilters?.states;
+        if (regionList?.length > 0 && geoData?.state) {
+            if (!regionList.includes(geoData.state)) {
                 return { matches: false, buyerId, score: 0, reason: 'Geographic mismatch' };
             }
         }
 
-        if (geoFilters?.excludeStates?.includes(geoData?.state)) {
+        const excludeList = geoFilters?.excludeRegions || geoFilters?.excludeStates;
+        if (excludeList?.includes(geoData?.state)) {
             return { matches: false, buyerId, score: 0, reason: 'Geographic exclusion' };
         }
 
         // Calculate match score
         let score = 5000;
         if (buyer.verticals.includes(lead.vertical)) score += 1500;
-        if (geoFilters?.states?.includes(geoData?.state)) score += 1000;
+        const matchRegionList = geoFilters?.regions || geoFilters?.states;
+        if (matchRegionList?.includes(geoData?.state)) score += 1000;
+        if (geoFilters?.country && geoData?.country && geoFilters.country === geoData.country) score += 500;
         if (lead.isVerified) score += 500;
 
         return { matches: true, buyerId, score: Math.min(10000, score) };

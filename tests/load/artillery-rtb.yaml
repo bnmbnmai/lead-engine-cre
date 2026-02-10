@@ -1,0 +1,173 @@
+##
+## Artillery Load Test — RTB Bid Concurrency
+##
+## Simulates 1,000+ concurrent bid submissions against the Lead Engine API.
+## Usage: npx artillery run tests/load/artillery-rtb.yaml
+##
+
+config:
+  target: "http://localhost:3001"
+  phases:
+    # Warm-up: 10 vusers for 30s
+    - duration: 30
+      arrivalRate: 10
+      name: "Warm-up"
+    # Ramp: 10 → 100 vusers over 60s
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 100
+      name: "Ramp-up"
+    # Sustained: 500 vusers for 120s
+    - duration: 120
+      arrivalRate: 500
+      name: "Sustained load"
+    # Peak: 1000 vusers for 60s
+    - duration: 60
+      arrivalRate: 1000
+      name: "Peak load"
+    # Cool-down: 50 vusers for 30s
+    - duration: 30
+      arrivalRate: 50
+      name: "Cool-down"
+
+  processor: "./artillery-processor.js"
+
+  plugins:
+    expect: {}
+    apdex:
+      threshold: 2000  # 2s target for p99
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ $processEnvironment.TEST_API_TOKEN }}"
+
+  ensure:
+    thresholds:
+      - http.response_time.p99: 2000   # p99 < 2s
+      - http.codes.200: 95             # 95%+ success
+    conditions:
+      - expression: "http.response_time.p99 < 2000"
+        strict: true
+
+  variables:
+    verticals:
+      - "solar"
+      - "mortgage"
+      - "roofing"
+      - "insurance"
+      - "auto"
+      - "legal"
+    countries:
+      - "US"
+      - "CA"
+      - "GB"
+      - "AU"
+      - "DE"
+      - "BR"
+      - "MX"
+      - "ZA"
+      - "NG"
+      - "KE"
+
+scenarios:
+  # ─── Scenario 1: Submit Lead + Place Bid ──────
+  - name: "Submit Lead → Place Bid"
+    weight: 60
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+              zip: "{{ zip }}"
+              city: "{{ city }}"
+            firstName: "Load"
+            lastName: "Test{{ $randomInt(1, 99999) }}"
+            email: "load{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "API"
+            parameters:
+              creditScore: "{{ $randomInt(600, 850) }}"
+              propertyType: "single_family"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      - think: 0.5
+      - function: "generateBidCommitment"
+      - post:
+          url: "/api/v1/bids"
+          json:
+            leadId: "{{ leadId }}"
+            amount: "{{ bidAmount }}"
+            commitment: "{{ commitment }}"
+          expect:
+            - statusCode:
+                - 201
+                - 200
+
+  # ─── Scenario 2: Browse Marketplace ──────────
+  - name: "Browse + Filter Marketplace"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/v1/leads?page=1&limit=20"
+          expect:
+            - statusCode: 200
+      - think: 1
+      - function: "pickRandomVertical"
+      - get:
+          url: "/api/v1/leads?vertical={{ vertical }}&page=1&limit=20"
+          expect:
+            - statusCode: 200
+      - think: 0.5
+      - function: "pickRandomCountry"
+      - get:
+          url: "/api/v1/leads?country={{ country }}&page=1&limit=20"
+          expect:
+            - statusCode: 200
+
+  # ─── Scenario 3: Auction Resolution Burst ────
+  - name: "Auction Batch Resolution"
+    weight: 15
+    flow:
+      - function: "generateLeadPayload"
+      - post:
+          url: "/api/v1/leads"
+          json:
+            vertical: "{{ vertical }}"
+            geo:
+              country: "{{ country }}"
+              state: "{{ state }}"
+              zip: "{{ zip }}"
+            firstName: "Auction"
+            lastName: "Test{{ $randomInt(1, 99999) }}"
+            email: "auction{{ $randomInt(1, 99999) }}@test.com"
+            phone: "+1555{{ $randomInt(1000000, 9999999) }}"
+            source: "PLATFORM"
+          capture:
+            - json: "$.id"
+              as: "leadId"
+          expect:
+            - statusCode: 201
+      - think: 0.2
+      # Simulate 3 rapid bids
+      - loop:
+          - function: "generateBidCommitment"
+          - post:
+              url: "/api/v1/bids"
+              json:
+                leadId: "{{ leadId }}"
+                amount: "{{ bidAmount }}"
+                commitment: "{{ commitment }}"
+              expect:
+                - statusCode:
+                    - 201
+                    - 200
+                    - 409
+        count: 3

@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { zkService } from './zk.service';
+import { isValidRegion, getAllCountryCodes } from '../lib/geo-registry';
 
 // ============================================
 // CRE Verification Service
@@ -134,23 +135,26 @@ class CREService {
     private async verifyGeo(lead: any): Promise<VerificationResult> {
         const geo = lead.geo as any;
 
-        if (!geo || (!geo.state && !geo.zip && !geo.geoHash)) {
+        if (!geo || (!geo.state && !geo.zip && !geo.geoHash && !geo.region)) {
             await this.logCheck(lead.id, 'GEO_VALIDATION', 'FAILED', 'Missing geo data');
             return { isValid: false, reason: 'Geographic information required' };
         }
 
-        if (geo.state) {
-            const validStates = [
-                'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-                'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-                'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-                'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-                'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC',
-            ];
+        const country = (geo.country || 'US').toUpperCase();
 
-            if (!validStates.includes(geo.state.toUpperCase())) {
-                await this.logCheck(lead.id, 'GEO_VALIDATION', 'FAILED', 'Invalid state');
-                return { isValid: false, reason: 'Invalid US state' };
+        // Validate country is supported
+        if (!getAllCountryCodes().includes(country)) {
+            // Allow unknown countries — don't block, just log
+            console.warn(`CRE: unknown country code "${country}" for lead ${lead.id}`);
+            await this.logCheck(lead.id, 'GEO_VALIDATION', 'PASSED', `Unknown country ${country} — allowed`);
+            return { isValid: true };
+        }
+
+        // Validate region/state if provided
+        if (geo.state) {
+            if (!isValidRegion(country, geo.state.toUpperCase())) {
+                await this.logCheck(lead.id, 'GEO_VALIDATION', 'FAILED', `Invalid region ${geo.state} for country ${country}`);
+                return { isValid: false, reason: `Invalid region "${geo.state}" for ${country}` };
             }
         }
 
@@ -215,12 +219,23 @@ class CREService {
         const leadGeo = lead.geo as any;
         const askGeo = ask.geoTargets as any;
 
-        if (askGeo?.states?.length > 0) {
-            if (leadGeo?.state && askGeo.states.includes(leadGeo.state)) {
+        // Country match
+        if (askGeo?.country && leadGeo?.country) {
+            if (askGeo.country !== leadGeo.country) {
+                return { matches: false, score: 0, details: ['Country mismatch'] };
+            }
+            score += 500;
+            details.push('Country: match');
+        }
+
+        // Region match (support both "regions" and legacy "states")
+        const askRegions = askGeo?.regions || askGeo?.states;
+        if (askRegions?.length > 0) {
+            if (leadGeo?.state && askRegions.includes(leadGeo.state)) {
                 score += 2000;
-                details.push('Geo: state match');
+                details.push('Geo: region match');
             } else {
-                return { matches: false, score: 0, details: ['Lead geo not in targeted states'] };
+                return { matches: false, score: 0, details: ['Lead geo not in targeted regions'] };
             }
         } else {
             score += 1000;

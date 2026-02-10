@@ -401,3 +401,107 @@ describe('Multi-Set Preferences', () => {
     });
 });
 
+// ─── Error Handling - Structured Errors ────────
+
+describe('Structured Error Handling', () => {
+    it('seller submit page shows profile wizard when no profile exists', () => {
+        cy.stubAuth('seller');
+        cy.intercept('GET', '**/api/v1/analytics/overview', {
+            statusCode: 400,
+            body: {
+                error: 'Seller profile not found',
+                code: 'SELLER_PROFILE_MISSING',
+                resolution: 'Create your seller profile first.',
+                action: { label: 'Create Seller Profile', href: '/seller/submit' },
+            },
+        }).as('getOverview');
+
+        cy.visit('/seller/submit');
+        // Should show the profile wizard (Company Name input)
+        cy.contains('Set Up Seller Profile').should('be.visible');
+        cy.contains('Company Name').should('be.visible');
+        cy.contains('Lead Verticals').should('be.visible');
+    });
+
+    it('seller submit shows error detail when profile creation fails', () => {
+        cy.stubAuth('seller');
+        cy.intercept('GET', '**/api/v1/analytics/overview', {
+            statusCode: 400,
+            body: { error: 'Seller profile not found' },
+        });
+        cy.intercept('POST', '**/api/v1/seller/profile', {
+            statusCode: 403,
+            body: {
+                error: 'KYC verification must be completed before creating listings.',
+                code: 'KYC_REQUIRED',
+                resolution: 'Complete your identity verification through the ACE compliance flow.',
+                action: { label: 'Start KYC', href: '/profile/kyc' },
+            },
+        }).as('createProfile');
+
+        cy.visit('/seller/submit');
+        // Fill in the wizard
+        cy.get('input[placeholder*="company"]').type('Test Corp');
+        cy.contains('solar').click();
+        cy.contains('Create Seller Profile').click();
+        cy.wait('@createProfile');
+
+        // Error detail should render
+        cy.contains('KYC_REQUIRED').should('be.visible');
+        cy.contains('Complete your identity verification').should('be.visible');
+        cy.contains('Start KYC').should('be.visible');
+    });
+});
+
+// ─── Analytics Charts ────────────────────────
+
+describe('Seller Analytics Charts', () => {
+    beforeEach(() => {
+        cy.stubAuth('seller');
+        cy.visit('/seller/analytics');
+    });
+
+    it('renders charts and table sections', () => {
+        cy.contains('Analytics').should('be.visible');
+        cy.contains('Revenue Over Time').should('be.visible');
+        cy.contains('By Vertical').should('be.visible');
+        cy.contains('Lead Type Performance').should('be.visible');
+        cy.contains('On-Chain Gas Costs').should('be.visible');
+    });
+
+    it('has working period selector', () => {
+        cy.contains('30 days').should('be.visible');
+        cy.contains('30 days').click();
+        cy.contains('7 days').click();
+    });
+
+    it('exports analytics CSV', () => {
+        cy.contains('Export CSV').should('be.visible').click();
+    });
+});
+
+describe('Buyer Analytics Charts', () => {
+    beforeEach(() => {
+        cy.stubAuth('buyer');
+        cy.visit('/buyer/analytics');
+    });
+
+    it('renders buyer analytics page with chart sections', () => {
+        cy.contains('Buyer Analytics').should('be.visible');
+        cy.contains('Bid Activity Over Time').should('be.visible');
+        cy.contains('Spend by Vertical').should('be.visible');
+        cy.contains('Bid Performance by Vertical').should('be.visible');
+        cy.contains('Spending Trend').should('be.visible');
+    });
+
+    it('displays stats cards', () => {
+        cy.contains(/Total Bids/).should('be.visible');
+        cy.contains('Won Bids').should('be.visible');
+        cy.contains('Win Rate').should('be.visible');
+        cy.contains(/Total Spent/).should('be.visible');
+    });
+
+    it('exports buyer analytics CSV', () => {
+        cy.contains('Export CSV').should('be.visible').click();
+    });
+});

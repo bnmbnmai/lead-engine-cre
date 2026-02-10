@@ -116,11 +116,12 @@ paths:
               $ref: "#/components/schemas/LeadSubmit"
             examples:
               roofing_lead:
-                summary: Roofing lead from FL
+                summary: Roofing lead from FL (US)
                 value:
                   vertical: roofing
                   source: API
                   geo:
+                    country: US
                     state: FL
                     zip: "33101"
                   reservePrice: 35.00
@@ -130,12 +131,46 @@ paths:
                     roof_type: shingle
                     damage_type: storm
                     insurance_claim: true
+              solar_lead_brazil:
+                summary: Solar lead from São Paulo (BR)
+                value:
+                  vertical: solar
+                  source: API
+                  geo:
+                    country: BR
+                    state: SP
+                    city: São Paulo
+                    zip: "01310-100"
+                  reservePrice: 25.00
+                  expiresInMinutes: 120
+                  tcpaConsentAt: "2026-02-09T05:00:00Z"
+                  parameters:
+                    monthly_bill: 350
+                    ownership: own
+                    panel_interest: purchase
+              b2b_lead_kenya:
+                summary: B2B SaaS lead from Nairobi (KE)
+                value:
+                  vertical: b2b_saas
+                  source: PLATFORM
+                  geo:
+                    country: KE
+                    state: NBO
+                    city: Nairobi
+                    zip: "00100"
+                  reservePrice: 40.00
+                  expiresInMinutes: 60
+                  parameters:
+                    company_size: "11-50"
+                    industry: tech
+                    budget_range: "5k-25k"
               mortgage_lead:
-                summary: Mortgage lead from CA
+                summary: Mortgage lead from CA (US)
                 value:
                   vertical: mortgage
                   source: API
                   geo:
+                    country: US
                     state: CA
                     city: Los Angeles
                     zip: "90001"
@@ -601,8 +636,21 @@ components:
         geoTargets:
           type: object
           properties:
+            country:
+              type: string
+              description: ISO 3166-1 alpha-2 country code (default US)
+              minLength: 2
+              maxLength: 2
+              default: US
+            regions:
+              type: array
+              description: Region/state/province codes for the selected country
+              items:
+                type: string
             states:
               type: array
+              deprecated: true
+              description: "Deprecated: use `regions` instead. Alias for backward compatibility."
               items:
                 type: string
             zips:
@@ -716,12 +764,31 @@ components:
         geoFilters:
           type: object
           properties:
+            country:
+              type: string
+              description: ISO 3166-1 alpha-2 country code
+              minLength: 2
+              maxLength: 2
+            regions:
+              type: array
+              description: Region/state/province codes to include
+              items:
+                type: string
+            excludeRegions:
+              type: array
+              description: Region/state/province codes to exclude
+              items:
+                type: string
             states:
               type: array
+              deprecated: true
+              description: "Deprecated: use `regions` instead"
               items:
                 type: string
             excludeStates:
               type: array
+              deprecated: true
+              description: "Deprecated: use `excludeRegions` instead"
               items:
                 type: string
             zips:
@@ -768,3 +835,28 @@ components:
           type: array
           items:
             type: object
+
+    StructuredError:
+      type: object
+      description: Structured error response with resolution guidance
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          description: Machine-readable error code (e.g. SELLER_PROFILE_MISSING, GEO_MISMATCH, KYC_REQUIRED)
+        resolution:
+          type: string
+          description: Human-readable resolution guidance
+        action:
+          type: object
+          properties:
+            label:
+              type: string
+            href:
+              type: string
+        requirements:
+          type: array
+          description: Cross-border compliance requirements (if applicable)
+          items:
+            type: string

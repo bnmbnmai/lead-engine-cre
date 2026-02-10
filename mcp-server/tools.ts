@@ -85,7 +85,60 @@ export const TOOLS: ToolDefinition[] = [
         handler: '/api/v1/bids/preferences/v2',
         method: 'GET',
     },
+    {
+        name: 'set_auto_bid_rules',
+        description: 'Configure auto-bid rules for a vertical. The engine automatically bids on matching leads based on vertical, geo, quality score, and budget constraints.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                vertical: { type: 'string', description: 'Lead vertical (solar, mortgage, roofing, etc.)' },
+                autoBidEnabled: { type: 'boolean', description: 'Enable/disable auto-bidding for this vertical', default: true },
+                autoBidAmount: { type: 'number', description: 'Fixed bid amount in USDC when auto-bid fires' },
+                minQualityScore: { type: 'number', description: 'Minimum quality score (0-10000). E.g., "bid if score > 80" = 8000', minimum: 0, maximum: 10000 },
+                maxBidPerLead: { type: 'number', description: 'Maximum bid amount per lead in USDC' },
+                dailyBudget: { type: 'number', description: 'Daily budget cap in USDC' },
+                geoCountry: { type: 'string', description: 'Target country code (e.g., US, CA, BR)', default: 'US' },
+                geoInclude: { type: 'array', items: { type: 'string' }, description: 'State/region codes to include (e.g., ["CA", "FL", "TX"])' },
+                geoExclude: { type: 'array', items: { type: 'string' }, description: 'State/region codes to exclude' },
+                acceptOffSite: { type: 'boolean', description: 'Accept off-site leads', default: true },
+                requireVerified: { type: 'boolean', description: 'Only bid on verified leads', default: false },
+            },
+            required: ['vertical', 'autoBidAmount'],
+        },
+        handler: '/api/v1/bids/preferences/v2',
+        method: 'PUT',
+    },
+    {
+        name: 'configure_crm_webhook',
+        description: 'Register a CRM webhook (HubSpot, Zapier, or generic) to receive lead data on events like lead.sold.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                url: { type: 'string', description: 'Webhook destination URL (e.g., HubSpot API endpoint or Zapier catch hook)' },
+                format: { type: 'string', enum: ['hubspot', 'zapier', 'generic'], default: 'generic', description: 'CRM format for payload transformation' },
+                events: { type: 'array', items: { type: 'string' }, default: ['lead.sold'], description: 'Events to trigger webhook (e.g., lead.sold, lead.created)' },
+            },
+            required: ['url'],
+        },
+        handler: '/api/v1/crm/webhooks',
+        method: 'POST',
+    },
+    {
+        name: 'ping_lead',
+        description: 'Programmatic ping/post for a specific lead. Returns full lead details, current bid status, and auction state. Use for automated lead intake pipelines.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                leadId: { type: 'string', description: 'The lead ID to ping/query' },
+                action: { type: 'string', enum: ['status', 'evaluate'], default: 'status', description: 'Action: "status" returns current state, "evaluate" triggers auto-bid evaluation' },
+            },
+            required: ['leadId'],
+        },
+        handler: '/api/v1/leads',
+        method: 'GET',
+    },
 ];
 
 // Build a lookup map
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
+

@@ -144,6 +144,184 @@ router.post('/push', authMiddleware, async (req: AuthenticatedRequest, res: Resp
 });
 
 // ============================================
+// CRM Webhooks — Register / List / Delete
+// ============================================
+
+// In-memory webhook store (in production, persist to DB)
+interface CRMWebhook {
+    id: string;
+    url: string;
+    format: 'hubspot' | 'zapier' | 'generic';
+    events: string[];
+    createdBy: string;
+    createdAt: string;
+    active: boolean;
+}
+
+const webhookStore: CRMWebhook[] = [];
+
+router.post('/webhooks', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { url, format = 'generic', events = ['lead.sold'] } = req.body;
+        if (!url) {
+            res.status(400).json({ error: 'Webhook URL is required' });
+            return;
+        }
+        if (!['hubspot', 'zapier', 'generic'].includes(format)) {
+            res.status(400).json({ error: 'Format must be hubspot, zapier, or generic' });
+            return;
+        }
+
+        const webhook: CRMWebhook = {
+            id: `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            url,
+            format,
+            events,
+            createdBy: req.user!.id,
+            createdAt: new Date().toISOString(),
+            active: true,
+        };
+        webhookStore.push(webhook);
+
+        await prisma.analyticsEvent.create({
+            data: {
+                eventType: 'crm_webhook_registered',
+                entityType: 'webhook',
+                entityId: webhook.id,
+                userId: req.user!.id,
+                metadata: { url, format, events },
+            },
+        });
+
+        res.status(201).json({ webhook });
+    } catch (error) {
+        console.error('Register webhook error:', error);
+        res.status(500).json({ error: 'Failed to register webhook' });
+    }
+});
+
+router.get('/webhooks', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    const userWebhooks = webhookStore.filter((w) => w.createdBy === req.user!.id);
+    res.json({ webhooks: userWebhooks });
+});
+
+router.delete('/webhooks/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    const idx = webhookStore.findIndex((w) => w.id === req.params.id && w.createdBy === req.user!.id);
+    if (idx === -1) {
+        res.status(404).json({ error: 'Webhook not found' });
+        return;
+    }
+    webhookStore.splice(idx, 1);
+    res.json({ success: true });
+});
+
+// ============================================
+// CRM Webhook Fire — Called on lead status change
+// ============================================
+
+export async function fireCRMWebhooks(eventType: string, leads: any[]) {
+    const activeWebhooks = webhookStore.filter(
+        (w) => w.active && w.events.includes(eventType)
+    );
+
+    for (const webhook of activeWebhooks) {
+        try {
+            const payload = formatWebhookPayload(webhook.format, leads);
+            await fetch(webhook.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: AbortSignal.timeout(10000),
+            });
+        } catch (err: any) {
+            console.error(`Webhook ${webhook.id} failed:`, err.message);
+        }
+    }
+}
+
+// ============================================
+// Format-Specific Transformers
+// ============================================
+
+function formatWebhookPayload(format: string, leads: any[]) {
+    switch (format) {
+        case 'hubspot':
+            return formatHubSpotPayload(leads);
+        case 'zapier':
+            return formatZapierPayload(leads);
+        default:
+            return {
+                source: 'lead-engine-cre',
+                event: 'lead.sold',
+                count: leads.length,
+                timestamp: new Date().toISOString(),
+                leads: leads.map(mapLeadToExport),
+            };
+    }
+}
+
+/**
+ * HubSpot CRM format: creates/updates contacts via HubSpot's batch API shape.
+ * Maps lead fields to HubSpot contact properties.
+ */
+function formatHubSpotPayload(leads: any[]) {
+    return {
+        inputs: leads.map((l) => {
+            const geo = l.geo as any;
+            return {
+                properties: {
+                    firstname: l.firstName || '',
+                    lastname: l.lastName || '',
+                    email: l.email || '',
+                    phone: l.phone || '',
+                    company: l.seller?.companyName || '',
+                    city: geo?.city || '',
+                    state: geo?.state || geo?.region || '',
+                    zip: geo?.zip || '',
+                    country: geo?.country || 'US',
+                    lead_source: 'Lead Engine CRE',
+                    lead_vertical: l.vertical,
+                    lead_id: l.id,
+                    lead_status: l.status,
+                    lead_quality_score: String(l.qualityScore || 0),
+                    lead_reserve_price: String(l.reservePrice || 0),
+                    lead_winning_bid: l.bids?.[0]?.amount ? String(l.bids[0].amount) : '',
+                    hs_lead_status: l.status === 'SOLD' ? 'QUALIFIED' : 'NEW',
+                },
+            };
+        }),
+    };
+}
+
+/**
+ * Zapier catch hook format: flat key-value structure per lead.
+ * Each lead is a separate object (Zapier processes one at a time).
+ */
+function formatZapierPayload(leads: any[]) {
+    return leads.map((l) => {
+        const geo = l.geo as any;
+        const winBid = l.bids?.[0];
+        return {
+            lead_id: l.id,
+            vertical: l.vertical,
+            status: l.status,
+            source: l.source,
+            country: geo?.country || 'US',
+            state: geo?.state || geo?.region || '',
+            city: geo?.city || '',
+            zip: geo?.zip || '',
+            seller_company: l.seller?.companyName || '',
+            reserve_price: parseFloat(l.reservePrice?.toString() || '0'),
+            winning_bid: winBid ? parseFloat(winBid.amount?.toString() || '0') : null,
+            quality_score: l.qualityScore || null,
+            created_at: l.createdAt?.toISOString(),
+            event_type: 'lead.sold',
+            event_timestamp: new Date().toISOString(),
+        };
+    });
+}
+
+// ============================================
 // Helpers
 // ============================================
 
@@ -198,3 +376,4 @@ function formatCsv(leads: any[]): string {
 }
 
 export default router;
+

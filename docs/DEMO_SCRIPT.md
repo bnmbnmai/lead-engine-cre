@@ -46,7 +46,7 @@
 
 ---
 
-## Scene 4: ACE Compliance + Auto-Rules (1:25 – 1:55)
+## Scene 4: ACE Compliance + Auto-Rules (1:25 – 1:50)
 
 **Show:** Compliance check API + Buyer Preferences panel
 **Actions:**
@@ -62,18 +62,33 @@
 
 ---
 
-## Scene 5: MCP Agent — Programmatic Bidding (1:55 – 2:20)
+## Scene 4B: EU Solar Auto-Bid Flow (1:50 – 2:05)
+
+**Show:** Seller Submit → Auto-Bid trigger → Bid log
+**Actions:**
+1. Seller submits EU solar lead: Country = DE, State = Bavaria, quality score 8,500
+2. Auto-bid engine evaluates: finds 2 matching buyers (solar, DE, min score 8000)
+3. Show auto-bid response: `bidsPlaced: 2, skipped: 1 (budget exceeded)`
+4. Bids appear in buyer dashboard — no manual action required
+
+**Say:**
+> "A German solar lead scores 8,500. The auto-bid engine evaluates 3 buyers — 2 match, 1 is blocked by daily budget. Both bids fire in under 100ms. This is the convergence of traditional lead gen and decentralized trust."
+
+---
+
+## Scene 5: MCP Agent — Programmatic Bidding (2:05 – 2:25)
 
 **Show:** Terminal with MCP server + curl/agent calls
 **Actions:**
-1. Show MCP server running on port 3002 → list 5 tools
+1. Show MCP server running on port 3002 → list 8 tools
 2. Agent call: `search_leads` → returns 3 solar leads in CA
-3. Agent call: `get_bid_floor` → solar floor $42
-4. Agent call: `place_bid` → bid placed at $55
-5. Show agent log → structured JSONL entry with latency
+3. Agent call: `set_auto_bid_rules` → configure solar CA auto-bid at $120, min score 8000
+4. Agent call: `configure_crm_webhook` → register Zapier webhook
+5. Agent call: `ping_lead` → evaluate a lead for auto-bidding
+6. Show agent log → structured JSONL entry with latency
 
 **Say:**
-> "For large buyers, we built an MCP agent server. AI agents can programmatically search leads, check bid floors, and place bids — all via JSON-RPC. This is the LangChain integration that makes Lead Engine a platform, not just an app. Every action is logged with structured error codes and retry guidance."
+> "For large buyers, we built an MCP agent server — 8 tools for full automation. AI agents can search leads, set auto-bid rules, register CRM webhooks, and ping leads for evaluation. This is the LangChain integration that makes Lead Engine a platform, not just an app."
 
 ---
 
@@ -91,16 +106,17 @@
 
 ---
 
-## Scene 7: CRM Export + Testnet Sim (2:45 – 3:10)
+## Scene 7: CRM Webhooks + Testnet Sim (2:45 – 3:10)
 
-**Show:** Buyer Dashboard → "Push to CRM" button + testnet sim output
+**Show:** Buyer Dashboard → CRM webhook config + testnet sim output
 **Actions:**
-1. Click "Push to CRM" dropdown → Export CSV → file downloads
-2. Show JSON export option + webhook push
-3. Switch to terminal → testnet sim results: 500+ txs, 10 wallets, gas report
+1. Show registered webhooks: Zapier + HubSpot
+2. Trigger `lead.sold` → HubSpot gets contact properties, Zapier gets flat payload
+3. Show webhook delivery log: 200 OK from both endpoints
+4. Switch to terminal → testnet sim results: 500+ txs, 10 wallets, gas report
 
 **Say:**
-> "Won leads export to any CRM — CSV, JSON, or webhook push. And our testnet simulation drives 500+ on-chain transactions: mints, listings, bids, and escrows across 10 HD wallets. That's real traction on Sepolia."
+> "Won leads push to any CRM — HubSpot gets structured contact properties, Zapier gets flat key-value payloads. Both fire automatically on `lead.sold`. And our testnet simulation drives 500+ on-chain transactions across 10 HD wallets. That's real traction on Sepolia."
 
 ---
 
@@ -137,4 +153,6 @@
 | Database down | Run `npm run db:seed` live (< 10s) |
 | MCP server down | Show pre-captured agent logs from `mcp-server/logs/` |
 | DECO/Streams timeout | Stubs auto-fallback: `isStub: true` with cached results |
+| Auto-bid doesn't fire | Show evaluation endpoint: `POST /api/v1/bids/auto-bid/evaluate` |
+| CRM webhook fails | Show `fireCRMWebhooks` log + retry with generic format |
 | Video recording fails | Pre-record key segments on Loom as insurance |

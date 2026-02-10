@@ -6,6 +6,7 @@ import { BidCommitSchema, BidRevealSchema, BidDirectSchema, BuyerPreferencesSche
 import { rtbBiddingLimiter } from '../middleware/rateLimit';
 import { aceService } from '../services/ace.service';
 import { dataStreamsService } from '../services/datastreams.service';
+import { evaluateLeadForAutoBid, LeadData } from '../services/auto-bid.service';
 
 const router = Router();
 
@@ -606,6 +607,7 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
                             dailyBudget: set.dailyBudget,
                             autoBidEnabled: set.autoBidEnabled,
                             autoBidAmount: set.autoBidAmount,
+                            minQualityScore: set.minQualityScore,
                             acceptOffSite: set.acceptOffSite,
                             requireVerified: set.requireVerified,
                             isActive: set.isActive,
@@ -625,6 +627,7 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
                             dailyBudget: set.dailyBudget,
                             autoBidEnabled: set.autoBidEnabled,
                             autoBidAmount: set.autoBidAmount,
+                            minQualityScore: set.minQualityScore,
                             acceptOffSite: set.acceptOffSite,
                             requireVerified: set.requireVerified,
                             isActive: set.isActive,
@@ -645,6 +648,48 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
     } catch (error) {
         console.error('Update preference sets error:', error);
         res.status(500).json({ error: 'Failed to update preference sets' });
+    }
+});
+
+// ============================================
+// Auto-Bid Evaluation (Manual Trigger)
+// ============================================
+
+router.post('/auto-bid/evaluate', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { leadId } = req.body;
+        if (!leadId) {
+            res.status(400).json({ error: 'leadId is required' });
+            return;
+        }
+
+        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+        if (!lead) {
+            res.status(404).json({ error: 'Lead not found' });
+            return;
+        }
+
+        const geo = lead.geo as any;
+        const leadData: LeadData = {
+            id: lead.id,
+            vertical: lead.vertical,
+            geo: {
+                country: geo?.country || 'US',
+                state: geo?.state || geo?.region,
+                city: geo?.city,
+                zip: geo?.zip,
+            },
+            source: lead.source,
+            qualityScore: (lead as any).qualityScore ?? null,
+            isVerified: lead.isVerified ?? false,
+            reservePrice: Number(lead.reservePrice ?? 0),
+        };
+
+        const result = await evaluateLeadForAutoBid(leadData);
+        res.json(result);
+    } catch (error) {
+        console.error('Auto-bid evaluate error:', error);
+        res.status(500).json({ error: 'Failed to evaluate auto-bid' });
     }
 });
 

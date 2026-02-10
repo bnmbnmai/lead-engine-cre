@@ -95,14 +95,24 @@ router.post('/asks', authMiddleware, requireSeller, async (req: AuthenticatedReq
         });
 
         if (!seller) {
-            res.status(400).json({ error: 'Seller profile required' });
+            res.status(400).json({
+                error: 'A seller profile is required to create ask listings.',
+                code: 'SELLER_PROFILE_MISSING',
+                resolution: 'Create your seller profile first by navigating to Submit Lead and completing the setup wizard.',
+                action: { label: 'Create Seller Profile', href: '/seller/submit' },
+            });
             return;
         }
 
         // Check KYC
         const kycValid = await aceService.isKYCValid(req.user!.walletAddress);
         if (!kycValid) {
-            res.status(403).json({ error: 'KYC verification required' });
+            res.status(403).json({
+                error: 'KYC verification must be completed before creating listings.',
+                code: 'KYC_REQUIRED',
+                resolution: 'Complete your identity verification through the ACE compliance flow. KYC results are cached on-chain for 1 year after approval.',
+                action: { label: 'Start KYC', href: '/profile/kyc' },
+            });
             return;
         }
 
@@ -195,7 +205,12 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
         });
 
         if (!seller) {
-            res.status(400).json({ error: 'Seller profile required' });
+            res.status(400).json({
+                error: 'A seller profile is required to submit leads.',
+                code: 'SELLER_PROFILE_MISSING',
+                resolution: 'Create your seller profile first by completing the setup wizard. You will need a company name and at least one lead vertical.',
+                action: { label: 'Create Seller Profile', href: '/seller/submit' },
+            });
             return;
         }
 

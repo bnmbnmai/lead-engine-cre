@@ -165,3 +165,15 @@ export const marketplaceLeadsCache = new LRUCache<any>({
     maxSize: 500,
     ttlMs: 20_000,
 });
+
+/** Cache for analytics overview (60s TTL — expensive aggregation queries) */
+export const analyticsOverviewCache = new LRUCache<any>({
+    maxSize: 200,
+    ttlMs: 60_000,
+});
+
+/** Cache for analytics leads/bids time-series (45s TTL) */
+export const analyticsLeadCache = new LRUCache<any>({
+    maxSize: 300,
+    ttlMs: 45_000,
+});
