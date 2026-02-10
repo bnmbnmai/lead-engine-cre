@@ -17,6 +17,7 @@ import SellerAsks from '@/pages/SellerAsks';
 import SellerSubmit from '@/pages/SellerSubmit';
 import CreateAsk from '@/pages/CreateAsk';
 import FormBuilder from '@/pages/FormBuilder';
+import SellerAnalytics from '@/pages/SellerAnalytics';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -52,7 +53,7 @@ function App() {
                             <Route path="/seller/asks/new" element={<CreateAsk />} />
                             <Route path="/seller/submit" element={<SellerSubmit />} />
                             <Route path="/seller/form-builder" element={<FormBuilder />} />
-                            <Route path="/seller/analytics" element={<SellerDashboard />} />
+                            <Route path="/seller/analytics" element={<SellerAnalytics />} />
 
                             {/* Fallback */}
                             <Route path="*" element={<Navigate to="/" replace />} />

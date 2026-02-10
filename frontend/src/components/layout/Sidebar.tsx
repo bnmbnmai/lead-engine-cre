@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
-    Search,
     Gavel,
     BarChart3,
     Settings,
@@ -34,7 +33,6 @@ const marketplaceItems: SidebarItem[] = [
 
 const buyerItems: SidebarItem[] = [
     { href: '/buyer', label: 'Overview', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: '/', label: 'Marketplace', icon: <Search className="h-5 w-5" /> },
     { href: '/buyer/bids', label: 'My Bids', icon: <Gavel className="h-5 w-5" /> },
     { href: '/buyer/analytics', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { href: '/buyer/preferences', label: 'Preferences', icon: <Settings className="h-5 w-5" /> },

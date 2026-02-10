@@ -1,6 +1,7 @@
 import { ReactNode, useState, createContext, useContext } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import useAuth from '@/hooks/useAuth';
 
 // ============================================
 // Sidebar Context — allows Navbar to toggle
@@ -32,6 +33,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const { isAuthenticated } = useAuth();
 
     const ctx: SidebarContextType = {
         isOpen: sidebarOpen,
@@ -43,8 +45,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <SidebarContext.Provider value={ctx}>
             <div className="min-h-screen bg-background">
                 <Navbar />
-                <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-                <main className="pt-16 lg:pl-64">
+                {isAuthenticated && (
+                    <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+                )}
+                <main className={`pt-16 ${isAuthenticated ? 'lg:pl-64' : ''}`}>
                     <div className="container mx-auto px-4 sm:px-6 py-8">
                         {children}
                     </div>
@@ -55,3 +59,4 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 }
 
 export default DashboardLayout;
+
