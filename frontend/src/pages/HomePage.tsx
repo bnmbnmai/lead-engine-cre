@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, TrendingUp, Zap, X, Globe } from 'lucide-react';
+import { Search, MapPin, TrendingUp, Zap, X, Globe, Shield, Lock, ChevronRight, ArrowRight, Wallet } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,6 +10,7 @@ import { GlassCard } from '@/components/ui/card';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import useAuth from '@/hooks/useAuth';
 
@@ -47,6 +49,189 @@ function getRegions(country: string) {
         default: return null;
     }
 }
+
+// ============================================
+// Feature Highlights for Landing Page
+// ============================================
+
+const FEATURES = [
+    {
+        icon: Zap,
+        title: 'CRE — Lead Verification Engine',
+        description: 'Real-time TCPA compliant quality scoring with on-chain data integrity proofs.',
+        color: 'from-blue-500 to-cyan-400',
+    },
+    {
+        icon: Shield,
+        title: 'ACE — Autonomous Compliance',
+        description: 'Cross-border KYC, MiCA attestation, and reputation-based access control for every market.',
+        color: 'from-emerald-500 to-teal-400',
+    },
+    {
+        icon: Lock,
+        title: 'ZK Privacy Layer',
+        description: 'AES-256-GCM encrypted bids with zero-knowledge proofs. Your data stays yours.',
+        color: 'from-violet-500 to-purple-400',
+    },
+    {
+        icon: Globe,
+        title: '15+ Global Markets',
+        description: 'US, EU, APAC, LATAM, Africa — compliant lead trading across jurisdictions.',
+        color: 'from-orange-500 to-amber-400',
+    },
+];
+
+const STATS = [
+    { label: 'Active Leads', value: '2,847' },
+    { label: 'Avg Bid', value: '$127' },
+    { label: 'Countries', value: '15+' },
+    { label: 'Verticals', value: '8' },
+];
+
+// ============================================
+// Landing Page Hero (signed out)
+// ============================================
+
+function LandingHero() {
+    return (
+        <div className="min-h-screen bg-background">
+            {/* Navbar is already at the top via DashboardLayout — just the content here */}
+
+            {/* Hero */}
+            <section className="relative overflow-hidden">
+                {/* Background effects */}
+                <div className="absolute inset-0 node-grid opacity-40" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-[#375BD2]/10 rounded-full blur-[120px] pointer-events-none" />
+                <div className="absolute bottom-0 right-0 w-[500px] h-[400px] bg-violet-600/8 rounded-full blur-[100px] pointer-events-none" />
+
+                <div className="relative container mx-auto px-4 sm:px-6 pt-12 pb-16 sm:pt-20 sm:pb-24">
+                    {/* Tagline badge */}
+                    <div className="flex justify-center mb-8">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/[0.04] text-sm text-muted-foreground">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            Powered by Chainlink &middot; Built on-chain
+                        </div>
+                    </div>
+
+                    {/* Main heading */}
+                    <h1 className="text-center text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
+                        <span className="gradient-text">Decentralized Lead RTB</span>
+                        <br />
+                        <span className="text-foreground">Global. Compliant. Private.</span>
+                    </h1>
+
+                    {/* Subtext */}
+                    <p className="text-center text-base sm:text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">
+                        The first institutional-grade lead marketplace powered by Chainlink oracles.
+                        Verified leads, encrypted sealed-bid auctions, and autonomous compliance —
+                        across 15+ countries and 8 verticals.
+                    </p>
+
+                    {/* CTAs */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+                        <Button variant="gradient" size="lg" className="w-full sm:w-auto text-base px-8 py-6 gap-2" asChild>
+                            <Link to="/buyer">
+                                <Wallet className="h-5 w-5" />
+                                Start Buying Leads
+                                <ArrowRight className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                        <Button variant="glass" size="lg" className="w-full sm:w-auto text-base px-8 py-6 gap-2" asChild>
+                            <Link to="/seller">
+                                Submit &amp; Sell Leads
+                                <ChevronRight className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </div>
+
+                    {/* Live Stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-2xl mx-auto">
+                        {STATS.map((stat) => (
+                            <div
+                                key={stat.label}
+                                className="text-center p-4 rounded-xl border border-white/[0.06] bg-white/[0.02]"
+                            >
+                                <div className="text-2xl sm:text-3xl font-bold gradient-text">{stat.value}</div>
+                                <div className="text-xs sm:text-sm text-muted-foreground mt-1">{stat.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Feature Highlights */}
+            <section className="container mx-auto px-4 sm:px-6 pb-20">
+                <div className="text-center mb-12">
+                    <h2 className="text-2xl sm:text-3xl font-bold mb-3">Built Different</h2>
+                    <p className="text-muted-foreground max-w-xl mx-auto">
+                        Not another SaaS marketplace. Lead Engine is infrastructure — on-chain verification,
+                        privacy-preserving auctions, and autonomous compliance from day one.
+                    </p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    {FEATURES.map((feature) => (
+                        <div
+                            key={feature.title}
+                            className="group relative p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] transition-all duration-300 hover:border-white/[0.12]"
+                        >
+                            {/* Icon glow */}
+                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 shadow-lg`}>
+                                <feature.icon className="h-6 w-6 text-white" />
+                            </div>
+                            <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* How It Works */}
+            <section className="container mx-auto px-4 sm:px-6 pb-20">
+                <div className="glass rounded-2xl p-8 sm:p-12">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">How It Works</h2>
+                    <div className="grid sm:grid-cols-3 gap-8 text-center">
+                        {[
+                            { step: '01', title: 'Submit or Browse', desc: 'Sellers submit verified leads. Buyers browse live auctions filtered by vertical, geography, and quality.' },
+                            { step: '02', title: 'Sealed-Bid Auction', desc: 'Place encrypted bids with ZK proofs. ACE validates compliance and reputation before matching.' },
+                            { step: '03', title: 'On-Chain Settlement', desc: 'Winning bids settle via x402 escrow on Base Sepolia. PII revealed only to the winner.' },
+                        ].map((item) => (
+                            <div key={item.step}>
+                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#375BD2]/20 text-[#375BD2] font-bold text-lg mb-4">
+                                    {item.step}
+                                </div>
+                                <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+                                <p className="text-sm text-muted-foreground">{item.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Bottom CTA */}
+            <section className="container mx-auto px-4 sm:px-6 pb-20">
+                <div className="text-center">
+                    <h2 className="text-2xl sm:text-3xl font-bold mb-4">Ready to trade leads on-chain?</h2>
+                    <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
+                        Connect your wallet to access the global marketplace. No sign-up forms, no gatekeeping.
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <Button variant="gradient" size="lg" className="w-full sm:w-auto text-base px-8 py-6 gap-2" asChild>
+                            <Link to="/buyer">
+                                <Wallet className="h-5 w-5" />
+                                Connect &amp; Start
+                            </Link>
+                        </Button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    );
+}
+
+// ============================================
+// Authenticated Marketplace View
+// ============================================
 
 export function HomePage() {
     const [view, setView] = useState<'asks' | 'leads'>('leads');
@@ -99,19 +284,25 @@ export function HomePage() {
         setRegion('All');
     };
 
-    const stats = [
+    const marketplaceStats = [
         { label: 'Active Leads', value: '2,847', icon: Zap, color: 'text-primary' },
         { label: 'Avg. Bid', value: '$127', icon: TrendingUp, color: 'text-emerald-500' },
         { label: 'Countries', value: '15+', icon: Globe, color: 'text-chainlink-steel' },
     ];
 
+    // ─── Signed-out: show landing page ─────────
+    if (!isAuthenticated) {
+        return <LandingHero />;
+    }
+
+    // ─── Signed-in: show marketplace ───────────
     return (
         <DashboardLayout>
             <div className="space-y-8">
-                {/* Hero */}
+                {/* Hero — marketplace-view (no redundant "Marketplace" label) */}
                 <section className="text-center pt-4 pb-2">
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-                        <span className="gradient-text">Marketplace</span>
+                        <span className="gradient-text">Live Marketplace</span>
                     </h1>
                     <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
                         Browse live auctions and asks from verified sellers across all verticals
@@ -119,7 +310,7 @@ export function HomePage() {
 
                     {/* Stats */}
                     <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-4">
-                        {stats.map((stat) => (
+                        {marketplaceStats.map((stat) => (
                             <GlassCard key={stat.label} className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3">
                                 <stat.icon className={`h-5 w-5 ${stat.color}`} />
                                 <div className="text-left">
@@ -251,13 +442,7 @@ export function HomePage() {
 
                 {/* Results */}
                 <section>
-                    {!isAuthenticated ? (
-                        <EmptyState
-                            icon={Zap}
-                            title="Connect to browse the marketplace"
-                            description="Connect your wallet to view live leads, place bids, and manage your pipeline."
-                        />
-                    ) : isLoading ? (
+                    {isLoading ? (
                         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                             {[1, 2, 3, 4, 5, 6].map((i) => (
                                 <SkeletonCard key={i} />

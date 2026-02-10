@@ -54,7 +54,7 @@ export function ConnectButton() {
                 {isOpen && (
                     <>
                         <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                        <div className="absolute right-0 top-full mt-2 w-64 glass rounded-xl p-3 z-50 space-y-2">
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border shadow-xl rounded-xl p-3 z-50 space-y-2">
                             {connectors.map((connector, i) => (
                                 <button
                                     key={connector.id}
@@ -107,7 +107,7 @@ export function ConnectButton() {
             {isOpen && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute right-0 top-full mt-2 w-72 glass rounded-xl p-4 z-50 space-y-4">
+                    <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border shadow-xl rounded-xl p-4 z-50 space-y-4">
                         {/* Address */}
                         <div className="flex items-center justify-between">
                             <div className="font-mono text-sm">{shortenAddress(address!, 6)}</div>
