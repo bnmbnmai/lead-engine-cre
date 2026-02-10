@@ -1,0 +1,74 @@
+﻿
+
+  ACECompliance
+    KYC Verification
+      ✔ Should verify KYC for a user
+      ✔ Should reject KYC verification from unauthorized caller
+      ✔ Should return correct KYC status
+    Jurisdictional Policies
+      ✔ Should allow transaction when policy permits
+      ✔ Should block transaction when jurisdiction is blocked
+      ✔ Should use default vertical policy as fallback
+    Reputation System
+      ✔ Should initialize reputation at 50%
+      ✔ Should update reputation correctly
+      ✔ Should cap reputation at 0 and 10000
+    Blacklisting
+      ✔ Should blacklist user
+      ✔ Should unblacklist user (owner only)
+    Full Compliance Check
+      ✔ Should pass full compliance for valid users
+      ✔ Should fail compliance if seller is blacklisted
+      ✔ Should fail compliance if KYC not valid
+
+  Integration Tests
+    Full Lead Lifecycle
+      ✔ Should complete full flow: mint → list → bid → resolve → transfer
+      ✔ Should handle multiple bidders correctly
+    Compliance Integration
+      ✔ Should block transaction if buyer fails compliance
+    Edge Cases
+      ✔ Should handle expired lead gracefully
+
+  LeadNFTv2
+    Deployment
+      ✔ Should set correct name and symbol
+      ✔ Should set owner correctly
+    Minting
+      ✔ Should mint a lead NFT with correct metadata
+      ✔ Should revert if lead already tokenized
+      ✔ Should revert if caller is not authorized
+      ✔ Should revert if expiry is in the past
+    Lead Metadata
+      ✔ Should return correct lead metadata
+      ✔ Should get lead by platform ID
+      ✔ Should check lead validity correctly
+    Sale Recording
+      ✔ Should record sale correctly
+    Verification
+      ✔ Should verify lead
+    Different Lead Sources
+      ✔ Should mint leads from different sources
+
+  Marketplace
+    Listing Creation
+      ✔ Should create a listing successfully
+      ✔ Should revert if not token owner
+    Commit-Reveal Bidding
+      ✔ Should commit a bid
+      ✔ Should reveal a bid correctly
+      ✔ Should reject invalid reveal
+      ✔ Should resolve auction with highest bidder winning
+    Buyer Preference Filters
+      ✔ Should reject bid if buyer has offsite toggle disabled
+      ✔ Should reject bid if geo is blocked
+      ✔ Should allow bid if buyer accepts all
+    Buy Now
+      ✔ Should execute buy now correctly
+    Edge Cases
+      ✔ Should handle no valid bids in auction
+      ✔ Should reject bids below reserve price on reveal
+
+
+  42 passing (1s)
+

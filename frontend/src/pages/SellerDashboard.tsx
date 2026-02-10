@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -11,11 +11,23 @@ import { SkeletonCard } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 
+const DASHBOARD_TABS = [
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
+    { key: 'leads', label: 'Leads', icon: FileText, path: '/seller/leads' },
+    { key: 'asks', label: 'Asks', icon: Tag, path: '/seller/asks' },
+    { key: 'submit', label: 'Submit', icon: Send, path: '/seller/submit' },
+    { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/seller/analytics' },
+] as const;
+
 export function SellerDashboard() {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [overview, setOverview] = useState<any>(null);
     const [recentLeads, setRecentLeads] = useState<any[]>([]);
     const [activeAsks, setActiveAsks] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    const activeTab = DASHBOARD_TABS.find((t) => t.path === location.pathname)?.key || 'overview';
 
     useEffect(() => {
         const fetchData = async () => {
@@ -66,6 +78,23 @@ export function SellerDashboard() {
                             <Link to="/seller/submit">Submit Lead</Link>
                         </Button>
                     </div>
+                </div>
+
+                {/* Inline Tab Strip */}
+                <div className="flex gap-1 p-1 rounded-xl bg-muted/50 overflow-x-auto">
+                    {DASHBOARD_TABS.map((tab) => (
+                        <button
+                            key={tab.key}
+                            onClick={() => navigate(tab.path)}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.key
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                        >
+                            <tab.icon className="h-4 w-4" />
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Stats Grid */}

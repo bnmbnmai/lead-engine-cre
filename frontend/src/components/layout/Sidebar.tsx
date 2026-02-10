@@ -9,9 +9,9 @@ import {
     Send,
     Tag,
     TrendingUp,
+    Blocks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import useAuth from '@/hooks/useAuth';
 
 interface SidebarItem {
     href: string;
@@ -32,18 +32,27 @@ const sellerItems: SidebarItem[] = [
     { href: '/seller/asks', label: 'My Asks', icon: <Tag className="h-5 w-5" /> },
     { href: '/seller/leads', label: 'My Leads', icon: <FileText className="h-5 w-5" /> },
     { href: '/seller/submit', label: 'Submit Lead', icon: <Send className="h-5 w-5" /> },
+    { href: '/seller/form-builder', label: 'Form Builder', icon: <Blocks className="h-5 w-5" /> },
     { href: '/seller/analytics', label: 'Analytics', icon: <TrendingUp className="h-5 w-5" /> },
 ];
 
 export function Sidebar() {
     const location = useLocation();
-    const { user } = useAuth();
 
-    const items = user?.role === 'SELLER' ? sellerItems : buyerItems;
+    // Auto-detect context from URL path instead of user role
+    const isSellerContext = location.pathname.startsWith('/seller');
+    const items = isSellerContext ? sellerItems : buyerItems;
 
     return (
         <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 border-r border-border bg-background/80 backdrop-blur-xl hidden lg:block">
             <div className="p-4 space-y-1">
+                {/* Context Label */}
+                <div className="px-4 py-2 mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {isSellerContext ? 'Seller' : 'Buyer'} Dashboard
+                    </span>
+                </div>
+
                 {items.map((item) => {
                     const isActive = location.pathname === item.href;
                     return (

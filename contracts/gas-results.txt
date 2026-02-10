@@ -1,0 +1,18 @@
+﻿
+╔═══════════════════════════════════════════╗
+║       Gas Profiling — Lead Engine CRE     ║
+╚═══════════════════════════════════════════╝
+
+Deploying contracts...
+
+node.exe : Gas profiling failed: incorrect number of 
+arguments to constructor
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Gas profili 
+   ng f... to constructor:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+Partial results:

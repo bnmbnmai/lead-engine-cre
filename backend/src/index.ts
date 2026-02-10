@@ -3,6 +3,9 @@ import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import swaggerUi from 'swagger-ui-express';
 import { prisma } from './lib/prisma';
 import RTBSocketServer from './rtb/socket';
 
@@ -79,6 +82,29 @@ app.get('/health', async (_req: Request, res: Response) => {
     }
 });
 
+// Swagger UI — serve OpenAPI docs
+try {
+    const swaggerYaml = readFileSync(join(__dirname, '..', 'swagger.yaml'), 'utf-8');
+    // Parse YAML manually (simple key-value for swagger-ui-express)
+    const swaggerJson = JSON.parse(JSON.stringify(
+        require('js-yaml')?.load?.(swaggerYaml) ?? {}
+    ));
+    app.use('/api/swagger', swaggerUi.serve, swaggerUi.setup(swaggerJson, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Lead Engine CRE — API Docs',
+    }));
+} catch {
+    // Fallback: serve raw YAML if js-yaml not available
+    app.get('/api/swagger', (_req: Request, res: Response) => {
+        try {
+            const yaml = readFileSync(join(__dirname, '..', 'swagger.yaml'), 'utf-8');
+            res.type('text/yaml').send(yaml);
+        } catch {
+            res.status(404).json({ error: 'swagger.yaml not found' });
+        }
+    });
+}
+
 // API v1 routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1', generalLimiter, marketplaceRoutes);
@@ -151,6 +177,7 @@ httpServer.listen(PORT, () => {
     Auth:        /api/v1/auth/*
     Marketplace: /api/v1/asks, /api/v1/leads/*
     Bidding:     /api/v1/bids/*
+    Swagger:     http://localhost:${PORT}/api/swagger
     Analytics:   /api/v1/analytics/*
   ────────────────────────────
   `);
