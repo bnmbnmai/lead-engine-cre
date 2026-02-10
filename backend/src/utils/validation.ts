@@ -20,9 +20,11 @@ export const KycInitSchema = z.object({
 // ============================================
 
 export const GeoSchema = z.object({
-    state: z.string().length(2).optional(),
+    country: z.string().length(2).toUpperCase().default('US').optional(),
+    state: z.string().max(4).optional(),
+    region: z.string().max(100).optional(),
     city: z.string().optional(),
-    zip: z.string().regex(/^\d{5}(-\d{4})?$/).optional(),
+    zip: z.string().regex(/^[A-Z0-9 -]{2,10}$/i, 'Invalid postal code').optional(),
     geoHash: z.string().optional(),
     lat: z.number().min(-90).max(90).optional(),
     lng: z.number().min(-180).max(180).optional(),

@@ -1,22 +1,56 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, createContext, useContext } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+
+// ============================================
+// Sidebar Context — allows Navbar to toggle
+// ============================================
+
+interface SidebarContextType {
+    isOpen: boolean;
+    toggle: () => void;
+    close: () => void;
+}
+
+const SidebarContext = createContext<SidebarContextType>({
+    isOpen: false,
+    toggle: () => { },
+    close: () => { },
+});
+
+export function useSidebar() {
+    return useContext(SidebarContext);
+}
+
+// ============================================
+// Layout
+// ============================================
 
 interface DashboardLayoutProps {
     children: ReactNode;
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    const ctx: SidebarContextType = {
+        isOpen: sidebarOpen,
+        toggle: () => setSidebarOpen((p) => !p),
+        close: () => setSidebarOpen(false),
+    };
+
     return (
-        <div className="min-h-screen bg-background">
-            <Navbar />
-            <Sidebar />
-            <main className="pt-16 lg:pl-64">
-                <div className="container mx-auto px-6 py-8">
-                    {children}
-                </div>
-            </main>
-        </div>
+        <SidebarContext.Provider value={ctx}>
+            <div className="min-h-screen bg-background">
+                <Navbar />
+                <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+                <main className="pt-16 lg:pl-64">
+                    <div className="container mx-auto px-4 sm:px-6 py-8">
+                        {children}
+                    </div>
+                </main>
+            </div>
+        </SidebarContext.Provider>
     );
 }
 

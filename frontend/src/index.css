@@ -156,3 +156,48 @@
         @apply text-lg font-medium;
     }
 }
+
+/* ============================================
+   Sidebar Drawer Animation
+   ============================================ */
+@keyframes sidebar-slide-in {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+.sidebar-drawer-enter {
+    animation: sidebar-slide-in 0.25s ease-out;
+}
+
+/* ============================================
+   Mobile Touch Targets
+   ============================================ */
+@layer utilities {
+    .touch-target {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* ============================================
+   Responsive Utilities
+   ============================================ */
+@media (max-width: 640px) {
+
+    /* Tighter padding on very small screens */
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    /* Prevent horizontal overflow */
+    html,
+    body {
+        overflow-x: hidden;
+    }
+}

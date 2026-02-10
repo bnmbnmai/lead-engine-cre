@@ -14,6 +14,38 @@ import api from '@/lib/api';
 const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'];
 
 const US_STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'];
+const CA_PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'];
+const GB_REGIONS = ['England', 'Scotland', 'Wales', 'N. Ireland'];
+const AU_STATES = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT'];
+
+const COUNTRIES = [
+    { code: 'US', label: 'United States' },
+    { code: 'CA', label: 'Canada' },
+    { code: 'GB', label: 'United Kingdom' },
+    { code: 'AU', label: 'Australia' },
+    { code: 'DE', label: 'Germany' },
+    { code: 'FR', label: 'France' },
+    { code: 'BR', label: 'Brazil' },
+    { code: 'MX', label: 'Mexico' },
+    { code: 'IN', label: 'India' },
+    { code: 'JP', label: 'Japan' },
+    { code: 'KR', label: 'South Korea' },
+    { code: 'SG', label: 'Singapore' },
+    { code: 'AE', label: 'UAE' },
+    { code: 'ZA', label: 'South Africa' },
+    { code: 'NG', label: 'Nigeria' },
+    { code: 'OTHER', label: 'Other' },
+];
+
+function getRegionOptions(country: string) {
+    switch (country) {
+        case 'US': return { label: 'State', options: US_STATES };
+        case 'CA': return { label: 'Province', options: CA_PROVINCES };
+        case 'GB': return { label: 'Region', options: GB_REGIONS };
+        case 'AU': return { label: 'State', options: AU_STATES };
+        default: return null;
+    }
+}
 
 // Vertical-specific parameter definitions
 const VERTICAL_FIELDS: Record<string, { key: string; label: string; type: 'text' | 'select' | 'boolean'; options?: string[] }[]> = {
@@ -60,7 +92,9 @@ const VERTICAL_FIELDS: Record<string, { key: string; label: string; type: 'text'
 const leadSchema = z.object({
     vertical: z.string().min(1, 'Select a vertical'),
     geo: z.object({
-        state: z.string().length(2, 'Select a state'),
+        country: z.string().length(2).default('US').optional(),
+        state: z.string().optional(),
+        region: z.string().optional(),
         city: z.string().optional(),
         zip: z.string().optional(),
     }),
@@ -84,13 +118,16 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [error, setError] = useState<string | null>(null);
     const [tcpaConsent, setTcpaConsent] = useState(false);
     const [customParams, setCustomParams] = useState<Record<string, unknown>>({});
+    const [selectedCountry, setSelectedCountry] = useState('US');
 
-    const { register, handleSubmit, control, watch, formState: { errors } } = useForm<LeadFormData>({
+    const regionConfig = getRegionOptions(selectedCountry);
+
+    const { register, handleSubmit, control, watch, setValue, formState: { errors } } = useForm<LeadFormData>({
         resolver: zodResolver(leadSchema),
         defaultValues: {
             source,
             expiresInMinutes: 60,
-            geo: {},
+            geo: { country: 'US' },
         },
     });
 
@@ -232,27 +269,65 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                         </div>
                     )}
 
-                    {/* Location */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Location — Country */}
+                    <div>
+                        <label className="text-sm font-medium mb-2 block">Country</label>
+                        <Controller
+                            name="geo.country"
+                            control={control}
+                            render={({ field }) => (
+                                <Select
+                                    onValueChange={(v) => {
+                                        field.onChange(v);
+                                        setSelectedCountry(v);
+                                        setValue('geo.state', '');
+                                        setValue('geo.region', '');
+                                    }}
+                                    value={field.value || 'US'}
+                                >
+                                    <SelectTrigger>
+                                        <Globe className="h-4 w-4 mr-2 text-muted-foreground" />
+                                        <SelectValue placeholder="Select country" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {COUNTRIES.map((c) => (
+                                            <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
+                    </div>
+
+                    {/* State / Region */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-sm font-medium mb-2 block">State</label>
-                            <Controller
-                                name="geo.state"
-                                control={control}
-                                render={({ field }) => (
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select state" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {US_STATES.map((s) => (
-                                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                            {errors.geo?.state && <p className="text-xs text-destructive mt-1">{errors.geo.state.message}</p>}
+                            {regionConfig ? (
+                                <>
+                                    <label className="text-sm font-medium mb-2 block">{regionConfig.label}</label>
+                                    <Controller
+                                        name="geo.state"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder={`Select ${regionConfig.label.toLowerCase()}`} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {regionConfig.options.map((s) => (
+                                                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <label className="text-sm font-medium mb-2 block">Region / State</label>
+                                    <Input placeholder="e.g. Bavaria, Ontario" {...register('geo.region')} />
+                                </>
+                            )}
                         </div>
                         <div>
                             <label className="text-sm font-medium mb-2 block">City (Optional)</label>
@@ -260,10 +335,16 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                         </div>
                     </div>
 
-                    {/* ZIP */}
+                    {/* Postal Code */}
                     <div>
-                        <label className="text-sm font-medium mb-2 block">ZIP Code (Optional)</label>
-                        <Input placeholder="33101" className="max-w-32" {...register('geo.zip')} />
+                        <label className="text-sm font-medium mb-2 block">
+                            {selectedCountry === 'US' ? 'ZIP Code' : 'Postal Code'} (Optional)
+                        </label>
+                        <Input
+                            placeholder={selectedCountry === 'US' ? '33101' : selectedCountry === 'GB' ? 'SW1A 1AA' : selectedCountry === 'CA' ? 'M5V 3L9' : '12345'}
+                            className="max-w-40"
+                            {...register('geo.zip')}
+                        />
                         <p className="text-xs text-muted-foreground mt-1">Improves matching accuracy with buyer asks</p>
                     </div>
 

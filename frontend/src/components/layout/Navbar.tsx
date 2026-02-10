@@ -1,15 +1,22 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ArrowLeftRight } from 'lucide-react';
-import { useState } from 'react';
+import { Menu, ArrowLeftRight } from 'lucide-react';
 import ConnectButton from '@/components/wallet/ConnectButton';
 import useAuth from '@/hooks/useAuth';
+import { useSidebar } from '@/components/layout/DashboardLayout';
 
 export function Navbar() {
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
     const location = useLocation();
     const { isAuthenticated } = useAuth();
 
-    // Detect which side the user is currently on
+    // Try to get sidebar context (exists when inside DashboardLayout)
+    let sidebarToggle: (() => void) | null = null;
+    try {
+        const sidebar = useSidebar();
+        sidebarToggle = sidebar.toggle;
+    } catch {
+        // Not inside DashboardLayout — no sidebar toggle
+    }
+
     const isOnSeller = location.pathname.startsWith('/seller');
     const isOnBuyer = location.pathname.startsWith('/buyer');
 
@@ -18,7 +25,6 @@ export function Navbar() {
     ];
 
     if (isAuthenticated) {
-        // Always show both dashboard links so users can switch roles freely
         navLinks.push(
             { href: '/buyer', label: 'Buyer' },
             { href: '/seller', label: 'Seller' },
@@ -26,19 +32,33 @@ export function Navbar() {
     }
 
     return (
-        <nav className="fixed top-0 w-full z-50 glass">
-            <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-                {/* Logo — Chainlink-inspired solid blue */}
-                <Link to="/" className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-[#375BD2] flex items-center justify-center">
-                        <span className="text-white font-bold text-base tracking-tight">LE</span>
-                    </div>
-                    <span className="text-lg font-semibold text-foreground hidden sm:inline tracking-tight">
-                        Lead Engine
-                    </span>
-                </Link>
+        <nav className="fixed top-0 w-full z-30 glass">
+            <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+                {/* Left: Burger + Logo */}
+                <div className="flex items-center gap-3">
+                    {/* Mobile sidebar toggle */}
+                    {sidebarToggle && (
+                        <button
+                            onClick={sidebarToggle}
+                            className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-white/[0.06] transition"
+                            aria-label="Toggle sidebar"
+                        >
+                            <Menu className="h-5 w-5" />
+                        </button>
+                    )}
 
-                {/* Desktop Nav */}
+                    {/* Logo */}
+                    <Link to="/" className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-lg bg-[#375BD2] flex items-center justify-center">
+                            <span className="text-white font-bold text-base tracking-tight">LE</span>
+                        </div>
+                        <span className="text-lg font-semibold text-foreground hidden sm:inline tracking-tight">
+                            Lead Engine
+                        </span>
+                    </Link>
+                </div>
+
+                {/* Center: Desktop Nav */}
                 <div className="hidden md:flex items-center gap-6">
                     {navLinks.map((link) => {
                         const isActive = link.href === '/'
@@ -58,7 +78,7 @@ export function Navbar() {
                         );
                     })}
 
-                    {/* Quick role-switch hint */}
+                    {/* Quick role-switch */}
                     {isAuthenticated && (isOnBuyer || isOnSeller) && (
                         <Link
                             to={isOnSeller ? '/buyer' : '/seller'}
@@ -70,50 +90,11 @@ export function Navbar() {
                     )}
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-4">
+                {/* Right: Wallet */}
+                <div className="flex items-center gap-3">
                     <ConnectButton />
-
-                    {/* Mobile Menu */}
-                    <button
-                        onClick={() => setIsMobileOpen(!isMobileOpen)}
-                        className="md:hidden p-2 rounded-lg hover:bg-white/[0.06] transition"
-                    >
-                        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                    </button>
                 </div>
             </div>
-
-            {/* Mobile Nav */}
-            {isMobileOpen && (
-                <div className="md:hidden glass border-t border-border">
-                    <div className="container mx-auto px-6 py-4 space-y-2">
-                        {navLinks.map((link) => (
-                            <Link
-                                key={link.href}
-                                to={link.href}
-                                onClick={() => setIsMobileOpen(false)}
-                                className={`block px-4 py-3 rounded-lg transition ${location.pathname === link.href
-                                        ? 'bg-primary/10 text-primary'
-                                        : 'hover:bg-white/[0.04]'
-                                    }`}
-                            >
-                                {link.label}
-                            </Link>
-                        ))}
-                        {isAuthenticated && (
-                            <Link
-                                to={isOnSeller ? '/buyer' : '/seller'}
-                                onClick={() => setIsMobileOpen(false)}
-                                className="flex items-center gap-2 px-4 py-3 rounded-lg text-muted-foreground hover:bg-white/[0.04]"
-                            >
-                                <ArrowLeftRight className="h-4 w-4" />
-                                Switch to {isOnSeller ? 'Buyer' : 'Seller'}
-                            </Link>
-                        )}
-                    </div>
-                </div>
-            )}
         </nav>
     );
 }
