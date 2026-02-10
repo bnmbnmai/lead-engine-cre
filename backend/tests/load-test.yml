@@ -149,3 +149,34 @@ scenarios:
             buyerAddress: "0x{{ $randomString(40) }}"
           expect:
             - statusCode: 200
+
+  # ─── Global geo bid (10% traffic) ─────────────
+  - name: "Place bid (global geo)"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/v1/bids"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          json:
+            leadId: "{{ $randomString() }}"
+            amount: "{{ $randomNumber(10, 500) }}"
+            geoCountry: "{{ $randomItem(['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'BR', 'IN', 'MX', 'JP', 'KR', 'SG', 'AE', 'ZA', 'NG']) }}"
+            geoState: "{{ $randomItem(['CA', 'TX', 'ON', 'ENG', 'NSW', 'NW', 'IDF', 'SP', 'MH', 'TK', 'SEO', 'SG', 'DXB', 'GP', 'LA']) }}"
+          expect:
+            - statusCode:
+                - 201
+                - 400
+                - 403
+                - 404
+
+  # ─── Multi-country marketplace (5% traffic) ───
+  - name: "Global marketplace listing"
+    weight: 5
+    flow:
+      - get:
+          url: "/api/v1/asks?country={{ $randomItem(['US', 'AU', 'DE', 'GB', 'IN']) }}&vertical={{ $randomItem(['solar', 'mortgage', 'roofing', 'insurance']) }}&limit=20"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode: 200
