@@ -42,7 +42,7 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [error, setError] = useState<string | null>(null);
     const [tcpaConsent, setTcpaConsent] = useState(false);
 
-    const { register, handleSubmit, control, formState: { errors }, setValue } = useForm<LeadFormData>({
+    const { register, handleSubmit, control, formState: { errors }, setValue: _setValue } = useForm<LeadFormData>({
         resolver: zodResolver(leadSchema),
         defaultValues: {
             source,

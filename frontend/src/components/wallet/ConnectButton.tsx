@@ -11,7 +11,7 @@ export function ConnectButton() {
 
     const { connectors, connect, isPending } = useConnect();
     const { address, isConnected } = useAccount();
-    const { disconnect } = useDisconnect();
+    const { disconnect: _disconnect } = useDisconnect();
     const chainId = useChainId();
     const { switchChain } = useSwitchChain();
     const { user, login, logout, isLoading } = useAuth();

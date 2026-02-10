@@ -25,7 +25,7 @@ interface PreferencesFormProps {
 }
 
 export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
-    const [isLoading, setIsLoading] = useState(false);
+    const [_isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -96,8 +96,8 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                                     type="button"
                                     onClick={() => toggleVertical(v.value)}
                                     className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${isSelected
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-muted hover:bg-muted/80'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted hover:bg-muted/80'
                                         }`}
                                 >
                                     {v.label}

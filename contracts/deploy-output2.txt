@@ -1,0 +1,56 @@
+﻿════════════════════════════════════════════════════════════
+🚀 LEAD ENGINE CRE - CONTRACT DEPLOYMENT
+════════════════════════════════════════════════════════════
+
+Deployer: 0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70
+Network:  sepolia
+Balance:  0.038260115775605805 ETH
+
+
+📦 Deploying ACECompliance...
+✅ ACECompliance: 0x746245858A5A5bCccfd0bdAa228b1489908b9546
+
+📦 Deploying LeadNFTv2...
+✅ LeadNFTv2: 0xB93A1Ff499BdEaf74710F760Eb2B6bc5b62f8546
+
+📦 Deploying RTBEscrow...
+✅ RTBEscrow: 0x19B7a082e93B096B0516FA46E67d4168DdCD9004
+
+📦 Deploying Marketplace...
+✅ Marketplace: 0x3b1bBb196e65BE66c2fB18DB70A3513c1dDeB288
+
+📦 Deploying CREVerifier...
+✅ CREVerifier: 0x00f1f1C16e1431FFaAc3d44c608EFb5F8Db257A4
+
+🔧 Setting up permissions...
+   ✓ Marketplace authorized as LeadNFT manager
+   ✓ Deployer authorized as LeadNFT minter
+   ✓ Marketplace authorized as Escrow caller
+   ✓ Deployer authorized as ACE verifier
+   ✓ Default policies set for 6 verticals
+
+════════════════════════════════════════════════════════════
+📋 DEPLOYMENT SUMMARY
+════════════════════════════════════════════════════════════
+
+Contract Addresses:
+  ACECompliance:  0x746245858A5A5bCccfd0bdAa228b1489908b9546
+  LeadNFTv2:      0xB93A1Ff499BdEaf74710F760Eb2B6bc5b62f8546
+  RTBEscrow:      0x19B7a082e93B096B0516FA46E67d4168DdCD9004
+  Marketplace:    0x3b1bBb196e65BE66c2fB18DB70A3513c1dDeB288
+  CREVerifier:    0x00f1f1C16e1431FFaAc3d44c608EFb5F8Db257A4
+  USDC:           0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+
+Configuration:
+  Platform Fee:   2.5%
+  Chain ID:       11155111
+  
+Next Steps:
+  1. Verify contracts on block explorer
+  2. Fund Chainlink Functions subscription
+  3. Configure CREVerifier source code
+  4. Add contract addresses to backend .env
+
+════════════════════════════════════════════════════════════
+
+✅ Deployment complete!

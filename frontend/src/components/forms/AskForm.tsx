@@ -38,7 +38,7 @@ export function AskForm({ onSuccess }: AskFormProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const { register, handleSubmit, control, formState: { errors }, watch, setValue } = useForm<AskFormData>({
+    const { register, handleSubmit, control, formState: { errors } } = useForm<AskFormData>({
         resolver: zodResolver(askSchema),
         defaultValues: {
             geoTargets: { states: [] },
@@ -48,8 +48,6 @@ export function AskForm({ onSuccess }: AskFormProps) {
             expiresInDays: 30,
         },
     });
-
-    const selectedVertical = watch('vertical');
 
     const onSubmit = async (data: AskFormData) => {
         setIsSubmitting(true);
@@ -89,10 +87,10 @@ export function AskForm({ onSuccess }: AskFormProps) {
                         <div key={s.num} className="flex items-center">
                             <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm ${step > s.num
-                                        ? 'bg-primary text-primary-foreground'
-                                        : step === s.num
-                                            ? 'bg-primary/20 text-primary border-2 border-primary'
-                                            : 'bg-muted text-muted-foreground'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : step === s.num
+                                        ? 'bg-primary/20 text-primary border-2 border-primary'
+                                        : 'bg-muted text-muted-foreground'
                                     }`}
                             >
                                 {step > s.num ? <Check className="h-4 w-4" /> : s.num}
