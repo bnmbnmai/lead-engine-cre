@@ -5,6 +5,7 @@ import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } fr
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
+import { marketplaceAsksCache } from '../lib/cache';
 
 const router = Router();
 
@@ -17,6 +18,13 @@ router.get('/asks', generalLimiter, authMiddleware, async (req: AuthenticatedReq
         const validation = AskQuerySchema.safeParse(req.query);
         if (!validation.success) {
             res.status(400).json({ error: 'Invalid query', details: validation.error.issues });
+            return;
+        }
+
+        const cacheKey = `asks:${JSON.stringify(validation.data)}`;
+        const cached = marketplaceAsksCache.get(cacheKey);
+        if (cached) {
+            res.json(cached);
             return;
         }
 
@@ -50,7 +58,7 @@ router.get('/asks', generalLimiter, authMiddleware, async (req: AuthenticatedReq
             prisma.ask.count({ where }),
         ]);
 
-        res.json({
+        const result = {
             asks,
             pagination: {
                 total,
@@ -58,7 +66,9 @@ router.get('/asks', generalLimiter, authMiddleware, async (req: AuthenticatedReq
                 offset,
                 hasMore: offset + asks.length < total,
             },
-        });
+        };
+        marketplaceAsksCache.set(cacheKey, result);
+        res.json(result);
     } catch (error) {
         console.error('List asks error:', error);
         res.status(500).json({ error: 'Failed to list asks' });

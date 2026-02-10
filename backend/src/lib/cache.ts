@@ -153,3 +153,15 @@ export const kycCache = new LRUCache<boolean>({
     maxSize: 2000,
     ttlMs: 30 * 60_000,
 });
+
+/** Cache for marketplace /asks listing (30s TTL — short for freshness) */
+export const marketplaceAsksCache = new LRUCache<any>({
+    maxSize: 500,
+    ttlMs: 30_000,
+});
+
+/** Cache for marketplace /leads listing (20s TTL) */
+export const marketplaceLeadsCache = new LRUCache<any>({
+    maxSize: 500,
+    ttlMs: 20_000,
+});

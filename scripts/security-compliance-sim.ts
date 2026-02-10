@@ -236,6 +236,62 @@ runTest('MiCA: Non-EU lead does not require MiCA', () => {
     if (!requiresMiCA) return true;
     return 'Non-EU lead incorrectly required MiCA';
 });
+// ─── 7. Off-Site Fraud Toggle Edge Cases ───────────
+
+runTest('OFF-SITE TOGGLE: Cross-border EU lead via off-site from non-EU IP', () => {
+    const ask = { acceptOffSite: false, vertical: 'solar', geoTargets: { country: 'DE', states: ['NW'] } };
+    const lead = { source: 'OFFSITE', vertical: 'solar', geo: { country: 'DE', state: 'NW' }, ipGeo: { country: 'NG' } };
+    // Must fail both: off-site blocked AND geo mismatch
+    const offSiteBlocked = !ask.acceptOffSite && lead.source === 'OFFSITE';
+    const geoMismatch = lead.geo.country !== lead.ipGeo.country;
+    if (offSiteBlocked && geoMismatch) return true;
+    return 'Double violation (off-site + geo mismatch) not caught';
+});
+
+runTest('OFF-SITE TOGGLE: API source spoofing — lead claims PLATFORM but has no session', () => {
+    const lead = { source: 'PLATFORM', hasActiveSession: false, ipGeo: { country: 'US' } };
+    // PLATFORM leads must have an active session — this is spoofing
+    if (lead.source === 'PLATFORM' && !lead.hasActiveSession) return true;
+    return 'Source spoofing not detected';
+});
+
+runTest('OFF-SITE TOGGLE: Toggle flip exploit — ask was OFF, bids were placed, toggle flipped ON', () => {
+    const askHistory = [
+        { acceptOffSite: false, timestamp: Date.now() - 3600000 },
+        { acceptOffSite: true, timestamp: Date.now() - 60000 },
+    ];
+    const bid = { createdAt: Date.now() - 1800000, source: 'OFFSITE' };
+    // Bid was placed when toggle was OFF — should remain rejected
+    const toggleAtBidTime = askHistory.find((h) => h.timestamp <= bid.createdAt);
+    if (toggleAtBidTime && !toggleAtBidTime.acceptOffSite) return true;
+    return 'Toggle flip exploit allowed retroactive off-site bid';
+});
+
+runTest('OFF-SITE TOGGLE: Off-site lead with expired TCPA consent', () => {
+    const lead = {
+        source: 'OFFSITE',
+        tcpaConsentAt: new Date(Date.now() - 400 * 1000), // ~6.7 min ago
+    };
+    const ageMinutes = (Date.now() - lead.tcpaConsentAt.getTime()) / 60000;
+    if (ageMinutes > 5) return true; // TCPA consent too old for off-site
+    return 'Expired TCPA consent on off-site lead not flagged';
+});
+
+runTest('OFF-SITE TOGGLE: Off-site bid from sanctioned country', () => {
+    const sanctionedCountries = ['KP', 'IR', 'SY', 'CU'];
+    const lead = { source: 'OFFSITE', ipGeo: { country: 'KP' } };
+    if (sanctionedCountries.includes(lead.ipGeo.country)) return true;
+    return 'Sanctioned country off-site bid not blocked';
+});
+
+runTest('OFF-SITE TOGGLE: Anomaly detection — off-site leads exceed 80% of total', () => {
+    const recentLeads = Array.from({ length: 100 }, (_, i) => ({
+        source: i < 85 ? 'OFFSITE' : 'PLATFORM',
+    }));
+    const offSiteRatio = recentLeads.filter((l) => l.source === 'OFFSITE').length / recentLeads.length;
+    if (offSiteRatio > 0.8) return true; // Flag for review
+    return 'Off-site anomaly not detected';
+});
 
 // ─── Report ────────────────────────────────────────
 

@@ -170,9 +170,9 @@ scenarios:
                 - 403
                 - 404
 
-  # ─── Multi-country marketplace (5% traffic) ───
+  # ─── Multi-country marketplace (3% traffic) ───
   - name: "Global marketplace listing"
-    weight: 5
+    weight: 3
     flow:
       - get:
           url: "/api/v1/asks?country={{ $randomItem(['US', 'AU', 'DE', 'GB', 'IN']) }}&vertical={{ $randomItem(['solar', 'mortgage', 'roofing', 'insurance']) }}&limit=20"
@@ -180,3 +180,84 @@ scenarios:
             Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
           expect:
             - statusCode: 200
+
+  # ─── Cross-border ACE compliance (5% traffic) ──
+  - name: "Cross-border ACE (EU solar to non-EU buyer)"
+    weight: 5
+    flow:
+      - post:
+          url: "/api/v1/demo/compliance-check"
+          json:
+            walletAddress: "0x{{ $randomString(40) }}"
+            vertical: "solar"
+            geoCountry: "{{ $randomItem(['DE', 'FR', 'NL', 'ES', 'IT']) }}"
+            geoState: "{{ $randomItem(['NW', 'BY', 'IDF', 'PRV', 'NH', 'CAT', 'LOM']) }}"
+            buyerCountry: "{{ $randomItem(['US', 'CA', 'JP', 'AU']) }}"
+            checkType: "cross_border_ace"
+          expect:
+            - statusCode:
+                - 200
+                - 403
+
+  # ─── EU solar geo-match batch (3% traffic) ─────
+  - name: "EU solar geo-match (50 leads)"
+    weight: 3
+    flow:
+      - get:
+          url: "/api/v1/asks?country={{ $randomItem(['DE', 'FR', 'NL']) }}&vertical=solar&limit=50"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode: 200
+      - post:
+          url: "/api/v1/demo/compliance-check"
+          json:
+            walletAddress: "0x{{ $randomString(40) }}"
+            vertical: "solar"
+            geoCountry: "{{ $randomItem(['DE', 'FR']) }}"
+            geoState: "{{ $randomItem(['NW', 'BY', 'IDF']) }}"
+          expect:
+            - statusCode: 200
+
+  # ─── Off-site fraud toggle (2% traffic) ────────
+  - name: "Off-site fraud — bid on no-offsite ask"
+    weight: 2
+    flow:
+      - post:
+          url: "/api/v1/bids"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          json:
+            leadId: "{{ $randomString() }}"
+            amount: "{{ $randomNumber(20, 150) }}"
+            source: "OFFSITE"
+            geoState: "{{ $randomItem(['CA', 'TX', 'FL']) }}"
+          expect:
+            - statusCode:
+                - 201
+                - 400
+                - 403
+                - 404
+
+  # ─── Bid burst spike (2% traffic) ──────────────
+  - name: "Bid burst — 1000+ rapid bids on single lead"
+    weight: 2
+    flow:
+      - loop:
+          - post:
+              url: "/api/v1/bids"
+              headers:
+                Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+              json:
+                leadId: "spike-lead-001"
+                amount: "{{ $randomNumber(10, 500) }}"
+                geoState: "{{ $randomItem(['CA', 'TX', 'FL', 'NY']) }}"
+              expect:
+                - statusCode:
+                    - 201
+                    - 400
+                    - 403
+                    - 404
+                    - 429
+          count: 10
+

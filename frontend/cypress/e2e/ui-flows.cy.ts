@@ -205,3 +205,84 @@ describe('Edge Cases & Empty States', () => {
         });
     });
 });
+
+// ─── Off-Site Toggle & Fraud Edge Cases ─────────
+describe('Off-Site Toggle & Fraud Edge Cases', () => {
+    beforeEach(() => {
+        cy.stubAuth('seller');
+    });
+
+    it('ask creation form shows acceptOffSite toggle', () => {
+        cy.visit('/seller/asks/create');
+        cy.get('body').then(($body) => {
+            const hasToggle =
+                $body.find('[type="checkbox"], [role="switch"]').length > 0 ||
+                $body.text().includes('Off-Site') ||
+                $body.text().includes('off-site');
+            expect(hasToggle).to.be.true;
+        });
+    });
+
+    it('submit page shows source selector with OFFSITE option', () => {
+        cy.visit('/seller/submit');
+        cy.contains('Hosted Lander').click();
+        // Offsite/webhook info visible — confirms off-site submission path exists
+        cy.contains(/Webhook|Landing|Hosted/).should('be.visible');
+    });
+
+    it('TCPA consent is required for lead submission', () => {
+        cy.visit('/seller/submit');
+        // TCPA consent should be visible in the form
+        cy.get('body').then(($body) => {
+            const hasTcpa =
+                $body.text().includes('TCPA') ||
+                $body.text().includes('consent') ||
+                $body.text().includes('Consent');
+            expect(hasTcpa).to.be.true;
+        });
+    });
+
+    it('no raw stack traces on error pages', () => {
+        cy.visit('/seller/nonexistent-page', { failOnStatusCode: false });
+        cy.get('body').should('not.contain', 'at Object.');
+        cy.get('body').should('not.contain', 'TypeError');
+        cy.get('body').should('not.contain', 'Cannot read properties');
+    });
+});
+
+// ─── Hybrid Buyer/Seller Role Switching ─────────
+describe('Hybrid Buyer/Seller Flow', () => {
+    it('seller dashboard links to marketplace', () => {
+        cy.stubAuth('seller');
+        cy.visit('/seller');
+        cy.get('body').then(($body) => {
+            const hasMarketplaceLink =
+                $body.find('a[href="/"], a[href="/marketplace"]').length > 0 ||
+                $body.text().includes('Marketplace');
+            expect(hasMarketplaceLink).to.be.true;
+        });
+    });
+
+    it('buyer dashboard links to marketplace', () => {
+        cy.stubAuth('buyer');
+        cy.visit('/buyer');
+        cy.get('body').then(($body) => {
+            const hasMarketplaceLink =
+                $body.find('a[href="/"], a[href="/marketplace"]').length > 0 ||
+                $body.text().includes('Marketplace');
+            expect(hasMarketplaceLink).to.be.true;
+        });
+    });
+
+    it('buyer preferences page shows geo and vertical filters', () => {
+        cy.stubAuth('buyer');
+        cy.visit('/buyer/preferences');
+        cy.contains(/Preferences/).should('be.visible');
+        cy.get('body').then(($body) => {
+            const text = $body.text();
+            const hasGeo = text.includes('Geographic') || text.includes('Region') || text.includes('Country');
+            const hasVertical = text.includes('Vertical') || text.includes('vertical') || text.includes('solar');
+            expect(hasGeo || hasVertical).to.be.true;
+        });
+    });
+});
