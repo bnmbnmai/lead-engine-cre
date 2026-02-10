@@ -84,6 +84,8 @@ async function apiFetch<T>(
 // ============================================
 
 export const api = {
+    apiFetch,
+
     // Auth
     getNonce: (address: string) =>
         apiFetch<{ nonce: string; message: string }>(`/api/v1/auth/nonce/${address}`),
@@ -146,6 +148,15 @@ export const api = {
 
     updatePreferences: (data: any) =>
         apiFetch('/api/v1/bids/preferences', {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+
+    getPreferenceSets: () =>
+        apiFetch<{ sets: any[] }>('/api/v1/bids/preferences/v2'),
+
+    updatePreferenceSets: (data: { preferenceSets: any[] }) =>
+        apiFetch('/api/v1/bids/preferences/v2', {
             method: 'PUT',
             body: JSON.stringify(data),
         }),

@@ -286,3 +286,118 @@ describe('Hybrid Buyer/Seller Flow', () => {
         });
     });
 });
+
+// ─── Auth Guards ─────────────────────────────
+describe('Auth Guards', () => {
+    it('blocks /buyer/preferences without auth — shows sign-in prompt', () => {
+        window.localStorage.clear();
+        cy.visit('/buyer/preferences');
+        cy.contains('Sign in required').should('be.visible');
+        cy.contains('Connect your wallet').should('be.visible');
+        cy.contains('Back to Marketplace').should('be.visible');
+        // The preferences form should NOT be rendered
+        cy.contains('Buyer Preferences').should('not.exist');
+    });
+
+    it('blocks /buyer without auth', () => {
+        window.localStorage.clear();
+        cy.visit('/buyer');
+        cy.contains('Sign in required').should('be.visible');
+    });
+
+    it('blocks /seller without auth', () => {
+        window.localStorage.clear();
+        cy.visit('/seller');
+        cy.contains('Sign in required').should('be.visible');
+    });
+
+    it('blocks /seller/submit without auth', () => {
+        window.localStorage.clear();
+        cy.visit('/seller/submit');
+        cy.contains('Sign in required').should('be.visible');
+    });
+
+    it('shows "Why sign in?" security tooltip', () => {
+        window.localStorage.clear();
+        cy.visit('/buyer/preferences');
+        cy.contains('Why sign in?').click();
+        cy.contains('PII').should('be.visible');
+    });
+
+    it('allows authenticated buyer to access /buyer/preferences', () => {
+        cy.stubAuth('buyer');
+        cy.visit('/buyer/preferences');
+        cy.contains('Buyer Preferences').should('be.visible');
+    });
+
+    it('allows authenticated seller to access /seller', () => {
+        cy.stubAuth('seller');
+        cy.visit('/seller');
+        cy.contains(/Dashboard|Overview/).should('be.visible');
+    });
+
+    it('"Back to Marketplace" link navigates home', () => {
+        window.localStorage.clear();
+        cy.visit('/buyer/preferences');
+        cy.contains('Back to Marketplace').click();
+        cy.url().should('eq', Cypress.config().baseUrl + '/');
+    });
+});
+
+// ─── Multi-Set Preferences ──────────────────
+describe('Multi-Set Preferences', () => {
+    beforeEach(() => {
+        cy.stubAuth('buyer');
+        cy.visit('/buyer/preferences');
+    });
+
+    it('shows empty state with quick-add vertical buttons', () => {
+        cy.contains('No preference sets yet').should('be.visible');
+        cy.contains('Solar').should('be.visible');
+        cy.contains('Mortgage').should('be.visible');
+    });
+
+    it('adds a preference set and renders accordion', () => {
+        cy.contains('Solar').click();
+        cy.contains('Solar — US').should('be.visible');
+        cy.contains('Geographic Targeting').should('be.visible');
+        cy.contains('Auto-Bidding').should('be.visible');
+    });
+
+    it('"Add Preference Set" opens vertical picker', () => {
+        // Add initial set
+        cy.contains('Solar').click();
+        // Open picker for second set
+        cy.contains('Add Preference Set').click();
+        cy.contains('Select a vertical').should('be.visible');
+        cy.get('.grid').last().contains('Mortgage').click();
+        // Both sets should exist
+        cy.contains('Solar — US').should('be.visible');
+        cy.contains('Mortgage — US').should('be.visible');
+    });
+
+    it('shows overlap warning for duplicate verticals', () => {
+        // Add two Solar sets
+        cy.contains('Solar').click();
+        cy.contains('Add Preference Set').click();
+        cy.get('.grid').last().contains('Solar').click();
+        cy.contains('Overlap detected').should('be.visible');
+        cy.contains('Solar has 2 active sets').should('be.visible');
+    });
+
+    it('shows auto-bid tooltip about programmatic buyers', () => {
+        cy.contains('Solar').click();
+        // The auto-bid info icon should be present
+        cy.get('[class*="accordion"]').first().click(); // expand if collapsed
+        cy.contains('Auto-Bidding').should('be.visible');
+    });
+
+    it('save button shows set count', () => {
+        cy.contains('Solar').click();
+        cy.contains('Save Preferences (1 set)').should('be.visible');
+        cy.contains('Add Preference Set').click();
+        cy.get('.grid').last().contains('Mortgage').click();
+        cy.contains('Save Preferences (2 sets)').should('be.visible');
+    });
+});
+

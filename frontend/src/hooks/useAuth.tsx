@@ -60,6 +60,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, [user]);
 
+    // Cross-tab logout: detect when auth_token is removed in another tab
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === 'auth_token' && !e.newValue) {
+                setUser(null);
+                socketClient.disconnect();
+            }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
+
     const refreshUser = async () => {
         try {
             const { data, error } = await api.getMe();

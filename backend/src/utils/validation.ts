@@ -139,6 +139,32 @@ export const BuyerPreferencesSchema = z.object({
     autoAcceptLeads: z.boolean().optional(),
 });
 
+const VERTICAL_VALUES = [
+    'solar', 'mortgage', 'roofing', 'insurance', 'home_services',
+    'b2b_saas', 'real_estate', 'auto', 'legal', 'financial',
+] as const;
+
+export const PreferenceSetSchema = z.object({
+    id: z.string().optional(),
+    label: z.string().min(1).max(100),
+    vertical: z.enum(VERTICAL_VALUES),
+    priority: z.number().int().min(0).default(0),
+    geoCountry: z.string().length(2).default('US'),
+    geoInclude: z.array(z.string().max(4)).default([]),
+    geoExclude: z.array(z.string().max(4)).default([]),
+    maxBidPerLead: z.number().positive().optional(),
+    dailyBudget: z.number().positive().optional(),
+    autoBidEnabled: z.boolean().default(false),
+    autoBidAmount: z.number().positive().optional(),
+    acceptOffSite: z.boolean().default(true),
+    requireVerified: z.boolean().default(false),
+    isActive: z.boolean().default(true),
+});
+
+export const BuyerPreferencesV2Schema = z.object({
+    preferenceSets: z.array(PreferenceSetSchema).min(1).max(20),
+});
+
 // ============================================
 // Analytics
 // ============================================
@@ -163,3 +189,5 @@ export type BidCommit = z.infer<typeof BidCommitSchema>;
 export type BidReveal = z.infer<typeof BidRevealSchema>;
 export type BidDirect = z.infer<typeof BidDirectSchema>;
 export type BuyerPreferences = z.infer<typeof BuyerPreferencesSchema>;
+export type PreferenceSet = z.infer<typeof PreferenceSetSchema>;
+export type BuyerPreferencesV2 = z.infer<typeof BuyerPreferencesV2Schema>;

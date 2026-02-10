@@ -15,6 +15,7 @@ import marketplaceRoutes from './routes/marketplace.routes';
 import biddingRoutes from './routes/bidding.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import integrationRoutes from './routes/integration.routes';
+import crmRoutes from './routes/crm.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -111,6 +112,7 @@ app.use('/api/v1', generalLimiter, marketplaceRoutes);
 app.use('/api/v1/bids', biddingRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/demo', integrationRoutes);
+app.use('/api/v1/crm', crmRoutes);
 
 // Legacy endpoints (backward compatibility)
 app.get('/api/v1/leads', (_req: Request, res: Response) => {
@@ -179,6 +181,7 @@ httpServer.listen(PORT, () => {
     Bidding:     /api/v1/bids/*
     Swagger:     http://localhost:${PORT}/api/swagger
     Analytics:   /api/v1/analytics/*
+    CRM Export:  /api/v1/crm/*
   ────────────────────────────
   `);
 });

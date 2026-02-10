@@ -104,7 +104,42 @@ model BuyerProfile {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferenceSets  BuyerPreferenceSet[]
+}
+
+model BuyerPreferenceSet {
+  id              String   @id @default(cuid())
+  buyerProfileId  String
+  label           String             // User-defined, e.g. "Solar — US West"
+  vertical        String             // Single vertical per set
+  priority        Int      @default(0) // Lower = higher priority (overlap resolution)
+
+  // Geo
+  geoCountry      String   @default("US")
+  geoInclude      String[]            // State codes to include
+  geoExclude      String[]            // State codes to exclude
+
+  // Budget
+  maxBidPerLead   Decimal? @db.Decimal(10, 2)
+  dailyBudget     Decimal? @db.Decimal(10, 2)
+
+  // Auto-bid
+  autoBidEnabled  Boolean  @default(false)
+  autoBidAmount   Decimal? @db.Decimal(10, 2) // Fixed bid amount when auto-bid fires
+
+  // Toggles
+  acceptOffSite   Boolean  @default(true)
+  requireVerified Boolean  @default(false)
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  buyerProfile BuyerProfile @relation(fields: [buyerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([buyerProfileId, priority])
+  @@index([vertical, isActive])
 }
 
 model SellerProfile {

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { LeadCard } from '@/components/marketplace/LeadCard';
+import { CRMExportButton } from '@/components/ui/CRMExportButton';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 
@@ -55,9 +56,12 @@ export function BuyerDashboard() {
                         <h1 className="text-3xl font-bold">Buyer Dashboard</h1>
                         <p className="text-muted-foreground">Track your bids and discover new leads</p>
                     </div>
-                    <Button asChild>
-                        <Link to="/">Browse Marketplace</Link>
-                    </Button>
+                    <div className="flex items-center gap-3">
+                        <CRMExportButton />
+                        <Button asChild>
+                            <Link to="/">Browse Marketplace</Link>
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Stats Grid */}

@@ -2,9 +2,10 @@ import { Router, Response } from 'express';
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthenticatedRequest, requireBuyer } from '../middleware/auth';
-import { BidCommitSchema, BidRevealSchema, BidDirectSchema, BuyerPreferencesSchema } from '../utils/validation';
+import { BidCommitSchema, BidRevealSchema, BidDirectSchema, BuyerPreferencesSchema, BuyerPreferencesV2Schema } from '../utils/validation';
 import { rtbBiddingLimiter } from '../middleware/rateLimit';
 import { aceService } from '../services/ace.service';
+import { dataStreamsService } from '../services/datastreams.service';
 
 const router = Router();
 
@@ -486,6 +487,164 @@ router.put('/preferences', authMiddleware, requireBuyer, async (req: Authenticat
     } catch (error) {
         console.error('Update preferences error:', error);
         res.status(500).json({ error: 'Failed to update preferences' });
+    }
+});
+
+// ============================================
+// Data Streams — Real-Time Bid Floor (Stub)
+// ============================================
+
+router.get('/bid-floor', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const vertical = (req.query.vertical as string) || 'solar';
+        const country = (req.query.country as string) || 'US';
+
+        const bidFloor = await dataStreamsService.getRealtimeBidFloor(vertical, country);
+        const priceIndex = await dataStreamsService.getLeadPriceIndex(vertical);
+
+        res.json({ bidFloor, priceIndex });
+    } catch (error) {
+        console.error('Bid floor error:', error);
+        res.status(500).json({ error: 'Failed to get bid floor' });
+    }
+});
+
+// ============================================
+// Preference Sets V2 — Per-Vertical Multi-Set
+// ============================================
+
+router.get('/preferences/v2', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const profile = await prisma.buyerProfile.findFirst({
+            where: { userId: req.user!.id },
+            include: {
+                preferenceSets: {
+                    orderBy: { priority: 'asc' },
+                },
+            },
+        });
+
+        if (!profile) {
+            res.json({ sets: [] });
+            return;
+        }
+
+        res.json({
+            sets: profile.preferenceSets.map((s) => ({
+                id: s.id,
+                label: s.label,
+                vertical: s.vertical,
+                priority: s.priority,
+                geoCountry: s.geoCountry,
+                geoInclude: s.geoInclude,
+                geoExclude: s.geoExclude,
+                maxBidPerLead: s.maxBidPerLead ? Number(s.maxBidPerLead) : undefined,
+                dailyBudget: s.dailyBudget ? Number(s.dailyBudget) : undefined,
+                autoBidEnabled: s.autoBidEnabled,
+                autoBidAmount: s.autoBidAmount ? Number(s.autoBidAmount) : undefined,
+                acceptOffSite: s.acceptOffSite,
+                requireVerified: s.requireVerified,
+                isActive: s.isActive,
+            })),
+        });
+    } catch (error) {
+        console.error('Get preference sets error:', error);
+        res.status(500).json({ error: 'Failed to get preference sets' });
+    }
+});
+
+router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const validation = BuyerPreferencesV2Schema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid preferences', details: validation.error.issues });
+            return;
+        }
+
+        const { preferenceSets } = validation.data;
+
+        // Ensure buyer profile exists
+        const profile = await prisma.buyerProfile.upsert({
+            where: { userId: req.user!.id },
+            create: { userId: req.user!.id },
+            update: {},
+        });
+
+        // Get existing set IDs
+        const existingSets = await prisma.buyerPreferenceSet.findMany({
+            where: { buyerProfileId: profile.id },
+            select: { id: true },
+        });
+        const existingIds = new Set(existingSets.map((s) => s.id));
+
+        // Determine which IDs to keep (ones in the payload with an id)
+        const incomingIds = new Set(preferenceSets.filter((s) => s.id).map((s) => s.id!));
+        const idsToDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+
+        // Run upserts + deletes in a transaction
+        await prisma.$transaction(async (tx) => {
+            // Delete removed sets
+            if (idsToDelete.length > 0) {
+                await tx.buyerPreferenceSet.deleteMany({
+                    where: { id: { in: idsToDelete } },
+                });
+            }
+
+            // Upsert each set
+            for (const set of preferenceSets) {
+                if (set.id && existingIds.has(set.id)) {
+                    await tx.buyerPreferenceSet.update({
+                        where: { id: set.id },
+                        data: {
+                            label: set.label,
+                            vertical: set.vertical,
+                            priority: set.priority,
+                            geoCountry: set.geoCountry,
+                            geoInclude: set.geoInclude,
+                            geoExclude: set.geoExclude,
+                            maxBidPerLead: set.maxBidPerLead,
+                            dailyBudget: set.dailyBudget,
+                            autoBidEnabled: set.autoBidEnabled,
+                            autoBidAmount: set.autoBidAmount,
+                            acceptOffSite: set.acceptOffSite,
+                            requireVerified: set.requireVerified,
+                            isActive: set.isActive,
+                        },
+                    });
+                } else {
+                    await tx.buyerPreferenceSet.create({
+                        data: {
+                            buyerProfileId: profile.id,
+                            label: set.label,
+                            vertical: set.vertical,
+                            priority: set.priority,
+                            geoCountry: set.geoCountry,
+                            geoInclude: set.geoInclude,
+                            geoExclude: set.geoExclude,
+                            maxBidPerLead: set.maxBidPerLead,
+                            dailyBudget: set.dailyBudget,
+                            autoBidEnabled: set.autoBidEnabled,
+                            autoBidAmount: set.autoBidAmount,
+                            acceptOffSite: set.acceptOffSite,
+                            requireVerified: set.requireVerified,
+                            isActive: set.isActive,
+                        },
+                    });
+                }
+            }
+
+            // Sync flat verticals for backward compatibility
+            const uniqueVerticals = [...new Set(preferenceSets.map((s) => s.vertical))];
+            await tx.buyerProfile.update({
+                where: { id: profile.id },
+                data: { verticals: uniqueVerticals },
+            });
+        });
+
+        res.json({ success: true, message: 'Preference sets updated' });
+    } catch (error) {
+        console.error('Update preference sets error:', error);
+        res.status(500).json({ error: 'Failed to update preference sets' });
     }
 });
 

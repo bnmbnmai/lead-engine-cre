@@ -3,6 +3,7 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/lib/wagmi';
 import { AuthProvider } from '@/hooks/useAuth';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import '@/lib/i18n';
 
 // Pages
@@ -40,20 +41,20 @@ function App() {
                             <Route path="/marketplace" element={<Navigate to="/" replace />} />
                             <Route path="/auction/:leadId" element={<AuctionPage />} />
 
-                            {/* Buyer Routes */}
-                            <Route path="/buyer" element={<BuyerDashboard />} />
-                            <Route path="/buyer/bids" element={<BuyerBids />} />
-                            <Route path="/buyer/analytics" element={<BuyerDashboard />} />
-                            <Route path="/buyer/preferences" element={<BuyerPreferences />} />
+                            {/* Buyer Routes (auth required) */}
+                            <Route path="/buyer" element={<ProtectedRoute><BuyerDashboard /></ProtectedRoute>} />
+                            <Route path="/buyer/bids" element={<ProtectedRoute><BuyerBids /></ProtectedRoute>} />
+                            <Route path="/buyer/analytics" element={<ProtectedRoute><BuyerDashboard /></ProtectedRoute>} />
+                            <Route path="/buyer/preferences" element={<ProtectedRoute><BuyerPreferences /></ProtectedRoute>} />
 
-                            {/* Seller Routes */}
-                            <Route path="/seller" element={<SellerDashboard />} />
-                            <Route path="/seller/leads" element={<SellerLeads />} />
-                            <Route path="/seller/asks" element={<SellerAsks />} />
-                            <Route path="/seller/asks/new" element={<CreateAsk />} />
-                            <Route path="/seller/submit" element={<SellerSubmit />} />
-                            <Route path="/seller/form-builder" element={<FormBuilder />} />
-                            <Route path="/seller/analytics" element={<SellerAnalytics />} />
+                            {/* Seller Routes (auth required) */}
+                            <Route path="/seller" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
+                            <Route path="/seller/leads" element={<ProtectedRoute><SellerLeads /></ProtectedRoute>} />
+                            <Route path="/seller/asks" element={<ProtectedRoute><SellerAsks /></ProtectedRoute>} />
+                            <Route path="/seller/asks/new" element={<ProtectedRoute><CreateAsk /></ProtectedRoute>} />
+                            <Route path="/seller/submit" element={<ProtectedRoute><SellerSubmit /></ProtectedRoute>} />
+                            <Route path="/seller/form-builder" element={<ProtectedRoute><FormBuilder /></ProtectedRoute>} />
+                            <Route path="/seller/analytics" element={<ProtectedRoute><SellerAnalytics /></ProtectedRoute>} />
 
                             {/* Fallback */}
                             <Route path="*" element={<Navigate to="/" replace />} />

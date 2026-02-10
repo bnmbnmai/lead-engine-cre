@@ -15,7 +15,7 @@
 ### 1a. Set deployer key
 
 ```bash
-# In backend/.env — add your wallet private key (with Sepolia ETH)
+# In backend/.env
 DEPLOYER_PRIVATE_KEY=0x...your_private_key
 ALCHEMY_API_KEY=your_alchemy_key
 ```
@@ -78,26 +78,24 @@ CRE_CONTRACT_ADDRESS=0x...
 4. Add PostgreSQL (New → PostgreSQL)
 5. Set env vars per `docs/ENV_HANDOFF.md`
 
-### Seed Mock Data (optional — for demo)
+### Seed Mock Data (for demo)
 
 ```bash
-# SSH into Render shell or run locally with DATABASE_URL pointed at Render PostgreSQL
 cd backend
-npm run db:seed        # Seeds 200+ mock entries (TEST_MODE=true auto-set)
+npm run db:seed        # Seeds 200+ mock entries
 npm run db:clear-mock  # Removes only mock data (0xMOCK prefix)
 ```
 
 ### Verify
 
 ```bash
-curl https://your-api.onrender.com/health
+curl https://lead-engine-cre-api.onrender.com/health
 # Expected: {"status":"ok"}
 
-curl https://your-api.onrender.com/api/v1/demo/e2e-bid
-# Expected: 200 with pipeline results
+curl https://lead-engine-cre-api.onrender.com/api/v1/bids/bid-floor?vertical=solar&country=US
+# Expected: bid floor data with isStub: true
 
-# Swagger UI
-open https://your-api.onrender.com/api/swagger
+open https://lead-engine-cre-api.onrender.com/api/swagger
 ```
 
 ---
@@ -112,47 +110,78 @@ open https://your-api.onrender.com/api/swagger
 
 | Variable | Value |
 |---------|-------|
-| `VITE_API_URL` | `https://your-api.onrender.com/api/v1` |
-| `VITE_APP_URL` | `https://your-app.vercel.app` |
+| `VITE_API_URL` | `https://lead-engine-cre-api.onrender.com` |
+| `VITE_APP_URL` | `https://lead-engine-cre.vercel.app` |
 | `VITE_WALLETCONNECT_PROJECT_ID` | From WalletConnect Cloud |
 | `VITE_ALCHEMY_API_KEY` | Your Alchemy key |
 | `VITE_DEFAULT_CHAIN_ID` | `11155111` (Sepolia) |
 | `VITE_ENABLE_TESTNET` | `true` |
 
-> **Note:** This is a Vite app — use `VITE_` prefix, not `NEXT_PUBLIC_`.
+> **Note:** Vite app — use `VITE_` prefix, not `NEXT_PUBLIC_`.
 
 6. Deploy
 7. Go back to Render → set `FRONTEND_URL` to the Vercel URL
 
+---
+
+## 4. MCP Agent Server (Local)
+
+The MCP server runs locally during development and demos:
+
+```bash
+cd mcp-server
+npm install
+npm run dev   # Starts on port 3002
+```
+
+### Environment
+
+```env
+# mcp-server/.env (create this)
+API_BASE_URL=http://localhost:3001     # or Render URL for remote
+API_KEY=your_api_key_here              # matches backend auth
+MCP_PORT=3002
+```
+
 ### Verify
 
-Open `https://your-app.vercel.app`:
-- Signed-out users see the landing page hero ("Decentralized Lead RTB / Global. Compliant. Private.")
-- No sidebar visible pre-login
-- Wallet connect dropdown is opaque (not translucent)
-- After connecting, users see the marketplace with geo filters (15+ countries)
+```bash
+# Health check
+curl http://localhost:3002/health
+
+# List tools
+curl http://localhost:3002/tools
+
+# Test tool call
+curl -X POST http://localhost:3002/rpc \
+  -H "Content-Type: application/json" \
+  -d '{"method":"search_leads","params":{"vertical":"solar","state":"CA"}}'
+```
 
 ---
 
-## 4. Post-Deploy Checklist
+## 5. Post-Deploy Checklist
 
 - [ ] Backend health check returns 200
 - [ ] Frontend loads without console errors
-- [ ] Landing page hero renders with stats bar and feature cards
+- [ ] Landing page hero renders with stats bar
 - [ ] Wallet connects (MetaMask on Sepolia)
 - [ ] No sidebar visible before login
-- [ ] Wallet dropdown is opaque (not translucent glass)
 - [ ] `/api/v1/demo/e2e-bid` returns full pipeline results
 - [ ] `/api/v1/demo/compliance-check` shows ACE enforcement
+- [ ] `/api/v1/bids/bid-floor?vertical=solar&country=US` returns bid floor
+- [ ] `/api/v1/crm/export?format=json` returns lead export
 - [ ] `/api/swagger` loads Swagger UI
+- [ ] MCP server: `POST /rpc` with `search_leads` returns results
 - [ ] Contracts verified on Sepolia Etherscan
 - [ ] CORS: frontend can call backend API
-- [ ] WebSocket connection established (real-time updates)
-- [ ] Mock data seeded (200+ entries across 10 verticals, 15+ countries)
+- [ ] WebSocket connection established
+- [ ] Mock data seeded (200+ entries)
+- [ ] "Push to CRM" button visible on Buyer Dashboard
 
 ---
 
-## 5. Run Full Test Suite (Pre-Submission)
+## 6. Run Full Test Suite (Pre-Submission)
 
 ```bash
 # Backend type-check
@@ -161,8 +190,14 @@ cd backend && npx tsc --noEmit
 # Frontend build
 cd frontend && npm run build
 
+# MCP server type-check
+cd mcp-server && npx tsc --noEmit
+
 # Security compliance sim (29 tests)
 cd backend && npx ts-node --compiler-options '{"module":"commonjs"}' ../scripts/security-compliance-sim.ts
+
+# Testnet simulation (dry run)
+npx ts-node scripts/testnet-sim.ts --network hardhat --bids 20 --wallets 3 --dry-run
 
 # Artillery load test (13 scenarios, 1500 peak)
 cd backend && npm run test:load
@@ -180,7 +215,10 @@ cd frontend && npx cypress run
 | `prisma generate` fails on Render | Ensure `prisma` is in `devDependencies` and `npm install` runs first |
 | Frontend proxy 404 | In production, frontend calls absolute API URL (not `/api` proxy) |
 | Wallet won't connect on Vercel | Ensure `VITE_WALLETCONNECT_PROJECT_ID` is set |
-| Contract deploy fails | Check deployer has Sepolia ETH: `npx hardhat balance --network sepolia` |
+| Contract deploy fails | Check deployer has Sepolia ETH |
 | CORS blocked | Set `FRONTEND_URL` on Render to exact Vercel domain (no trailing slash) |
-| `ERR_UNKNOWN_FILE_EXTENSION` for ts-node | Use `--compiler-options '{"module":"commonjs"}'` flag |
-| Mock data not appearing | Ensure `TEST_MODE=true` is set; the `db:seed` script sets it via `cross-env` |
+| `ERR_UNKNOWN_FILE_EXTENSION` | Use `--compiler-options '{"module":"commonjs"}'` flag |
+| Mock data not appearing | Ensure `TEST_MODE=true` is set in env |
+| MCP server 401 | Set `API_KEY` in `mcp-server/.env` matching backend auth |
+| DECO/Streams timeout | Stubs auto-fallback with cached data — check `DECO_TIMEOUT_MS` env |
+| Agent logs missing | Ensure `mcp-server/logs/` directory is writable |

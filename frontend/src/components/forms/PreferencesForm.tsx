@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Settings, Save } from 'lucide-react';
+import { Save, Plus, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { LabeledSwitch } from '@/components/ui/switch';
-import { GeoFilter } from '@/components/marketplace/GeoFilter';
+import {
+    Accordion,
+    AccordionItem,
+    AccordionTrigger,
+    AccordionContent,
+} from '@/components/ui/accordion';
+import { PreferenceSetCard, type PreferenceSetData } from './PreferenceSetCard';
 import api from '@/lib/api';
+
+// ============================================
+// Verticals
+// ============================================
 
 const VERTICALS = [
     { value: 'solar', label: 'Solar' },
@@ -20,230 +28,262 @@ const VERTICALS = [
     { value: 'financial', label: 'Financial' },
 ];
 
+const VERTICAL_LABELS: Record<string, string> = Object.fromEntries(
+    VERTICALS.map((v) => [v.value, v.label])
+);
+
+// ============================================
+// Defaults
+// ============================================
+
+function createDefaultSet(vertical: string, priority: number): PreferenceSetData {
+    return {
+        label: `${VERTICAL_LABELS[vertical] || vertical} — US`,
+        vertical,
+        priority,
+        geoCountry: 'US',
+        geoInclude: [],
+        geoExclude: [],
+        maxBidPerLead: undefined,
+        dailyBudget: undefined,
+        autoBidEnabled: false,
+        autoBidAmount: undefined,
+        acceptOffSite: true,
+        requireVerified: false,
+        isActive: true,
+    };
+}
+
+// ============================================
+// Component
+// ============================================
+
 interface PreferencesFormProps {
     onSuccess?: () => void;
 }
 
 export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
-    const [_isLoading, setIsLoading] = useState(false);
+    const [sets, setSets] = useState<PreferenceSetData[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showVerticalPicker, setShowVerticalPicker] = useState(false);
 
-    const [preferences, setPreferences] = useState({
-        verticals: [] as string[],
-        geoFilters: {
-            country: 'US',
-            states: [] as string[],
-            excludeStates: [] as string[],
-        },
-        acceptOffSite: true,
-        requireVerified: false,
-        maxBudgetPerLead: 0,
-        dailyBudget: 0,
-        autoBid: false,
-    });
-
-    // Load existing preferences
+    // Load existing preference sets
     useEffect(() => {
-        // In real app, fetch from API
-        setIsLoading(false);
+        (async () => {
+            try {
+                const { data } = await api.getPreferenceSets();
+                if (data?.sets && data.sets.length > 0) {
+                    setSets(data.sets);
+                }
+            } catch {
+                // If v2 endpoint not available, start fresh
+            } finally {
+                setIsLoading(false);
+            }
+        })();
     }, []);
 
-    const toggleVertical = (vertical: string) => {
-        setPreferences((prev) => ({
-            ...prev,
-            verticals: prev.verticals.includes(vertical)
-                ? prev.verticals.filter((v) => v !== vertical)
-                : [...prev.verticals, vertical],
-        }));
+    // ── Handlers ──
+
+    const addSet = (vertical: string) => {
+        setSets((prev) => [...prev, createDefaultSet(vertical, prev.length)]);
+        setShowVerticalPicker(false);
+    };
+
+    const updateSet = (index: number, updated: PreferenceSetData) => {
+        setSets((prev) => prev.map((s, i) => (i === index ? updated : s)));
+    };
+
+    const deleteSet = (index: number) => {
+        setSets((prev) => {
+            const next = prev.filter((_, i) => i !== index);
+            // Re-index priorities
+            return next.map((s, i) => ({ ...s, priority: i }));
+        });
+    };
+
+    const moveSet = (from: number, to: number) => {
+        setSets((prev) => {
+            const next = [...prev];
+            const [item] = next.splice(from, 1);
+            next.splice(to, 0, item);
+            return next.map((s, i) => ({ ...s, priority: i }));
+        });
     };
 
     const handleSave = async () => {
+        if (sets.length === 0) {
+            setError('Add at least one preference set');
+            return;
+        }
+
         setIsSaving(true);
         setError(null);
 
         try {
-            const { error: apiError } = await api.updatePreferences(preferences);
+            const { error: apiError } = await api.updatePreferenceSets({
+                preferenceSets: sets,
+            });
             if (apiError) {
                 setError(apiError.error);
                 return;
             }
             onSuccess?.();
-        } catch (err) {
+        } catch {
             setError('Failed to save preferences');
         } finally {
             setIsSaving(false);
         }
     };
 
+    // ── Overlap warning ──
+
+    const overlapWarnings: string[] = [];
+    const verticalCounts = sets.reduce<Record<string, number>>((acc, s) => {
+        if (s.isActive) acc[s.vertical] = (acc[s.vertical] || 0) + 1;
+        return acc;
+    }, {});
+    for (const [v, count] of Object.entries(verticalCounts)) {
+        if (count > 1) {
+            overlapWarnings.push(
+                `${VERTICAL_LABELS[v] || v} has ${count} active sets — highest priority wins when a lead matches multiple.`
+            );
+        }
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
-            {/* Verticals */}
+            {/* Overview */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Settings className="h-5 w-5" />
-                        Preferred Verticals
-                    </CardTitle>
-                    <CardDescription>Select the lead types you want to bid on</CardDescription>
+                    <CardTitle>Preference Sets</CardTitle>
+                    <CardDescription>
+                        Create one set per vertical / geo combination. Each set has its own budget, auto-bid config,
+                        and quality filters. Sets are matched in priority order (top = highest).
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                        {VERTICALS.map((v) => {
-                            const isSelected = preferences.verticals.includes(v.value);
-                            return (
-                                <button
-                                    key={v.value}
-                                    type="button"
-                                    onClick={() => toggleVertical(v.value)}
-                                    className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${isSelected
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted hover:bg-muted/80'
-                                        }`}
-                                >
-                                    {v.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {preferences.verticals.length === 0 && (
-                        <p className="text-sm text-muted-foreground mt-3">All verticals (no filter)</p>
+                    {sets.length === 0 ? (
+                        <div className="text-center py-8 space-y-3">
+                            <p className="text-muted-foreground text-sm">
+                                No preference sets yet. Add your first vertical to get started.
+                            </p>
+                            <div className="flex flex-wrap justify-center gap-2">
+                                {VERTICALS.slice(0, 5).map((v) => (
+                                    <Button
+                                        key={v.value}
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => addSet(v.value)}
+                                    >
+                                        <Plus className="h-3.5 w-3.5 mr-1" />
+                                        {v.label}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <Accordion defaultOpen={sets.length === 1 ? [sets[0].id || '0'] : []}>
+                            {sets.map((set, i) => {
+                                const itemId = set.id || String(i);
+                                return (
+                                    <AccordionItem key={itemId} id={itemId}>
+                                        <AccordionTrigger id={itemId}>
+                                            <div className="flex items-center gap-3">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-primary/10 text-primary">
+                                                    #{i + 1}
+                                                </span>
+                                                <span className="font-medium text-sm">
+                                                    {set.label || `${VERTICAL_LABELS[set.vertical]} set`}
+                                                </span>
+                                                {!set.isActive && (
+                                                    <span className="text-xs text-muted-foreground italic">
+                                                        paused
+                                                    </span>
+                                                )}
+                                                {set.autoBidEnabled && (
+                                                    <span className="text-xs text-amber-500 font-medium">
+                                                        ⚡ Auto-bid
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </AccordionTrigger>
+                                        <AccordionContent id={itemId}>
+                                            <PreferenceSetCard
+                                                set={set}
+                                                index={i}
+                                                total={sets.length}
+                                                onChange={(updated) => updateSet(i, updated)}
+                                                onMoveUp={() => moveSet(i, i - 1)}
+                                                onMoveDown={() => moveSet(i, i + 1)}
+                                                onDelete={() => deleteSet(i)}
+                                            />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                );
+                            })}
+                        </Accordion>
                     )}
                 </CardContent>
             </Card>
 
-            {/* Geographic Filters */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Geographic Filters</CardTitle>
-                    <CardDescription>Target or exclude regions across any supported country</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div>
-                        <label className="text-sm font-medium mb-3 block">Include Regions</label>
-                        <GeoFilter
-                            country={preferences.geoFilters.country}
-                            onCountryChange={(country) =>
-                                setPreferences((prev) => ({
-                                    ...prev,
-                                    geoFilters: { ...prev.geoFilters, country, states: [], excludeStates: [] },
-                                }))
-                            }
-                            selectedRegions={preferences.geoFilters.states}
-                            onRegionsChange={(states) =>
-                                setPreferences((prev) => ({
-                                    ...prev,
-                                    geoFilters: { ...prev.geoFilters, states },
-                                }))
-                            }
-                            mode="include"
-                        />
+            {/* Add Preference Set */}
+            {sets.length > 0 && (
+                <div className="relative">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowVerticalPicker((v) => !v)}
+                        className="w-full border-dashed"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Preference Set
+                    </Button>
+
+                    {showVerticalPicker && (
+                        <div className="absolute top-full left-0 right-0 mt-2 p-3 rounded-xl bg-popover border border-border shadow-lg z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200">
+                            <p className="text-xs font-medium text-muted-foreground mb-2">
+                                Select a vertical:
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                                {VERTICALS.map((v) => (
+                                    <button
+                                        key={v.value}
+                                        type="button"
+                                        onClick={() => addSet(v.value)}
+                                        className="px-3 py-2 rounded-lg text-xs font-medium bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+                                    >
+                                        {v.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Overlap Warnings */}
+            {overlapWarnings.length > 0 && (
+                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm space-y-1">
+                    <div className="flex items-center gap-2 font-medium">
+                        <AlertTriangle className="h-4 w-4" />
+                        Overlap detected
                     </div>
-
-                    <div>
-                        <label className="text-sm font-medium mb-3 block">Exclude Regions</label>
-                        <GeoFilter
-                            country={preferences.geoFilters.country}
-                            onCountryChange={() => { }}
-                            selectedRegions={preferences.geoFilters.excludeStates}
-                            onRegionsChange={(excludeStates) =>
-                                setPreferences((prev) => ({
-                                    ...prev,
-                                    geoFilters: { ...prev.geoFilters, excludeStates },
-                                }))
-                            }
-                            mode="exclude"
-                            showCountrySelector={false}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Toggle Preferences */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Lead Preferences</CardTitle>
-                    <CardDescription>Configure what leads you'll receive</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <LabeledSwitch
-                        label="Accept Off-site Leads"
-                        description="Receive leads captured from external landing pages, partner sites, and webhook integrations. Off-site leads may have different quality profiles than platform-generated leads, but expand your supply volume significantly."
-                        checked={preferences.acceptOffSite}
-                        onCheckedChange={(checked) =>
-                            setPreferences((prev) => ({ ...prev, acceptOffSite: checked }))
-                        }
-                    />
-
-                    <LabeledSwitch
-                        label="Require Verified Leads Only"
-                        description="Only show leads that have passed CRE (Compliance & Risk Engine) verification — including TCPA consent validation, geo accuracy checks, and duplicate detection. Reduces volume but increases lead quality and protects against fraud."
-                        checked={preferences.requireVerified}
-                        onCheckedChange={(checked) =>
-                            setPreferences((prev) => ({ ...prev, requireVerified: checked }))
-                        }
-                    />
-
-                    <LabeledSwitch
-                        label="Enable Auto-Bidding"
-                        description="Automatically place bids on leads matching your vertical, geo, and budget filters. Bids are placed at your max-per-lead limit. Ideal for high-volume buyers who want to compete in real-time auctions without manual intervention — but be sure to set budget caps below."
-                        checked={preferences.autoBid}
-                        onCheckedChange={(checked) =>
-                            setPreferences((prev) => ({ ...prev, autoBid: checked }))
-                        }
-                    />
-                </CardContent>
-            </Card>
-
-            {/* Budget Settings */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Budget Settings</CardTitle>
-                    <CardDescription>
-                        Set spending limits to control costs. Budgets are enforced in USDC and reset daily at midnight UTC.
-                        When auto-bidding is enabled, these limits prevent runaway spending.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <label className="text-sm font-medium mb-2 block">Max Bid Per Lead (USDC)</label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="100.00"
-                            value={preferences.maxBudgetPerLead || ''}
-                            onChange={(e) =>
-                                setPreferences((prev) => ({
-                                    ...prev,
-                                    maxBudgetPerLead: parseFloat(e.target.value) || 0,
-                                }))
-                            }
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Leave at 0 for no limit
-                        </p>
-                    </div>
-
-                    <div>
-                        <label className="text-sm font-medium mb-2 block">Daily Budget (USDC)</label>
-                        <Input
-                            type="number"
-                            step="1"
-                            placeholder="1000"
-                            value={preferences.dailyBudget || ''}
-                            onChange={(e) =>
-                                setPreferences((prev) => ({
-                                    ...prev,
-                                    dailyBudget: parseFloat(e.target.value) || 0,
-                                }))
-                            }
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Maximum daily spend, leave at 0 for no limit
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
+                    {overlapWarnings.map((w, i) => (
+                        <p key={i} className="text-xs ml-6">{w}</p>
+                    ))}
+                </div>
+            )}
 
             {/* Error */}
             {error && (
@@ -252,10 +292,16 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                 </div>
             )}
 
-            {/* Save Button */}
-            <Button onClick={handleSave} loading={isSaving} size="lg" className="w-full">
+            {/* Save */}
+            <Button
+                onClick={handleSave}
+                loading={isSaving}
+                disabled={sets.length === 0}
+                size="lg"
+                className="w-full"
+            >
                 <Save className="h-4 w-4 mr-2" />
-                Save Preferences
+                Save Preferences ({sets.length} {sets.length === 1 ? 'set' : 'sets'})
             </Button>
         </div>
     );
