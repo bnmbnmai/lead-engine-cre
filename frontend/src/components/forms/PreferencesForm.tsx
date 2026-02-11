@@ -233,7 +233,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                                 No preference sets yet. Add your first vertical to get started.
                             </p>
                             <div className="flex flex-wrap justify-center gap-2">
-                                {VERTICALS.slice(0, 5).map((v) => (
+                                {VERTICALS.map((v) => (
                                     <Button
                                         key={v.value}
                                         variant="outline"

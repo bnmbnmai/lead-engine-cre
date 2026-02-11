@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
-    Layers, ChevronLeft, ChevronRight, Download, Sparkles,
+    Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +37,49 @@ interface GamificationConfig {
     showNudges: boolean;
     confetti: boolean;
 }
+
+// ============================================
+// Color Schemes
+// ============================================
+
+interface FormColorScheme {
+    name: string;
+    swatch: string; // CSS color for the swatch button
+    vars: Record<string, string>;
+}
+
+const COLOR_SCHEMES: FormColorScheme[] = [
+    {
+        name: 'Dark',
+        swatch: '#1a1a2e',
+        vars: { '--form-bg': '#1a1a2e', '--form-text': '#e2e8f0', '--form-accent': '#6366f1', '--form-border': '#334155', '--form-input-bg': '#0f172a', '--form-muted': '#94a3b8' },
+    },
+    {
+        name: 'Light',
+        swatch: '#ffffff',
+        vars: { '--form-bg': '#ffffff', '--form-text': '#1e293b', '--form-accent': '#2563eb', '--form-border': '#e2e8f0', '--form-input-bg': '#f8fafc', '--form-muted': '#64748b' },
+    },
+    {
+        name: 'Ocean Blue',
+        swatch: '#0c1929',
+        vars: { '--form-bg': '#0c1929', '--form-text': '#cbd5e1', '--form-accent': '#0ea5e9', '--form-border': '#1e3a5f', '--form-input-bg': '#0a1220', '--form-muted': '#7dd3fc' },
+    },
+    {
+        name: 'Forest Green',
+        swatch: '#14261a',
+        vars: { '--form-bg': '#14261a', '--form-text': '#d1d5db', '--form-accent': '#22c55e', '--form-border': '#1e3a29', '--form-input-bg': '#0d1f12', '--form-muted': '#86efac' },
+    },
+    {
+        name: 'Sunset Warm',
+        swatch: '#fef3e2',
+        vars: { '--form-bg': '#fef3e2', '--form-text': '#44403c', '--form-accent': '#f97316', '--form-border': '#e7d5b8', '--form-input-bg': '#fffbf5', '--form-muted': '#78716c' },
+    },
+    {
+        name: 'Midnight Purple',
+        swatch: '#1a0a2e',
+        vars: { '--form-bg': '#1a0a2e', '--form-text': '#d4d4d8', '--form-accent': '#a855f7', '--form-border': '#2e1065', '--form-input-bg': '#120720', '--form-muted': '#c4b5fd' },
+    },
+];
 
 // ============================================
 // Vertical Presets
@@ -218,6 +261,7 @@ export function FormBuilder() {
         showNudges: true,
         confetti: false,
     });
+    const [colorScheme, setColorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
 
     const loadPreset = (v: string) => {
         setVertical(v);
@@ -271,6 +315,16 @@ export function FormBuilder() {
             return remaining;
         });
         if (previewStep >= steps.length - 1) setPreviewStep(Math.max(0, steps.length - 2));
+    };
+
+    const moveStep = (fromIdx: number, toIdx: number) => {
+        if (toIdx < 0 || toIdx >= steps.length) return;
+        setSteps((prev) => {
+            const copy = [...prev];
+            const [moved] = copy.splice(fromIdx, 1);
+            copy.splice(toIdx, 0, moved);
+            return copy;
+        });
     };
 
     const updateStepLabel = (stepId: string, label: string) => {
@@ -377,6 +431,24 @@ export function FormBuilder() {
                             <div key={step.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
                                 {/* Step header */}
                                 <div className="flex items-center gap-2">
+                                    <div className="flex flex-col gap-0.5 shrink-0">
+                                        <button
+                                            onClick={() => moveStep(si, si - 1)}
+                                            disabled={si === 0}
+                                            className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+                                            title="Move step up"
+                                        >
+                                            <ChevronUp className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            onClick={() => moveStep(si, si + 1)}
+                                            disabled={si === steps.length - 1}
+                                            className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
+                                            title="Move step down"
+                                        >
+                                            <ChevronDown className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                     <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
                                         {si + 1}
                                     </span>
@@ -534,6 +606,36 @@ export function FormBuilder() {
                                 onCheckedChange={(v) => setGamification((g) => ({ ...g, confetti: v }))}
                             />
                         </div>
+
+                        {/* Color Scheme Picker */}
+                        <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                                <Palette className="h-4 w-4 text-primary" />
+                                Form Color Scheme
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                Choose an independent color theme for the embedded form. This is separate from your dashboard theme.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {COLOR_SCHEMES.map((scheme) => (
+                                    <button
+                                        key={scheme.name}
+                                        onClick={() => setColorScheme(scheme)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${colorScheme.name === scheme.name
+                                                ? 'border-primary ring-1 ring-primary bg-primary/5'
+                                                : 'border-border hover:border-primary/40'
+                                            }`}
+                                        title={scheme.name}
+                                    >
+                                        <span
+                                            className="w-4 h-4 rounded-full border border-border shrink-0"
+                                            style={{ backgroundColor: scheme.swatch }}
+                                        />
+                                        {scheme.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
                     {/* ─── Right: Live Preview ──────── */}
@@ -577,14 +679,22 @@ export function FormBuilder() {
                             </div>
                         </div>
 
-                        <Card className="sticky top-24">
+                        <Card
+                            className="sticky top-24 overflow-hidden"
+                            style={previewMode === 'preview' ? {
+                                backgroundColor: colorScheme.vars['--form-bg'],
+                                color: colorScheme.vars['--form-text'],
+                                borderColor: colorScheme.vars['--form-border'],
+                                ...colorScheme.vars as any,
+                            } : undefined}
+                        >
                             {previewMode === 'preview' ? (
                                 <>
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-lg capitalize">
+                                        <CardTitle className="text-lg capitalize" style={{ color: colorScheme.vars['--form-text'] }}>
                                             Get Your Free {vertical.replace('_', ' ')} Quote
                                         </CardTitle>
-                                        <p className="text-sm text-muted-foreground">
+                                        <p className="text-sm" style={{ color: colorScheme.vars['--form-muted'] }}>
                                             Fill out the form below and we'll connect you with top providers in your area.
                                         </p>
                                     </CardHeader>
@@ -600,26 +710,26 @@ export function FormBuilder() {
                                         )}
 
                                         {/* Step label */}
-                                        <h3 className="text-sm font-semibold text-primary">
+                                        <h3 className="text-sm font-semibold" style={{ color: colorScheme.vars['--form-accent'] }}>
                                             {steps[previewStep]?.label || 'Step'}
                                         </h3>
 
                                         {/* Current step fields */}
                                         {currentStepFields.map((field) => (
                                             <div key={field.id}>
-                                                <label className="text-sm font-medium mb-1.5 block">
+                                                <label className="text-sm font-medium mb-1.5 block" style={{ color: colorScheme.vars['--form-text'] }}>
                                                     {field.label}
-                                                    {field.required && <span className="text-destructive ml-0.5">*</span>}
+                                                    {field.required && <span style={{ color: '#ef4444' }} className="ml-0.5">*</span>}
                                                 </label>
 
                                                 {(field.type === 'text' || field.type === 'email' || field.type === 'phone' || field.type === 'number') && (
-                                                    <div className="h-10 rounded-lg border border-border bg-muted/30 px-3 flex items-center text-sm text-muted-foreground">
+                                                    <div className="h-10 rounded-lg border px-3 flex items-center text-sm" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'], color: colorScheme.vars['--form-muted'] }}>
                                                         {field.placeholder || field.label}
                                                     </div>
                                                 )}
 
                                                 {field.type === 'select' && (
-                                                    <div className="h-10 rounded-lg border border-border bg-muted/30 px-3 flex items-center justify-between text-sm text-muted-foreground">
+                                                    <div className="h-10 rounded-lg border px-3 flex items-center justify-between text-sm" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'], color: colorScheme.vars['--form-muted'] }}>
                                                         <span>Select {field.label.toLowerCase()}</span>
                                                         <span className="text-xs">▼</span>
                                                     </div>
@@ -627,13 +737,13 @@ export function FormBuilder() {
 
                                                 {field.type === 'boolean' && (
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-9 h-5 rounded-full bg-muted border border-border" />
-                                                        <span className="text-sm text-muted-foreground">No</span>
+                                                        <div className="w-9 h-5 rounded-full border" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'] }} />
+                                                        <span className="text-sm" style={{ color: colorScheme.vars['--form-muted'] }}>No</span>
                                                     </div>
                                                 )}
 
                                                 {field.type === 'textarea' && (
-                                                    <div className="h-20 rounded-lg border border-border bg-muted/30 px-3 pt-2 text-sm text-muted-foreground">
+                                                    <div className="h-20 rounded-lg border px-3 pt-2 text-sm" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'], color: colorScheme.vars['--form-muted'] }}>
                                                         {field.placeholder || field.label}
                                                     </div>
                                                 )}
@@ -643,15 +753,15 @@ export function FormBuilder() {
                                         {/* TCPA on last step */}
                                         {previewStep === steps.length - 1 && (
                                             <div className="pt-2 space-y-3">
-                                                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border border-border">
-                                                    <div className="w-4 h-4 rounded border border-border mt-0.5 flex-shrink-0" />
-                                                    <p className="text-[11px] text-muted-foreground leading-tight">
+                                                <div className="flex items-start gap-2 p-3 rounded-lg border" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'] }}>
+                                                    <div className="w-4 h-4 rounded border mt-0.5 flex-shrink-0" style={{ borderColor: colorScheme.vars['--form-border'] }} />
+                                                    <p className="text-[11px] leading-tight" style={{ color: colorScheme.vars['--form-muted'] }}>
                                                         By submitting, I consent to being contacted by phone, text, or email.
                                                         I understand I may receive automated communications. Consent is not a
                                                         condition of purchase.
                                                     </p>
                                                 </div>
-                                                <div className="h-11 rounded-lg bg-primary flex items-center justify-center text-sm font-medium text-primary-foreground">
+                                                <div className="h-11 rounded-lg flex items-center justify-center text-sm font-medium text-white" style={{ backgroundColor: colorScheme.vars['--form-accent'] }}>
                                                     Get My Free Quote
                                                 </div>
                                             </div>

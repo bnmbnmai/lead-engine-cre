@@ -15,7 +15,7 @@ const router = Router();
 // ============================================
 
 const devOnly = (_req: Request, res: Response, next: NextFunction) => {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
         res.status(403).json({ error: 'Demo endpoints disabled in production' });
         return;
     }
