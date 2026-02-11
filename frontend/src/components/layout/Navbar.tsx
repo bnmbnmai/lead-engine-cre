@@ -21,9 +21,15 @@ export function Navbar() {
     const isOnSeller = location.pathname.startsWith('/seller');
     const isOnBuyer = location.pathname.startsWith('/buyer');
 
-    const navLinks = [
-        { href: '/marketplace', label: 'Marketplace' },
-    ];
+    // Hide 'Marketplace' link on lander for unauth users (the lander IS the marketplace)
+    const isOnLander = location.pathname === '/';
+    const navLinks: { href: string; label: string }[] = [];
+
+    // Show Marketplace link for auth users (they access it from dashboard)
+    // or for unauth users not on the lander
+    if (isAuthenticated || !isOnLander) {
+        navLinks.push({ href: '/marketplace', label: 'Marketplace' });
+    }
 
     if (isAuthenticated) {
         navLinks.push(

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, TrendingUp, Zap, X, Globe } from 'lucide-react';
+import { Search, MapPin, TrendingUp, Zap, X, Globe, Shield, ArrowRight } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -186,20 +186,74 @@ export function HomePage() {
     return (
         <DashboardLayout>
             <div className="space-y-8">
-                {/* Condensed CTA banner for non-authenticated users */}
+                {/* Hero Section — polished lander for unauthenticated visitors */}
                 {!isAuthenticated && (
-                    <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#375BD2]/10 via-transparent to-violet-600/5 p-6 sm:p-8">
+                    <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#375BD2]/10 via-transparent to-violet-600/5">
+                        {/* Background effects */}
                         <div className="absolute inset-0 node-grid opacity-20" />
-                        <div className="relative text-center">
-                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[#375BD2]/8 rounded-full blur-[100px] pointer-events-none" />
+
+                        <div className="relative px-6 sm:px-10 pt-10 pb-8 sm:pt-14 sm:pb-10">
+                            {/* Tagline badge */}
+                            <div className="flex justify-center mb-6">
+                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/[0.04] text-sm text-muted-foreground">
+                                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    Powered by Chainlink &middot; Built on-chain
+                                </div>
+                            </div>
+
+                            {/* Main heading */}
+                            <h1 className="text-center text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4">
                                 <span className="gradient-text">Decentralized Lead RTB</span>
+                                <br />
+                                <span className="text-foreground text-2xl sm:text-3xl md:text-4xl">Global. Compliant. Private.</span>
                             </h1>
-                            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto mb-5">
-                                Browse live auctions across 20+ countries and 10 verticals.
-                                Connect your wallet to bid, set auto-bid rules, or sell leads.
+
+                            {/* Subtitle */}
+                            <p className="text-center text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
+                                Serving a <span className="text-foreground font-semibold">$200B+</span> lead generation market.
+                                Verified leads, auto-bid automation, instant settlements &mdash;
+                                across 20+ countries and 10 verticals.
                             </p>
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+
+                            {/* CTA */}
+                            <div className="flex justify-center mb-10">
                                 <ConnectButton />
+                            </div>
+
+                            {/* Live Stats */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto mb-8">
+                                {[
+                                    { label: 'Active Leads', value: '2,847' },
+                                    { label: 'Avg Bid', value: '$127' },
+                                    { label: 'Countries', value: '20+' },
+                                    { label: 'Verticals', value: '10' },
+                                ].map((stat) => (
+                                    <div
+                                        key={stat.label}
+                                        className="text-center p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]"
+                                    >
+                                        <div className="text-xl sm:text-2xl font-bold gradient-text">{stat.value}</div>
+                                        <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">{stat.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* How It Works — condensed */}
+                            <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+                                {[
+                                    { step: '01', icon: Search, title: 'Browse & Bid', desc: 'Filter live auctions by vertical, geography, and quality score.' },
+                                    { step: '02', icon: Shield, title: 'Auto-Bid Rules', desc: 'Set once — bids fire instantly on matching leads with ZK privacy.' },
+                                    { step: '03', icon: ArrowRight, title: 'Instant Settlement', desc: 'USDC escrow settles in seconds. PII revealed only to the winner.' },
+                                ].map((item) => (
+                                    <div key={item.step} className="text-center p-4 rounded-xl border border-white/[0.04] bg-white/[0.01]">
+                                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-[#375BD2]/20 text-[#375BD2] mb-2">
+                                            <item.icon className="h-4 w-4" />
+                                        </div>
+                                        <h3 className="font-semibold text-sm mb-1">{item.title}</h3>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </section>
