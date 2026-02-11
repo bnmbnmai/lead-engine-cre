@@ -64,8 +64,8 @@ function App() {
                             <Route path="*" element={<Navigate to="/" replace />} />
                         </Routes>
 
-                        {/* Demo Panel — dev only, stripped from production build */}
-                        {import.meta.env.DEV && <DemoPanel />}
+                        {/* Demo Panel — shows in dev mode or when VITE_DEMO_MODE is set */}
+                        {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
                     </Router>
                 </AuthProvider>
             </QueryClientProvider>
