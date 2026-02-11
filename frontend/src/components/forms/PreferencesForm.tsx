@@ -346,7 +346,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
             <Button
                 onClick={handleSave}
                 loading={isSaving}
-                disabled={sets.length === 0}
+                disabled={isSaving}
                 size="lg"
                 className="w-full"
             >
