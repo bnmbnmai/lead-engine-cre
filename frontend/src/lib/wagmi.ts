@@ -1,12 +1,6 @@
-import { http, createConfig } from 'wagmi';
+import { http } from 'wagmi';
 import { mainnet, sepolia, baseSepolia } from 'wagmi/chains';
-import { injected, walletConnect } from 'wagmi/connectors';
-
-// ============================================
-// Project Config
-// ============================================
-
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 
 // ============================================
 // Contract Addresses
@@ -33,12 +27,10 @@ export const CONTRACT_ADDRESSES = {
 // Wagmi Config
 // ============================================
 
-export const wagmiConfig = createConfig({
+export const wagmiConfig = getDefaultConfig({
+    appName: 'Lead Engine CRE',
+    projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo',
     chains: [sepolia, baseSepolia, mainnet],
-    connectors: [
-        injected(),
-        walletConnect({ projectId }),
-    ],
     transports: {
         [mainnet.id]: http(),
         [sepolia.id]: http(import.meta.env.VITE_RPC_URL_SEPOLIA),

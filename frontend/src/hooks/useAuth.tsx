@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
 import api, { setAuthToken, getAuthToken } from '@/lib/api';
 import socketClient from '@/lib/socket';
@@ -33,12 +33,16 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const autoLoginAttempted = useRef(false);
 
-    const { address, isConnected } = useAccount();
+    const { address, isConnected, status } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { disconnect } = useDisconnect();
 
-    // Check existing session on mount
+    // ==== Session restore on mount ====
+    // Wait for wagmi to finish reconnecting before evaluating session state.
+    // This fixes the race condition where the auth check fires before wagmi
+    // reconnects, causing session loss on every page refresh.
     useEffect(() => {
         // E2E / Cypress bypass: if le_auth_user is set in localStorage
         // (by cy.stubAuth), use that mock user directly without wagmi
@@ -58,11 +62,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
 
+        // Don't evaluate until wagmi has finished reconnecting
+        if (status === 'reconnecting') return;
+
         const token = getAuthToken();
         if (token && isConnected) {
+            // Wallet reconnected + token in localStorage → restore session
             refreshUser();
+        } else if (token && !isConnected && status === 'disconnected') {
+            // Wallet disconnected externally — clear stale session
+            setAuthToken(null);
+            setUser(null);
+            setIsLoading(false);
         } else {
             setIsLoading(false);
+        }
+    }, [isConnected, status]);
+
+    // ==== Auto-SIWE on wallet connect ====
+    // When a wallet connects for the first time (no existing token),
+    // automatically trigger SIWE sign-in so the user doesn't need a
+    // separate "Sign In" button click.
+    useEffect(() => {
+        if (
+            isConnected &&
+            address &&
+            !getAuthToken() &&
+            !user &&
+            !isLoading &&
+            status === 'connected' &&
+            !autoLoginAttempted.current
+        ) {
+            autoLoginAttempted.current = true;
+            login().catch((err) => {
+                console.error('Auto-SIWE failed:', err);
+                autoLoginAttempted.current = false;
+            });
+        }
+    }, [isConnected, address, status, isLoading]);
+
+    // Reset auto-login guard when wallet disconnects
+    useEffect(() => {
+        if (!isConnected) {
+            autoLoginAttempted.current = false;
         }
     }, [isConnected]);
 

@@ -1,173 +1,109 @@
-import { useState } from 'react';
-import { useConnect, useAccount, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
-import { Wallet, ChevronDown, LogOut, Copy, ExternalLink, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { shortenAddress } from '@/lib/utils';
+import { ConnectButton as RainbowConnectButton } from '@rainbow-me/rainbowkit';
 import useAuth from '@/hooks/useAuth';
 
+// ============================================
+// Wallet Connect Button
+// ============================================
+// Thin wrapper around RainbowKit's ConnectButton.
+// RainbowKit handles: wallet picker modal with branded icons,
+// account dropdown (address, balance, copy, etherscan link),
+// network switcher, and disconnect.
+//
+// We layer on our SIWE auth state so the button shows the
+// user's role when fully authenticated.
+
 export function ConnectButton() {
-    const [isOpen, setIsOpen] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const { user } = useAuth();
 
-    const { connectors, connect, isPending } = useConnect();
-    const { address, isConnected } = useAccount();
-    const { disconnect: _disconnect } = useDisconnect();
-    const chainId = useChainId();
-    const { switchChain } = useSwitchChain();
-    const { user, login, logout, isLoading } = useAuth();
-
-    const handleConnect = async (connectorId: number) => {
-        const connector = connectors[connectorId];
-        await connect({ connector });
-    };
-
-    const handleCopy = () => {
-        if (address) {
-            navigator.clipboard.writeText(address);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        }
-    };
-
-    const handleSignIn = async () => {
-        try {
-            await login();
-        } catch (error) {
-            console.error('Sign in error:', error);
-        }
-    };
-
-    if (!isConnected) {
-        return (
-            <div className="relative">
-                <Button
-                    onClick={() => setIsOpen(!isOpen)}
-                    variant="gradient"
-                    size="lg"
-                    disabled={isPending}
-                    loading={isPending}
-                >
-                    <Wallet className="h-4 w-4" />
-                    Connect Wallet
-                </Button>
-
-                {isOpen && (
-                    <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                        <div className="absolute right-0 top-full mt-2 w-64 bg-card border border-border shadow-xl rounded-xl p-3 z-50 space-y-2">
-                            {connectors.map((connector, i) => (
-                                <button
-                                    key={connector.id}
-                                    onClick={() => {
-                                        handleConnect(i);
-                                        setIsOpen(false);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition text-left"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-[#375BD2] flex items-center justify-center">
-                                        <Wallet className="h-4 w-4 text-white" />
-                                    </div>
-                                    <div>
-                                        <div className="font-medium">{connector.name}</div>
-                                        <div className="text-xs text-muted-foreground">Connect</div>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </>
-                )}
-            </div>
-        );
-    }
-
-    // Connected but not signed in
-    if (!user) {
-        return (
-            <Button onClick={handleSignIn} variant="default" loading={isLoading}>
-                Sign In
-            </Button>
-        );
-    }
-
-    // Fully authenticated
     return (
-        <div className="relative">
-            <Button
-                onClick={() => setIsOpen(!isOpen)}
-                variant="glass"
-                className="gap-2"
-            >
-                <div className="w-6 h-6 rounded-full bg-[#375BD2] flex items-center justify-center text-xs text-white font-bold">
-                    {user.role[0]}
-                </div>
-                <span className="hidden sm:inline">{shortenAddress(address!)}</span>
-                <ChevronDown className="h-4 w-4" />
-            </Button>
+        <RainbowConnectButton.Custom>
+            {({
+                account,
+                chain,
+                openAccountModal,
+                openChainModal,
+                openConnectModal,
+                mounted,
+            }) => {
+                const ready = mounted;
+                const connected = ready && account && chain;
 
-            {isOpen && (
-                <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border shadow-xl rounded-xl p-4 z-50 space-y-4">
-                        {/* Address */}
-                        <div className="flex items-center justify-between">
-                            <div className="font-mono text-sm">{shortenAddress(address!, 6)}</div>
-                            <div className="flex gap-1">
-                                <button
-                                    onClick={handleCopy}
-                                    className="p-2 rounded-lg hover:bg-white/10 transition"
-                                >
-                                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                                </button>
-                                <a
-                                    href={`https://sepolia.etherscan.io/address/${address}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-2 rounded-lg hover:bg-white/10 transition"
-                                >
-                                    <ExternalLink className="h-4 w-4" />
-                                </a>
-                            </div>
-                        </div>
+                return (
+                    <div
+                        {...(!ready && {
+                            'aria-hidden': true,
+                            style: {
+                                opacity: 0,
+                                pointerEvents: 'none' as const,
+                                userSelect: 'none' as const,
+                            },
+                        })}
+                    >
+                        {(() => {
+                            if (!connected) {
+                                return (
+                                    <button
+                                        onClick={openConnectModal}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#375BD2] to-[#5B7FE5] text-white font-medium text-sm shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                        Connect Wallet
+                                    </button>
+                                );
+                            }
 
-                        {/* Role Badge */}
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10">
-                            <span className="text-xs text-muted-foreground">Role:</span>
-                            <span className="text-sm font-medium text-primary">{user.role}</span>
-                        </div>
+                            if (chain.unsupported) {
+                                return (
+                                    <button
+                                        onClick={openChainModal}
+                                        className="px-4 py-2 rounded-xl bg-red-500/10 text-red-500 font-medium text-sm border border-red-500/20"
+                                    >
+                                        Wrong Network
+                                    </button>
+                                );
+                            }
 
-                        {/* Network Switcher */}
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => switchChain?.({ chainId: 11155111 })}
-                                className={`flex-1 px-3 py-2 rounded-lg text-sm transition ${chainId === 11155111 ? 'bg-primary text-primary-foreground' : 'bg-white/5 hover:bg-white/10'
-                                    }`}
-                            >
-                                Sepolia
-                            </button>
-                            <button
-                                onClick={() => switchChain?.({ chainId: 84532 })}
-                                className={`flex-1 px-3 py-2 rounded-lg text-sm transition ${chainId === 84532 ? 'bg-primary text-primary-foreground' : 'bg-white/5 hover:bg-white/10'
-                                    }`}
-                            >
-                                Base Sepolia
-                            </button>
-                        </div>
+                            return (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={openChainModal}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition text-sm border border-white/10"
+                                        title="Switch Network"
+                                    >
+                                        {chain.hasIcon && chain.iconUrl && (
+                                            <img
+                                                alt={chain.name ?? 'Chain icon'}
+                                                src={chain.iconUrl}
+                                                className="h-4 w-4 rounded-full"
+                                            />
+                                        )}
+                                        <span className="hidden sm:inline text-muted-foreground">
+                                            {chain.name}
+                                        </span>
+                                    </button>
 
-                        {/* Logout */}
-                        <button
-                            onClick={() => {
-                                logout();
-                                setIsOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-red-500 hover:bg-red-500/10 transition"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            Sign Out
-                        </button>
+                                    <button
+                                        onClick={openAccountModal}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition text-sm border border-white/10"
+                                    >
+                                        {user && (
+                                            <div className="w-5 h-5 rounded-full bg-[#375BD2] flex items-center justify-center text-[10px] text-white font-bold">
+                                                {user.role[0]}
+                                            </div>
+                                        )}
+                                        <span className="font-mono">
+                                            {account.displayName}
+                                        </span>
+                                    </button>
+                                </div>
+                            );
+                        })()}
                     </div>
-                </>
-            )}
-        </div>
+                );
+            }}
+        </RainbowConnectButton.Custom>
     );
 }
 
