@@ -75,7 +75,7 @@ describe('ACEService', () => {
         it('should block cross-state mortgage with restricted states', async () => {
             const result = await aceService.checkCrossBorderCompliance('FL', 'NY', 'mortgage');
             expect(result.allowed).toBe(false);
-            expect(result.reason).toContain('Cross-border');
+            expect(result.reason).toContain('Cross-state');
             expect(result.reason).toContain('mortgage');
         });
 

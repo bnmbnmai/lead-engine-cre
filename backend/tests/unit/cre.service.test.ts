@@ -102,7 +102,7 @@ describe('CREService', () => {
 
             const result = await creService.verifyLead('lead-4');
             expect(result.isValid).toBe(false);
-            expect(result.reason).toContain('state');
+            expect(result.reason).toContain('region');
         });
 
         it('should pass for valid lead with all checks', async () => {
@@ -234,7 +234,7 @@ describe('CREService', () => {
             expect(result.matches).toBe(true);
             expect(result.score).toBeGreaterThanOrEqual(5000);
             expect(result.details).toContain('Vertical: match');
-            expect(result.details).toContain('Geo: state match');
+            expect(result.details).toContain('Geo: region match');
         });
 
         it('should reject when lead geo not in targeted states', async () => {
