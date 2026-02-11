@@ -180,33 +180,6 @@ export default function AdminNFTs() {
         }
     }, [fetchVerticals]);
 
-    // ─── Settle Auction Handler ─────────────────
-    const handleSettle = useCallback(async (auctionId: string) => {
-        try {
-            const result = await api.settleVerticalAuction(auctionId);
-            if (result.error) {
-                toast({
-                    type: 'error',
-                    title: 'Settle Failed',
-                    description: result.error?.error || 'Could not settle auction.',
-                });
-                return;
-            }
-            toast({
-                type: 'success',
-                title: 'Auction Settled! ✅',
-                description: `Winner: ${result.data?.winner} at $${result.data?.finalPrice}`,
-            });
-            await fetchVerticals();
-        } catch (err: any) {
-            toast({
-                type: 'error',
-                title: 'Error',
-                description: err.message || 'Unexpected error settling auction.',
-            });
-        }
-    }, [fetchVerticals]);
-
     // ─── Stats ─────────────────────────────────
     const totalMinted = minted.length;
     const totalPending = proposed.length;
