@@ -63,6 +63,7 @@ const PORT = process.env.PORT || 3001;
 
 // Initialize Socket.IO
 const socketServer = new RTBSocketServer(httpServer);
+app.set('io', socketServer.getIO());  // Expose to Express routes via req.app.get('io')
 
 // Security middleware
 app.use(helmet({

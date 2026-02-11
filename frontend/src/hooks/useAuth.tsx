@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
 import api, { setAuthToken, getAuthToken } from '@/lib/api';
 import socketClient from '@/lib/socket';
+import type { AuthError } from '@/components/ui/ErrorDialog';
 
 // ============================================
 // Types
@@ -19,9 +20,11 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     isAuthenticated: boolean;
+    authError: AuthError | null;
     login: () => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
+    clearAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -33,6 +36,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [authError, setAuthError] = useState<AuthError | null>(null);
     const autoLoginAttempted = useRef(false);
 
     const { address, isConnected, status } = useAccount();
@@ -115,8 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             !autoLoginAttempted.current
         ) {
             autoLoginAttempted.current = true;
-            login().catch((err) => {
-                console.error('Auto-SIWE failed:', err);
+            login().catch(() => {
+                // Error already captured in authError state
                 autoLoginAttempted.current = false;
             });
         }
@@ -198,7 +202,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             setAuthToken(authData.token);
             setUser(authData.user);
+            setAuthError(null);
             socketClient.connect();
+        } catch (err: any) {
+            const msg = err?.message || '';
+            if (msg.includes('User rejected') || msg.includes('user rejected') || err?.code === 4001) {
+                setAuthError({
+                    type: 'signature-rejected',
+                    message: 'Please sign the message in your wallet to verify ownership. This is free and does not cost gas.',
+                });
+            } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to get nonce')) {
+                setAuthError({
+                    type: 'network-error',
+                    message: 'Unable to reach the server. Please check your connection and try again.',
+                });
+            } else {
+                setAuthError({
+                    type: 'generic',
+                    message: msg || 'Authentication failed. Please try again.',
+                });
+            }
         } finally {
             setIsLoading(false);
         }
@@ -215,15 +238,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const clearAuthError = () => setAuthError(null);
+
     return (
         <AuthContext.Provider
             value={{
                 user,
                 isLoading,
                 isAuthenticated: !!user,
+                authError,
                 login,
                 logout,
                 refreshUser,
+                clearAuthError,
             }}
         >
             {children}

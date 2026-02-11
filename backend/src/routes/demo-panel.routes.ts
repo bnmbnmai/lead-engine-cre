@@ -38,6 +38,13 @@ const PRICING: Record<string, { min: number; max: number }> = {
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick<T>(arr: T[]): T { return arr[rand(0, arr.length - 1)]; }
 
+// Demo buyer profiles for multi-user bid simulation
+const DEMO_BUYERS = [
+    { wallet: '0xDEMO_BUYER_1', company: 'SolarPro Acquisitions' },
+    { wallet: '0xDEMO_BUYER_2', company: 'FinanceLead Partners' },
+    { wallet: '0xDEMO_BUYER_3', company: 'InsureTech Direct' },
+];
+
 // ============================================
 // GET /status — current demo data counts
 // ============================================
@@ -65,7 +72,7 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 // POST /seed — populate marketplace with demo data
 // ============================================
-router.post('/seed', async (_req: Request, res: Response) => {
+router.post('/seed', async (req: Request, res: Response) => {
     try {
         // Check if demo data already exists
         const existing = await prisma.lead.count({ where: { consentProof: DEMO_TAG } });
@@ -119,6 +126,28 @@ router.post('/seed', async (_req: Request, res: Response) => {
         if (!seller) {
             res.status(500).json({ error: 'Failed to create demo seller profile' });
             return;
+        }
+
+        // Create demo buyer users for multi-user bid simulation
+        const buyerUserIds: string[] = [];
+        for (const buyer of DEMO_BUYERS) {
+            let buyerUser = await prisma.user.findFirst({ where: { walletAddress: buyer.wallet } });
+            if (!buyerUser) {
+                buyerUser = await prisma.user.create({
+                    data: {
+                        walletAddress: buyer.wallet,
+                        role: 'BUYER',
+                        buyerProfile: {
+                            create: {
+                                companyName: buyer.company,
+                                verticals: VERTICALS.slice(0, 5),
+                                acceptOffSite: true,
+                            },
+                        },
+                    },
+                });
+            }
+            buyerUserIds.push(buyerUser.id);
         }
 
         // Create 5 asks (one per 2 verticals)
@@ -191,19 +220,28 @@ router.post('/seed', async (_req: Request, res: Response) => {
         });
 
         for (const lead of auctionLeads) {
-            // One bid per lead (@@unique([leadId, buyerId]) constraint)
+            // Create bids from different demo buyers (respects @@unique([leadId, buyerId]))
+            const shuffledBuyers = [...buyerUserIds].sort(() => Math.random() - 0.5);
+            const numBidders = rand(1, Math.min(3, shuffledBuyers.length));
             const baseAmount = Number(lead.reservePrice || 20);
-            await prisma.bid.create({
-                data: {
-                    leadId: lead.id,
-                    buyerId: demoUser.id,
-                    amount: baseAmount + rand(1, 30),
-                    status: 'REVEALED',
-                    source: 'MANUAL',
-                },
-            });
-            bidCount++;
+
+            for (let b = 0; b < numBidders; b++) {
+                await prisma.bid.create({
+                    data: {
+                        leadId: lead.id,
+                        buyerId: shuffledBuyers[b],
+                        amount: baseAmount + rand(1, 30) + (b * rand(2, 8)),
+                        status: 'REVEALED',
+                        source: 'MANUAL',
+                    },
+                });
+                bidCount++;
+            }
         }
+
+        // Notify all clients to refresh marketplace
+        const io = req.app.get('io');
+        if (io) io.emit('marketplace:refreshAll');
 
         res.json({
             success: true,
@@ -305,6 +343,24 @@ router.post('/lead', async (req: Request, res: Response) => {
             },
         });
 
+        // Emit real-time event for new lead
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('marketplace:lead:new', {
+                lead: {
+                    id: lead.id,
+                    vertical,
+                    status: 'IN_AUCTION',
+                    reservePrice: price,
+                    geo: { country: 'US', state },
+                    isVerified: true,
+                    auctionStartAt: new Date().toISOString(),
+                    auctionEndAt: new Date(Date.now() + 3600000).toISOString(),
+                    _count: { bids: 0 },
+                },
+            });
+        }
+
         res.json({ success: true, lead: { id: lead.id, vertical, state, price } });
     } catch (error) {
         console.error('Demo inject lead error:', error);
@@ -328,6 +384,16 @@ router.post('/auction', async (req: Request, res: Response) => {
         const demoUser = await prisma.user.findFirst({
             where: { walletAddress: '0xDEMO_PANEL_USER' },
         });
+
+        // Gather all demo buyer IDs for multi-user bids
+        const demoBuyerUsers = await prisma.user.findMany({
+            where: { walletAddress: { in: DEMO_BUYERS.map(b => b.wallet) } },
+            select: { id: true, walletAddress: true },
+        });
+        // Fallback to demoUser if buyers don't exist yet
+        const bidderIds = demoBuyerUsers.length > 0
+            ? demoBuyerUsers.map(u => u.id)
+            : demoUser ? [demoUser.id] : [];
 
         if (!seller || !demoUser) {
             res.status(400).json({ error: 'Demo data not seeded. Seed marketplace first.' });
@@ -363,18 +429,37 @@ router.post('/auction', async (req: Request, res: Response) => {
             },
         });
 
+        // Emit real-time event for new auction lead
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('marketplace:lead:new', {
+                lead: {
+                    id: lead.id,
+                    vertical,
+                    status: 'IN_AUCTION',
+                    reservePrice,
+                    geo: { country: 'US', state },
+                    isVerified: true,
+                    auctionStartAt: new Date().toISOString(),
+                    auctionEndAt: new Date(Date.now() + 120000).toISOString(),
+                    _count: { bids: 0 },
+                },
+            });
+        }
+
         // Simulate bids arriving over 30s (fire-and-forget)
         const bidIntervals = [3000, 6000, 10000, 15000, 20000, 25000];
         let currentBid = reservePrice;
 
-        bidIntervals.forEach((delay) => {
+        bidIntervals.forEach((delay, index) => {
             setTimeout(async () => {
                 try {
                     currentBid += rand(2, 10);
+                    const bidderId = bidderIds[index % bidderIds.length];
                     await prisma.bid.create({
                         data: {
                             leadId: lead.id,
-                            buyerId: demoUser.id,
+                            buyerId: bidderId,
                             amount: currentBid,
                             status: 'REVEALED',
                             source: 'MANUAL',
@@ -384,6 +469,16 @@ router.post('/auction', async (req: Request, res: Response) => {
                         where: { leadId: lead.id },
                         data: { bidCount: { increment: 1 }, highestBid: currentBid },
                     });
+
+                    // Emit real-time bid update
+                    if (io) {
+                        io.emit('marketplace:bid:update', {
+                            leadId: lead.id,
+                            bidCount: index + 1,
+                            highestBid: currentBid,
+                            timestamp: new Date().toISOString(),
+                        });
+                    }
                 } catch (err) {
                     console.error('Demo auction bid error:', err);
                 }

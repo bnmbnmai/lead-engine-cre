@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -11,6 +11,8 @@ import { LeadCard } from '@/components/marketplace/LeadCard';
 import { CRMExportButton } from '@/components/ui/CRMExportButton';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
+import { toast } from '@/hooks/useToast';
 
 export function BuyerDashboard() {
     const [overview, setOverview] = useState<any>(null);
@@ -40,6 +42,64 @@ export function BuyerDashboard() {
         fetchData();
     }, []);
 
+    // Re-fetch callback for socket events & polling fallback
+    const refetchData = useCallback(() => {
+        const fetchData = async () => {
+            try {
+                const [overviewRes, bidsRes, leadsRes] = await Promise.all([
+                    api.getOverview(),
+                    api.getMyBids(),
+                    api.listLeads({ status: 'IN_AUCTION', limit: '6' }),
+                ]);
+                setOverview(overviewRes.data?.stats);
+                setRecentBids(bidsRes.data?.bids?.slice(0, 5) || []);
+                setActiveLeads(leadsRes.data?.leads || []);
+            } catch (error) {
+                console.error('Poll fetch error:', error);
+            }
+        };
+        fetchData();
+    }, []);
+
+    // Real-time socket listeners
+    useSocketEvents(
+        {
+            'marketplace:bid:update': (data: any) => {
+                if (data?.leadId) {
+                    setActiveLeads((prev) =>
+                        prev.map((lead) =>
+                            lead.id === data.leadId
+                                ? {
+                                    ...lead,
+                                    _count: { ...lead._count, bids: data.bidCount },
+                                    auctionRoom: lead.auctionRoom
+                                        ? { ...lead.auctionRoom, highestBid: data.highestBid, bidCount: data.bidCount }
+                                        : undefined,
+                                }
+                                : lead,
+                        ),
+                    );
+                    toast({
+                        type: 'info',
+                        title: 'Bid Update',
+                        description: `New bid on an active lead`,
+                        duration: 3000,
+                    });
+                }
+            },
+            'marketplace:lead:new': (data: any) => {
+                if (data?.lead?.status === 'IN_AUCTION') {
+                    setActiveLeads((prev) => [data.lead, ...prev].slice(0, 6));
+                    toast({ type: 'info', title: 'New Auction', description: `${data.lead.vertical} lead now live` });
+                }
+            },
+            'marketplace:refreshAll': () => {
+                refetchData();
+            },
+        },
+        refetchData,
+    );
+
     const stats = [
         { label: 'Total Bids', value: overview?.totalBids || 0, icon: Gavel, color: 'text-primary' },
         { label: 'Won Bids', value: overview?.wonBids || 0, icon: Target, color: 'text-emerald-500' },
@@ -59,13 +119,13 @@ export function BuyerDashboard() {
                     <div className="flex items-center gap-3">
                         <CRMExportButton />
                         <Button asChild>
-                            <Link to="/">Browse Marketplace</Link>
+                            <Link to="/marketplace">Browse Marketplace</Link>
                         </Button>
                     </div>
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {stats.map((stat) => (
                         <GlassCard key={stat.label} className="p-6">
                             <div className="flex items-center gap-4">

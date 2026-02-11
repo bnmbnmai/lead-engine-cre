@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -10,6 +10,8 @@ import { AskCard } from '@/components/marketplace/AskCard';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
+import { toast } from '@/hooks/useToast';
 
 const DASHBOARD_TABS = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
@@ -50,6 +52,59 @@ export function SellerDashboard() {
 
         fetchData();
     }, []);
+
+    // Re-fetch callback for socket events & polling fallback
+    const refetchData = useCallback(() => {
+        const fetchData = async () => {
+            try {
+                const [overviewRes, leadsRes, asksRes] = await Promise.all([
+                    api.getOverview(),
+                    api.listLeads({ limit: '5' }),
+                    api.listAsks({ status: 'ACTIVE', limit: '4' }),
+                ]);
+                setOverview(overviewRes.data?.stats);
+                setRecentLeads(leadsRes.data?.leads || []);
+                setActiveAsks(asksRes.data?.asks || []);
+            } catch (error) {
+                console.error('Poll fetch error:', error);
+            }
+        };
+        fetchData();
+    }, []);
+
+    // Real-time socket listeners
+    useSocketEvents(
+        {
+            'marketplace:lead:new': (data: any) => {
+                if (data?.lead) {
+                    setRecentLeads((prev) => [data.lead, ...prev].slice(0, 5));
+                    toast({
+                        type: 'success',
+                        title: 'New Lead',
+                        description: `${data.lead.vertical} lead submitted`,
+                    });
+                }
+            },
+            'marketplace:bid:update': (data: any) => {
+                if (data?.leadId) {
+                    setRecentLeads((prev) =>
+                        prev.map((lead) =>
+                            lead.id === data.leadId
+                                ? {
+                                    ...lead,
+                                    _count: { ...lead._count, bids: data.bidCount },
+                                }
+                                : lead,
+                        ),
+                    );
+                }
+            },
+            'marketplace:refreshAll': () => {
+                refetchData();
+            },
+        },
+        refetchData,
+    );
 
     const stats = [
         { label: 'Total Leads', value: overview?.totalLeads || 0, icon: FileText, color: 'text-primary' },
@@ -98,7 +153,7 @@ export function SellerDashboard() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {stats.map((stat) => (
                         <GlassCard key={stat.label} className="p-6">
                             <div className="flex items-center gap-4">

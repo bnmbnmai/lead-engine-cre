@@ -37,6 +37,11 @@ type AuctionEventHandler = {
     'auction:resolved': (event: AuctionResolvedEvent) => void;
     'auction:expired': (data: { leadId: string }) => void;
     'error': (data: { message: string }) => void;
+    // Global marketplace events
+    'marketplace:lead:new': (data: { lead: any }) => void;
+    'marketplace:bid:update': (data: { leadId: string; bidCount: number; highestBid: number; timestamp?: string }) => void;
+    'marketplace:auction:resolved': (data: { leadId: string; winnerId: string; amount: number }) => void;
+    'marketplace:refreshAll': () => void;
 };
 
 // ============================================
@@ -83,6 +88,11 @@ class SocketClient {
             'auction:resolved',
             'auction:expired',
             'error',
+            // Global marketplace events
+            'marketplace:lead:new',
+            'marketplace:bid:update',
+            'marketplace:auction:resolved',
+            'marketplace:refreshAll',
         ];
 
         events.forEach((event) => {

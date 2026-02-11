@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ConnectButton as RainbowConnectButton } from '@rainbow-me/rainbowkit';
 import useAuth from '@/hooks/useAuth';
 
@@ -11,9 +13,20 @@ import useAuth from '@/hooks/useAuth';
 //
 // We layer on our SIWE auth state so the button shows the
 // user's role when fully authenticated.
+// On logout/disconnect → navigate to /marketplace.
 
 export function ConnectButton() {
-    const { user } = useAuth();
+    const { user, isAuthenticated, logout } = useAuth();
+    const navigate = useNavigate();
+    const wasAuthenticated = useRef(isAuthenticated);
+
+    // Redirect to marketplace when user logs out or disconnects
+    useEffect(() => {
+        if (wasAuthenticated.current && !isAuthenticated) {
+            navigate('/marketplace', { replace: true });
+        }
+        wasAuthenticated.current = isAuthenticated;
+    }, [isAuthenticated, navigate]);
 
     return (
         <RainbowConnectButton.Custom>

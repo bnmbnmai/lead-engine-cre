@@ -36,7 +36,7 @@ export function AuthGate() {
 
                     {/* Escape hatch */}
                     <Link
-                        to="/"
+                        to="/marketplace"
                         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" />

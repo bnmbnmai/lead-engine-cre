@@ -1,8 +1,12 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Shield, Zap, Users } from 'lucide-react';
+import { MapPin, Clock, Shield, Zap, Users, Wallet } from 'lucide-react';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { formatCurrency, formatTimeRemaining, getStatusColor } from '@/lib/utils';
 
 interface Lead {
@@ -14,17 +18,48 @@ interface Lead {
     reservePrice: number;
     isVerified: boolean;
     auctionEndAt?: string;
+    auctionStartAt?: string;
     _count?: { bids: number };
+    auctionRoom?: { bidCount?: number; highestBid?: number };
 }
 
 interface LeadCardProps {
     lead: Lead;
     showBidButton?: boolean;
+    isAuthenticated?: boolean;
 }
 
-export function LeadCard({ lead, showBidButton = true }: LeadCardProps) {
+export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }: LeadCardProps) {
+    const { openConnectModal } = useConnectModal();
     const isLive = lead.status === 'IN_AUCTION' || lead.status === 'REVEAL_PHASE';
     const timeRemaining = lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null;
+    const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
+
+    // Animated bid counter — pulse on change
+    const prevBidCount = useRef(bidCount);
+    const [bidPulse, setBidPulse] = useState(false);
+
+    useEffect(() => {
+        if (bidCount > prevBidCount.current) {
+            setBidPulse(true);
+            const timer = setTimeout(() => setBidPulse(false), 600);
+            prevBidCount.current = bidCount;
+            return () => clearTimeout(timer);
+        }
+        prevBidCount.current = bidCount;
+    }, [bidCount]);
+
+    // Auction progress bar
+    const progress = (() => {
+        if (!isLive || !lead.auctionStartAt || !lead.auctionEndAt) return null;
+        const start = new Date(lead.auctionStartAt).getTime();
+        const end = new Date(lead.auctionEndAt).getTime();
+        const now = Date.now();
+        const total = end - start;
+        if (total <= 0) return null;
+        const elapsed = Math.min(now - start, total);
+        return Math.round((elapsed / total) * 100);
+    })();
 
     return (
         <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow' : ''}`}>
@@ -32,9 +67,16 @@ export function LeadCard({ lead, showBidButton = true }: LeadCardProps) {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${lead.isVerified ? 'bg-green-500/20' : 'bg-gray-500/20'
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${lead.isVerified ? 'bg-[#375BD2]/15' : 'bg-gray-500/20'
                             }`}>
-                            <Shield className={`h-6 w-6 ${lead.isVerified ? 'text-green-500' : 'text-gray-500'}`} />
+                            {lead.isVerified ? (
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-[#6B93F5]" aria-label="Chainlink Verified">
+                                    <path d="M12 1.5L3 7v10l9 5.5L21 17V7L12 1.5zM12 4.31l6 3.67v7.04l-6 3.67-6-3.67V7.98l6-3.67z" />
+                                    <path d="M12 8l-4 2.45v4.1L12 17l4-2.45v-4.1L12 8z" />
+                                </svg>
+                            ) : (
+                                <Shield className="h-6 w-6 text-gray-500" />
+                            )}
                         </div>
                         <div>
                             <h3 className="font-semibold capitalize">{lead.vertical}</h3>
@@ -44,7 +86,10 @@ export function LeadCard({ lead, showBidButton = true }: LeadCardProps) {
                             </div>
                         </div>
                     </div>
-                    <Badge className={getStatusColor(lead.status)}>{lead.status.replace('_', ' ')}</Badge>
+                    <div className="flex flex-col items-end gap-1.5">
+                        <Badge className={getStatusColor(lead.status)}>{lead.status.replace('_', ' ')}</Badge>
+                        {lead.isVerified && <ChainlinkBadge size="sm" />}
+                    </div>
                 </div>
 
                 {/* Source & Stats */}
@@ -60,9 +105,12 @@ export function LeadCard({ lead, showBidButton = true }: LeadCardProps) {
                             <span className="font-mono text-xs">API</span>
                         </div>
                     )}
-                    <div className="flex items-center gap-1">
+                    <div
+                        className={`flex items-center gap-1 transition-all duration-300 ${bidPulse ? 'text-blue-400 scale-110' : ''
+                            }`}
+                    >
                         <Users className="h-4 w-4" />
-                        {lead._count?.bids || 0} bids
+                        <span className="font-medium">{bidCount}</span> bids
                     </div>
                     {timeRemaining && (
                         <div className="flex items-center gap-1 text-blue-500">
@@ -72,27 +120,71 @@ export function LeadCard({ lead, showBidButton = true }: LeadCardProps) {
                     )}
                 </div>
 
+                {/* Auction Progress Bar */}
+                {isLive && progress !== null && (
+                    <div className="mb-4">
+                        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-1000 ease-linear"
+                                style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                            <span>Started</span>
+                            <span>{progress}% elapsed</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Pricing & Action */}
                 <div className="flex items-center justify-between pt-4 border-t border-border">
                     <div>
-                        <div className="text-xs text-muted-foreground">Reserve</div>
+                        <Tooltip content="Minimum bid amount accepted by the seller">
+                            <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve</span>
+                        </Tooltip>
                         <div className="text-lg font-bold">{formatCurrency(lead.reservePrice)}</div>
                     </div>
 
                     {showBidButton && isLive && (
-                        <Button asChild size="sm" variant="gradient">
-                            <Link to={`/auction/${lead.id}`}>
-                                Place Bid
-                            </Link>
-                        </Button>
+                        isAuthenticated ? (
+                            <Button asChild size="sm" variant="gradient">
+                                <Link to={`/auction/${lead.id}`}>
+                                    Place Bid
+                                </Link>
+                            </Button>
+                        ) : (
+                            <Button
+                                size="sm"
+                                variant="glass"
+                                onClick={openConnectModal}
+                                aria-label="Connect wallet to place a bid"
+                                className="gap-1.5"
+                            >
+                                <Wallet className="h-3.5 w-3.5" />
+                                Connect to Bid
+                            </Button>
+                        )
                     )}
 
                     {showBidButton && !isLive && (
-                        <Button asChild size="sm" variant="outline">
-                            <Link to={`/lead/${lead.id}`}>
-                                View Details
-                            </Link>
-                        </Button>
+                        isAuthenticated ? (
+                            <Button asChild size="sm" variant="outline">
+                                <Link to={`/lead/${lead.id}`}>
+                                    View Details
+                                </Link>
+                            </Button>
+                        ) : (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={openConnectModal}
+                                aria-label="Connect wallet to view lead details"
+                                className="gap-1.5"
+                            >
+                                <Wallet className="h-3.5 w-3.5" />
+                                Connect to View
+                            </Button>
+                        )
                     )}
                 </div>
             </CardContent>

@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Zap, ArrowRight } from 'lucide-react';
+import { MapPin, Clock, Zap, ArrowRight, Wallet } from 'lucide-react';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 
 interface Ask {
@@ -23,9 +26,11 @@ interface Ask {
 
 interface AskCardProps {
     ask: Ask;
+    isAuthenticated?: boolean;
 }
 
-export function AskCard({ ask }: AskCardProps) {
+export function AskCard({ ask, isAuthenticated = true }: AskCardProps) {
+    const { openConnectModal } = useConnectModal();
     const statesDisplay = ask.geoTargets.states?.slice(0, 3).join(', ') || 'Nationwide';
     const moreStates = (ask.geoTargets.states?.length || 0) > 3
         ? `+${ask.geoTargets.states!.length - 3} more`
@@ -39,11 +44,9 @@ export function AskCard({ ask }: AskCardProps) {
                     <div>
                         <h3 className="font-semibold text-lg capitalize">{ask.vertical}</h3>
                         {ask.seller && (
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                                 by {ask.seller.companyName}
-                                {ask.seller.isVerified && (
-                                    <span className="ml-1 text-blue-500">✓</span>
-                                )}
+                                {ask.seller.isVerified && <ChainlinkBadge size="sm" />}
                             </p>
                         )}
                     </div>
@@ -74,14 +77,18 @@ export function AskCard({ ask }: AskCardProps) {
                 <div className="mt-4 pt-4 border-t border-border">
                     <div className="flex items-baseline justify-between">
                         <div>
-                            <div className="text-xs text-muted-foreground">Reserve Price</div>
+                            <Tooltip content="Minimum bid amount accepted by the seller">
+                                <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve Price</span>
+                            </Tooltip>
                             <div className="text-xl font-bold gradient-text">
                                 {formatCurrency(ask.reservePrice)}
                             </div>
                         </div>
                         {ask.buyNowPrice && (
                             <div className="text-right">
-                                <div className="text-xs text-muted-foreground">Buy Now</div>
+                                <Tooltip content="Purchase this lead immediately at this price — no bidding needed">
+                                    <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Buy Now</span>
+                                </Tooltip>
                                 <div className="text-lg font-semibold text-green-500">
                                     {formatCurrency(ask.buyNowPrice)}
                                 </div>
@@ -92,12 +99,24 @@ export function AskCard({ ask }: AskCardProps) {
             </CardContent>
 
             <CardFooter className="px-6 pb-6">
-                <Button asChild className="w-full group-hover:scale-[1.02] transition-transform">
-                    <Link to={`/marketplace/ask/${ask.id}`}>
-                        View Ask
-                        <ArrowRight className="h-4 w-4 ml-2" />
-                    </Link>
-                </Button>
+                {isAuthenticated ? (
+                    <Button asChild className="w-full group-hover:scale-[1.02] transition-transform">
+                        <Link to={`/marketplace/ask/${ask.id}`}>
+                            View Ask
+                            <ArrowRight className="h-4 w-4 ml-2" />
+                        </Link>
+                    </Button>
+                ) : (
+                    <Button
+                        className="w-full group-hover:scale-[1.02] transition-transform gap-2"
+                        variant="glass"
+                        onClick={openConnectModal}
+                        aria-label="Connect wallet to view ask details"
+                    >
+                        <Wallet className="h-4 w-4" />
+                        Connect to View
+                    </Button>
+                )}
             </CardFooter>
         </Card>
     );

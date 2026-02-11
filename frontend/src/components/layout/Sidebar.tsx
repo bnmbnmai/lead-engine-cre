@@ -26,7 +26,7 @@ interface SidebarProps {
 }
 
 const marketplaceItems: SidebarItem[] = [
-    { href: '/', label: 'Marketplace', icon: <ShoppingCart className="h-5 w-5" /> },
+    { href: '/marketplace', label: 'Marketplace', icon: <ShoppingCart className="h-5 w-5" /> },
     { href: '/buyer', label: 'Buyer Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-5 w-5" /> },
 ];
@@ -104,7 +104,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         </span>
                     </div>
                     {[
-                        { href: '/', label: 'Marketplace', icon: <ShoppingCart className="h-4 w-4" /> },
+                        { href: '/marketplace', label: 'Marketplace', icon: <ShoppingCart className="h-4 w-4" /> },
                         ...(label === 'Seller'
                             ? [{ href: '/buyer', label: 'Buyer Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> }]
                             : [{ href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-4 w-4" /> }]),

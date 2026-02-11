@@ -25,6 +25,9 @@ import FormBuilder from '@/pages/FormBuilder';
 import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import { DemoPanel } from '@/components/demo/DemoPanel';
+import { Toaster } from '@/components/ui/Toaster';
+import { ErrorDialog } from '@/components/ui/ErrorDialog';
+import useAuth from '@/hooks/useAuth';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -34,6 +37,18 @@ const queryClient = new QueryClient({
         },
     },
 });
+
+// Auth error dialog — must be inside AuthProvider to consume context
+function AuthErrorDialog() {
+    const { authError, clearAuthError, login } = useAuth();
+    return (
+        <ErrorDialog
+            error={authError}
+            onRetry={() => { clearAuthError(); login(); }}
+            onDismiss={clearAuthError}
+        />
+    );
+}
 
 function App() {
     return (
@@ -45,7 +60,7 @@ function App() {
                             <Routes>
                                 {/* Marketplace (public landing) */}
                                 <Route path="/" element={<HomePage />} />
-                                <Route path="/marketplace" element={<Navigate to="/" replace />} />
+                                <Route path="/marketplace" element={<HomePage />} />
                                 <Route path="/auction/:leadId" element={<AuctionPage />} />
 
                                 {/* Buyer Routes (auth required) */}
@@ -69,6 +84,12 @@ function App() {
 
                             {/* Demo Panel — shows in dev mode or when VITE_DEMO_MODE is set */}
                             {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
+
+                            {/* Toast notifications */}
+                            <Toaster />
+
+                            {/* Auth error dialog */}
+                            <AuthErrorDialog />
                         </Router>
                     </AuthProvider>
                 </RainbowKitProvider>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, MapPin, TrendingUp, Zap, X, Globe, Shield, Lock, ChevronRight, ArrowRight, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -13,6 +13,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import useAuth from '@/hooks/useAuth';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
+import { toast } from '@/hooks/useToast';
+import ConnectButton from '@/components/wallet/ConnectButton';
 
 const VERTICALS = ['all', 'solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 
@@ -97,6 +100,7 @@ const STATS = [
 // Landing Page Hero (signed out)
 // ============================================
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LandingHero() {
     return (
         <div className="min-h-screen bg-background">
@@ -236,7 +240,7 @@ function LandingHero() {
 }
 
 // ============================================
-// Authenticated Marketplace View
+// Marketplace View (public + authenticated)
 // ============================================
 
 export function HomePage() {
@@ -275,12 +279,73 @@ export function HomePage() {
             }
         };
 
-        if (isAuthenticated) {
-            fetchData();
-        } else {
-            setIsLoading(false);
-        }
-    }, [view, vertical, country, region, isAuthenticated]);
+        fetchData();
+    }, [view, vertical, country, region]);
+
+    // Wrap fetchData for polling fallback
+    const refetchData = useCallback(() => {
+        const fetchData = async () => {
+            try {
+                const params: Record<string, string> = {};
+                if (vertical !== 'all') params.vertical = vertical;
+                if (country !== 'ALL') params.country = country;
+                if (region !== 'All') params.state = region;
+
+                if (view === 'asks') {
+                    const { data } = await api.listAsks(params);
+                    setAsks(data?.asks || []);
+                } else {
+                    const { data } = await api.listLeads(params);
+                    setLeads(data?.leads || []);
+                }
+            } catch (error) {
+                console.error('Poll fetch error:', error);
+            }
+        };
+        fetchData();
+    }, [view, vertical, country, region]);
+
+    // Real-time socket listeners
+    const leadsRef = useRef(leads);
+    leadsRef.current = leads;
+
+    useSocketEvents(
+        {
+            'marketplace:lead:new': (data: any) => {
+                if (view === 'leads' && data?.lead) {
+                    setLeads((prev) => [data.lead, ...prev]);
+                    toast({
+                        type: 'info',
+                        title: 'New Lead',
+                        description: `${data.lead.vertical} lead just appeared`,
+                    });
+                }
+            },
+            'marketplace:bid:update': (data: any) => {
+                if (data?.leadId) {
+                    setLeads((prev) =>
+                        prev.map((lead) =>
+                            lead.id === data.leadId
+                                ? {
+                                    ...lead,
+                                    _count: { ...lead._count, bids: data.bidCount },
+                                    auctionRoom: lead.auctionRoom
+                                        ? { ...lead.auctionRoom, highestBid: data.highestBid, bidCount: data.bidCount }
+                                        : undefined,
+                                }
+                                : lead,
+                        ),
+                    );
+                }
+            },
+            'marketplace:refreshAll': () => {
+                refetchData();
+                toast({ type: 'info', title: 'Marketplace Updated', description: 'Data has been refreshed' });
+            },
+        },
+        refetchData,
+        { autoConnect: false }, // Don't require auth for marketplace
+    );
 
     const hasFilters = vertical !== 'all' || country !== 'ALL' || region !== 'All';
 
@@ -296,16 +361,29 @@ export function HomePage() {
         { label: 'Countries', value: '20+', icon: Globe, color: 'text-chainlink-steel' },
     ];
 
-    // ─── Signed-out: show landing page ─────────
-    if (!isAuthenticated) {
-        return <LandingHero />;
-    }
-
-    // ─── Signed-in: show marketplace ───────────
     return (
         <DashboardLayout>
             <div className="space-y-8">
-                {/* Hero — marketplace-view (no redundant "Marketplace" label) */}
+                {/* Condensed CTA banner for non-authenticated users */}
+                {!isAuthenticated && (
+                    <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#375BD2]/10 via-transparent to-violet-600/5 p-6 sm:p-8">
+                        <div className="absolute inset-0 node-grid opacity-20" />
+                        <div className="relative text-center">
+                            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
+                                <span className="gradient-text">Decentralized Lead RTB</span>
+                            </h1>
+                            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto mb-5">
+                                Browse live auctions across 20+ countries and 10 verticals.
+                                Connect your wallet to bid, set auto-bid rules, or sell leads.
+                            </p>
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                                <ConnectButton />
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Hero — marketplace header */}
                 <section className="text-center pt-4 pb-2">
                     <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
                         <span className="gradient-text">Live Marketplace</span>
@@ -464,7 +542,7 @@ export function HomePage() {
                                     action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
                                 />
                             ) : (
-                                asks.map((ask) => <AskCard key={ask.id} ask={ask} />)
+                                asks.map((ask) => <AskCard key={ask.id} ask={ask} isAuthenticated={isAuthenticated} />)
                             )}
                         </div>
                     ) : (
@@ -477,7 +555,7 @@ export function HomePage() {
                                     action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
                                 />
                             ) : (
-                                leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
+                                leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} />)
                             )}
                         </div>
                     )}

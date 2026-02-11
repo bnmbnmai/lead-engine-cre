@@ -22,7 +22,7 @@ export function Navbar() {
     const isOnBuyer = location.pathname.startsWith('/buyer');
 
     const navLinks = [
-        { href: '/', label: 'Marketplace' },
+        { href: '/marketplace', label: 'Marketplace' },
     ];
 
     if (isAuthenticated) {
