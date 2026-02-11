@@ -52,6 +52,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import integrationRoutes from './routes/integration.routes';
 import crmRoutes from './routes/crm.routes';
 import landerRoutes from './routes/lander.routes';
+import demoPanelRoutes from './routes/demo-panel.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -147,6 +148,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/demo', integrationRoutes);
 app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/lander', landerRoutes);
+app.use('/api/v1/demo-panel', demoPanelRoutes);
 
 // Legacy endpoints (backward compatibility)
 app.get('/api/v1/leads', (_req: Request, res: Response) => {

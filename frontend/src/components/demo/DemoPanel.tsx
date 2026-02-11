@@ -1,0 +1,422 @@
+/**
+ * Demo Control Panel
+ * 
+ * Floating control panel for demo features. Only rendered in development mode.
+ * Toggle with beaker icon or keyboard shortcut Ctrl+Shift+D.
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+    FlaskConical,
+    X,
+    Database,
+    Trash2,
+    Zap,
+    Gavel,
+    BarChart3,
+    User,
+    UserCheck,
+    LogOut,
+    ChevronDown,
+    ChevronUp,
+    Loader2,
+    Check,
+    AlertCircle,
+    Sparkles,
+} from 'lucide-react';
+import api from '@/lib/api';
+
+// ============================================
+// Types
+// ============================================
+
+interface DemoStatus {
+    seeded: boolean;
+    leads: number;
+    bids: number;
+    asks: number;
+}
+
+type ActionState = 'idle' | 'loading' | 'success' | 'error';
+
+interface ActionResult {
+    state: ActionState;
+    message?: string;
+}
+
+// ============================================
+// Component
+// ============================================
+
+export function DemoPanel() {
+    const [isOpen, setIsOpen] = useState(false);
+    const [status, setStatus] = useState<DemoStatus>({ seeded: false, leads: 0, bids: 0, asks: 0 });
+    const [actions, setActions] = useState<Record<string, ActionResult>>({});
+    const [mockData, setMockData] = useState(() => localStorage.getItem('VITE_USE_MOCK_DATA') === 'true');
+    const [expandedSection, setExpandedSection] = useState<string | null>('marketplace');
+
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Fetch demo status on open
+    const refreshStatus = useCallback(async () => {
+        try {
+            const { data } = await api.demoStatus();
+            if (data) setStatus(data);
+        } catch {
+            // Silently fail — backend might not be running
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) refreshStatus();
+    }, [isOpen, refreshStatus]);
+
+    // Keyboard shortcut: Ctrl+Shift+D
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                e.preventDefault();
+                setIsOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    // ============================================
+    // Action helpers
+    // ============================================
+
+    async function runAction(key: string, fn: () => Promise<string>) {
+        setActions(prev => ({ ...prev, [key]: { state: 'loading' } }));
+        try {
+            const message = await fn();
+            setActions(prev => ({ ...prev, [key]: { state: 'success', message } }));
+            refreshStatus();
+            // Reset after 3s
+            setTimeout(() => setActions(prev => ({ ...prev, [key]: { state: 'idle' } })), 3000);
+        } catch (err: any) {
+            setActions(prev => ({ ...prev, [key]: { state: 'error', message: err?.message || 'Failed' } }));
+            setTimeout(() => setActions(prev => ({ ...prev, [key]: { state: 'idle' } })), 4000);
+        }
+    }
+
+    async function handleSeed() {
+        await runAction('seed', async () => {
+            const { data, error } = await api.demoSeed();
+            if (error) throw new Error(error.message || error.error);
+            return `✅ Seeded ${data?.leads} leads, ${data?.bids} bids, ${data?.asks} asks`;
+        });
+    }
+
+    async function handleClear() {
+        await runAction('clear', async () => {
+            const { data, error } = await api.demoClear();
+            if (error) throw new Error(error.message || error.error);
+            const d = data?.deleted;
+            return `🗑️ Removed ${d?.leads} leads, ${d?.bids} bids, ${d?.asks} asks`;
+        });
+    }
+
+    async function handleInjectLead() {
+        await runAction('inject', async () => {
+            const { data, error } = await api.demoInjectLead();
+            if (error) throw new Error(error.message || error.error);
+            return `⚡ Injected ${data?.lead?.vertical} lead in ${data?.lead?.state}`;
+        });
+    }
+
+    async function handleStartAuction() {
+        await runAction('auction', async () => {
+            const { data, error } = await api.demoStartAuction();
+            if (error) throw new Error(error.message || error.error);
+            return `🔨 Auction started for lead ${data?.leadId?.slice(0, 8)}! 6 bids arriving over 30s`;
+        });
+    }
+
+    function handleToggleMock() {
+        const next = !mockData;
+        setMockData(next);
+        localStorage.setItem('VITE_USE_MOCK_DATA', next ? 'true' : 'false');
+        // Update in-memory env for Vite
+        (import.meta.env as any).VITE_USE_MOCK_DATA = next ? 'true' : 'false';
+        setActions(prev => ({
+            ...prev,
+            mock: { state: 'success', message: next ? '📊 Mock data enabled' : '📊 Mock data disabled' },
+        }));
+        setTimeout(() => setActions(prev => ({ ...prev, mock: { state: 'idle' } })), 2000);
+    }
+
+    function handlePersonaSwitch(persona: 'buyer' | 'seller' | 'guest') {
+        if (persona === 'buyer') navigate('/buyer');
+        else if (persona === 'seller') navigate('/seller');
+        else navigate('/');
+
+        setActions(prev => ({
+            ...prev,
+            persona: { state: 'success', message: `🎭 Switched to ${persona} view` },
+        }));
+        setTimeout(() => setActions(prev => ({ ...prev, persona: { state: 'idle' } })), 2000);
+    }
+
+    // ============================================
+    // Action button component
+    // ============================================
+
+    function ActionButton({
+        actionKey,
+        label,
+        icon: Icon,
+        onClick,
+        variant = 'default',
+        disabled = false,
+    }: {
+        actionKey: string;
+        label: string;
+        icon: typeof Database;
+        onClick: () => void;
+        variant?: 'default' | 'danger' | 'accent';
+        disabled?: boolean;
+    }) {
+        const action = actions[actionKey] || { state: 'idle' };
+        const isLoading = action.state === 'loading';
+
+        const baseStyle = 'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 w-full';
+        const variants = {
+            default: 'bg-white/[0.06] hover:bg-white/[0.12] text-foreground border border-border',
+            danger: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20',
+            accent: 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20',
+        };
+
+        return (
+            <div>
+                <button
+                    onClick={onClick}
+                    disabled={isLoading || disabled}
+                    className={`${baseStyle} ${variants[variant]} ${isLoading ? 'opacity-60 cursor-wait' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                >
+                    {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : action.state === 'success' ? (
+                        <Check className="h-4 w-4 text-green-400" />
+                    ) : action.state === 'error' ? (
+                        <AlertCircle className="h-4 w-4 text-red-400" />
+                    ) : (
+                        <Icon className="h-4 w-4" />
+                    )}
+                    <span>{label}</span>
+                </button>
+                {action.message && (
+                    <p className={`text-xs mt-1 px-1 ${action.state === 'error' ? 'text-red-400' : 'text-muted-foreground'}`}>
+                        {action.message}
+                    </p>
+                )}
+            </div>
+        );
+    }
+
+    // ============================================
+    // Section header
+    // ============================================
+
+    function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+        const isExpanded = expandedSection === id;
+        return (
+            <div className="border-t border-border pt-3">
+                <button
+                    onClick={() => setExpandedSection(isExpanded ? null : id)}
+                    className="flex items-center justify-between w-full text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition mb-2"
+                >
+                    <span>{title}</span>
+                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {isExpanded && <div className="space-y-2">{children}</div>}
+            </div>
+        );
+    }
+
+    // ============================================
+    // Render
+    // ============================================
+
+    const currentPersona = location.pathname.startsWith('/buyer')
+        ? 'buyer'
+        : location.pathname.startsWith('/seller')
+            ? 'seller'
+            : 'guest';
+
+    return (
+        <>
+            {/* Floating trigger button */}
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${isOpen
+                    ? 'bg-red-500 hover:bg-red-600 rotate-90 scale-90'
+                    : 'bg-gradient-to-br from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 hover:scale-110'
+                    }`}
+                title="Demo Control Panel (Ctrl+Shift+D)"
+            >
+                {isOpen ? (
+                    <X className="h-5 w-5 text-white" />
+                ) : (
+                    <FlaskConical className="h-5 w-5 text-white" />
+                )}
+            </button>
+
+            {/* Panel drawer */}
+            {isOpen && (
+                <div className="fixed bottom-20 right-6 z-50 w-80 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+                    {/* Header */}
+                    <div className="sticky top-0 bg-background/95 backdrop-blur-xl px-4 py-3 border-b border-border rounded-t-2xl">
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                                <FlaskConical className="h-4 w-4 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-foreground">Demo Control Panel</h3>
+                                <p className="text-[10px] text-muted-foreground">Dev only • Ctrl+Shift+D</p>
+                            </div>
+                        </div>
+
+                        {/* Status bar */}
+                        <div className="flex items-center gap-3 mt-2 text-[11px]">
+                            <span className={`flex items-center gap-1 ${status.seeded ? 'text-green-400' : 'text-muted-foreground'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${status.seeded ? 'bg-green-400' : 'bg-muted-foreground'}`} />
+                                {status.seeded ? 'Seeded' : 'Empty'}
+                            </span>
+                            {status.seeded && (
+                                <>
+                                    <span className="text-muted-foreground">{status.leads} leads</span>
+                                    <span className="text-muted-foreground">{status.bids} bids</span>
+                                    <span className="text-muted-foreground">{status.asks} asks</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4 space-y-3">
+                        {/* Section 1: Marketplace Data */}
+                        <Section id="marketplace" title="Marketplace Data">
+                            <ActionButton
+                                actionKey="seed"
+                                label="Seed Marketplace"
+                                icon={Database}
+                                onClick={handleSeed}
+                                variant="accent"
+                                disabled={status.seeded}
+                            />
+                            <ActionButton
+                                actionKey="clear"
+                                label="Clear Demo Data"
+                                icon={Trash2}
+                                onClick={handleClear}
+                                variant="danger"
+                                disabled={!status.seeded}
+                            />
+                            <ActionButton
+                                actionKey="inject"
+                                label="Inject Single Lead"
+                                icon={Zap}
+                                onClick={handleInjectLead}
+                            />
+                        </Section>
+
+                        {/* Section 2: Live Simulation */}
+                        <Section id="simulation" title="Live Simulation">
+                            <ActionButton
+                                actionKey="auction"
+                                label="Start Live Auction"
+                                icon={Gavel}
+                                onClick={handleStartAuction}
+                                variant="accent"
+                            />
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                Creates a lead + simulates 6 bids arriving over 30 seconds.
+                                Navigate to the auction page to watch bids come in live.
+                            </p>
+                        </Section>
+
+                        {/* Section 3: Analytics */}
+                        <Section id="analytics" title="Analytics Mock Data">
+                            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
+                                <div className="flex items-center gap-2">
+                                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm">Mock Charts</span>
+                                </div>
+                                <button
+                                    onClick={handleToggleMock}
+                                    className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${mockData ? 'bg-blue-500' : 'bg-muted'
+                                        }`}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${mockData ? 'translate-x-5' : ''
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                            {actions.mock?.message && (
+                                <p className="text-[11px] text-muted-foreground pl-1">{actions.mock.message}</p>
+                            )}
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                Toggle Faker-generated charts in buyer/seller analytics dashboards.
+                            </p>
+                        </Section>
+
+                        {/* Section 4: Persona Switcher */}
+                        <Section id="persona" title="Persona Switcher">
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { key: 'buyer' as const, label: 'Buyer', icon: UserCheck, path: '/buyer' },
+                                    { key: 'seller' as const, label: 'Seller', icon: User, path: '/seller' },
+                                    { key: 'guest' as const, label: 'Guest', icon: LogOut, path: '/' },
+                                ].map(({ key, label, icon: Icon }) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => handlePersonaSwitch(key)}
+                                        className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg text-xs font-medium transition-all ${currentPersona === key
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-white/[0.06] text-muted-foreground hover:bg-white/[0.12] hover:text-foreground border border-border'
+                                            }`}
+                                    >
+                                        <Icon className="h-4 w-4" />
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            {actions.persona?.message && (
+                                <p className="text-[11px] text-muted-foreground pl-1">{actions.persona.message}</p>
+                            )}
+                        </Section>
+
+                        {/* Section 5: Guided Tour */}
+                        <Section id="tour" title="Guided Tour">
+                            <ActionButton
+                                actionKey="tour"
+                                label="Start Feature Tour"
+                                icon={Sparkles}
+                                onClick={() => {
+                                    setActions(prev => ({
+                                        ...prev,
+                                        tour: { state: 'success', message: '🚧 Coming soon — tooltip walkthrough of key features' },
+                                    }));
+                                    setTimeout(() => setActions(prev => ({ ...prev, tour: { state: 'idle' } })), 3000);
+                                }}
+                                variant="accent"
+                            />
+                        </Section>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground text-center">
+                        Hidden in production builds • v1.0
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}
+
+export default DemoPanel;

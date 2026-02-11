@@ -168,6 +168,13 @@ export const api = {
         return apiFetch<any>(`/api/v1/analytics/leads${query}`);
     },
     getBidAnalytics: () => apiFetch<any>('/api/v1/analytics/bids'),
+
+    // Demo Panel (dev-only)
+    demoStatus: () => apiFetch<{ seeded: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/status'),
+    demoSeed: () => apiFetch<{ success: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/seed', { method: 'POST' }),
+    demoClear: () => apiFetch<{ success: boolean; deleted: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/clear', { method: 'POST' }),
+    demoInjectLead: (vertical?: string) => apiFetch<{ success: boolean; lead: any }>('/api/v1/demo-panel/lead', { method: 'POST', body: JSON.stringify({ vertical }) }),
+    demoStartAuction: (vertical?: string) => apiFetch<{ success: boolean; leadId: string }>('/api/v1/demo-panel/auction', { method: 'POST', body: JSON.stringify({ vertical }) }),
 };
 
 export default api;

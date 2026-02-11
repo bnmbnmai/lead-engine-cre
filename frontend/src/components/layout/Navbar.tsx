@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, ArrowLeftRight } from 'lucide-react';
 import ConnectButton from '@/components/wallet/ConnectButton';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import useAuth from '@/hooks/useAuth';
 import { useSidebar } from '@/components/layout/DashboardLayout';
 
@@ -69,8 +70,8 @@ export function Navbar() {
                                 key={link.href}
                                 to={link.href}
                                 className={`text-sm font-medium transition ${isActive
-                                        ? 'text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground'
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground hover:text-foreground'
                                     }`}
                             >
                                 {link.label}
@@ -90,8 +91,9 @@ export function Navbar() {
                     )}
                 </div>
 
-                {/* Right: Wallet */}
+                {/* Right: Theme + Wallet */}
                 <div className="flex items-center gap-3">
+                    <ThemeToggle />
                     <ConnectButton />
                 </div>
             </div>

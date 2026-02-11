@@ -98,7 +98,20 @@ export function BuyerDashboard() {
                                     ))}
                                 </div>
                             ) : recentBids.length === 0 ? (
-                                <p className="text-muted-foreground text-center py-8">No bids yet</p>
+                                <div className="text-center py-8">
+                                    <p className="text-muted-foreground mb-3">No bids yet</p>
+                                    <p className="text-sm text-muted-foreground mb-4">
+                                        Browse the marketplace or enable auto-bid to start bidding automatically.
+                                    </p>
+                                    <div className="flex gap-2 justify-center">
+                                        <Button variant="outline" size="sm" asChild>
+                                            <Link to="/">Browse Marketplace</Link>
+                                        </Button>
+                                        <Button size="sm" asChild>
+                                            <Link to="/buyer/preferences">Setup Auto-Bid</Link>
+                                        </Button>
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="space-y-3">
                                     {recentBids.map((bid) => (

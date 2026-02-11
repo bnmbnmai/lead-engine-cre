@@ -9,6 +9,7 @@ import {
     AccordionContent,
 } from '@/components/ui/accordion';
 import { PreferenceSetCard, type PreferenceSetData } from './PreferenceSetCard';
+import { ConflictModal } from '@/components/preferences/ConflictModal';
 import api from '@/lib/api';
 
 // ============================================
@@ -72,6 +73,8 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showVerticalPicker, setShowVerticalPicker] = useState(false);
+    const [conflictModalOpen, setConflictModalOpen] = useState(false);
+    const [serverSets, setServerSets] = useState<PreferenceSetData[]>([]);
 
     // Load existing preference sets
     useEffect(() => {
@@ -135,14 +138,18 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
             if (res.error) {
                 const { error: apiErr, code, status } = res.error as any;
 
-                // 409 — stale record, auto-reload
+                // 409 — stale record, show conflict modal
                 if (status === 409 || code === 'STALE_RECORD' || code === 'DUPLICATE') {
-                    console.warn('[PreferencesForm] Conflict detected, reloading sets:', code);
-                    setError(`${apiErr ?? 'Conflict detected'} — reloading your sets…`);
+                    console.warn('[PreferencesForm] Conflict detected, showing modal:', code);
                     try {
                         const { data } = await api.getPreferenceSets();
-                        if (data?.sets) setSets(data.sets);
-                    } catch { /* fall through */ }
+                        if (data?.sets) {
+                            setServerSets(data.sets);
+                            setConflictModalOpen(true);
+                        }
+                    } catch {
+                        setError('Failed to fetch server version. Please refresh the page.');
+                    }
                     return;
                 }
 
@@ -162,11 +169,15 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
 
             // Axios-style error with response
             if (err?.response?.status === 409) {
-                setError(err.response.data?.error ?? 'Conflict — please reload');
                 try {
                     const { data } = await api.getPreferenceSets();
-                    if (data?.sets) setSets(data.sets);
-                } catch { /* fall through */ }
+                    if (data?.sets) {
+                        setServerSets(data.sets);
+                        setConflictModalOpen(true);
+                    }
+                } catch {
+                    setError('Failed to fetch server version. Please refresh the page.');
+                }
                 return;
             }
             if (err?.response?.status === 401) {
@@ -346,6 +357,25 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                 <Save className="h-4 w-4 mr-2" />
                 Save Preferences ({sets.length} {sets.length === 1 ? 'set' : 'sets'})
             </Button>
+
+            {/* Conflict Resolution Modal */}
+            <ConflictModal
+                open={conflictModalOpen}
+                onOpenChange={setConflictModalOpen}
+                localSets={sets}
+                serverSets={serverSets}
+                onKeepLocal={() => {
+                    // User chose to keep local changes, retry save
+                    setConflictModalOpen(false);
+                    handleSave();
+                }}
+                onAcceptServer={() => {
+                    // User chose to accept server version
+                    setSets(serverSets);
+                    setConflictModalOpen(false);
+                    setError(null);
+                }}
+            />
         </div>
     );
 }

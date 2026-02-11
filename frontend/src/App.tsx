@@ -22,6 +22,7 @@ import CreateAsk from '@/pages/CreateAsk';
 import FormBuilder from '@/pages/FormBuilder';
 import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
+import { DemoPanel } from '@/components/demo/DemoPanel';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -62,6 +63,9 @@ function App() {
                             {/* Fallback */}
                             <Route path="*" element={<Navigate to="/" replace />} />
                         </Routes>
+
+                        {/* Demo Panel — dev only, stripped from production build */}
+                        {import.meta.env.DEV && <DemoPanel />}
                     </Router>
                 </AuthProvider>
             </QueryClientProvider>

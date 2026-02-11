@@ -90,6 +90,53 @@ const VERTICAL_PRESETS: Record<string, FormField[]> = {
         { id: '5', key: 'service_type', label: 'Service Needed', type: 'select', required: true, options: ['HVAC', 'Plumbing', 'Electrical', 'Painting', 'Landscaping', 'Cleaning'] },
         { id: '6', key: 'urgency', label: 'Urgency', type: 'select', required: true, options: ['Emergency', 'This Week', 'This Month', 'Planning'] },
     ],
+    b2b_saas: [
+        { id: '1', key: 'company_name', label: 'Company Name', type: 'text', required: true, placeholder: 'Acme Corp' },
+        { id: '2', key: 'company_size', label: 'Company Size', type: 'select', required: true, options: ['1-10', '11-50', '51-200', '201-1000', '1000+'] },
+        { id: '3', key: 'industry', label: 'Industry', type: 'select', required: false, options: ['Technology', 'Finance', 'Healthcare', 'Retail', 'Manufacturing', 'Other'] },
+        { id: '4', key: 'decision_timeline', label: 'Decision Timeline', type: 'select', required: true, options: ['Immediate', '1-3 months', '3-6 months', '6+ months'] },
+        { id: '5', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Taylor Chen' },
+        { id: '6', key: 'email', label: 'Work Email', type: 'email', required: true, placeholder: 'taylor@acme.com' },
+        { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 111-2222' },
+    ],
+    real_estate: [
+        { id: '1', key: 'transaction_type', label: 'Transaction Type', type: 'select', required: true, options: ['Buy', 'Sell', 'Rent'] },
+        { id: '2', key: 'property_type', label: 'Property Type', type: 'select', required: true, options: ['Single Family', 'Condo', 'Townhouse', 'Multi-Family', 'Land'] },
+        { id: '3', key: 'price_range', label: 'Price Range', type: 'select', required: true, options: ['Under $200k', '$200k-$500k', '$500k-$1M', '$1M-$2M', '$2M+'] },
+        { id: '4', key: 'timeline', label: 'Timeline', type: 'select', required: true, options: ['ASAP', '1-3 months', '3-6 months', 'Just browsing'] },
+        { id: '5', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '90210' },
+        { id: '6', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Morgan Davis' },
+        { id: '7', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'morgan@email.com' },
+        { id: '8', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 333-4444' },
+    ],
+    auto: [
+        { id: '1', key: 'vehicle_year', label: 'Vehicle Year', type: 'number', required: true, placeholder: '2020' },
+        { id: '2', key: 'make', label: 'Make', type: 'text', required: true, placeholder: 'Toyota' },
+        { id: '3', key: 'model', label: 'Model', type: 'text', required: true, placeholder: 'Camry' },
+        { id: '4', key: 'coverage_type', label: 'Coverage Type', type: 'select', required: true, options: ['Full Coverage', 'Liability Only', 'Comprehensive', 'Collision'] },
+        { id: '5', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '75001' },
+        { id: '6', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Jordan Kim' },
+        { id: '7', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'jordan@email.com' },
+        { id: '8', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 555-6666' },
+    ],
+    legal: [
+        { id: '1', key: 'case_type', label: 'Case Type', type: 'select', required: true, options: ['Personal Injury', 'Family Law', 'Criminal Defense', 'Business Law', 'Real Estate', 'Other'] },
+        { id: '2', key: 'urgency', label: 'Urgency', type: 'select', required: true, options: ['Immediate', 'Within a week', 'Within a month', 'Consultation only'] },
+        { id: '3', key: 'case_value', label: 'Estimated Case Value', type: 'select', required: false, options: ['Under $10k', '$10k-$50k', '$50k-$100k', '$100k+', 'Not sure'] },
+        { id: '4', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '10001' },
+        { id: '5', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Casey Martinez' },
+        { id: '6', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'casey@email.com' },
+        { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 777-8888' },
+    ],
+    financial: [
+        { id: '1', key: 'service_type', label: 'Service Type', type: 'select', required: true, options: ['Wealth Management', 'Retirement Planning', 'Tax Planning', 'Estate Planning', 'Investment Advisory'] },
+        { id: '2', key: 'portfolio_size', label: 'Portfolio Size', type: 'select', required: false, options: ['Under $100k', '$100k-$500k', '$500k-$1M', '$1M-$5M', '$5M+'] },
+        { id: '3', key: 'risk_tolerance', label: 'Risk Tolerance', type: 'select', required: false, options: ['Conservative', 'Moderate', 'Aggressive', 'Not sure'] },
+        { id: '4', key: 'timeline', label: 'Meeting Timeline', type: 'select', required: true, options: ['This week', 'This month', 'Next 3 months', 'Just exploring'] },
+        { id: '5', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Riley Thompson' },
+        { id: '6', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'riley@email.com' },
+        { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 999-0000' },
+    ],
 };
 
 const VERTICALS = Object.keys(VERTICAL_PRESETS);
@@ -115,24 +162,40 @@ function autoGroupSteps(fields: FormField[]): FormStep[] {
         else details.push(f.id);
     }
 
-    // If location has <= 1 field, merge into contact
-    if (location.length <= 1) {
-        contact.push(...location);
-        location.length = 0;
-    }
-
     const steps: FormStep[] = [];
-    if (contact.length > 0) steps.push({ id: genId(), label: 'Contact Info', fieldIds: contact });
-    if (location.length > 0) steps.push({ id: genId(), label: 'Location', fieldIds: location });
 
-    // Split details into chunks of 3
+    // 1. Details first - split into chunks of 3
     for (let i = 0; i < details.length; i += 3) {
         const chunk = details.slice(i, i + 3);
-        steps.push({ id: genId(), label: `Details${steps.length > 1 ? ` ${steps.length}` : ''}`, fieldIds: chunk });
+        const stepNum = Math.floor(i / 3) + 1;
+        steps.push({
+            id: genId(),
+            label: details.length > 3 ? `Details ${stepNum}` : 'Details',
+            fieldIds: chunk
+        });
+    }
+
+    // 2. Location second (if has 2+ fields) or merge into last details step
+    if (location.length >= 2) {
+        steps.push({ id: genId(), label: 'Location', fieldIds: location });
+    } else if (location.length === 1) {
+        // Merge single location field into last step
+        if (steps.length > 0) {
+            steps[steps.length - 1].fieldIds.push(...location);
+        } else {
+            steps.push({ id: genId(), label: 'Location', fieldIds: location });
+        }
+    }
+
+    // 3. Contact info LAST - best practice for lead gen conversion
+    if (contact.length > 0) {
+        steps.push({ id: genId(), label: 'Contact Info', fieldIds: contact });
     }
 
     // Ensure at least one step
-    if (steps.length === 0) steps.push({ id: genId(), label: 'Your Information', fieldIds: fields.map((f) => f.id) });
+    if (steps.length === 0) {
+        steps.push({ id: genId(), label: 'Your Information', fieldIds: fields.map((f) => f.id) });
+    }
 
     return steps;
 }
