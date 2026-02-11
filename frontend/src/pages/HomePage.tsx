@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, TrendingUp, Zap, X, Globe, Shield, ArrowRight } from 'lucide-react';
+import { Search, MapPin, TrendingUp, Zap, X, Globe } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -217,43 +217,8 @@ export function HomePage() {
                             </p>
 
                             {/* CTA */}
-                            <div className="flex justify-center mb-10">
+                            <div className="flex justify-center">
                                 <ConnectButton />
-                            </div>
-
-                            {/* Live Stats */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto mb-8">
-                                {[
-                                    { label: 'Active Leads', value: '2,847' },
-                                    { label: 'Avg Bid', value: '$127' },
-                                    { label: 'Countries', value: '20+' },
-                                    { label: 'Verticals', value: '10' },
-                                ].map((stat) => (
-                                    <div
-                                        key={stat.label}
-                                        className="text-center p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]"
-                                    >
-                                        <div className="text-xl sm:text-2xl font-bold gradient-text">{stat.value}</div>
-                                        <div className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">{stat.label}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* How It Works — condensed */}
-                            <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
-                                {[
-                                    { step: '01', icon: Search, title: 'Browse & Bid', desc: 'Filter live auctions by vertical, geography, and quality score.' },
-                                    { step: '02', icon: Shield, title: 'Auto-Bid Rules', desc: 'Set once — bids fire instantly on matching leads with ZK privacy.' },
-                                    { step: '03', icon: ArrowRight, title: 'Instant Settlement', desc: 'USDC escrow settles in seconds. PII revealed only to the winner.' },
-                                ].map((item) => (
-                                    <div key={item.step} className="text-center p-4 rounded-xl border border-white/[0.04] bg-white/[0.01]">
-                                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-[#375BD2]/20 text-[#375BD2] mb-2">
-                                            <item.icon className="h-4 w-4" />
-                                        </div>
-                                        <h3 className="font-semibold text-sm mb-1">{item.title}</h3>
-                                        <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
-                                    </div>
-                                ))}
                             </div>
                         </div>
                     </section>
