@@ -1,0 +1,355 @@
+﻿node.exe : PASS tests/crm-webhooks.test.ts
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PASS 
+tests/crm-w    ebhooks.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  CRM Webhooks
+    Webhook Registration
+      ΓêÜ should register a generic webhook (35 ms)
+      ΓêÜ should register a HubSpot webhook (7 ms)
+      ΓêÜ should register a Zapier webhook (9 ms)
+      ΓêÜ should reject missing URL (7 ms)
+      ΓêÜ should reject invalid format (6 ms)
+    Webhook Listing
+      ΓêÜ should list user webhooks (16 ms)
+    Webhook Deletion
+      ΓêÜ should delete an existing webhook (13 ms)
+      ΓêÜ should return 404 for non-existent webhook (5 ms)
+    HubSpot Payload Format
+      ΓêÜ should transform leads to HubSpot contact 
+properties (8 ms)
+    Zapier Payload Format
+      ΓêÜ should produce flat key-value objects for Zapier 
+(7 ms)
+
+PASS tests/unit/privacy.service.test.ts
+  PrivacyService
+    encrypt/decrypt round-trip
+      ΓêÜ should encrypt and decrypt lead PII correctly (2 
+ms)
+      ΓêÜ should produce different ciphertext for same 
+plaintext (unique IV) (4 ms)
+      ΓêÜ should throw on tampered ciphertext (2 ms)
+      ΓêÜ should throw on tampered auth tag (1 ms)
+    encryptBid / decryptBid
+      ΓêÜ should encrypt bid and decrypt with valid 
+commitment (1 ms)
+      ΓêÜ should fail reveal with wrong buyer address (AAD 
+mismatch) (1 ms)
+      ΓêÜ should produce unique commitments for same amount 
+(different salts) (1 ms)
+      ΓêÜ should handle small and large amounts (1 ms)
+    encryptTokenMetadata / decryptTokenMetadata
+      ΓêÜ should keep public fields visible and encrypt 
+private fields (1 ms)
+      ΓêÜ should return null encryptedFields when no PII or 
+parameters (1 ms)
+    generateCommitment / verifyCommitment
+      ΓêÜ should generate and verify a valid commitment (2 
+ms)
+      ΓêÜ should fail verification with wrong value (1 ms)
+      ΓêÜ should fail verification with wrong salt (1 ms)
+
+PASS tests/unit/ace.service.test.ts
+  ACEService
+    enforceJurisdictionPolicy
+      ΓêÜ should allow when no restrictions exist in DB (1 
+ms)
+      ΓêÜ should block when DB restriction exists (1 ms)
+    checkCrossBorderCompliance
+      ΓêÜ should allow same-state transactions (1 ms)
+      ΓêÜ should block cross-state mortgage with restricted 
+states (1 ms)
+      ΓêÜ should block cross-state insurance with NY
+      ΓêÜ should allow cross-state solar (unrestricted 
+vertical) (1 ms)
+      ΓêÜ should allow cross-state mortgage between 
+unrestricted states (1 ms)
+      ΓêÜ should handle CA mortgage cross-border restriction
+    autoKYC
+      ΓêÜ should create KYC check in database (off-chain) 
+(1 ms)
+      ΓêÜ should set 1-year expiry on KYC check (1 ms)
+    updateReputation
+      ΓêÜ should update reputation in DB for existing 
+seller (1 ms)
+      ΓêÜ should clamp reputation at 0 (floor) (3 ms)
+      ΓêÜ should clamp reputation at 10000 (ceiling)
+      ΓêÜ should return error for non-existent seller (1 ms)
+    isKYCValid
+      ΓêÜ should return false for unknown wallet 
+(off-chain) (1 ms)
+      ΓêÜ should return true for valid KYC in DB
+    edge cases
+      ΓêÜ should handle empty wallet address gracefully (1 
+ms)
+      ΓêÜ should handle cross-border with empty vertical
+
+PASS tests/compliance/ace-simulation.test.ts
+  ACE Compliance Simulation
+    cross-border: NY mortgage cross-border
+      ΓêÜ FLΓåÆNY mortgage: BLOCKED
+    cross-border: NY mortgage cross-border (reverse)
+      ΓêÜ NYΓåÆFL mortgage: BLOCKED (1 ms)
+    cross-border: CA mortgage cross-border
+      ΓêÜ CAΓåÆTX mortgage: BLOCKED (1 ms)
+    cross-border: FL mortgage cross-border
+      ΓêÜ FLΓåÆTX mortgage: BLOCKED
+    cross-border: TXΓåÆCO unrestricted
+      ΓêÜ TXΓåÆCO mortgage: ALLOWED (1 ms)
+    cross-border: WAΓåÆOR unrestricted
+      ΓêÜ WAΓåÆOR mortgage: ALLOWED
+    cross-border: MAΓåÆOH unrestricted (MA not in list)
+      ΓêÜ MAΓåÆOH mortgage: ALLOWED (1 ms)
+    cross-border: NY insurance cross-border
+      ΓêÜ TXΓåÆNY insurance: BLOCKED (2 ms)
+    cross-border: CAΓåÆFL insurance (CA not restricted for 
+insurance)
+      ΓêÜ CAΓåÆFL insurance: ALLOWED (1 ms)
+    cross-border: FLΓåÆGA unrestricted insurance
+      ΓêÜ FLΓåÆGA insurance: ALLOWED
+    cross-border: Solar unrestricted
+      ΓêÜ FLΓåÆCA solar: ALLOWED (1 ms)
+    cross-border: Solar unrestricted NYΓåÆTX
+      ΓêÜ NYΓåÆTX solar: ALLOWED
+    cross-border: Solar unrestricted CAΓåÆWA
+      ΓêÜ CAΓåÆWA solar: ALLOWED (1 ms)
+    cross-border: Roofing unrestricted
+      ΓêÜ FLΓåÆNY roofing: ALLOWED
+    cross-border: Same-state mortgage NY
+      ΓêÜ NYΓåÆNY mortgage: ALLOWED (1 ms)
+    cross-border: Same-state insurance CA
+      ΓêÜ CAΓåÆCA insurance: ALLOWED
+    cross-border: Same-state solar FL
+      ΓêÜ FLΓåÆFL solar: ALLOWED
+    reputation scenarios
+      ΓêÜ reputation 0 + 100 = 100 (1 ms)
+      ΓêÜ reputation 5000 + 500 = 5500
+      ΓêÜ reputation 9900 + 200 = 10000 (1 ms)
+      ΓêÜ reputation 100 + -500 = 0
+      ΓêÜ reputation 10000 + 0 = 10000
+      ΓêÜ reputation 0 + 0 = 0 (1 ms)
+      ΓêÜ reputation 3000 + -3000 = 0
+      ΓêÜ reputation 7500 + 2500 = 10000 (1 ms)
+    off-site API fraud edge cases
+      ΓêÜ should block known fraudulent wallet (blacklist 
+hit)
+      ΓêÜ should handle wallet with no history (first 
+interaction) (2 ms)
+      ΓêÜ should auto-KYC new wallet and persist (1 ms)
+      ΓêÜ should handle rapid sequential compliance checks 
+(3 ms)
+    jurisdiction policy enforcement
+      ΓêÜ should allow when no DB restriction (1 ms)
+      ΓêÜ should block when DB has failed check (1 ms)
+
+PASS tests/e2e/demo-flow.test.ts
+  E2E Demo Flow
+    full pipeline simulation
+      ΓêÜ should complete all 8 steps successfully (4 ms)
+      ΓêÜ should handle non-compliant buyer (ACE blocked) 
+(1 ms)
+      ΓêÜ should handle wrong buyer address in bid reveal 
+(1 ms)
+    ZK + Privacy cross-service
+      ΓêÜ should generate matching ZK proof and privacy 
+commitment for same lead (1 ms)
+      ΓêÜ should geo-match mortgage lead to CA buyer 
+criteria (2 ms)
+
+PASS tests/unit/x402.service.test.ts
+  X402Service
+    createPayment
+      ΓêÜ should create off-chain escrow when no contract 
+configured (1 ms)
+    settlePayment
+      ΓêÜ should settle off-chain transaction (1 ms)
+      ΓêÜ should return error for non-existent transaction
+      ΓêÜ should return error for transaction without 
+escrow (1 ms)
+    refundPayment
+      ΓêÜ should refund off-chain transaction (1 ms)
+      ΓêÜ should return error for non-existent transaction 
+(1 ms)
+    getPaymentStatus
+      ΓêÜ should return null for non-existent transaction
+      ΓêÜ should return DB-based status for off-chain 
+escrow (1 ms)
+    generatePaymentHeader
+      ΓêÜ should generate correct x402 payment headers (1 
+ms)
+      ΓêÜ should handle zero amount
+    edge cases
+      ΓêÜ should handle double-settle gracefully
+
+PASS tests/unit/cre.service.test.ts
+  CREService
+    verifyLead
+      ΓêÜ should return invalid for non-existent lead (1 ms)
+      ΓêÜ should return valid for already-verified lead
+      ΓêÜ should fail for lead without TCPA consent (1 ms)
+      ΓêÜ should fail for lead with expired TCPA consent (1 
+ms)
+      ΓêÜ should fail for invalid US state (1 ms)
+      ΓêÜ should pass for valid lead with all checks
+      ΓêÜ should fail for data integrity mismatch (1 ms)
+    getQualityScore
+      ΓêÜ should return 0 for non-existent lead (1 ms)
+      ΓêÜ should return base score for minimal lead
+      ΓêÜ should add bonuses for verified lead with all 
+fields
+      ΓêÜ should cap quality score at 10000 (1 ms)
+    matchLeadToAsk
+      ΓêÜ should return no match for nonexistent lead or 
+ask (2 ms)
+      ΓêÜ should reject on vertical mismatch (1 ms)
+      ΓêÜ should match with correct vertical and geo (1 ms)
+      ΓêÜ should reject when lead geo not in targeted states
+      ΓêÜ should add score for meeting reserve price (1 ms)
+
+PASS tests/security/privacy-audit.test.ts
+  Privacy Audit
+    no plaintext leakage
+      ΓêÜ should never contain original PII in ciphertext 
+(8 ms)
+      ΓêÜ should never contain bid amount in ciphertext (2 
+ms)
+      ΓêÜ should never contain parameter values in token 
+metadata encryption (1 ms)
+    commitment integrity
+      ΓêÜ should detect tampered bid (commitment mismatch 
+on reveal) (2 ms)
+      ΓêÜ should prevent bid amount manipulation (2 ms)
+    AAD binding
+      ΓêÜ should prevent buyer A from decrypting buyer B 
+bid (1 ms)
+      ΓêÜ should prevent case-altered address from 
+decrypting
+    PII at rest
+      ΓêÜ should produce ciphertext of sufficient length 
+for PII data (1 ms)
+      ΓêÜ should not store PII fields in public metadata (1 
+ms)
+    key sensitivity
+      ΓêÜ should produce deterministic data hash for same 
+PII (1 ms)
+
+PASS tests/unit/zk.service.test.ts
+  ZKService
+    generateFraudProof
+      ΓêÜ should generate a valid fraud proof with all 
+fields (3 ms)
+      ΓêÜ should produce different proofs for different 
+leads (2 ms)
+      ΓêÜ should handle missing optional fields (2 ms)
+    verifyProofLocally
+      ΓêÜ should verify a valid fraud proof (1 ms)
+      ΓêÜ should reject an empty/zero proof
+      ΓêÜ should reject a proof with no public inputs (1 ms)
+      ΓêÜ should reject a proof with zero commitment (1 ms)
+    generateGeoParameterMatchProof
+      ΓêÜ should detect matching geo state (1 ms)
+      ΓêÜ should detect non-matching geo state (4 ms)
+      ΓêÜ should detect parameter threshold failures (1 ms)
+    generateBidCommitment
+      ΓêÜ should generate a valid bid commitment
+      ΓêÜ should produce unique commitments for same amount 
+(random salts)
+
+PASS tests/unit/nft.service.test.ts
+  NFTService
+    mintLeadNFT
+      ΓêÜ should return error for non-existent lead (1 ms)
+      ΓêÜ should return existing tokenId if already minted 
+(1 ms)
+      ΓêÜ should create off-chain pseudo-tokenId when no 
+contract (1 ms)
+    recordSaleOnChain
+      ΓêÜ should succeed for off-chain token (logged only) 
+(1 ms)
+    getTokenMetadata
+      ΓêÜ should return null for non-existent token (3 ms)
+      ΓêÜ should return DB-based metadata for off-chain 
+token (1 ms)
+    updateQualityScoreOnChain
+      ΓêÜ should succeed silently for off-chain token 
+(no-op) (1 ms)
+
+PASS tests/auto-bid.test.ts
+  Auto-Bid Service
+    Quality Score Gate
+      ΓêÜ should bid when lead score exceeds minimum (2 ms)
+      ΓêÜ should skip when lead score is below minimum (bid 
+if score > 80 = 8000) (1 ms)
+      ΓêÜ should bid when no quality score gate is set
+    Geo Include/Exclude Filtering
+      ΓêÜ should bid when state is in include list (1 ms)
+      ΓêÜ should skip when state is NOT in include list (1 
+ms)
+      ΓêÜ should skip when state is in exclude list
+      ΓêÜ should skip when country does not match (1 ms)
+    Off-Site Lead Rejection
+      ΓêÜ should reject off-site lead when acceptOffSite is 
+false (1 ms)
+      ΓêÜ should accept off-site lead when acceptOffSite is 
+true
+    Daily Budget Enforcement
+      ΓêÜ should skip when daily budget would be exceeded 
+(1 ms)
+      ΓêÜ should bid when within daily budget
+    Verified-Only Toggle
+      ΓêÜ should skip unverified lead when requireVerified 
+is true (1 ms)
+    Reserve Price Check
+      ΓêÜ should skip when bid amount is below reserve (1 
+ms)
+    Multi-Buyer Concurrent Auto-Bid
+      ΓêÜ should place bids for multiple matching buyers on 
+the same lead
+    Vertical-Specific Rules (Solar vs Mortgage)
+      ΓêÜ should only match preference sets for the correct 
+vertical (1 ms)
+      ΓêÜ should return empty when no preference sets match 
+the vertical (2 ms)
+    Duplicate Bid Prevention
+      ΓêÜ should skip if buyer already bid on this lead (1 
+ms)
+    Max Bid Per Lead Cap
+      ΓêÜ should skip when bid exceeds max per lead (1 ms)
+
+----------------------|---------|----------|---------|---------|----------------------------------------------------------------------
+File                  | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                    
+----------------------|---------|----------|---------|---------|----------------------------------------------------------------------
+All files             |   60.36 |    53.57 |   73.25 |   60.13 |                                                                      
+ routes               |   47.61 |    42.53 |   64.28 |   47.74 |                                                                      
+  crm.routes.ts       |   47.61 |    42.53 |   64.28 |   47.74 | 12-62,71-142,198-199,253-259,273-285,300-301,306-307,316-329,447-468 
+ services             |    63.9 |     58.1 |   77.58 |   63.38 |                                                                      
+  ace.service.ts      |   41.17 |    52.83 |      60 |   40.67 | 38-42,67-84,108-221,239-251,258,298-318,355-358,397-405              
+  auto-bid.service.ts |   88.88 |    69.23 |      80 |   88.57 | 207,241-265                                                          
+  cre.service.ts      |   60.35 |    57.89 |      60 |   59.37 | 43-47,139-140,148-150,171-175,224-228,241-242,261-262,278-383        
+  nft.service.ts      |   57.14 |    47.16 |   71.42 |   56.52 | 53,57,91-129,158-164,178-198,233-239                                 
+  privacy.service.ts  |   98.21 |     87.5 |     100 |   98.21 | 31                                                                   
+  x402.service.ts     |   51.28 |    49.09 |     100 |   50.64 | 57,61,67,87-125,157-173,203-215,241-255                              
+  zk.service.ts       |      90 |     87.5 |     100 |      90 | 108-109,116-117                                                      
+----------------------|---------|----------|---------|---------|----------------------------------------------------------------------
+
+=============================== Coverage summary ===============================
+Statements   : 60.36% ( 466/772 )
+Branches     : 53.57% ( 247/461 )
+Functions    : 73.25% ( 63/86 )
+Lines        : 60.13% ( 448/745 )
+================================================================================
+Jest: "global" coverage threshold for statements (70%) not 
+met: 60.36%
+Jest: "global" coverage threshold for branches (60%) not 
+met: 53.57%
+Jest: "global" coverage threshold for lines (70%) not met: 
+60.13%
+Test Suites: 11 passed, 11 total
+Tests:       151 passed, 151 total
+Snapshots:   0 total
+Time:        3.01 s
+Ran all test suites.

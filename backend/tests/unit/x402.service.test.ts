@@ -189,7 +189,6 @@ describe('X402Service', () => {
 
     describe('edge cases', () => {
         it('should handle double-settle gracefully', async () => {
-            // First settle
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue({
                 id: 'tx-double',
                 escrowId: 'offchain-double',
@@ -197,9 +196,75 @@ describe('X402Service', () => {
             });
             (prisma.transaction.update as jest.Mock).mockResolvedValue({});
 
-            // Should still succeed (idempotent for off-chain)
             const result = await x402Service.settlePayment('tx-double');
             expect(result.success).toBe(true);
+        });
+
+        it('should create escrow with large USDC amount', async () => {
+            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
+
+            const result = await x402Service.createPayment(
+                '0xSeller', '0xBuyer', 999999.99, 42, 'tx-large'
+            );
+            expect(result.success).toBe(true);
+            expect(result.escrowId).toMatch(/^offchain-/);
+        });
+
+        it('should create escrow with zero amount', async () => {
+            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
+
+            const result = await x402Service.createPayment(
+                '0xSeller', '0xBuyer', 0, 1, 'tx-zero'
+            );
+            expect(result.success).toBe(true);
+        });
+
+        it('should handle refund for already-refunded transaction', async () => {
+            (prisma.transaction.findUnique as jest.Mock).mockResolvedValue({
+                id: 'tx-refunded',
+                escrowId: 'offchain-refunded',
+                status: 'REFUNDED',
+            });
+            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
+
+            const result = await x402Service.refundPayment('tx-refunded');
+            expect(result.success).toBe(true);
+        });
+
+        it('should return error for refund without escrow', async () => {
+            (prisma.transaction.findUnique as jest.Mock).mockResolvedValue({
+                id: 'tx-noesc',
+                escrowId: null,
+            });
+
+            const result = await x402Service.refundPayment('tx-noesc');
+            expect(result.success).toBe(false);
+        });
+
+        it('should return status with releasedAt timestamp', async () => {
+            const relDate = new Date('2025-06-15T12:00:00Z');
+            (prisma.transaction.findUnique as jest.Mock).mockResolvedValue({
+                id: 'tx-rel',
+                escrowId: 'offchain-rel',
+                buyerId: 'usr-1',
+                amount: 100,
+                status: 'RELEASED',
+                createdAt: new Date('2025-06-15T11:59:50Z'),
+                releasedAt: relDate,
+                lead: { seller: { user: { walletAddress: '0xS' } } },
+                buyer: { walletAddress: '0xB' },
+            });
+
+            const result = await x402Service.getPaymentStatus('tx-rel');
+            expect(result).not.toBeNull();
+            expect(result!.status).toBe('RELEASED');
+            expect(result!.releasedAt).toEqual(relDate);
+        });
+
+        it('should generate headers with custom escrow ID', () => {
+            const headers = x402Service.generatePaymentHeader('custom-esc', 100, '0xR');
+            expect(headers['X-Payment-Escrow-Id']).toBe('custom-esc');
+            expect(headers['X-Payment-Amount']).toBe('100.000000');
         });
     });
 });

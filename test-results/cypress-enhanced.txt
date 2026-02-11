@@ -1,0 +1,331 @@
+﻿
+node.exe : 
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], 
+Rem    oteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+DevTools listening on ws://127.0.0.1:60204/devtools/browser/
+fcec3c3b-6885-4e33-b694-4df50e70c2ef
+Warning: The allowCypressEnv configuration option is enabled. This allows any browser code to read values from Cypress.env(). This is insecure and will be removed in a future major version.
+
+1. Replace Cypress.env() calls with cy.env() (for sensitive values) or Cypress.expose() (for public configuration)
+2. Set allowCypressEnv: false in your Cypress configuration to disable Cypress.env()
+
+Learn more: https://on.cypress.io/cypress-env-migration
+
+
+====================================================================================================
+
+  (Run Starting)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Cypress:        15.10.0                                                                        Γöé
+  Γöé Browser:        Electron 138 (headless)                                                        Γöé
+  Γöé Node Version:   v22.14.0 (C:\Program Files\nodejs\node.exe)                                    Γöé
+  Γöé Specs:          4 found (copy-assertions.cy.ts, multi-wallet.cy.ts, stress-ui.cy.ts, ui-flows. Γöé
+  Γöé                 cy.ts)                                                                         Γöé
+  Γöé Searched:       cypress/e2e/**/*.cy.ts                                                         Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                                                                                                    
+  Running:  copy-assertions.cy.ts                                                           (1 of 4)
+
+
+  Homepage Copy ΓÇö Landing Hero
+    ΓêÜ displays $200B+ market size in hero subtext (772ms)
+    ΓêÜ shows 20+ countries stat (266ms)
+    ΓêÜ shows 10 verticals stat (239ms)
+    ΓêÜ features section mentions 20+ Global Markets (227ms)
+    ΓêÜ features mention Auto-Bid + ZK Privacy (216ms)
+    ΓêÜ How It Works step shows Instant Settlement (185ms)
+    ΓêÜ How It Works mentions x402 USDC escrow (198ms)
+    ΓêÜ bottom CTA mentions 20+ markets (205ms)
+    ΓêÜ bottom CTA mentions auto-bid while you sleep (202ms)
+
+  Buyer Preferences ΓÇö Copy & Tooltips
+    ΓêÜ displays updated subtitle with auto-bid value prop (214ms)
+    ΓêÜ shows onboarding tooltip on first visit (398ms)
+    ΓêÜ onboarding tooltip mentions daily budgets (479ms)
+    ΓêÜ onboarding tooltip mentions quality gates (414ms)
+    ΓêÜ tooltip can be dismissed and stays dismissed (678ms)
+    ΓêÜ preferences card description mentions auto-bid, quality gate, budget cap (314ms)
+
+  Buyer Dashboard ΓÇö Updated Copy
+    ΓêÜ subtitle mentions auto-bid activity and CRM pipeline (200ms)
+
+  Seller Dashboard ΓÇö x402 Copy
+    ΓêÜ subtitle mentions instant USDC settlements via x402 (192ms)
+
+  Authenticated Marketplace ΓÇö Updated Stats
+    ΓêÜ marketplace stats show 20+ countries (255ms)
+
+
+  18 passing (6s)
+
+
+  (Results)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Tests:        18                                                                               Γöé
+  Γöé Passing:      18                                                                               Γöé
+  Γöé Failing:      0                                                                                Γöé
+  Γöé Pending:      0                                                                                Γöé
+  Γöé Skipped:      0                                                                                Γöé
+  Γöé Screenshots:  0                                                                                Γöé
+  Γöé Video:        true                                                                             Γöé
+  Γöé Duration:     5 seconds                                                                        Γöé
+  Γöé Spec Ran:     copy-assertions.cy.ts                                                            Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+  (Video)
+
+  -  Video output: C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\videos\copy-assertions.cy.ts.mp4
+
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                                                                                                    
+  Running:  multi-wallet.cy.ts                                                              (2 of 4)
+
+
+  Multi-Wallet Settlement Flows
+    Full Auction Lifecycle
+      ΓêÜ seller lists lead and two buyers compete (781ms)
+      ΓêÜ seller creates listing from dashboard (310ms)
+      ΓêÜ buyer 1 browses marketplace and places bid (314ms)
+      ΓêÜ buyer 2 places competing bid (278ms)
+      ΓêÜ displays winner badge after auction resolution (259ms)
+    Cross-Region Bid Restrictions
+      ΓêÜ seller can select BR as target country (269ms)
+      ΓêÜ buyer preferences reflect geo restrictions (253ms)
+      ΓêÜ buyer can add multi-region preference sets (247ms)
+    Wallet Disconnect & Reconnect
+      ΓêÜ disconnecting wallet shows auth guard on protected pages (417ms)
+      ΓêÜ reconnecting wallet restores access (402ms)
+      ΓêÜ mid-flow disconnect redirects to auth guard (602ms)
+    Role Switching
+      ΓêÜ switches from seller to buyer role (680ms)
+      ΓêÜ seller and buyer dashboards show different content (560ms)
+      ΓêÜ marketplace is accessible to both roles (477ms)
+    Settlement Status
+      ΓêÜ seller analytics shows revenue data (368ms)
+      ΓêÜ buyer analytics shows spend data (339ms)
+      ΓêÜ export settlement data as CSV (333ms)
+    Ethers.js Mock Wallet
+      ΓêÜ injects mock wallet provider on buyer page (315ms)
+      ΓêÜ handles wrong network (mainnet instead of Sepolia) (286ms)
+      ΓêÜ handles signature rejection gracefully (275ms)
+      ΓêÜ switches wallet mid-session (buyer1 ΓåÆ buyer2) (514ms)
+
+
+  21 passing (9s)
+
+
+  (Results)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Tests:        21                                                                               Γöé
+  Γöé Passing:      21                                                                               Γöé
+  Γöé Failing:      0                                                                                Γöé
+  Γöé Pending:      0                                                                                Γöé
+  Γöé Skipped:      0                                                                                Γöé
+  Γöé Screenshots:  0                                                                                Γöé
+  Γöé Video:        true                                                                             Γöé
+  Γöé Duration:     8 seconds                                                                        Γöé
+  Γöé Spec Ran:     multi-wallet.cy.ts                                                               Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+  (Video)
+
+  -  Video output: C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\videos\multi-wallet.cy.ts.mp4
+
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                                                                                                    
+  Running:  stress-ui.cy.ts                                                                 (3 of 4)
+
+
+  UI Stability Under Stress
+    Marketplace Rendering
+      ΓêÜ loads marketplace page with content or loading state (756ms)
+      ΓêÜ marketplace filters still respond under load (316ms)
+      ΓêÜ marketplace pagination works during sustained load (251ms)
+    Buyer Preferences Stability
+      ΓêÜ preferences page loads during backend stress (272ms)
+      ΓêÜ can add preference set during load without crash (220ms)
+      ΓêÜ auto-bid toggle remains responsive (220ms)
+    Auto-Bid Real-Time Updates
+      ΓêÜ buyer bids page shows real-time updates or graceful timeout (258ms)
+      ΓêÜ bid list doesn't duplicate entries under rapid updates (3229ms)
+    CRM Webhook Page
+      ΓêÜ buyer dashboard CRM section remains stable (263ms)
+      ΓêÜ export button doesn't crash under load (224ms)
+    Error State Handling
+      ΓêÜ displays error toast or banner on API failure (267ms)
+      ΓêÜ displays rate limit notification on 429 (245ms)
+      ΓêÜ handles WebSocket disconnect gracefully during load (265ms)
+      ΓêÜ handles gateway timeout (504) on slow Chainlink stubs (255ms)
+    Chainlink Latency Simulation
+      ΓêÜ handles >5s Chainlink response with loading fallback (276ms)
+      ΓêÜ handles Chainlink oracle 504 timeout gracefully (267ms)
+      ΓêÜ marketplace loads even when Chainlink is down (295ms)
+    x402 Payment Failure Handling
+      ΓêÜ handles 402 Payment Required on bid placement (262ms)
+      ΓêÜ dashboard remains functional with payment endpoint errors (253ms)
+    Cache Miss Under Load
+      ΓêÜ handles 3s lead response (cache miss simulation) (289ms)
+      ΓêÜ preferences page survives cache miss latency (257ms)
+
+
+  21 passing (10s)
+
+
+  (Results)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Tests:        21                                                                               Γöé
+  Γöé Passing:      21                                                                               Γöé
+  Γöé Failing:      0                                                                                Γöé
+  Γöé Pending:      0                                                                                Γöé
+  Γöé Skipped:      0                                                                                Γöé
+  Γöé Screenshots:  0                                                                                Γöé
+  Γöé Video:        true                                                                             Γöé
+  Γöé Duration:     9 seconds                                                                        Γöé
+  Γöé Spec Ran:     stress-ui.cy.ts                                                                  Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+  (Video)
+
+  -  Video output: C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\videos\stress-ui.cy.ts.mp4
+
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                                                                                                    
+  Running:  ui-flows.cy.ts                                                                  (4 of 4)
+
+
+  Marketplace & Geo Filters
+    ΓêÜ loads the marketplace homepage (712ms)
+    ΓêÜ displays country selector (356ms)
+    ΓêÜ filters leads by US states (269ms)
+    ΓêÜ switches country to Australia and shows AU regions (269ms)
+    ΓêÜ handles empty results gracefully (427ms)
+
+  Seller Flows
+    ΓêÜ loads the seller dashboard (280ms)
+    ΓêÜ shows quick-action cards on dashboard (279ms)
+    ΓêÜ navigates to submit lead page with source tabs (574ms)
+    ΓêÜ switches to API tab and shows curl examples (475ms)
+    ΓêÜ API tab shows vertical parameter references (576ms)
+    ΓêÜ switches to Offsite tab and shows lander info (662ms)
+    ΓêÜ platform form shows vertical-specific fields for roofing (571ms)
+    ΓêÜ navigates to analytics page with charts (657ms)
+    ΓêÜ exports analytics CSV (743ms)
+    ΓêÜ navigates to leads page with CRM export (545ms)
+
+  Buyer Flows
+    ΓêÜ loads buyer dashboard with stats (270ms)
+    ΓêÜ navigates to bids page (267ms)
+    ΓêÜ navigates to preferences with geo filters (320ms)
+
+  Create Ask Flow
+    ΓêÜ shows authentication gate for unauthenticated users (496ms)
+    ΓêÜ displays ask creation form with geo targeting (297ms)
+
+  Edge Cases & Empty States
+    ΓêÜ handles unauthenticated sidebar correctly (185ms)
+    ΓêÜ marketplace works with no data (191ms)
+    ΓêÜ seller leads empty state shows CTA (275ms)
+
+  Off-Site Toggle & Fraud Edge Cases
+    ΓêÜ ask creation form shows acceptOffSite toggle (304ms)
+    ΓêÜ submit page shows source selector with OFFSITE option (335ms)
+    ΓêÜ TCPA consent is required for lead submission (331ms)
+    ΓêÜ no raw stack traces on error pages (246ms)
+
+  Hybrid Buyer/Seller Flow
+    ΓêÜ seller dashboard links to marketplace (284ms)
+    ΓêÜ buyer dashboard links to marketplace (278ms)
+    ΓêÜ buyer preferences page shows geo and vertical filters (277ms)
+
+  Auth Guards
+    ΓêÜ blocks /buyer/preferences without auth ΓÇö shows sign-in prompt (249ms)
+    ΓêÜ blocks /buyer without auth (232ms)
+    ΓêÜ blocks /seller without auth (212ms)
+    ΓêÜ blocks /seller/submit without auth (210ms)
+    ΓêÜ shows "Why sign in?" security tooltip (258ms)
+    ΓêÜ allows authenticated buyer to access /buyer/preferences (501ms)
+    ΓêÜ allows authenticated seller to access /seller (231ms)
+    ΓêÜ "Back to Marketplace" link navigates home (332ms)
+
+  Multi-Set Preferences
+    ΓêÜ shows empty state with quick-add vertical buttons (609ms)
+    ΓêÜ adds a preference set and renders accordion (383ms)
+    ΓêÜ "Add Preference Set" opens vertical picker (574ms)
+    ΓêÜ shows overlap warning for duplicate verticals (588ms)
+    ΓêÜ shows auto-bid tooltip about programmatic buyers (460ms)
+    ΓêÜ save button shows set count (608ms)
+
+  Structured Error Handling
+    ΓêÜ seller submit page shows profile wizard when no profile exists (350ms)
+    ΓêÜ seller submit shows error detail when profile creation fails (761ms)
+
+  Seller Analytics Charts
+    ΓêÜ renders charts and table sections (394ms)
+    ΓêÜ has working period selector (643ms)
+    ΓêÜ exports analytics CSV (486ms)
+
+  Buyer Analytics Charts
+    ΓêÜ renders buyer analytics page with chart sections (383ms)
+    ΓêÜ displays stats cards (377ms)
+    ΓêÜ exports buyer analytics CSV (480ms)
+
+
+  52 passing (23s)
+
+
+  (Results)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Tests:        52                                                                               Γöé
+  Γöé Passing:      52                                                                               Γöé
+  Γöé Failing:      0                                                                                Γöé
+  Γöé Pending:      0                                                                                Γöé
+  Γöé Skipped:      0                                                                                Γöé
+  Γöé Screenshots:  0                                                                                Γöé
+  Γöé Video:        true                                                                             Γöé
+  Γöé Duration:     22 seconds                                                                       Γöé
+  Γöé Spec Ran:     ui-flows.cy.ts                                                                   Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+  (Video)
+
+  -  Video output: C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\videos\ui-flows.cy.ts.mp4
+
+
+====================================================================================================
+
+  (Run Finished)
+
+
+       Spec                                              Tests  Passing  Failing  Pending  Skipped  
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé ΓêÜ  copy-assertions.cy.ts                    00:05       18       18        -        -        - Γöé
+  Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+  Γöé ΓêÜ  multi-wallet.cy.ts                       00:08       21       21        -        -        - Γöé
+  Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+  Γöé ΓêÜ  stress-ui.cy.ts                          00:09       21       21        -        -        - Γöé
+  Γö£ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+  Γöé ΓêÜ  ui-flows.cy.ts                           00:22       52       52        -        -        - Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+    ΓêÜ  All specs passed!                        00:47      112      112        -        -        -  
+
+

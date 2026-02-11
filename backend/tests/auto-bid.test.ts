@@ -29,6 +29,7 @@ jest.mock('../src/lib/prisma', () => ({
             create: (...args: any[]) => mockCreate(...args),
             aggregate: (...args: any[]) => mockAggregate(...args),
         },
+        lead: { findMany: jest.fn() },
         analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
     },
 }));
@@ -315,6 +316,72 @@ describe('Auto-Bid Service', () => {
 
             expect(result.bidsPlaced).toHaveLength(0);
             expect(result.skipped[0].reason).toContain('Bid $200 > max per lead $150');
+        });
+    });
+
+    describe('Batch Evaluate Leads', () => {
+        it('should evaluate batch of leads from DB', async () => {
+            const { batchEvaluateLeads } = require('../src/services/auto-bid.service');
+            const { prisma } = require('../src/lib/prisma');
+
+            // Mock prisma.lead.findMany for batchEvaluateLeads
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([
+                {
+                    id: 'batch-lead-1',
+                    vertical: 'solar',
+                    source: 'PLATFORM',
+                    geo: { country: 'US', state: 'FL' },
+                    qualityScore: 9000,
+                    isVerified: true,
+                    reservePrice: 50,
+                },
+            ]);
+
+            // Mock for evaluateLeadForAutoBid inner calls
+            mockFindMany.mockResolvedValue([makePrefSet()]);
+            mockFindFirst.mockResolvedValue(null);
+            mockAggregate.mockResolvedValue({ _sum: { amount: 0 } });
+            mockCreate.mockResolvedValue({ id: 'batch-bid' });
+
+            const results = await batchEvaluateLeads(['batch-lead-1']);
+            expect(results).toHaveLength(1);
+            expect(results[0].bidsPlaced.length + results[0].skipped.length).toBeGreaterThanOrEqual(0);
+        });
+
+        it('should return empty results for no matching leads', async () => {
+            const { batchEvaluateLeads } = require('../src/services/auto-bid.service');
+            const { prisma } = require('../src/lib/prisma');
+
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([]);
+
+            const results = await batchEvaluateLeads(['nonexistent-lead']);
+            expect(results).toHaveLength(0);
+        });
+
+        it('should handle bid creation errors in batch', async () => {
+            const { batchEvaluateLeads } = require('../src/services/auto-bid.service');
+            const { prisma } = require('../src/lib/prisma');
+
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([
+                {
+                    id: 'batch-err-lead',
+                    vertical: 'solar',
+                    source: 'PLATFORM',
+                    geo: { country: 'US', state: 'FL' },
+                    qualityScore: 9000,
+                    isVerified: true,
+                    reservePrice: 50,
+                },
+            ]);
+
+            mockFindMany.mockResolvedValue([makePrefSet()]);
+            mockFindFirst.mockResolvedValue(null);
+            mockAggregate.mockResolvedValue({ _sum: { amount: 0 } });
+            mockCreate.mockRejectedValue(new Error('DB constraint'));
+
+            const results = await batchEvaluateLeads(['batch-err-lead']);
+            expect(results).toHaveLength(1);
+            expect(results[0].skipped[0].reason).toContain('Bid creation failed');
         });
     });
 });

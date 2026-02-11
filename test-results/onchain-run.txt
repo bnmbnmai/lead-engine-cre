@@ -1,0 +1,39 @@
+﻿node.exe : Error: fail
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: fail:St 
+   ring) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    at Object.<anonymous> (C:\Users\Bruce\Projects\Lead 
+Engine 
+CRE\backend\tests\unit\onchain-branches.test.ts:460:58)
+    at Promise.then.completed (C:\Users\Bruce\Projects\Lead 
+Engine CRE\node_modules\jest-circus\build\utils.js:298:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (C:\Users\Bruce\Projects\Lead 
+Engine CRE\node_modules\jest-circus\build\utils.js:231:10)
+    at _callCircusTest (C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\jest-circus\build\run.js:316:40)
+    at async _runTest (C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\jest-circus\build\run.js:252:3)
+    at async _runTestsForDescribeBlock 
+(C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\jest-circus\build\run.js:126:9)
+    at async _runTestsForDescribeBlock 
+(C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\jest-circus\build\run.js:121:9)
+    at async run (C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\jest-circus\build\run.js:71:3)
+    at async runAndTransformResultsToJestFormat 
+(C:\Users\Bruce\Projects\Lead Engine CRE\node_modules\jest-c
+ircus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:
+21)
+    at async jestAdapter (C:\Users\Bruce\Projects\Lead 
+Engine CRE\node_modules\jest-circus\build\legacy-code-todo-r
+ewrite\jestAdapter.js:79:19)
+    at async runTestInternal (C:\Users\Bruce\Projects\Lead 
+Engine CRE\node_modules\jest-runner\build\runTest.js:367:16)
+    at async runTest (C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\jest-runner\build\runTest.js:444:34)

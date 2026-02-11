@@ -1,0 +1,373 @@
+PASS tests/unit/onchain-branches.test.ts
+  ACE On-Chain Branches
+    √ isKYCValid: should call contract.isKYCValid on-chain (6 ms)
+    √ isKYCValid: should catch on-chain error and fallback to DB (2 ms)
+    √ canTransact: should call contract.canTransact on-chain (2 ms)
+    √ canTransact: on-chain returns false (2 ms)
+    √ canTransact: on-chain error falls back gracefully (2 ms)
+    √ getReputationScore: should call contract on-chain (1 ms)
+    √ getReputationScore: on-chain error falls back to DB (1 ms)
+    √ enforceJurisdictionPolicy: on-chain allowed (1 ms)
+    √ enforceJurisdictionPolicy: on-chain blocked (2 ms)
+    √ enforceJurisdictionPolicy: on-chain error falls back (1 ms)
+    √ autoKYC: on-chain success (1 ms)
+    √ autoKYC: on-chain failure (1 ms)
+    √ updateReputation: on-chain success (1 ms)
+    √ updateReputation: on-chain failure (1 ms)
+  CRE On-Chain Branches
+    √ requestZKFraudDetection: on-chain success (4 ms)
+    √ requestZKFraudDetection: on-chain error falls back to local (2 ms)
+    √ requestParameterMatchOnChain: on-chain success (1 ms)
+    √ requestParameterMatchOnChain: on-chain error (1 ms)
+    √ requestGeoValidationOnChain: on-chain success (1 ms)
+    √ requestGeoValidationOnChain: on-chain error (1 ms)
+  NFT On-Chain Branches
+    √ mintLeadNFT: on-chain mint success (2 ms)
+    √ mintLeadNFT: on-chain error falls back (1 ms)
+    √ recordSaleOnChain: on-chain success (1 ms)
+    √ recordSaleOnChain: on-chain error (1 ms)
+    √ getTokenMetadata: on-chain success (3 ms)
+    √ getTokenMetadata: on-chain error falls back to DB (1 ms)
+  X402 On-Chain Branches
+    √ createPayment: on-chain with USDC approval (1 ms)
+    √ createPayment: on-chain without USDC (no usdc contract) (1 ms)
+    √ createPayment: on-chain error (1 ms)
+    √ settlePayment: on-chain release (1 ms)
+    √ settlePayment: on-chain error (1 ms)
+    √ refundPayment: on-chain refund (1 ms)
+    √ refundPayment: on-chain error (1 ms)
+    √ getPaymentStatus: on-chain status (1 ms)
+    √ getPaymentStatus: on-chain error falls back to DB (1 ms)
+    √ createPayment: on-chain with sufficient USDC allowance (skip approve) (1 ms)
+
+PASS tests/crm-webhooks.test.ts
+  CRM Webhooks
+    Webhook Registration
+      √ should register a generic webhook (32 ms)
+      √ should register a HubSpot webhook (8 ms)
+      √ should register a Zapier webhook (8 ms)
+      √ should reject missing URL (7 ms)
+      √ should reject invalid format (7 ms)
+    Webhook Listing
+      √ should list user webhooks (10 ms)
+    Webhook Deletion
+      √ should delete an existing webhook (12 ms)
+      √ should return 404 for non-existent webhook (5 ms)
+    HubSpot Payload Format
+      √ should transform leads to HubSpot contact properties (8 ms)
+    Zapier Payload Format
+      √ should produce flat key-value objects for Zapier (6 ms)
+    CRM Export
+      √ should return JSON export (6 ms)
+      √ should return CSV export (6 ms)
+    CRM Push
+      √ should return error when no webhook URL provided (6 ms)
+    Generic Webhook Format
+      √ should fire generic format with standard payload (6 ms)
+    Event Filtering
+      √ should skip webhooks not subscribed to event (1 ms)
+
+PASS tests/unit/ace.service.test.ts
+  ACEService
+    enforceJurisdictionPolicy
+      √ should allow when no restrictions exist in DB (4 ms)
+      √ should block when DB restriction exists (1 ms)
+    checkCrossBorderCompliance
+      √ should allow same-state transactions
+      √ should block cross-state mortgage with restricted states (1 ms)
+      √ should block cross-state insurance with NY (1 ms)
+      √ should allow cross-state solar (unrestricted vertical)
+      √ should allow cross-state mortgage between unrestricted states
+      √ should handle CA mortgage cross-border restriction (1 ms)
+    autoKYC
+      √ should create KYC check in database (off-chain) (1 ms)
+      √ should set 1-year expiry on KYC check (3 ms)
+    updateReputation
+      √ should update reputation in DB for existing seller
+      √ should clamp reputation at 0 (floor) (1 ms)
+      √ should clamp reputation at 10000 (ceiling)
+      √ should return error for non-existent seller (1 ms)
+    isKYCValid
+      √ should return false for unknown wallet (off-chain) (1 ms)
+      √ should return true for valid KYC in DB
+    canTransact
+      √ should block blacklisted user (1 ms)
+      √ should block user without KYC (1 ms)
+      √ should allow valid user with KYC
+    getReputationScore
+      √ should return DB score for existing seller (1 ms)
+      √ should return default 5000 for unknown wallet
+    isBlacklisted
+      √ should return true when fraud check exists (1 ms)
+      √ should return false when no fraud check
+    checkFullCompliance
+      √ should pass when both parties are compliant and lead has TCPA (1 ms)
+      √ should fail when seller is blacklisted (1 ms)
+      √ should fail when lead not found
+      √ should fail when lead has no TCPA consent (1 ms)
+    enforceJurisdictionPolicy (policy branch)
+      √ should allow unrestricted country vertical (1 ms)
+    autoKYC (proofHash branch)
+      √ should accept custom proofHash
+    checkCrossBorderCompliance (cross-country)
+      √ should return requirements for US→EU cross-country trade (1 ms)
+    edge cases
+      √ should handle empty wallet address gracefully
+      √ should handle cross-border with empty vertical (1 ms)
+      √ should return true for user with VERIFIED buyerProfile (1 ms)
+
+PASS tests/unit/cre.service.test.ts
+  CREService
+    verifyLead
+      √ should return invalid for non-existent lead (1 ms)
+      √ should return valid for already-verified lead (1 ms)
+      √ should fail for lead without TCPA consent (1 ms)
+      √ should fail for lead with expired TCPA consent (1 ms)
+      √ should fail for invalid US state (1 ms)
+      √ should pass for valid lead with all checks (1 ms)
+      √ should fail for data integrity mismatch (1 ms)
+    getQualityScore
+      √ should return 0 for non-existent lead (4 ms)
+      √ should return base score for minimal lead
+      √ should add bonuses for verified lead with all fields (1 ms)
+      √ should cap quality score at 10000 (1 ms)
+    matchLeadToAsk
+      √ should return no match for nonexistent lead or ask (1 ms)
+      √ should reject on vertical mismatch
+      √ should match with correct vertical and geo (1 ms)
+      √ should reject when lead geo not in targeted states
+      √ should add score for meeting reserve price (1 ms)
+      √ should match using "regions" key (not just "states") (1 ms)
+      √ should reject on country mismatch
+      √ should add geo bonus when no region restrictions (1 ms)
+    requestZKFraudDetection
+      √ should return invalid for non-existent lead (1 ms)
+      √ should verify locally and return valid for existing lead (3 ms)
+    requestParameterMatchOnChain
+      √ should return error when contract not configured
+    requestGeoValidationOnChain
+      √ should return error when contract not configured (1 ms)
+    verifyLead (geo edge cases)
+      √ should fail for lead with no geo data (1 ms)
+      √ should allow lead with unknown country code
+
+PASS tests/compliance/ace-simulation.test.ts
+  ACE Compliance Simulation
+    cross-border: NY mortgage cross-border
+      √ FL→NY mortgage: BLOCKED (2 ms)
+    cross-border: NY mortgage cross-border (reverse)
+      √ NY→FL mortgage: BLOCKED (1 ms)
+    cross-border: CA mortgage cross-border
+      √ CA→TX mortgage: BLOCKED
+    cross-border: FL mortgage cross-border
+      √ FL→TX mortgage: BLOCKED (1 ms)
+    cross-border: TX→CO unrestricted
+      √ TX→CO mortgage: ALLOWED
+    cross-border: WA→OR unrestricted
+      √ WA→OR mortgage: ALLOWED
+    cross-border: MA→OH unrestricted (MA not in list)
+      √ MA→OH mortgage: ALLOWED (1 ms)
+    cross-border: NY insurance cross-border
+      √ TX→NY insurance: BLOCKED
+    cross-border: CA→FL insurance (CA not restricted for insurance)
+      √ CA→FL insurance: ALLOWED (1 ms)
+    cross-border: FL→GA unrestricted insurance
+      √ FL→GA insurance: ALLOWED (3 ms)
+    cross-border: Solar unrestricted
+      √ FL→CA solar: ALLOWED
+    cross-border: Solar unrestricted NY→TX
+      √ NY→TX solar: ALLOWED (1 ms)
+    cross-border: Solar unrestricted CA→WA
+      √ CA→WA solar: ALLOWED
+    cross-border: Roofing unrestricted
+      √ FL→NY roofing: ALLOWED (1 ms)
+    cross-border: Same-state mortgage NY
+      √ NY→NY mortgage: ALLOWED
+    cross-border: Same-state insurance CA
+      √ CA→CA insurance: ALLOWED (1 ms)
+    cross-border: Same-state solar FL
+      √ FL→FL solar: ALLOWED
+    reputation scenarios
+      √ reputation 0 + 100 = 100 (1 ms)
+      √ reputation 5000 + 500 = 5500
+      √ reputation 9900 + 200 = 10000 (1 ms)
+      √ reputation 100 + -500 = 0
+      √ reputation 10000 + 0 = 10000 (1 ms)
+      √ reputation 0 + 0 = 0
+      √ reputation 3000 + -3000 = 0 (1 ms)
+      √ reputation 7500 + 2500 = 10000
+    off-site API fraud edge cases
+      √ should block known fraudulent wallet (blacklist hit) (1 ms)
+      √ should handle wallet with no history (first interaction)
+      √ should auto-KYC new wallet and persist (2 ms)
+      √ should handle rapid sequential compliance checks (3 ms)
+    jurisdiction policy enforcement
+      √ should allow when no DB restriction (2 ms)
+      √ should block when DB has failed check (1 ms)
+
+PASS tests/unit/x402.service.test.ts
+  X402Service
+    createPayment
+      √ should create off-chain escrow when no contract configured (2 ms)
+    settlePayment
+      √ should settle off-chain transaction (1 ms)
+      √ should return error for non-existent transaction (1 ms)
+      √ should return error for transaction without escrow
+    refundPayment
+      √ should refund off-chain transaction (1 ms)
+      √ should return error for non-existent transaction
+    getPaymentStatus
+      √ should return null for non-existent transaction
+      √ should return DB-based status for off-chain escrow (1 ms)
+    generatePaymentHeader
+      √ should generate correct x402 payment headers (3 ms)
+      √ should handle zero amount (1 ms)
+    edge cases
+      √ should handle double-settle gracefully (1 ms)
+      √ should create escrow with large USDC amount
+      √ should create escrow with zero amount (1 ms)
+      √ should handle refund for already-refunded transaction
+      √ should return error for refund without escrow (1 ms)
+      √ should return status with releasedAt timestamp
+      √ should generate headers with custom escrow ID
+
+PASS tests/security/privacy-audit.test.ts
+  Privacy Audit
+    no plaintext leakage
+      √ should never contain original PII in ciphertext (3 ms)
+      √ should never contain bid amount in ciphertext (2 ms)
+      √ should never contain parameter values in token metadata encryption (1 ms)
+    commitment integrity
+      √ should detect tampered bid (commitment mismatch on reveal) (2 ms)
+      √ should prevent bid amount manipulation (2 ms)
+    AAD binding
+      √ should prevent buyer A from decrypting buyer B bid (3 ms)
+      √ should prevent case-altered address from decrypting (1 ms)
+    PII at rest
+      √ should produce ciphertext of sufficient length for PII data (1 ms)
+      √ should not store PII fields in public metadata
+    key sensitivity
+      √ should produce deterministic data hash for same PII
+
+PASS tests/unit/zk.service.test.ts
+  ZKService
+    generateFraudProof
+      √ should generate a valid fraud proof with all fields (5 ms)
+      √ should produce different proofs for different leads (3 ms)
+      √ should handle missing optional fields (1 ms)
+    verifyProofLocally
+      √ should verify a valid fraud proof (2 ms)
+      √ should reject an empty/zero proof
+      √ should reject a proof with no public inputs (3 ms)
+      √ should reject a proof with zero commitment (1 ms)
+    generateGeoParameterMatchProof
+      √ should detect matching geo state (2 ms)
+      √ should detect non-matching geo state (1 ms)
+      √ should detect parameter threshold failures (1 ms)
+    generateBidCommitment
+      √ should generate a valid bid commitment (1 ms)
+      √ should produce unique commitments for same amount (random salts)
+
+PASS tests/unit/privacy.service.test.ts
+  PrivacyService
+    encrypt/decrypt round-trip
+      √ should encrypt and decrypt lead PII correctly (3 ms)
+      √ should produce different ciphertext for same plaintext (unique IV) (2 ms)
+      √ should throw on tampered ciphertext (2 ms)
+      √ should throw on tampered auth tag (1 ms)
+    encryptBid / decryptBid
+      √ should encrypt bid and decrypt with valid commitment (1 ms)
+      √ should fail reveal with wrong buyer address (AAD mismatch)
+      √ should produce unique commitments for same amount (different salts) (3 ms)
+      √ should handle small and large amounts (1 ms)
+    encryptTokenMetadata / decryptTokenMetadata
+      √ should keep public fields visible and encrypt private fields (1 ms)
+      √ should return null encryptedFields when no PII or parameters (1 ms)
+    generateCommitment / verifyCommitment
+      √ should generate and verify a valid commitment (2 ms)
+      √ should fail verification with wrong value (1 ms)
+      √ should fail verification with wrong salt (1 ms)
+
+PASS tests/unit/nft.service.test.ts
+  NFTService
+    mintLeadNFT
+      √ should return error for non-existent lead (2 ms)
+      √ should return existing tokenId if already minted (1 ms)
+      √ should create off-chain pseudo-tokenId when no contract (2 ms)
+    recordSaleOnChain
+      √ should succeed for off-chain token (logged only) (1 ms)
+    getTokenMetadata
+      √ should return null for non-existent token (1 ms)
+      √ should return DB-based metadata for off-chain token (1 ms)
+    updateQualityScoreOnChain
+      √ should succeed silently for off-chain token (no-op) (1 ms)
+    mintLeadNFT (dataHash branch)
+      √ should use existing dataHash when available (1 ms)
+      √ should handle lead with no geo state (1 ms)
+      √ should handle lead with no seller wallet (3 ms)
+    getTokenMetadata (field coverage)
+      √ should populate all metadata fields from DB (1 ms)
+      √ should return null dataHash as ZeroHash (1 ms)
+    recordSaleOnChain (coverage)
+      √ should handle zero sale price
+
+PASS tests/e2e/demo-flow.test.ts
+  E2E Demo Flow
+    full pipeline simulation
+      √ should complete all 8 steps successfully (8 ms)
+      √ should handle non-compliant buyer (ACE blocked) (1 ms)
+      √ should handle wrong buyer address in bid reveal (1 ms)
+    ZK + Privacy cross-service
+      √ should generate matching ZK proof and privacy commitment for same lead (2 ms)
+      √ should geo-match mortgage lead to CA buyer criteria (4 ms)
+
+PASS tests/auto-bid.test.ts
+  Auto-Bid Service
+    Quality Score Gate
+      √ should bid when lead score exceeds minimum (2 ms)
+      √ should skip when lead score is below minimum (bid if score > 80 = 8000)
+      √ should bid when no quality score gate is set
+    Geo Include/Exclude Filtering
+      √ should bid when state is in include list (3 ms)
+      √ should skip when state is NOT in include list (1 ms)
+      √ should skip when state is in exclude list (1 ms)
+      √ should skip when country does not match (1 ms)
+    Off-Site Lead Rejection
+      √ should reject off-site lead when acceptOffSite is false (1 ms)
+      √ should accept off-site lead when acceptOffSite is true (1 ms)
+    Daily Budget Enforcement
+      √ should skip when daily budget would be exceeded
+      √ should bid when within daily budget (1 ms)
+    Verified-Only Toggle
+      √ should skip unverified lead when requireVerified is true (1 ms)
+    Reserve Price Check
+      √ should skip when bid amount is below reserve
+    Multi-Buyer Concurrent Auto-Bid
+      √ should place bids for multiple matching buyers on the same lead (1 ms)
+    Vertical-Specific Rules (Solar vs Mortgage)
+      √ should only match preference sets for the correct vertical
+      √ should return empty when no preference sets match the vertical (1 ms)
+    Duplicate Bid Prevention
+      √ should skip if buyer already bid on this lead
+    Max Bid Per Lead Cap
+      √ should skip when bid exceeds max per lead (1 ms)
+
+----------------------|---------|----------|---------|---------|--------------------------------------------------------------------
+File                  | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                  
+----------------------|---------|----------|---------|---------|--------------------------------------------------------------------
+All files             |   87.82 |    79.17 |   94.18 |   88.32 |                                                                    
+ routes               |   69.64 |    71.64 |   85.71 |   70.96 |                                                                    
+  crm.routes.ts       |   69.64 |    71.64 |   85.71 |   70.96 | 43-44,61-62,81-142,198-199,253-259,273-285,300-301,306-307,316-329 
+ services             |   92.88 |    82.26 |   98.27 |   92.88 |                                                                    
+  ace.service.ts      |   94.95 |    90.56 |     100 |   94.91 | 38-42,195,258                                                      
+  auto-bid.service.ts |   88.88 |    69.23 |      80 |   88.57 | 207,241-265                                                        
+  cre.service.ts      |    92.3 |    83.15 |     100 |    92.5 | 43-47,171-175,261-262,293-294                                      
+  nft.service.ts      |   88.57 |    83.01 |     100 |    88.4 | 53,57,233-239                                                      
+  privacy.service.ts  |   98.21 |     87.5 |     100 |   98.21 | 31                                                                 
+  x402.service.ts     |   96.15 |    78.18 |     100 |    96.1 | 57,61,67                                                           
+  zk.service.ts       |      90 |     87.5 |     100 |      90 | 108-109,116-117                                                    
+----------------------|---------|----------|---------|---------|--------------------------------------------------------------------
+Test Suites: 12 passed, 12 total
+Tests:       228 passed, 228 total
+Snapshots:   0 total
+Time:        3.022 s

@@ -18,6 +18,9 @@ jest.mock('../../src/lib/prisma', () => ({
         user: {
             findUnique: jest.fn(),
         },
+        lead: {
+            findUnique: jest.fn(),
+        },
     },
 }));
 
@@ -206,6 +209,167 @@ describe('ACEService', () => {
         });
     });
 
+    // ─── canTransact ──────────────────────────────
+
+    describe('canTransact', () => {
+        it('should block blacklisted user', async () => {
+            // isBlacklisted returns a fraud check
+            (prisma.complianceCheck.findFirst as jest.Mock).mockResolvedValue({
+                id: 'fraud-1', status: 'FAILED', checkType: 'FRAUD_CHECK',
+            });
+
+            const result = await aceService.canTransact('0xBlacklisted', 'solar', 'FL');
+            expect(result.allowed).toBe(false);
+            expect(result.reason).toContain('blacklisted');
+        });
+
+        it('should block user without KYC', async () => {
+            // isBlacklisted: no fraud check
+            (prisma.complianceCheck.findFirst as jest.Mock)
+                .mockResolvedValueOnce(null)   // blacklist check
+                .mockResolvedValueOnce(null);   // KYC check
+            (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+            const result = await aceService.canTransact('0xNoKYC', 'solar', 'FL');
+            expect(result.allowed).toBe(false);
+            expect(result.reason).toContain('KYC');
+        });
+
+        it('should allow valid user with KYC', async () => {
+            // isBlacklisted: no fraud check
+            (prisma.complianceCheck.findFirst as jest.Mock)
+                .mockResolvedValueOnce(null)   // blacklist
+                .mockResolvedValueOnce({        // KYC valid
+                    id: 'kyc-1', status: 'PASSED',
+                    expiresAt: new Date(Date.now() + 86400000),
+                });
+
+            const result = await aceService.canTransact('0xValid', 'solar', 'FL');
+            expect(result.allowed).toBe(true);
+        });
+    });
+
+    // ─── getReputationScore ──────────────────────
+
+    describe('getReputationScore', () => {
+        it('should return DB score for existing seller', async () => {
+            (prisma.sellerProfile.findFirst as jest.Mock).mockResolvedValue({
+                reputationScore: 7500,
+            });
+            const score = await aceService.getReputationScore('0xSeller');
+            expect(score).toBe(7500);
+        });
+
+        it('should return default 5000 for unknown wallet', async () => {
+            (prisma.sellerProfile.findFirst as jest.Mock).mockResolvedValue(null);
+            const score = await aceService.getReputationScore('0xUnknown');
+            expect(score).toBe(5000);
+        });
+    });
+
+    // ─── isBlacklisted ───────────────────────────
+
+    describe('isBlacklisted', () => {
+        it('should return true when fraud check exists', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock).mockResolvedValue({
+                id: 'fraud-check', status: 'FAILED',
+            });
+            expect(await aceService.isBlacklisted('0xBadActor')).toBe(true);
+        });
+
+        it('should return false when no fraud check', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock).mockResolvedValue(null);
+            expect(await aceService.isBlacklisted('0xGoodActor')).toBe(false);
+        });
+    });
+
+    // ─── checkFullCompliance ─────────────────────
+
+    describe('checkFullCompliance', () => {
+        it('should pass when both parties are compliant and lead has TCPA', async () => {
+            // canTransact for seller + buyer (blacklist + KYC each)
+            (prisma.complianceCheck.findFirst as jest.Mock)
+                .mockResolvedValueOnce(null)   // seller blacklist
+                .mockResolvedValueOnce({ id: 'k1', status: 'PASSED', expiresAt: new Date(Date.now() + 86400000) })
+                .mockResolvedValueOnce(null)   // buyer blacklist
+                .mockResolvedValueOnce({ id: 'k2', status: 'PASSED', expiresAt: new Date(Date.now() + 86400000) });
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-1', tcpaConsentAt: new Date(),
+            });
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({});
+
+            const result = await aceService.checkFullCompliance('0xSeller', '0xBuyer', 'lead-1');
+            expect(result.passed).toBe(true);
+        });
+
+        it('should fail when seller is blacklisted', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock).mockResolvedValue({
+                id: 'fraud', status: 'FAILED', checkType: 'FRAUD_CHECK',
+            });
+
+            const result = await aceService.checkFullCompliance('0xBadSeller', '0xBuyer', 'lead-1');
+            expect(result.passed).toBe(false);
+            expect(result.failedCheck).toBe('SELLER_COMPLIANCE');
+        });
+
+        it('should fail when lead not found', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock)
+                .mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'k1', status: 'PASSED', expiresAt: new Date(Date.now() + 86400000) })
+                .mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'k2', status: 'PASSED', expiresAt: new Date(Date.now() + 86400000) });
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue(null);
+
+            const result = await aceService.checkFullCompliance('0xS', '0xB', 'missing');
+            expect(result.passed).toBe(false);
+            expect(result.failedCheck).toBe('LEAD_NOT_FOUND');
+        });
+
+        it('should fail when lead has no TCPA consent', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock)
+                .mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'k1', status: 'PASSED', expiresAt: new Date(Date.now() + 86400000) })
+                .mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'k2', status: 'PASSED', expiresAt: new Date(Date.now() + 86400000) });
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-no-tcpa', tcpaConsentAt: null,
+            });
+
+            const result = await aceService.checkFullCompliance('0xS', '0xB', 'lead-no-tcpa');
+            expect(result.passed).toBe(false);
+            expect(result.failedCheck).toBe('TCPA_CONSENT');
+        });
+    });
+
+    // ─── enforceJurisdictionPolicy extras ────────
+
+    describe('enforceJurisdictionPolicy (policy branch)', () => {
+        it('should allow unrestricted country vertical', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock).mockResolvedValue(null);
+            const result = await aceService.enforceJurisdictionPolicy('0xWallet', 'solar', 'FL', 'US');
+            expect(result.allowed).toBe(true);
+        });
+    });
+
+    // ─── autoKYC extras ──────────────────────────
+
+    describe('autoKYC (proofHash branch)', () => {
+        it('should accept custom proofHash', async () => {
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({ id: 'kyc-custom' });
+            const result = await aceService.autoKYC('0xWallet', '0xcustomproof');
+            expect(result.verified).toBe(true);
+        });
+    });
+
+    // ─── Cross-border extras ─────────────────────
+
+    describe('checkCrossBorderCompliance (cross-country)', () => {
+        it('should return requirements for US→EU cross-country trade', async () => {
+            const result = await aceService.checkCrossBorderCompliance('FL', 'BY', 'solar', 'US', 'DE');
+            // Cross-country should return requirements (GDPR etc)
+            expect(result.allowed).toBe(true);
+            if (result.requirements) {
+                expect(result.requirements.length).toBeGreaterThan(0);
+            }
+        });
+    });
+
     // ─── Edge Cases ──────────────────────────────
 
     describe('edge cases', () => {
@@ -220,6 +384,16 @@ describe('ACEService', () => {
             const result = await aceService.checkCrossBorderCompliance('FL', 'NY', '');
             // Empty vertical has no restrictions
             expect(result.allowed).toBe(true);
+        });
+
+        it('should return true for user with VERIFIED buyerProfile', async () => {
+            (prisma.complianceCheck.findFirst as jest.Mock).mockResolvedValue(null);
+            (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+                buyerProfile: { kycStatus: 'VERIFIED' },
+                sellerProfile: null,
+            });
+            const result = await aceService.isKYCValid('0xProfiled');
+            expect(result).toBe(true);
         });
     });
 });

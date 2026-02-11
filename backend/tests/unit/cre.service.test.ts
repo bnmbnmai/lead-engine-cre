@@ -268,5 +268,147 @@ describe('CREService', () => {
             const result = await creService.matchLeadToAsk('lead-1', 'ask-1');
             expect(result.details).toContain('Price: meets reserve');
         });
+
+        it('should match using "regions" key (not just "states")', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                vertical: 'solar',
+                geo: { state: 'CA', country: 'US' },
+                reservePrice: 10,
+                parameters: {},
+            });
+            (prisma.ask.findUnique as jest.Mock).mockResolvedValue({
+                vertical: 'solar',
+                geoTargets: { country: 'US', regions: ['CA', 'NV'] },
+                reservePrice: 20,
+                parameters: {},
+            });
+
+            const result = await creService.matchLeadToAsk('lead-1', 'ask-1');
+            expect(result.matches).toBe(true);
+            expect(result.details).toContain('Geo: region match');
+        });
+
+        it('should reject on country mismatch', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                vertical: 'solar',
+                geo: { country: 'US', state: 'FL' },
+            });
+            (prisma.ask.findUnique as jest.Mock).mockResolvedValue({
+                vertical: 'solar',
+                geoTargets: { country: 'DE' },
+            });
+
+            const result = await creService.matchLeadToAsk('lead-1', 'ask-1');
+            expect(result.matches).toBe(false);
+            expect(result.details).toContain('Country mismatch');
+        });
+
+        it('should add geo bonus when no region restrictions', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                vertical: 'solar',
+                geo: { state: 'FL' },
+                reservePrice: 10,
+                parameters: {},
+            });
+            (prisma.ask.findUnique as jest.Mock).mockResolvedValue({
+                vertical: 'solar',
+                geoTargets: {},  // no states/regions
+                reservePrice: 20,
+                parameters: {},
+            });
+
+            const result = await creService.matchLeadToAsk('lead-1', 'ask-1');
+            expect(result.details).toContain('Geo: no restrictions');
+        });
+    });
+
+    // ─── requestZKFraudDetection ─────────────────
+
+    describe('requestZKFraudDetection', () => {
+        it('should return invalid for non-existent lead', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue(null);
+
+            const result = await creService.requestZKFraudDetection('missing', 1);
+            expect(result.isValid).toBe(false);
+            expect(result.reason).toBe('Lead not found');
+        });
+
+        it('should verify locally and return valid for existing lead', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-zk',
+                vertical: 'solar',
+                geo: { state: 'FL', zip: '33101' },
+                dataHash: null,
+                tcpaConsentAt: new Date(),
+                source: 'PLATFORM',
+            });
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({});
+
+            const result = await creService.requestZKFraudDetection('lead-zk', 42);
+            expect(result.isValid).toBe(true);
+            expect(result.requestId).toBeDefined();
+        });
+    });
+
+    // ─── requestParameterMatchOnChain ────────────
+
+    describe('requestParameterMatchOnChain', () => {
+        it('should return error when contract not configured', async () => {
+            const result = await creService.requestParameterMatchOnChain(1, {
+                vertical: 'solar',
+                geoStates: ['FL'],
+                paramKeys: ['creditScore'],
+                paramValues: ['720'],
+            });
+            expect(result.isValid).toBe(false);
+            expect(result.reason).toContain('not configured');
+        });
+    });
+
+    // ─── requestGeoValidationOnChain ─────────────
+
+    describe('requestGeoValidationOnChain', () => {
+        it('should return error when contract not configured', async () => {
+            const result = await creService.requestGeoValidationOnChain(1, 'FL');
+            expect(result.isValid).toBe(false);
+            expect(result.reason).toContain('not configured');
+        });
+    });
+
+    // ─── verifyLead edge cases ───────────────────
+
+    describe('verifyLead (geo edge cases)', () => {
+        it('should fail for lead with no geo data', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-nogeo',
+                isVerified: false,
+                dataHash: null,
+                encryptedData: null,
+                tcpaConsentAt: new Date(),
+                geo: null,
+            });
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({});
+
+            const result = await creService.verifyLead('lead-nogeo');
+            expect(result.isValid).toBe(false);
+            expect(result.reason).toContain('Geographic');
+        });
+
+        it('should allow lead with unknown country code', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-xx',
+                isVerified: false,
+                dataHash: null,
+                encryptedData: null,
+                tcpaConsentAt: new Date(),
+                geo: { country: 'ZZ', state: 'XX' },
+            });
+            (prisma.lead.update as jest.Mock).mockResolvedValue({});
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({});
+
+            const result = await creService.verifyLead('lead-xx');
+            // Unknown country is allowed (warn but pass)
+            expect(result.isValid).toBe(true);
+        });
     });
 });

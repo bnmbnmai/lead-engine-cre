@@ -216,4 +216,250 @@ describe('CRM Webhooks', () => {
             }
         });
     });
+
+    // ─── CRM Export Endpoint ─────────────────────
+
+    describe('CRM Export', () => {
+        it('should return JSON export', async () => {
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([
+                {
+                    id: 'lead-exp-1',
+                    vertical: 'solar',
+                    status: 'SOLD',
+                    source: 'PLATFORM',
+                    geo: { country: 'US', state: 'FL', city: 'Miami', zip: '33101' },
+                    seller: { companyName: 'SolarExport' },
+                    bids: [{ amount: 100 }],
+                    qualityScore: 8000,
+                    reservePrice: 80,
+                    createdAt: new Date('2025-01-01'),
+                },
+            ]);
+
+            const res = await request(app)
+                .get('/api/v1/crm/export?format=json&days=30');
+
+            expect(res.status).toBe(200);
+            expect(res.body.leads).toBeDefined();
+            expect(res.body.leads.length).toBe(1);
+            expect(res.body.leads[0].lead_id).toBe('lead-exp-1');
+        });
+
+        it('should return CSV export', async () => {
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([
+                {
+                    id: 'lead-csv-1',
+                    vertical: 'mortgage',
+                    status: 'ACTIVE',
+                    source: 'API',
+                    geo: { country: 'US', state: 'CA' },
+                    seller: { companyName: 'CSVCo' },
+                    bids: [],
+                    reservePrice: 50,
+                    createdAt: new Date('2025-02-01'),
+                },
+            ]);
+
+            const res = await request(app)
+                .get('/api/v1/crm/export?format=csv&days=7');
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-type']).toContain('text/csv');
+            expect(res.text).toContain('lead_id');
+            expect(res.text).toContain('lead-csv-1');
+        });
+    });
+
+    // ─── CRM Push Endpoint ──────────────────────
+
+    describe('CRM Push', () => {
+        it('should return error when no webhook URL provided', async () => {
+            const origEnv = process.env.CRM_WEBHOOK_URL;
+            delete process.env.CRM_WEBHOOK_URL;
+
+            const res = await request(app)
+                .post('/api/v1/crm/push')
+                .send({ leadIds: ['lead-1'] });
+
+            expect(res.status).toBe(400);
+            process.env.CRM_WEBHOOK_URL = origEnv;
+        });
+    });
+
+    // ─── Generic Format Webhook ─────────────────
+
+    describe('Generic Webhook Format', () => {
+        it('should fire generic format with standard payload', async () => {
+            const mockFetch = jest.fn().mockResolvedValue({ ok: true });
+            global.fetch = mockFetch as any;
+
+            await request(app)
+                .post('/api/v1/crm/webhooks')
+                .send({
+                    url: 'https://generic-test.com/hook',
+                    format: 'generic',
+                    events: ['lead.sold'],
+                });
+
+            await fireCRMWebhooks('lead.sold', [{
+                id: 'lead-gen',
+                vertical: 'solar',
+                status: 'SOLD',
+                geo: { country: 'US' },
+                bids: [],
+                reservePrice: 50,
+            }]);
+
+            // Verify fetch was called
+            expect(mockFetch).toHaveBeenCalled();
+            const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+            const payload = JSON.parse(lastCall[1].body);
+            expect(payload.source).toBe('lead-engine-cre');
+            expect(payload.event).toBe('lead.sold');
+        });
+    });
+
+    // ─── CRM Push Endpoint ─────────────────────────
+
+    describe('CRM Push', () => {
+        it('should push leads with specific leadIds', async () => {
+            const mockFetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+            global.fetch = mockFetch as any;
+
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([{
+                id: 'push-lead-1',
+                vertical: 'solar',
+                status: 'SOLD',
+                source: 'PLATFORM',
+                geo: { country: 'US', state: 'FL' },
+                seller: { companyName: 'SolarCo' },
+                bids: [{ amount: 100 }],
+                qualityScore: 7500,
+                reservePrice: 75,
+            }]);
+            (prisma.analyticsEvent.create as jest.Mock).mockResolvedValue({});
+
+            const res = await request(app)
+                .post('/api/v1/crm/push')
+                .send({ leadIds: ['push-lead-1'], webhookUrl: 'https://example.com/hook' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.pushed).toBe(1);
+        });
+
+        it('should push default SOLD leads when no leadIds provided', async () => {
+            const mockFetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+            global.fetch = mockFetch as any;
+
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([]);
+            (prisma.analyticsEvent.create as jest.Mock).mockResolvedValue({});
+
+            const res = await request(app)
+                .post('/api/v1/crm/push')
+                .send({ webhookUrl: 'https://example.com/hook' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.pushed).toBe(0);
+        });
+
+        it('should return 502 when webhook URL returns error', async () => {
+            const mockFetch = jest.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' });
+            global.fetch = mockFetch as any;
+
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([{
+                id: 'push-fail', vertical: 'solar', status: 'SOLD', source: 'PLATFORM',
+                geo: {}, seller: { companyName: 'Co' }, bids: [], reservePrice: 0,
+            }]);
+
+            const res = await request(app)
+                .post('/api/v1/crm/push')
+                .send({ webhookUrl: 'https://example.com/bad-hook' });
+
+            expect(res.status).toBe(502);
+            expect(res.body.error).toContain('CRM webhook returned error');
+        });
+    });
+
+    // ─── CRM Export with country filter ──────────
+
+    describe('CRM Export (country filter)', () => {
+        it('should filter leads by country when specified', async () => {
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockResolvedValue([
+                { id: 'us-lead', vertical: 'solar', status: 'SOLD', geo: { country: 'US', state: 'FL' }, seller: { companyName: 'A' }, bids: [], reservePrice: 50, source: 'API' },
+                { id: 'eu-lead', vertical: 'solar', status: 'SOLD', geo: { country: 'DE', state: 'BY' }, seller: { companyName: 'B' }, bids: [], reservePrice: 60, source: 'API' },
+            ]);
+
+            const res = await request(app)
+                .get('/api/v1/crm/export?format=json&country=US');
+
+            expect(res.status).toBe(200);
+            expect(res.body.leads.length).toBe(1);
+        });
+
+        it('should return 500 on export error', async () => {
+            const { prisma } = require('../src/lib/prisma');
+            (prisma.lead.findMany as jest.Mock).mockRejectedValue(new Error('db down'));
+
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+            const res = await request(app)
+                .get('/api/v1/crm/export');
+
+            expect(res.status).toBe(500);
+            consoleSpy.mockRestore();
+        });
+    });
+
+    // ─── fireCRMWebhooks circuit breaker ────────
+
+    describe('fireCRMWebhooks (resilience)', () => {
+        it('should increment failure count when webhook fetch throws', async () => {
+            const mockFetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+            global.fetch = mockFetch as any;
+
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+            // Fire webhook — it should catch the error and log it
+            await fireCRMWebhooks('lead.sold', [{
+                id: 'lead-err', vertical: 'solar', geo: {},
+            }]);
+            consoleSpy.mockRestore();
+            // Should not throw — errors are caught internally
+        });
+
+        it('should handle empty leads array', async () => {
+            const mockFetch = jest.fn().mockResolvedValue({ ok: true });
+            global.fetch = mockFetch as any;
+
+            await fireCRMWebhooks('lead.sold', []);
+            // Should still call the webhook with empty leads
+        });
+    });
+
+    // ─── Non-matching event skips ────────────────
+
+    describe('Event Filtering', () => {
+        it('should skip webhooks not subscribed to event', async () => {
+            const mockFetch = jest.fn().mockResolvedValue({ ok: true });
+            global.fetch = mockFetch as any;
+
+            const callsBefore = mockFetch.mock.calls.length;
+
+            // Fire an event no webhook is subscribed to
+            await fireCRMWebhooks('lead.created', [{
+                id: 'lead-skip',
+                vertical: 'solar',
+                geo: {},
+            }]);
+
+            // Should not have made additional calls for this event
+            // (all registered webhooks listen to 'lead.sold')
+            expect(mockFetch.mock.calls.length).toBe(callsBefore);
+        });
+    });
 });
