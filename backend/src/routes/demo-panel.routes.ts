@@ -177,20 +177,18 @@ router.post('/seed', async (_req: Request, res: Response) => {
         });
 
         for (const lead of auctionLeads) {
-            const numBids = rand(3, 8);
-            for (let i = 0; i < numBids; i++) {
-                const baseAmount = Number(lead.reservePrice || 20);
-                await prisma.bid.create({
-                    data: {
-                        leadId: lead.id,
-                        buyerId: demoUser.id,
-                        amount: baseAmount + rand(1, 30),
-                        status: 'REVEALED',
-                        source: 'MANUAL',
-                    },
-                });
-                bidCount++;
-            }
+            // One bid per lead (@@unique([leadId, buyerId]) constraint)
+            const baseAmount = Number(lead.reservePrice || 20);
+            await prisma.bid.create({
+                data: {
+                    leadId: lead.id,
+                    buyerId: demoUser.id,
+                    amount: baseAmount + rand(1, 30),
+                    status: 'REVEALED',
+                    source: 'MANUAL',
+                },
+            });
+            bidCount++;
         }
 
         res.json({

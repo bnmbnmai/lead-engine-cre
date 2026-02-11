@@ -335,7 +335,7 @@ export function DemoPanel() {
                             />
                             <p className="text-[11px] text-muted-foreground pl-1">
                                 Creates a lead + simulates 6 bids arriving over 30 seconds.
-                                Navigate to the auction page to watch bids come in live.
+                                Click any IN_AUCTION lead on the Marketplace to open its auction page and watch bids arrive live.
                             </p>
                         </Section>
 
