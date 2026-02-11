@@ -71,7 +71,8 @@ function App() {
                             <Routes>
                                 {/* Marketplace (public landing — auth users redirected to dashboard) */}
                                 <Route path="/" element={<RedirectIfAuthenticated><HomePage /></RedirectIfAuthenticated>} />
-                                <Route path="/marketplace" element={<RedirectIfAuthenticated><HomePage /></RedirectIfAuthenticated>} />
+                                {/* Marketplace — accessible to everyone (auth users use this from dashboard) */}
+                                <Route path="/marketplace" element={<HomePage />} />
                                 <Route path="/auction/:leadId" element={<AuctionPage />} />
 
                                 {/* Buyer Routes (auth required) */}
