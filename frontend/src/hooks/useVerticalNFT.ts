@@ -9,7 +9,7 @@
 
 import { useReadContract, useChainId } from 'wagmi';
 import { getContractAddresses, VERTICAL_NFT_ABI } from '@/lib/wagmi';
-import { keccak256, toUtf8Bytes } from 'ethers';
+import { keccak256, toBytes } from 'viem';
 
 // ============================================
 // Owner by Slug
@@ -18,7 +18,7 @@ import { keccak256, toUtf8Bytes } from 'ethers';
 export function useVerticalNFTOwner(slug: string | undefined) {
     const chainId = useChainId();
     const addresses = getContractAddresses(chainId);
-    const slugHash = slug ? keccak256(toUtf8Bytes(slug)) : undefined;
+    const slugHash = slug ? keccak256(toBytes(slug)) : undefined;
 
     const { data: rawTokenId, ...tokenQuery } = useReadContract({
         address: addresses.verticalNFT as `0x${string}`,
