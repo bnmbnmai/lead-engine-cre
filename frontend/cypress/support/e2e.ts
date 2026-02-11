@@ -1,4 +1,5 @@
 // Cypress support file — global hooks and commands
+import './setupMocks';
 
 Cypress.on('uncaught:exception', () => false); // Don't fail on app errors during E2E
 
