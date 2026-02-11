@@ -2,7 +2,7 @@
  * Vertical NFT Service Unit Tests
  *
  * Tests the activation pipeline: uniqueness (CRE), compliance (ACE),
- * minting, and Prisma updates.
+ * minting, and Prisma updates. Plus platform-only minting and resale.
  */
 
 // Mock the ethers module
@@ -13,6 +13,9 @@ const mockWait = jest.fn();
 const mockOwnerOf = jest.fn();
 const mockTotalSupply = jest.fn();
 const mockGetVerticalBySlug = jest.fn();
+const mockSafeTransferFrom = jest.fn();
+const mockApprove = jest.fn();
+const mockRoyaltyInfo = jest.fn();
 
 jest.mock('ethers', () => ({
     ethers: {
@@ -25,6 +28,9 @@ jest.mock('ethers', () => ({
             ownerOf: mockOwnerOf,
             totalSupply: mockTotalSupply,
             getVerticalBySlug: mockGetVerticalBySlug,
+            safeTransferFrom: mockSafeTransferFrom,
+            approve: mockApprove,
+            royaltyInfo: mockRoyaltyInfo,
         })),
         Interface: jest.fn().mockImplementation(() => ({
             parseLog: jest.fn().mockReturnValue({
@@ -55,6 +61,7 @@ process.env.RPC_URL = 'http://localhost:8545';
 process.env.DEPLOYER_PRIVATE_KEY = '0x' + 'a'.repeat(64);
 process.env.VERTICAL_NFT_ADDRESS = '0x' + '1'.repeat(40);
 process.env.ACE_COMPLIANCE_ADDRESS = '0x' + '2'.repeat(40);
+process.env.PLATFORM_WALLET_ADDRESS = '0x' + '3'.repeat(40);
 
 let verticalNftService: any;
 
@@ -117,12 +124,12 @@ describe('VerticalNFTService', () => {
         });
     });
 
-    // ─── activateVertical ──────────────────────────
+    // ─── activateVertical (platform-only) ──────────
 
     describe('activateVertical', () => {
         it('should return error for nonexistent vertical', async () => {
             (prisma.vertical.findUnique as jest.Mock).mockResolvedValue(null);
-            const result = await verticalNftService.activateVertical('nonexistent', '0xAddr');
+            const result = await verticalNftService.activateVertical('nonexistent');
             expect(result.success).toBe(false);
             expect(result.error).toContain('not found');
         });
@@ -131,7 +138,7 @@ describe('VerticalNFTService', () => {
             (prisma.vertical.findUnique as jest.Mock).mockResolvedValue({
                 slug: 'plumbing', status: 'ACTIVE',
             });
-            const result = await verticalNftService.activateVertical('plumbing', '0xAddr');
+            const result = await verticalNftService.activateVertical('plumbing');
             expect(result.success).toBe(false);
             expect(result.error).toContain('already ACTIVE');
         });
@@ -142,7 +149,7 @@ describe('VerticalNFTService', () => {
             });
             mockSlugToToken.mockResolvedValue(99n);
             (prisma.vertical.update as jest.Mock).mockResolvedValue({});
-            const result = await verticalNftService.activateVertical('plumbing', '0xAddr');
+            const result = await verticalNftService.activateVertical('plumbing');
             expect(result.success).toBe(false);
             expect(result.step).toBe('uniqueness');
         });
@@ -154,12 +161,12 @@ describe('VerticalNFTService', () => {
             mockSlugToToken.mockResolvedValue(0n);
             mockCanTransact.mockResolvedValue(false);
             (prisma.vertical.update as jest.Mock).mockResolvedValue({});
-            const result = await verticalNftService.activateVertical('plumbing', '0xAddr');
+            const result = await verticalNftService.activateVertical('plumbing');
             expect(result.success).toBe(false);
             expect(result.step).toBe('compliance');
         });
 
-        it('should succeed on full pipeline', async () => {
+        it('should mint to PLATFORM_WALLET_ADDRESS on full pipeline', async () => {
             (prisma.vertical.findUnique as jest.Mock).mockResolvedValue(
                 { slug: 'plumbing-ok', status: 'PROPOSED', depth: 1, parentId: null, attributes: {} },
             );
@@ -175,10 +182,19 @@ describe('VerticalNFTService', () => {
             });
             (prisma.vertical.update as jest.Mock).mockResolvedValue({});
 
-            const result = await verticalNftService.activateVertical('plumbing-ok', '0xAddr');
+            const result = await verticalNftService.activateVertical('plumbing-ok');
             expect(result.success).toBe(true);
             expect(result.tokenId).toBeDefined();
             expect(result.txHash).toBe('0xtx123');
+            // Verify it minted to the platform wallet, not an arbitrary address
+            expect(mockMintVertical).toHaveBeenCalledWith(
+                process.env.PLATFORM_WALLET_ADDRESS,
+                expect.any(String),
+                expect.any(String),
+                expect.any(String),
+                expect.any(Number),
+                expect.any(String),
+            );
         });
 
         it('should handle mint failure gracefully', async () => {
@@ -189,7 +205,7 @@ describe('VerticalNFTService', () => {
             mockCanTransact.mockResolvedValue(true);
             mockMintVertical.mockRejectedValue(new Error('gas estimation failed'));
 
-            const result = await verticalNftService.activateVertical('plumbing-mint', '0xAddr');
+            const result = await verticalNftService.activateVertical('plumbing-mint');
             expect(result.success).toBe(false);
             expect(result.step).toBe('mint');
             expect(result.error).toContain('gas estimation');
@@ -211,7 +227,7 @@ describe('VerticalNFTService', () => {
             });
             (prisma.vertical.update as jest.Mock).mockRejectedValue(new Error('DB connection lost'));
 
-            const result = await verticalNftService.activateVertical('plumbing-db', '0xAddr');
+            const result = await verticalNftService.activateVertical('plumbing-db');
             expect(result.success).toBe(false);
             expect(result.step).toBe('prisma');
             expect(result.tokenId).toBeDefined(); // NFT was minted
@@ -240,6 +256,96 @@ describe('VerticalNFTService', () => {
             mockGetVerticalBySlug.mockRejectedValue(new Error('Slug not found'));
             const result = await verticalNftService.getTokenForSlug('unknown');
             expect(result).toBeNull();
+        });
+    });
+
+    // ─── resaleVertical ────────────────────────────
+
+    describe('resaleVertical', () => {
+        const buyerAddress = '0x' + 'b'.repeat(40);
+        const platformWallet = '0x' + '3'.repeat(40);
+
+        it('should transfer NFT + update Prisma + return royalty', async () => {
+            (prisma.vertical.findUnique as jest.Mock).mockResolvedValue({
+                slug: 'solar', status: 'ACTIVE', nftTokenId: 5, ownerAddress: platformWallet, resaleHistory: [],
+            });
+            mockOwnerOf.mockResolvedValue(platformWallet);
+            mockRoyaltyInfo.mockResolvedValue([platformWallet, 2000000n]); // 2% of 100M = 2M
+            mockSafeTransferFrom.mockResolvedValue({
+                wait: jest.fn().mockResolvedValue({ hash: '0xresale_tx', blockNumber: 100 }),
+            });
+            (prisma.vertical.update as jest.Mock).mockResolvedValue({});
+
+            const result = await verticalNftService.resaleVertical('solar', buyerAddress, 100);
+            expect(result.success).toBe(true);
+            expect(result.tokenId).toBe(5);
+            expect(result.buyer).toBe(buyerAddress);
+            expect(result.salePrice).toBe(100);
+            expect(result.royalty).toBeDefined();
+            expect(result.royalty.bps).toBe(200); // 2%
+            expect(result.priceSource).toBe('simulated'); // No Chainlink feed configured
+        });
+
+        it('should reject if platform does not own the NFT', async () => {
+            (prisma.vertical.findUnique as jest.Mock).mockResolvedValue({
+                slug: 'solar', status: 'ACTIVE', nftTokenId: 5, ownerAddress: platformWallet, resaleHistory: [],
+            });
+            mockOwnerOf.mockResolvedValue('0xSomeoneElse'); // Not platform
+
+            const result = await verticalNftService.resaleVertical('solar', buyerAddress, 100);
+            expect(result.success).toBe(false);
+            expect(result.step).toBe('ownership');
+            expect(result.error).toContain('does not own');
+        });
+
+        it('should reject if vertical has no minted NFT', async () => {
+            (prisma.vertical.findUnique as jest.Mock).mockResolvedValue({
+                slug: 'solar', status: 'PROPOSED', nftTokenId: null, resaleHistory: [],
+            });
+
+            const result = await verticalNftService.resaleVertical('solar', buyerAddress, 100);
+            expect(result.success).toBe(false);
+            expect(result.step).toBe('ownership');
+            expect(result.error).toContain('no minted NFT');
+        });
+
+        it('should handle on-chain transfer failure gracefully', async () => {
+            (prisma.vertical.findUnique as jest.Mock).mockResolvedValue({
+                slug: 'solar', status: 'ACTIVE', nftTokenId: 5, ownerAddress: platformWallet, resaleHistory: [],
+            });
+            mockOwnerOf.mockResolvedValue(platformWallet);
+            mockRoyaltyInfo.mockResolvedValue([platformWallet, 2000000n]);
+            mockSafeTransferFrom.mockRejectedValue(new Error('ERC721: caller is not owner'));
+
+            const result = await verticalNftService.resaleVertical('solar', buyerAddress, 100);
+            expect(result.success).toBe(false);
+            expect(result.step).toBe('transfer');
+            expect(result.error).toContain('Transfer failed');
+        });
+    });
+
+    // ─── getResaleRoyalty ──────────────────────────
+
+    describe('getResaleRoyalty', () => {
+        it('should compute 2% royalty correctly', async () => {
+            const salePrice = 1000000n; // 1 USDC
+            mockRoyaltyInfo.mockResolvedValue(['0xRoyaltyReceiver', 20000n]); // 2% of 1M
+
+            const result = await verticalNftService.getResaleRoyalty(1, salePrice);
+            expect(result.receiver).toBe('0xRoyaltyReceiver');
+            expect(result.royaltyAmount).toBe(20000n);
+            expect(result.royaltyBps).toBe(200); // 2% = 200 bps
+        });
+    });
+
+    // ─── getChainlinkFloorPrice ────────────────────
+
+    describe('getChainlinkFloorPrice', () => {
+        it('should return simulated price when no feed address configured', async () => {
+            const result = await verticalNftService.getChainlinkFloorPrice();
+            expect(result.source).toBe('simulated');
+            expect(result.price).toBe(1.0);
+            expect(result.decimals).toBe(8);
         });
     });
 });

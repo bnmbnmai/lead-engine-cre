@@ -516,17 +516,13 @@ export async function suggestVertical(input: SuggestInput): Promise<SuggestionRe
     let nftTxHash: string | undefined;
     if (autoCreated && result.confidence >= 0.85) {
         try {
-            // Use deployer as recipient (admin-owned; can transfer later)
-            const recipientAddress = process.env.DEPLOYER_ADDRESS || process.env.VERTICAL_NFT_OWNER || '';
-            if (recipientAddress) {
-                const activation = await activateVertical(suggestedSlug, recipientAddress);
-                if (activation.success) {
-                    nftTokenId = activation.tokenId;
-                    nftTxHash = activation.txHash;
-                    console.log(`[VERTICAL-OPTIMIZER] Auto-activated + minted NFT #${nftTokenId} for ${suggestedSlug}`);
-                } else {
-                    console.warn(`[VERTICAL-OPTIMIZER] Auto-activation failed for ${suggestedSlug}: ${activation.error}`);
-                }
+            const activation = await activateVertical(suggestedSlug);
+            if (activation.success) {
+                nftTokenId = activation.tokenId;
+                nftTxHash = activation.txHash;
+                console.log(`[VERTICAL-OPTIMIZER] Auto-activated + minted NFT #${nftTokenId} for ${suggestedSlug}`);
+            } else {
+                console.warn(`[VERTICAL-OPTIMIZER] Auto-activation failed for ${suggestedSlug}: ${activation.error}`);
             }
         } catch (err) {
             console.warn(`[VERTICAL-OPTIMIZER] NFT mint skipped for ${suggestedSlug}:`, err);

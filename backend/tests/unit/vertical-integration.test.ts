@@ -170,7 +170,7 @@ describe('Vertical Integration', () => {
             });
 
             // This is called internally — just verify the mock is accessible
-            const result = await (activateVertical as jest.Mock)('test.slug', '0xAddr');
+            const result = await (activateVertical as jest.Mock)('test.slug');
             expect(result.success).toBe(false);
             expect(result.step).toBe('mint');
         });
@@ -179,7 +179,7 @@ describe('Vertical Integration', () => {
             (activateVertical as jest.Mock).mockRejectedValue(new Error('network timeout'));
 
             try {
-                await (activateVertical as jest.Mock)('test.slug', '0xAddr');
+                await (activateVertical as jest.Mock)('test.slug');
             } catch (e: any) {
                 expect(e.message).toBe('network timeout');
             }

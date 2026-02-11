@@ -21,7 +21,7 @@ describe("VerticalNFT — Advanced", function () {
     beforeEach(async function () {
         [owner, minter, buyer, buyer2, other] = await ethers.getSigners();
         const Factory = await ethers.getContractFactory("VerticalNFT");
-        verticalNFT = (await Factory.deploy(owner.address, 200)) as unknown as VerticalNFT;
+        verticalNFT = (await Factory.deploy(owner.address, 200, owner.address)) as unknown as VerticalNFT;
         await verticalNFT.waitForDeployment();
         await verticalNFT.connect(owner).setAuthorizedMinter(minter.address, true);
     });

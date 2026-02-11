@@ -24,6 +24,7 @@ import CreateAsk from '@/pages/CreateAsk';
 import FormBuilder from '@/pages/FormBuilder';
 import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
+import AdminNFTs from '@/pages/AdminNFTs';
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';
 import { ErrorDialog } from '@/components/ui/ErrorDialog';
@@ -89,6 +90,9 @@ function App() {
                                 <Route path="/seller/submit" element={<ProtectedRoute><SellerSubmit /></ProtectedRoute>} />
                                 <Route path="/seller/form-builder" element={<ProtectedRoute><FormBuilder /></ProtectedRoute>} />
                                 <Route path="/seller/analytics" element={<ProtectedRoute><SellerAnalytics /></ProtectedRoute>} />
+
+                                {/* Admin Routes (auth required, role checked inside) */}
+                                <Route path="/admin/nfts" element={<ProtectedRoute><AdminNFTs /></ProtectedRoute>} />
 
                                 {/* Fallback */}
                                 <Route path="*" element={<Navigate to="/" replace />} />

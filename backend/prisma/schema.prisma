@@ -75,6 +75,7 @@ model Vertical {
   nftTokenId      Int?       // On-chain VerticalNFT token ID
   nftTxHash       String?    // Mint transaction hash
   ownerAddress    String?    // Current NFT owner wallet address
+  resaleHistory   Json[]     // [{ buyer, seller, price, royalty, txHash, timestamp }]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -82,12 +83,35 @@ model Vertical {
   // Self-referential relation
   parent   Vertical?  @relation("VerticalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children Vertical[] @relation("VerticalHierarchy")
+  auctions VerticalAuction[]
 
   @@index([parentId])
   @@index([status])
   @@index([slug])
   @@index([depth, status])
   @@index([nftTokenId])
+}
+
+model VerticalAuction {
+  id            String   @id @default(cuid())
+  verticalSlug  String
+  tokenId       Int
+  auctionId     Int?     // On-chain auction ID
+  reservePrice  Float
+  startTime     DateTime
+  endTime       DateTime
+  highBidder    String?
+  highBid       Float    @default(0)
+  settled       Boolean  @default(false)
+  cancelled     Boolean  @default(false)
+  txHash        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vertical      Vertical @relation(fields: [verticalSlug], references: [slug])
+
+  @@index([verticalSlug])
+  @@index([settled, cancelled])
 }
 
 model Session {

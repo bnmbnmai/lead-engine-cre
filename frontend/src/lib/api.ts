@@ -189,12 +189,54 @@ export const api = {
         return apiFetch<{ suggestions: any[]; total: number }>(`/api/v1/verticals/suggestions${query}`);
     },
 
+    activateVertical: (slug: string) =>
+        apiFetch<{ activated: boolean; tokenId: number; txHash: string; slug: string }>(
+            `/api/v1/verticals/${slug}/activate`, { method: 'PUT' }
+        ),
+
+    resaleVertical: (slug: string, buyerAddress: string, salePrice: number) =>
+        apiFetch<{ transferred: boolean; tokenId: number; txHash: string; buyer: string; salePrice: number; royalty: { receiver: string; amount: string; bps: number }; priceSource: string }>(
+            `/api/v1/verticals/${slug}/resale`, {
+            method: 'POST',
+            body: JSON.stringify({ buyerAddress, salePrice }),
+        }
+        ),
+
+    getVerticalNFTs: (params?: Record<string, string>) => {
+        const query = params ? `?${new URLSearchParams(params)}` : '';
+        return apiFetch<{ verticals: any[]; total: number }>(`/api/v1/verticals/flat${query}`);
+    },
+
     // Demo Panel (dev-only)
     demoStatus: () => apiFetch<{ seeded: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/status'),
     demoSeed: () => apiFetch<{ success: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/seed', { method: 'POST' }),
     demoClear: () => apiFetch<{ success: boolean; deleted: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/clear', { method: 'POST' }),
     demoInjectLead: (vertical?: string) => apiFetch<{ success: boolean; lead: any }>('/api/v1/demo-panel/lead', { method: 'POST', body: JSON.stringify({ vertical }) }),
     demoStartAuction: (vertical?: string) => apiFetch<{ success: boolean; leadId: string }>('/api/v1/demo-panel/auction', { method: 'POST', body: JSON.stringify({ vertical }) }),
+
+    // Vertical Auctions
+    createVerticalAuction: (slug: string, reservePrice: number, durationSecs: number) =>
+        apiFetch<{ success: boolean; auctionId?: number; startTime?: string; endTime?: string }>(
+            `/api/v1/verticals/${slug}/auction`, {
+            method: 'POST',
+            body: JSON.stringify({ reservePrice, durationSecs }),
+        }),
+
+    placeBidOnAuction: (auctionId: string, bidderAddress: string, amount: number) =>
+        apiFetch<{ success: boolean; currentHighBid?: number }>(
+            `/api/v1/verticals/auctions/${auctionId}/bid`, {
+            method: 'POST',
+            body: JSON.stringify({ bidderAddress, amount }),
+        }),
+
+    settleVerticalAuction: (auctionId: string) =>
+        apiFetch<{ success: boolean; winner?: string; finalPrice?: number }>(
+            `/api/v1/verticals/auctions/${auctionId}/settle`, {
+            method: 'POST',
+        }),
+
+    getActiveAuctions: () =>
+        apiFetch<{ auctions: any[] }>('/api/v1/verticals/auctions'),
 };
 
 export default api;

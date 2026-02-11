@@ -3,6 +3,7 @@ import { Search, MapPin, X, Globe } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
+import NFTMarketplace from '@/components/marketplace/NFTMarketplace';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { LeadCard } from '@/components/marketplace/LeadCard';
@@ -66,7 +67,7 @@ function getRegions(country: string) {
 // ============================================
 
 export function HomePage() {
-    const [view, setView] = useState<'asks' | 'leads'>('leads');
+    const [view, setView] = useState<'asks' | 'leads' | 'nfts'>('leads');
     const [vertical, setVertical] = useState('all');
     const [country, setCountry] = useState('ALL');
     const [region, setRegion] = useState('All');
@@ -256,6 +257,14 @@ export function HomePage() {
                                     >
                                         Browse Asks
                                     </button>
+                                    <button
+                                        onClick={() => setView('nfts')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'nfts' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                            }`}
+                                        id="nfts-tab"
+                                    >
+                                        NFTs
+                                    </button>
                                 </div>
 
                                 {/* Search */}
@@ -355,6 +364,8 @@ export function HomePage() {
                                 <SkeletonCard key={i} />
                             ))}
                         </div>
+                    ) : view === 'nfts' ? (
+                        <NFTMarketplace />
                     ) : view === 'asks' ? (
                         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                             {asks.length === 0 ? (

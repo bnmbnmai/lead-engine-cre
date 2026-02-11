@@ -21,7 +21,7 @@ describe("VerticalNFT", function () {
         [owner, minter, buyer, other] = await ethers.getSigners();
 
         const Factory = await ethers.getContractFactory("VerticalNFT");
-        verticalNFT = await Factory.deploy(owner.address, DEFAULT_ROYALTY_BPS);
+        verticalNFT = (await Factory.deploy(owner.address, DEFAULT_ROYALTY_BPS, owner.address)) as unknown as VerticalNFT;
         await verticalNFT.waitForDeployment();
 
         // Authorize minter

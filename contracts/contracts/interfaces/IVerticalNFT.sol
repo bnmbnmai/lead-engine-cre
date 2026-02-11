@@ -20,6 +20,15 @@ interface IVerticalNFT {
         bool    isFractionalizable; // Future: can be split into ERC-1155 fractions
     }
 
+    struct BatchMintParams {
+        address to;
+        bytes32 slug;
+        bytes32 parentSlug;
+        bytes32 attributesHash;
+        uint16  depth;
+        string  uri;
+    }
+
     // ============================================
     // Events
     // ============================================
@@ -38,6 +47,17 @@ interface IVerticalNFT {
     event TokenRoyaltyUpdated(uint256 indexed tokenId, address receiver, uint96 feeNumerator);
     event FractionalizableSet(uint256 indexed tokenId, bool flag);
 
+    event VerticalResold(
+        uint256 indexed tokenId,
+        address indexed seller,
+        address indexed buyer,
+        uint256 salePrice,
+        uint256 royaltyAmount
+    );
+
+    event PriceFeedUpdated(address feed);
+    event BatchMinted(uint256[] tokenIds, address minter);
+
     // ============================================
     // External Functions
     // ============================================
@@ -51,16 +71,21 @@ interface IVerticalNFT {
         string calldata uri
     ) external returns (uint256);
 
+    function transferWithRoyalty(uint256 tokenId, address buyer) external payable;
+    function batchMintVerticals(BatchMintParams[] calldata params) external returns (uint256[] memory);
     function deactivateVertical(uint256 tokenId) external;
     function setFractionalizable(uint256 tokenId, bool flag) external;
     function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) external;
+    function setPriceFeed(address feed) external;
 
     // ============================================
     // View Functions
     // ============================================
 
+    function platformAddress() external view returns (address);
     function getVertical(uint256 tokenId) external view returns (VerticalMetadata memory);
     function getVerticalBySlug(bytes32 slug) external view returns (uint256 tokenId, VerticalMetadata memory);
     function slugToToken(bytes32 slug) external view returns (uint256);
     function totalSupply() external view returns (uint256);
+    function getFloorPrice() external view returns (int256 price, uint256 updatedAt);
 }

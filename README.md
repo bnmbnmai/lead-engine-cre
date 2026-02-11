@@ -1,10 +1,10 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-420%20passing-brightgreen)
-![Jest](https://img.shields.io/badge/Jest-257%20passing-brightgreen)
-![Hardhat](https://img.shields.io/badge/Hardhat-62%20passing-brightgreen)
-![Cypress](https://img.shields.io/badge/Cypress%20E2E-101%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-462%20passing-brightgreen)
+![Jest](https://img.shields.io/badge/Jest-269%20passing-brightgreen)
+![Hardhat](https://img.shields.io/badge/Hardhat-133%20passing-brightgreen)
+![Cypress](https://img.shields.io/badge/Cypress%20E2E-107%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
 ![Coverage](https://img.shields.io/badge/contracts-5%20verified-orange)
 
@@ -59,11 +59,38 @@ Lead Engine deeply integrates two Chainlink services as its trust infrastructure
 - 🌍 **10 Verticals, 20+ Countries** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial — across US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE
 - 🧠 **AI Dynamic Verticals** — GPT-powered vertical suggestions with PII scrubbing, anti-hallucination validation, parent-slug resolution, and auto-creation threshold (≥5 hits → PROPOSED vertical)
 - 🏷️ **Vertical NFT Tokenization** — ERC-721 `VerticalNFT.sol` with CRE uniqueness verification, ACE compliance gating, 2% ERC-2981 royalties, and hierarchical depth (0–3) — auto-activated on high-confidence (≥0.85) AI suggestions
+- 🔨 **Auction-Based Resale** — `VerticalAuction.sol` sealed-bid auctions for platform-minted vertical NFTs with Chainlink-timed bid windows, reserve pricing, automatic royalty distribution, and pull-pattern refunds for outbid participants
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - ⚙️ **Auto-Bid Engine** — 9-criteria matching (vertical, geo include/exclude, quality score gate, off-site, verified-only, reserve price, max bid, daily budget, duplicate prevention) — set rules once, bids fire automatically
 - 🔗 **CRM Webhooks** — HubSpot and Zapier integrations with format-specific payload transformers; push won leads to any CRM on `lead.sold` events
 - 🤖 **MCP Agent Server** — 8 JSON-RPC tools for programmatic bidding, auto-bid configuration, CRM webhook management, and lead pinging — with full LangChain autonomous bidding agent example
 - 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
+
+---
+
+## 🏛️ Platform-Minted Vertical NFTs & Resale
+
+### Institutional Bootstrap
+
+Lead Engine uses a **platform-first minting model** to bootstrap the vertical NFT ecosystem:
+
+1. **AI Suggests → Admin Mints** — High-confidence vertical suggestions (≥0.85) auto-propose verticals; admins review and mint to the platform wallet
+2. **Auction Resale** — Platform-owned NFTs are sold via time-windowed sealed-bid auctions (`VerticalAuction.sol`), establishing fair market prices
+3. **Royalty Flywheel** — Each resale generates a 2% ERC-2981 royalty back to the platform, funding further vertical expansion
+
+### Flywheel Effects
+
+| Phase | Action | Value Created |
+|-------|--------|---------------|
+| **Mint** | Platform mints vertical NFT | Vertical activated, leads enabled |
+| **Auction** | Sealed-bid auction to institutional buyers | Price discovery, demand signal |
+| **Operate** | NFT owner receives lead revenue for that vertical | Revenue generation |
+| **Resale** | Owner resells via `transferWithRoyalty` | 2% royalty → platform treasury |
+| **Reinvest** | Platform mints new verticals from royalty revenue | Ecosystem growth |
+
+### Institutional Bulk Buys
+
+Large buyers can bid on multiple verticals simultaneously via the `VerticalAuction` contract or backend batch API. Compliance checks (ACE) run per-transaction, ensuring institutional buyers meet KYC/AML requirements across all acquired verticals.
 
 ---
 

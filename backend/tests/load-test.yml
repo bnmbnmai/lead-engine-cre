@@ -319,3 +319,61 @@ scenarios:
                 - 200
                 - 404
 
+  # ─── Auction: Create (2% traffic) ────────────
+  - name: "Create vertical auction"
+    weight: 2
+    flow:
+      - post:
+          url: "/api/v1/verticals/{{ $randomItem(['solar', 'mortgage', 'roofing', 'insurance']) }}/auction"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          json:
+            reservePrice: "{{ $randomNumber(1, 10) }}"
+            durationSecs: 3600
+          expect:
+            - statusCode:
+                - 201
+                - 400
+                - 403
+
+  # ─── Auction: List active (3% traffic) ───────
+  - name: "List active auctions"
+    weight: 3
+    flow:
+      - get:
+          url: "/api/v1/verticals/auctions"
+          expect:
+            - statusCode: 200
+
+  # ─── Auction: Bid burst (3% traffic) ─────────
+  - name: "Auction bid burst"
+    weight: 3
+    flow:
+      - loop:
+          - post:
+              url: "/api/v1/verticals/auctions/{{ $randomString() }}/bid"
+              headers:
+                Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+              json:
+                bidderAddress: "0x{{ $randomString(40) }}"
+                amount: "{{ $randomNumber(1, 100) }}"
+              expect:
+                - statusCode:
+                    - 200
+                    - 400
+                    - 404
+          count: 5
+
+  # ─── Auction: Settle (2% traffic) ────────────
+  - name: "Settle auction"
+    weight: 2
+    flow:
+      - post:
+          url: "/api/v1/verticals/auctions/{{ $randomString() }}/settle"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode:
+                - 200
+                - 400
+                - 404

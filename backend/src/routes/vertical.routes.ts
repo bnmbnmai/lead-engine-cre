@@ -15,6 +15,7 @@ import { VerticalCreateSchema, VerticalUpdateSchema, VerticalQuerySchema } from 
 import * as verticalService from '../services/vertical.service';
 import { suggestVertical, listSuggestions } from '../services/vertical-optimizer.service';
 import * as verticalNFTService from '../services/vertical-nft.service';
+import * as auctionService from '../services/auction.service';
 import { z } from 'zod';
 
 const router = Router();
@@ -257,13 +258,9 @@ router.delete('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Res
 });
 
 // ============================================
-// PUT /:slug/activate — Activate vertical + mint NFT (Admin only)
+// PUT /:slug/activate — Activate vertical + mint NFT to platform wallet (Admin only)
 // Runs: CRE verification → ACE compliance → Mint VerticalNFT → Update Prisma
 // ============================================
-
-const ActivateSchema = z.object({
-    recipientAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-});
 
 router.put('/:slug/activate', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -273,18 +270,10 @@ router.put('/:slug/activate', authMiddleware, async (req: AuthenticatedRequest, 
             return;
         }
 
-        // Validate input
-        const validation = ActivateSchema.safeParse(req.body);
-        if (!validation.success) {
-            res.status(400).json({ error: 'Invalid input', details: validation.error.flatten() });
-            return;
-        }
-
         const { slug } = req.params;
-        const { recipientAddress } = validation.data;
 
-        // Run full activation pipeline
-        const result = await verticalNFTService.activateVertical(slug, recipientAddress);
+        // Run full activation pipeline (mints to platform wallet)
+        const result = await verticalNFTService.activateVertical(slug);
 
         if (!result.success) {
             const statusCode = result.step === 'uniqueness' ? 409
@@ -309,6 +298,178 @@ router.put('/:slug/activate', authMiddleware, async (req: AuthenticatedRequest, 
     } catch (error) {
         console.error('Activate vertical error:', error);
         res.status(500).json({ error: 'Failed to activate vertical' });
+    }
+});
+
+// ============================================
+// POST /:slug/resale — Resale vertical NFT to buyer (Admin only)
+// Runs: ownership check → Chainlink pricing → royalty calc → transfer → update Prisma
+// ============================================
+
+const ResaleSchema = z.object({
+    buyerAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+    salePrice: z.number().positive('Sale price must be positive'),
+});
+
+router.post('/:slug/resale', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        // Admin only
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        // Validate input
+        const validation = ResaleSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid input', details: validation.error.flatten() });
+            return;
+        }
+
+        const { slug } = req.params;
+        const { buyerAddress, salePrice } = validation.data;
+
+        // Run full resale pipeline
+        const result = await verticalNFTService.resaleVertical(slug, buyerAddress, salePrice);
+
+        if (!result.success) {
+            const statusCode = result.step === 'ownership' ? 409
+                : result.step === 'pricing' ? 502
+                    : result.step === 'transfer' ? 500
+                        : 500;
+
+            res.status(statusCode).json({
+                error: result.error,
+                step: result.step,
+                ...(result.tokenId && { tokenId: result.tokenId, txHash: result.txHash }),
+            });
+            return;
+        }
+
+        res.json({
+            transferred: true,
+            tokenId: result.tokenId,
+            txHash: result.txHash,
+            buyer: result.buyer,
+            salePrice: result.salePrice,
+            royalty: result.royalty,
+            priceSource: result.priceSource,
+            slug,
+        });
+    } catch (error) {
+        console.error('Resale vertical error:', error);
+        res.status(500).json({ error: 'Failed to resale vertical' });
+    }
+});
+
+// ============================================
+// POST /:slug/auction — Create auction for platform-owned NFT (Admin only)
+// ============================================
+
+const AuctionCreateSchema = z.object({
+    reservePrice: z.number().positive('Reserve price must be positive'),
+    durationSecs: z.number().int().min(60).max(604800), // 1 min to 7 days
+});
+
+router.post('/:slug/auction', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        const validation = AuctionCreateSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid request', details: validation.error.issues });
+            return;
+        }
+
+        const { slug } = req.params;
+        const { reservePrice, durationSecs } = validation.data;
+        const result = await auctionService.createAuction(slug, reservePrice, durationSecs);
+
+        if (!result.success) {
+            res.status(400).json(result);
+            return;
+        }
+
+        res.status(201).json(result);
+    } catch (error) {
+        console.error('Create auction error:', error);
+        res.status(500).json({ error: 'Failed to create auction' });
+    }
+});
+
+// ============================================
+// POST /auctions/:id/bid — Place bid on auction (Auth)
+// ============================================
+
+const BidSchema = z.object({
+    bidderAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+    amount: z.number().positive('Bid amount must be positive'),
+});
+
+router.post('/auctions/:id/bid', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const validation = BidSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid request', details: validation.error.issues });
+            return;
+        }
+
+        const { id } = req.params;
+        const { bidderAddress, amount } = validation.data;
+        const result = await auctionService.placeBid(id, bidderAddress, amount);
+
+        if (!result.success) {
+            res.status(400).json(result);
+            return;
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Place bid error:', error);
+        res.status(500).json({ error: 'Failed to place bid' });
+    }
+});
+
+// ============================================
+// POST /auctions/:id/settle — Settle completed auction (Admin only)
+// ============================================
+
+router.post('/auctions/:id/settle', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        const { id } = req.params;
+        const result = await auctionService.settleAuction(id);
+
+        if (!result.success) {
+            res.status(400).json(result);
+            return;
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Settle auction error:', error);
+        res.status(500).json({ error: 'Failed to settle auction' });
+    }
+});
+
+// ============================================
+// GET /auctions — List active auctions (Public)
+// ============================================
+
+router.get('/auctions', generalLimiter, async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+        const auctions = await auctionService.getActiveAuctions();
+        res.json({ auctions });
+    } catch (error) {
+        console.error('List auctions error:', error);
+        res.status(500).json({ error: 'Failed to list auctions' });
     }
 });
 
