@@ -231,4 +231,79 @@ describe("Multi-Wallet Settlement Flows", () => {
                 .should('exist');
         });
     });
+
+    // ═══════════════════════════════════════════
+    // Ethers.js Mock Wallet Edge Cases
+    // ═══════════════════════════════════════════
+
+    describe("Ethers.js Mock Wallet", () => {
+        it("injects mock wallet provider on buyer page", () => {
+            cy.mockWallet("buyer1");
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: "buyer" });
+            cy.visit("/buyer", { timeout: 15000 });
+
+            // Dashboard should load with mock wallet available
+            cy.contains(/Dashboard|Overview|Buyer/i, { timeout: 10000 })
+                .should("exist");
+
+            // Verify window.ethereum was injected
+            cy.window().then((win) => {
+                expect((win as unknown as { ethereum: { isMetaMask: boolean } }).ethereum).to.exist;
+                expect((win as unknown as { ethereum: { isMetaMask: boolean } }).ethereum.isMetaMask).to.be.true;
+            });
+        });
+
+        it("handles wrong network (mainnet instead of Sepolia)", () => {
+            cy.mockWallet("buyer1", { wrongNetwork: true });
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: "buyer" });
+            cy.visit("/buyer", { timeout: 15000 });
+
+            // Page should load — wrong network should NOT crash the UI
+            cy.contains(/Dashboard|Overview|Buyer|Wrong Network|Switch/i, { timeout: 10000 })
+                .should("exist");
+
+            // Verify injected chainId is mainnet (0x1)
+            cy.window().then((win) => {
+                const eth = (win as unknown as { ethereum: { chainId: string } }).ethereum;
+                expect(eth.chainId).to.equal("0x1");
+            });
+        });
+
+        it("handles signature rejection gracefully", () => {
+            cy.mockWallet("buyer1", { rejectSign: true });
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: "buyer" });
+            cy.visit("/buyer/bids", { timeout: 15000 });
+
+            // Bids page should load normally — rejection only fires on sign attempt
+            cy.contains(/Bids|My Bids|Dashboard|Buyer|Overview/i, { timeout: 10000 })
+                .should("exist");
+
+            // No crash from provider injection
+            cy.get("body").should("not.contain", "TypeError");
+        });
+
+        it("switches wallet mid-session (buyer1 → buyer2)", () => {
+            // Start as buyer1
+            cy.mockWallet("buyer1");
+            cy.stubAuth("buyer1");
+            cy.mockApi({ role: "buyer" });
+            cy.visit("/buyer", { timeout: 15000 });
+            cy.contains(/Dashboard|Overview|Buyer/i, { timeout: 10000 }).should("exist");
+
+            // Switch to buyer2
+            cy.mockWallet("buyer2");
+            cy.stubAuth("buyer2");
+            cy.visit("/buyer/preferences", { timeout: 15000 });
+            cy.contains(/Preferences|Buyer/i, { timeout: 10000 }).should("exist");
+
+            // Verify new wallet address
+            cy.window().then((win) => {
+                const eth = (win as unknown as { ethereum: { selectedAddress: string } }).ethereum;
+                expect(eth.selectedAddress).to.equal("0xdD2FD4581271e230360230F9337D5c0430Bf44C0");
+            });
+        });
+    });
 });

@@ -1,10 +1,10 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-314%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-325%20passing-brightgreen)
 ![Jest](https://img.shields.io/badge/Jest-151%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-62%20passing-brightgreen)
-![Cypress](https://img.shields.io/badge/Cypress%20E2E-101%20passing-brightgreen)
+![Cypress](https://img.shields.io/badge/Cypress%20E2E-112%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
 ![Coverage](https://img.shields.io/badge/contracts-5%20verified-orange)
 

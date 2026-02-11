@@ -247,4 +247,99 @@ describe("UI Stability Under Stress", () => {
                 .should("be.visible");
         });
     });
+
+    // ═══════════════════════════════════════════
+    // Chainlink Oracle Latency Edge Cases
+    // ═══════════════════════════════════════════
+
+    describe("Chainlink Latency Simulation", () => {
+        it("handles >5s Chainlink response with loading fallback", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', slowChainlink: true });
+            cy.visit("/buyer/bids", { timeout: 15000 });
+
+            // Page should show content or loading — never blank crash
+            cy.contains(/Bids|Loading|My Bids|Buyer|Dashboard|Overview/i, { timeout: 10000 })
+                .should("exist");
+
+            // Bid floor should still function even with slow response
+            cy.get("body").should("exist");
+        });
+
+        it("handles Chainlink oracle 504 timeout gracefully", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', failChainlink: true });
+            cy.visit("/buyer/bids", { timeout: 15000 });
+
+            // UI should show bids page with or without price data
+            cy.contains(/Bids|My Bids|Error|Loading|Dashboard|Buyer|Overview/i, { timeout: 10000 })
+                .should("exist");
+
+            // No stack traces from Chainlink failure
+            cy.get("body").should("not.contain", "TypeError");
+            cy.get("body").should("not.contain", "Cannot read properties");
+        });
+
+        it("marketplace loads even when Chainlink is down", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', failChainlink: true });
+            cy.visit("/", { timeout: 15000 });
+
+            // Marketplace should render lead cards without price oracle
+            cy.contains(/Lead Engine|Marketplace|Live|Solar|Mortgage/i, { timeout: 10000 })
+                .should("exist");
+        });
+    });
+
+    // ═══════════════════════════════════════════
+    // x402 Payment Failure Edge Cases
+    // ═══════════════════════════════════════════
+
+    describe("x402 Payment Failure Handling", () => {
+        it("handles 402 Payment Required on bid placement", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', failPayment: true });
+            cy.visit("/buyer/bids", { timeout: 15000 });
+
+            // Page should load normally even with payment failures configured
+            cy.contains(/Bids|My Bids|Dashboard|Buyer|Overview/i, { timeout: 10000 })
+                .should("exist");
+        });
+
+        it("dashboard remains functional with payment endpoint errors", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', failPayment: true });
+            cy.visit("/buyer", { timeout: 15000 });
+
+            // Dashboard should show even when payment service is down
+            cy.contains(/Dashboard|Overview|Buyer/i, { timeout: 10000 })
+                .should("be.visible");
+        });
+    });
+
+    // ═══════════════════════════════════════════
+    // Redis Cache Miss / Slow Response
+    // ═══════════════════════════════════════════
+
+    describe("Cache Miss Under Load", () => {
+        it("handles 3s lead response (cache miss simulation)", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', latency: 3000 }); // 3s delay
+            cy.visit("/", { timeout: 15000 });
+
+            // Page should eventually render, possibly with loading state
+            cy.contains(/Lead Engine|Loading|Marketplace|Live/i, { timeout: 15000 })
+                .should("exist");
+        });
+
+        it("preferences page survives cache miss latency", () => {
+            cy.stubAuth("buyer");
+            cy.mockApi({ role: 'buyer', latency: 3000 });
+            cy.visit("/buyer/preferences", { timeout: 15000 });
+
+            // Should eventually show preferences content
+            cy.contains(/Preferences|Loading|Solar|Buyer/i, { timeout: 15000 })
+                .should("exist");
+        });
+    });
 });

@@ -281,3 +281,89 @@ export const mockBuyerUser = {
         profile: { companyName: 'Buy Co', verticals: ['solar', 'roofing'] },
     },
 };
+
+// ── Chainlink Oracle Price Feeds ────────────────────────────
+export const mockChainlinkFeed = {
+    roundId: '110680464442257320877',
+    answer: '185042000000', // $1,850.42 ETH/USD (8 decimals)
+    startedAt: Math.floor(Date.now() / 1000) - 60,
+    updatedAt: Math.floor(Date.now() / 1000) - 30,
+    answeredInRound: '110680464442257320877',
+    decimals: 8,
+    description: 'ETH / USD',
+    source: 'chainlink-mock',
+};
+
+export const mockChainlinkLatencyFeed = {
+    ...mockChainlinkFeed,
+    // Simulates a stale price (>5 min old)
+    updatedAt: Math.floor(Date.now() / 1000) - 360,
+    answer: '184500000000',
+};
+
+// ── x402 Payment Responses ──────────────────────────────────
+export const mockPaymentReceipt = {
+    txHash: '0xabc123def456789012345678901234567890abcdef1234567890abcdef123456',
+    status: 'confirmed',
+    blockNumber: 18_500_123,
+    gasUsed: '65000',
+    effectiveGasPrice: '25000000000',
+    from: '0xBuyer1234567890abcdef',
+    to: '0xEscrow1234567890abcdef',
+    amount: '175000000', // 175 USDC (6 decimals)
+    currency: 'USDC',
+    chain: 'base-sepolia',
+    timestamp: new Date().toISOString(),
+};
+
+export const mockPaymentFailure = {
+    error: 'Payment Required',
+    code: 'X402_INSUFFICIENT_FUNDS',
+    resolution: 'Deposit at least 175 USDC to your connected wallet.',
+    action: { label: 'Add Funds', href: '/wallet/deposit' },
+    requiredAmount: '175000000',
+    walletBalance: '50000000',
+};
+
+// ── Ethers.js Wallet Mock States ────────────────────────────
+export const mockWallets = {
+    seller: {
+        address: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD08',
+        chainId: 11155111, // Sepolia
+        chainName: 'Sepolia',
+        balance: '2500000000000000000', // 2.5 ETH
+        usdcBalance: '5000000000', // 5000 USDC
+    },
+    buyer1: {
+        address: '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
+        chainId: 11155111,
+        chainName: 'Sepolia',
+        balance: '1800000000000000000',
+        usdcBalance: '3200000000',
+    },
+    buyer2: {
+        address: '0xdD2FD4581271e230360230F9337D5c0430Bf44C0',
+        chainId: 11155111,
+        chainName: 'Sepolia',
+        balance: '900000000000000000',
+        usdcBalance: '1500000000',
+    },
+};
+
+// ── Settlement Transaction Data ─────────────────────────────
+export const mockSettlement = {
+    id: 'settle-001',
+    auctionId: 'ask-001',
+    leadId: 'lead-001',
+    winnerId: 'buyer-001',
+    sellerId: 'seller-001',
+    amount: 175,
+    currency: 'USDC',
+    txHash: '0xabc123def456789012345678901234567890abcdef1234567890abcdef123456',
+    status: 'SETTLED',
+    chain: 'base-sepolia',
+    blockNumber: 18_500_123,
+    settledAt: new Date().toISOString(),
+    escrowContract: '0xEscrow1234567890abcdef',
+    nftTokenId: '42',
+};

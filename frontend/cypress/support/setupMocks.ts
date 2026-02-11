@@ -17,12 +17,23 @@ import {
     mockBidAnalytics,
     mockSellerUser,
     mockBuyerUser,
+    mockChainlinkFeed,
+    mockChainlinkLatencyFeed,
+    mockPaymentReceipt,
+    mockPaymentFailure,
+    mockSettlement,
 } from './mockData';
 
 interface MockApiOptions {
     latency?: number;
     empty?: boolean;
     role?: 'seller' | 'buyer';
+    /** Simulate Chainlink oracle 504 timeout */
+    failChainlink?: boolean;
+    /** Simulate >5s Chainlink latency (stale price) */
+    slowChainlink?: boolean;
+    /** Simulate x402 payment failure (insufficient funds) */
+    failPayment?: boolean;
 }
 
 const API = 'http://localhost:3001/api/v1';
@@ -77,12 +88,36 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
         delay,
     }).as('getBids');
 
-    // Bid Floor
-    cy.intercept('GET', `${API}/bids/bid-floor*`, {
-        statusCode: 200,
-        body: { floor: 50, currency: 'USDC', source: 'chainlink-mock' },
-        delay,
-    }).as('getBidFloor');
+    // Bid Floor — Chainlink oracle pricing
+    if (options.failChainlink) {
+        cy.intercept('GET', `${API}/bids/bid-floor*`, {
+            statusCode: 504,
+            body: { error: 'Gateway Timeout — Chainlink oracle unreachable' },
+        }).as('getBidFloor');
+    } else if (options.slowChainlink) {
+        cy.intercept('GET', `${API}/bids/bid-floor*`, {
+            statusCode: 200,
+            body: { floor: 50, currency: 'USDC', source: 'chainlink-stale', stale: true },
+            delay: 6000, // >5s simulates real Chainlink latency
+        }).as('getBidFloor');
+    } else {
+        cy.intercept('GET', `${API}/bids/bid-floor*`, {
+            statusCode: 200,
+            body: { floor: 50, currency: 'USDC', source: 'chainlink-mock' },
+            delay,
+        }).as('getBidFloor');
+    }
+
+    // Chainlink Oracle Feed (direct)
+    cy.intercept('GET', `${API}/chainlink*`, {
+        statusCode: options.failChainlink ? 504 : 200,
+        body: options.failChainlink
+            ? { error: 'Chainlink DON timeout' }
+            : options.slowChainlink
+                ? mockChainlinkLatencyFeed
+                : mockChainlinkFeed,
+        delay: options.slowChainlink ? 6000 : delay,
+    }).as('getChainlinkFeed');
 
     // Preference Sets
     cy.intercept('GET', `${API}/bids/preferences*`, {
@@ -140,12 +175,33 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
         delay,
     }).as('createAsk');
 
-    // Bid Place
-    cy.intercept('POST', `${API}/bids*`, {
-        statusCode: 201,
-        body: { bid: mockBids.bids[0], message: 'Bid placed successfully' },
+    // Bid Place — x402 payment simulation
+    if (options.failPayment) {
+        cy.intercept('POST', `${API}/bids*`, {
+            statusCode: 402,
+            body: mockPaymentFailure,
+        }).as('placeBid');
+    } else {
+        cy.intercept('POST', `${API}/bids*`, {
+            statusCode: 201,
+            body: { bid: mockBids.bids[0], message: 'Bid placed successfully' },
+            delay,
+        }).as('placeBid');
+    }
+
+    // x402 Payment endpoint
+    cy.intercept('POST', `${API}/payments*`, {
+        statusCode: options.failPayment ? 402 : 200,
+        body: options.failPayment ? mockPaymentFailure : mockPaymentReceipt,
         delay,
-    }).as('placeBid');
+    }).as('processPayment');
+
+    // Settlement
+    cy.intercept('GET', `${API}/settlements*`, {
+        statusCode: 200,
+        body: empty ? { settlements: [] } : { settlements: [mockSettlement] },
+        delay,
+    }).as('getSettlements');
 
     // CRM
     cy.intercept('GET', `${API}/crm*`, {
@@ -175,3 +231,4 @@ declare global {
         }
     }
 }
+
