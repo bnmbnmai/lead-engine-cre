@@ -171,7 +171,7 @@ const VERTICAL_PRESETS: Record<string, FormField[]> = {
         { id: '6', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'casey@email.com' },
         { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 777-8888' },
     ],
-    financial: [
+    financial_services: [
         { id: '1', key: 'service_type', label: 'Service Type', type: 'select', required: true, options: ['Wealth Management', 'Retirement Planning', 'Tax Planning', 'Estate Planning', 'Investment Advisory'] },
         { id: '2', key: 'portfolio_size', label: 'Portfolio Size', type: 'select', required: false, options: ['Under $100k', '$100k-$500k', '$500k-$1M', '$1M-$5M', '$5M+'] },
         { id: '3', key: 'risk_tolerance', label: 'Risk Tolerance', type: 'select', required: false, options: ['Conservative', 'Moderate', 'Aggressive', 'Not sure'] },
@@ -262,6 +262,8 @@ export function FormBuilder() {
         confetti: false,
     });
     const [colorScheme, setColorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
+    const [submitted, setSubmitted] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
 
     const loadPreset = (v: string) => {
         setVertical(v);
@@ -319,6 +321,12 @@ export function FormBuilder() {
 
     const moveStep = (fromIdx: number, toIdx: number) => {
         if (toIdx < 0 || toIdx >= steps.length) return;
+        // Prevent Contact Info from leaving the last position
+        const moving = steps[fromIdx];
+        if (moving.label.toLowerCase().includes('contact') && toIdx !== steps.length - 1) return;
+        // Prevent anything from pushing past Contact Info at the end
+        const target = steps[toIdx];
+        if (target.label.toLowerCase().includes('contact') && toIdx === steps.length - 1 && fromIdx < toIdx) return;
         setSteps((prev) => {
             const copy = [...prev];
             const [moved] = copy.splice(fromIdx, 1);
@@ -406,7 +414,7 @@ export function FormBuilder() {
                                     }`}
                             >
                                 <span>{VERTICAL_EMOJI[v] || ''}</span>
-                                {v.replace('_', ' ')}
+                                {v.replace(/_/g, ' ')}
                             </button>
                         ))}
                     </div>
@@ -434,7 +442,7 @@ export function FormBuilder() {
                                     <div className="flex flex-col gap-0.5 shrink-0">
                                         <button
                                             onClick={() => moveStep(si, si - 1)}
-                                            disabled={si === 0}
+                                            disabled={si === 0 || step.label.toLowerCase().includes('contact')}
                                             className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
                                             title="Move step up"
                                         >
@@ -442,7 +450,7 @@ export function FormBuilder() {
                                         </button>
                                         <button
                                             onClick={() => moveStep(si, si + 1)}
-                                            disabled={si === steps.length - 1}
+                                            disabled={si === steps.length - 1 || step.label.toLowerCase().includes('contact')}
                                             className="p-0.5 rounded text-muted-foreground hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition"
                                             title="Move step down"
                                         >
@@ -457,6 +465,9 @@ export function FormBuilder() {
                                         onChange={(e) => updateStepLabel(step.id, e.target.value)}
                                         className="h-7 text-sm font-medium flex-1"
                                     />
+                                    {step.label.toLowerCase().includes('contact') && (
+                                        <span className="text-xs text-muted-foreground shrink-0" title="Contact Info is always the last step for best conversion">🔒</span>
+                                    )}
                                     {steps.length > 1 && (
                                         <button
                                             onClick={() => removeStep(step.id)}
@@ -622,8 +633,8 @@ export function FormBuilder() {
                                         key={scheme.name}
                                         onClick={() => setColorScheme(scheme)}
                                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${colorScheme.name === scheme.name
-                                                ? 'border-primary ring-1 ring-primary bg-primary/5'
-                                                : 'border-border hover:border-primary/40'
+                                            ? 'border-primary ring-1 ring-primary bg-primary/5'
+                                            : 'border-border hover:border-primary/40'
                                             }`}
                                         title={scheme.name}
                                     >
@@ -761,9 +772,38 @@ export function FormBuilder() {
                                                         condition of purchase.
                                                     </p>
                                                 </div>
-                                                <div className="h-11 rounded-lg flex items-center justify-center text-sm font-medium text-white" style={{ backgroundColor: colorScheme.vars['--form-accent'] }}>
-                                                    Get My Free Quote
-                                                </div>
+                                                <button
+                                                    className="h-11 rounded-lg flex items-center justify-center text-sm font-medium text-white w-full cursor-pointer transition-all hover:opacity-90 active:scale-[0.98] relative overflow-hidden"
+                                                    style={{ backgroundColor: colorScheme.vars['--form-accent'] }}
+                                                    onClick={() => {
+                                                        setSubmitted(true);
+                                                        if (gamification.confetti) {
+                                                            setShowConfetti(true);
+                                                            setTimeout(() => setShowConfetti(false), 2000);
+                                                        }
+                                                        setTimeout(() => setSubmitted(false), 2000);
+                                                    }}
+                                                >
+                                                    {submitted ? '✅ Submitted!' : 'Get My Free Quote'}
+                                                    {showConfetti && (
+                                                        <span className="absolute inset-0 pointer-events-none" aria-hidden="true">
+                                                            {['🎉', '✨', '🎊', '⭐', '🎈', '💫'].map((e, i) => (
+                                                                <span
+                                                                    key={i}
+                                                                    className="absolute text-lg animate-bounce"
+                                                                    style={{
+                                                                        left: `${15 + i * 13}%`,
+                                                                        top: `${-10 - (i % 3) * 20}%`,
+                                                                        animationDelay: `${i * 0.1}s`,
+                                                                        animationDuration: '0.6s',
+                                                                    }}
+                                                                >
+                                                                    {e}
+                                                                </span>
+                                                            ))}
+                                                        </span>
+                                                    )}
+                                                </button>
                                             </div>
                                         )}
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Gavel, Eye, Lock } from 'lucide-react';
+import { Gavel, Eye, Lock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -154,6 +154,16 @@ export function BidPanel({
                         <Lock className="h-4 w-4" />
                         Commit-Reveal
                     </button>
+                </div>
+
+                {/* Bid mode explanation */}
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+                    <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                        {bidMode === 'direct'
+                            ? 'Your bid amount is visible immediately. Simple and fast — best when you want quick placement.'
+                            : 'Your bid is encrypted (sealed) until the reveal phase. Prevents front-running and protects your bidding strategy.'}
+                    </p>
                 </div>
 
                 {/* Price Info */}

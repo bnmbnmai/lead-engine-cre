@@ -25,7 +25,7 @@ const devOnly = (_req: Request, res: Response, next: NextFunction) => {
 router.use(devOnly);
 
 const DEMO_TAG = 'DEMO_PANEL';  // Tag for identifying demo data
-const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'];
+const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 const STATES = ['CA', 'TX', 'FL', 'NY', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI'];
 const CITIES: Record<string, string> = { CA: 'Los Angeles', TX: 'Houston', FL: 'Miami', NY: 'New York', IL: 'Chicago', PA: 'Philadelphia', OH: 'Columbus', GA: 'Atlanta', NC: 'Charlotte', MI: 'Detroit' };
 
@@ -99,6 +99,20 @@ router.post('/seed', async (_req: Request, res: Response) => {
                 },
                 include: { sellerProfile: true, buyerProfile: true },
             });
+        } else {
+            // Ensure profiles exist for previously created user
+            const existingSeller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
+            if (!existingSeller) {
+                await prisma.sellerProfile.create({
+                    data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+                });
+            }
+            const existingBuyer = await prisma.buyerProfile.findFirst({ where: { userId: demoUser.id } });
+            if (!existingBuyer) {
+                await prisma.buyerProfile.create({
+                    data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true },
+                });
+            }
         }
 
         const seller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
@@ -235,17 +249,20 @@ router.post('/clear', async (_req: Request, res: Response) => {
             where: { consentProof: DEMO_TAG },
         });
 
-        // Delete demo asks
-        const deletedAsks = await prisma.ask.deleteMany({
-            where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } },
-        });
+        // Delete demo asks — use sellerId from demo user for reliability
+        const demoSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: '0xDEMO_PANEL_USER' } } });
+        let deletedAsksCount = 0;
+        if (demoSeller) {
+            const deletedAsks = await prisma.ask.deleteMany({ where: { sellerId: demoSeller.id } });
+            deletedAsksCount = deletedAsks.count;
+        }
 
         res.json({
             success: true,
             deleted: {
                 leads: deletedLeads.count,
                 bids: deletedBids.count,
-                asks: deletedAsks.count,
+                asks: deletedAsksCount,
             },
         });
     } catch (error) {

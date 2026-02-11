@@ -15,7 +15,6 @@ import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 const IS_PROD = import.meta.env.PROD;
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true' && !IS_PROD;
 
 const PIE_COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#10b981', '#ef4444', '#06b6d4', '#ec4899', '#f97316'];
 
@@ -71,11 +70,14 @@ export function BuyerAnalytics() {
     const [liveByVertical, setLiveByVertical] = useState<any[] | null>(null);
     const [apiError, setApiError] = useState(false);
 
+    // Reactive mock toggle — reads localStorage every render so DemoPanel toggle takes effect
+    const useMock = localStorage.getItem('VITE_USE_MOCK_DATA') === 'true';
+
     const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
-    const bidHistory = useMemo(() => generateBidHistory(days), [days]);
+    const bidHistory = useMemo(() => useMock ? generateBidHistory(days) : [], [days, useMock]);
 
     useEffect(() => {
-        if (USE_MOCK) return; // skip API when mock mode enabled
+        if (useMock) return; // skip API when mock mode enabled
         const fetchData = async () => {
             try {
                 const [overviewRes, bidsRes] = await Promise.all([
@@ -104,7 +106,7 @@ export function BuyerAnalytics() {
 
     const verticalData = liveByVertical && liveByVertical.length > 0
         ? liveByVertical
-        : USE_MOCK ? FALLBACK_BY_VERTICAL : [];
+        : useMock ? FALLBACK_BY_VERTICAL : [];
 
     const totalBidsAgg = bidHistory.reduce((sum, d) => sum + d.totalBids, 0);
     const wonBidsAgg = bidHistory.reduce((sum, d) => sum + d.wonBids, 0);
@@ -141,7 +143,7 @@ export function BuyerAnalytics() {
                         <p className="text-muted-foreground">Bid performance, spend insights, and winning patterns</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        {USE_MOCK && (
+                        {useMock && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                 Mock Data
                             </span>

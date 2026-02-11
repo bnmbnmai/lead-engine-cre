@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import useAuth from '@/hooks/useAuth';
 
-const VERTICALS = ['all', 'solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate'];
+const VERTICALS = ['all', 'solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 
 const COUNTRIES = [
     { code: 'ALL', label: 'All Countries' },
@@ -405,7 +405,7 @@ export function HomePage() {
                                     <SelectContent>
                                         {VERTICALS.map((v) => (
                                             <SelectItem key={v} value={v} className="capitalize">
-                                                {v === 'all' ? 'All Verticals' : v.replace('_', ' ')}
+                                                {v === 'all' ? 'All Verticals' : v.replace(/_/g, ' ')}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

@@ -26,7 +26,7 @@ const VERTICALS = [
     { value: 'real_estate', label: 'Real Estate' },
     { value: 'auto', label: 'Auto' },
     { value: 'legal', label: 'Legal' },
-    { value: 'financial', label: 'Financial' },
+    { value: 'financial_services', label: 'Financial Services' },
 ];
 
 const VERTICAL_LABELS: Record<string, string> = Object.fromEntries(

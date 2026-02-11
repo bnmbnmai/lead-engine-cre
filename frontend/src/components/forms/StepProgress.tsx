@@ -29,7 +29,7 @@ const VERTICAL_ICONS: Record<string, React.ElementType> = {
     home_services: Wrench,
     auto: Car,
     legal: Scale,
-    financial: TrendingUp,
+    financial_services: TrendingUp,
     b2b_saas: Briefcase,
     real_estate: Building2,
 };
@@ -42,7 +42,7 @@ const VERTICAL_EMOJI: Record<string, string> = {
     home_services: '🔧',
     auto: '🚗',
     legal: '⚖️',
-    financial: '📈',
+    financial_services: '📈',
     b2b_saas: '💼',
     real_estate: '🏢',
 };

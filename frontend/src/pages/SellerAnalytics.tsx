@@ -15,7 +15,6 @@ import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 const IS_PROD = import.meta.env.PROD;
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true' && !IS_PROD;
 
 // ============================================
 // Mock data fallback (used when API unavailable)
@@ -95,6 +94,9 @@ export function SellerAnalytics() {
     const [liveVerticals, setLiveVerticals] = useState<any[] | null>(null);
     const [apiError, setApiError] = useState(false);
 
+    // Reactive mock toggle — reads localStorage every render so DemoPanel toggle takes effect
+    const useMock = localStorage.getItem('VITE_USE_MOCK_DATA') === 'true';
+
     const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
     const revenueData = useMemo(() => {
         if (liveTimeSeries && liveTimeSeries.length > 0) {
@@ -102,14 +104,14 @@ export function SellerAnalytics() {
                 date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                 revenue: d.revenue || 0,
                 leads: d.count || 0,
-                gasCost: +(Math.random() * 2.5 + 0.1).toFixed(2), // gas still simulated
+                gasCost: +(Math.random() * 2.5 + 0.1).toFixed(2),
             }));
         }
-        return generateRevenueData(days);
-    }, [liveTimeSeries, days]);
+        return useMock ? generateRevenueData(days) : [];
+    }, [liveTimeSeries, days, useMock]);
 
     useEffect(() => {
-        if (USE_MOCK) return; // skip API when mock mode enabled
+        if (useMock) return; // skip API when mock mode enabled
         const fetchAnalytics = async () => {
             try {
                 const [, leadsRes] = await Promise.all([
@@ -140,7 +142,7 @@ export function SellerAnalytics() {
 
     const VERTICAL_DATA = liveVerticals && liveVerticals.length > 0
         ? liveVerticals
-        : USE_MOCK ? FALLBACK_VERTICAL_DATA : [];
+        : useMock ? FALLBACK_VERTICAL_DATA : [];
 
     const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
     const totalLeads = revenueData.reduce((sum, d) => sum + d.leads, 0);
@@ -177,7 +179,7 @@ export function SellerAnalytics() {
                         <p className="text-muted-foreground">Performance metrics, revenue insights, and on-chain activity</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        {USE_MOCK && (
+                        {useMock && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                 Mock Data
                             </span>
