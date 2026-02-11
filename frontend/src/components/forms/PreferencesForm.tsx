@@ -121,10 +121,6 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     };
 
     const handleSave = async () => {
-        if (sets.length === 0) {
-            setError('Add at least one preference set');
-            return;
-        }
 
         setIsSaving(true);
         setError(null);
