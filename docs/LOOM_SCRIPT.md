@@ -1,6 +1,7 @@
 # Loom Demo Video Script — Lead Engine CRE
 
-> **Target: < 5 minutes** | Record on [loom.com](https://www.loom.com) | Share unlisted link
+> **Target: 4:30** | Record on [loom.com](https://www.loom.com) | Share unlisted link
+> **Pacing note:** Speak at ~140 wpm (slower than conversational). Pause 1–2s on screen transitions. Global audiences need time to read UI text — hold each screen 3–5s before narrating.
 
 ---
 
@@ -11,107 +12,162 @@
    - `https://lead-engine-cre-api.onrender.com/api/swagger` (Swagger)
    - `https://sepolia.etherscan.io/address/0xB93A1Ff499BdEaf74710F760Eb2B6bc5b62f8546` (LeadNFT)
 2. Connect MetaMask (Sepolia) with test wallet
-3. Terminal open with `mcp-server` running on port 3002
+3. Terminal with `mcp-server` running on port 3002
+4. Second terminal ready for `npx cypress run --headless` (optional live demo)
 
 ---
 
-## Scene Breakdown (4:30 total)
+## Scene Breakdown (4:30)
 
 ### 🎬 0:00–0:20 — Hook (20s)
 
-> *"Lead generation is a $200 billion market plagued by fraud, opacity, and slow settlements. Lead Engine CRE fixes all three — using Chainlink's newest services to create the world's first decentralized real-time bidding platform for leads."*
+> *"The $200 billion lead generation market runs on trust — but has none. Lead Engine CRE fixes that with Chainlink, creating the first decentralized real-time bidding platform for leads. Let me show you."*
 
-**Screen:** Homepage hero with "Decentralized Lead Intelligence" headline.
-
----
-
-### 🎬 0:20–1:00 — Seller Flow (40s)
-
-> *"Let me show you the seller experience. A solar installer in Boise submits a lead — name, email, interest in residential solar. Behind the scenes, three things happen instantly:"*
-
-**Action:** Click "Become a Seller" → Fill lead form → Submit
-
-> *"First, Chainlink CRE scores the lead quality — verifying the email, phone, and property data against off-chain sources. Second, ACE checks that both the seller and their jurisdiction are compliant — TCPA in the US, GDPR in Europe. Third, the lead is minted as an NFT on Base with a privacy-preserving hash."*
-
-**Screen:** Show CRE quality badge, ACE compliance check, NFT minted toast.
+**Screen:** Homepage hero → hold 3s on "Decentralized Lead Intelligence" headline + stats bar.
+**Pacing:** Slow, confident. Let the hero speak for itself.
 
 ---
 
-### 🎬 1:00–1:40 — Auto-Bid Engine (40s)
+### 🎬 0:20–1:00 — Seller Flow × 10 Verticals (40s)
 
-> *"Now the magic — our 9-criteria auto-bid engine. Buyers set preferences: 'I want solar leads from Idaho, quality 70+, max $80 per lead.' When this Boise lead hits the marketplace..."*
+> *"Start with the seller. A solar installer in Boise submits a lead. Watch the form — it adapts to each of our 10 verticals."*
 
-**Action:** Show Buyer Preferences page → Toggle auto-bid ON
+**Action:** Click "Become a Seller" → Select vertical dropdown → **quickly cycle through 3 verticals** (Solar → Mortgage → Insurance) to show field changes → Submit solar lead.
 
-> *"...the engine instantly matches it against all active buyer rules. Budget checks, geo matching, vertical targeting, time-of-day weighting — all in under 200ms. The buyer's sealed bid is committed on-chain using our commit-reveal pattern."*
+> *"Behind the scenes: Chainlink CRE scores the lead, ACE verifies compliance — TCPA for the US, GDPR for Europe — and the lead mints as an NFT on Base with a privacy-preserving hash. Three services, one click."*
 
-**Screen:** Auto-bid firing animation → Sealed bid committed toast.
-
----
-
-### 🎬 1:40–2:20 — Auction + Settlement (40s)
-
-> *"Once bids are revealed, the auction resolves — winner takes the lead. Here's where x402 instant settlements change everything:"*
-
-**Action:** Show auction resolution → Escrow created → Released
-
-> *"USDC is locked in our RTBEscrow contract. The seller gets paid in under 10 seconds — not 30 days like traditional networks. That cash goes straight back into their next ad campaign. It's an instant reinvestment loop that traditional lead gen can't match."*
-
-**Screen:** Escrow flow on Etherscan showing EscrowCreated → EscrowReleased events.
+**Screen:** Show CRE quality badge → ACE check → NFT minted toast. Hold each for 2s.
 
 ---
 
-### 🎬 2:20–2:50 — CRM Integration (30s)
+### 🎬 1:00–1:40 — Multi-Wallet Auction (40s)
 
-> *"Buyers need leads in their CRM, not stuck in a dashboard. One click pushes to HubSpot, Salesforce, or any webhook — including Zapier for 5000+ integrations."*
+> *"Now the auction. I'll switch wallets to show the full buyer experience."*
 
-**Action:** Click "Push to CRM" → Show webhook delivery → CSV export
+**Action:** Disconnect seller wallet → Connect buyer wallet (different MetaMask account) → Buyer Preferences page.
 
-> *"Rate-limited, retry-safe, with circuit breakers. Production-grade from day one."*
+> *"This buyer sets auto-bid rules: solar leads, Idaho, quality 70+, max $80. Our 9-criteria engine runs in under 200ms — budget, geo, vertical, time-of-day weighting, all checked. The sealed bid commits on-chain using commit-reveal."*
 
----
-
-### 🎬 2:50–3:20 — MCP Agent (30s)
-
-> *"For power users, our MCP agent server exposes 8 tools for AI-native bidding. Here's a LangChain agent autonomously setting auto-bid rules and configuring CRM webhooks."*
-
-**Action:** Terminal showing MCP tool calls → Agent response
-
-> *"search_leads, place_bid, set_auto_bid_rules, configure_crm_webhook — all via JSON-RPC. This is the future: AI agents buying leads 24/7."*
+**Screen:** Auto-bid config → bid fires → sealed commitment toast.
+**Key moment:** The wallet switch must be visible — judge should see two distinct addresses.
 
 ---
 
-### 🎬 3:20–3:50 — Global Scale (30s)
+### 🎬 1:40–2:10 — Settlement + Reinvestment Loop (30s)
 
-> *"Lead Engine works across 20+ countries and 10 verticals. Our ACE compliance engine handles jurisdiction-specific rules automatically — TCPA, GDPR, MiCA, LGPD."*
+> *"Bids reveal. Winner takes the lead. Now the x402 moment —"*
 
-**Action:** Show geo table in README or frontend map
+**Action:** Show auction resolution → Escrow created → Released on Etherscan.
 
-> *"We've run 10,000 concurrent user load tests with Artillery, 53 Cypress E2E tests, and 29 security simulation scenarios. 166+ tests total."*
+> *"USDC settles in 4 seconds. Not 30 days. The seller reinvests that cash into their next Google Ads campaign before their competitor even knows the lead was sold. That's the reinvestment loop that traditional lead gen can't match."*
 
----
-
-### 🎬 3:50–4:10 — Chainlink Deep Dive (20s)
-
-> *"We use five Chainlink services: CRE for quality scoring, ACE for compliance, DECO for off-chain attestations, Data Streams for real-time bid floors, and Confidential Compute stubs for TEE-based scoring. This is the deepest Chainlink integration in the hackathon."*
-
-**Screen:** Architecture diagram from README.
+**Screen:** Hold on Etherscan tx with EscrowCreated → EscrowReleased events (2s each).
 
 ---
 
-### 🎬 4:10–4:30 — Close (20s)
+### 🎬 2:10–2:40 — CRM + MCP Agent (30s)
 
-> *"Lead Engine CRE: decentralized, instant, compliant, autonomous. The $200 billion lead market deserves web3 infrastructure. We built it."*
+> *"Won leads push to HubSpot, Salesforce, or any webhook — one click. But for power users..."*
 
-**Screen:** Homepage with badges → GitHub repo → "Thank you" slide.
+**Action:** Quick CRM push → switch to terminal.
 
-> *"Links in the description. Try the live demo at lead-engine-cre.vercel.app."*
+> *"...our MCP agent server exposes 8 tools. AI agents search leads, set auto-bid rules, and configure CRM webhooks — all via JSON-RPC. This is LangChain buying leads 24/7."*
+
+**Screen:** Terminal showing `search_leads` → `set_auto_bid_rules` → agent response.
 
 ---
 
-## Post-Recording
+### 🎬 2:40–3:10 — Global Scale + Compliance (30s)
 
-1. Upload to Loom → Set to **unlisted**
-2. Copy share link → Paste into `SUBMISSION_FORM.md`
-3. Add link to `PITCH_DECK.md` slide 12
-4. Tweet announcement (see `docs/X_PROMOTION.md`)
+> *"Lead Engine works across 20+ countries and all 10 verticals — solar, mortgage, insurance, roofing, HVAC, legal, auto, home services, health, and real estate."*
+
+**Action:** Show marketplace filters → cycle country dropdown (US → DE → BR → JP).
+
+> *"ACE handles TCPA, GDPR, MiCA, LGPD automatically. Cross-border trades get jurisdiction checks in real time — a New York mortgage can't sell to an unlicensed EU buyer."*
+
+**Screen:** Compliance block screen if applicable, or show compliance badge.
+
+---
+
+### 🎬 3:10–3:40 — Testing & CI/CD (30s)
+
+> *"This isn't a prototype. We run 325 automated tests on every push."*
+
+**Action:** Show GitHub Actions badge in README → briefly flash test results.
+
+> *"112 Cypress E2E tests with full wallet mocking — Chainlink latency simulation, payment failures, mid-session wallet switching. 151 Jest tests. 62 Hardhat contract tests. 10,000 concurrent user load tests with Artillery. All automated via GitHub Actions CI/CD with PostgreSQL service containers."*
+
+**Screen:** Hold on README badges (2s) → Quick flash of CI actions tab.
+**Pacing tip:** This is a speed section — rattle off numbers with confidence.
+
+---
+
+### 🎬 3:40–4:05 — Chainlink Deep Dive (25s)
+
+> *"Five Chainlink services power Lead Engine:"*
+
+**Action:** Show architecture diagram from README.
+
+> *"CRE for quality scoring. ACE for automated compliance. DECO for off-chain attestations without revealing PII. Data Streams for real-time bid floors. And Confidential Compute stubs for TEE-based scoring. This is the deepest Chainlink integration in the hackathon."*
+
+**Screen:** Architecture diagram — hold full 5s. Judges need to read it.
+
+---
+
+### 🎬 4:05–4:30 — Close (25s)
+
+> *"Lead Engine CRE: decentralized, instant, compliant, autonomous. The $200 billion lead market deserves web3 infrastructure — and here it is."*
+
+**Screen:** Homepage with badges → GitHub repo.
+
+> *"Live demo at lead-engine-cre.vercel.app. GitHub link in the description. Thank you."*
+
+**End:** Hold on GitHub URL for 3s → fade.
+
+---
+
+## Judge Appeal Checklist
+
+Use this to verify every judging criterion is visibly demonstrated in the video:
+
+| Criterion | Demonstrated In | Timestamp |
+|-----------|----------------|-----------|
+| **Chainlink integration depth** | 5 services named + architecture diagram | 3:40–4:05 |
+| **Working product** | Live seller submit → buyer bid → settlement | 0:20–2:10 |
+| **Innovation / novelty** | Commit-reveal bidding, x402 instant settlement, MCP agent | 1:00–2:40 |
+| **Technical complexity** | Multi-wallet, 9-criteria auto-bid, CRE+ACE pipeline | 1:00–1:40 |
+| **Completeness** | 10 verticals, 20+ countries, CRM, webhooks | 0:20, 2:40 |
+| **Testing / quality** | 325 tests, CI/CD, load tests | 3:10–3:40 |
+| **UX / design** | Clean UI, vertical-adaptive forms, toast notifications | Throughout |
+| **Business viability** | $200B market, reinvestment loop, instant settlements | 0:00, 1:40 |
+
+---
+
+## Backup Plan for Demo Failures
+
+| Failure | Recovery |
+|---------|----------|
+| Wallet won't connect | Pre-recorded wallet segment (15s clip) |
+| RPC timeout | All Chainlink stubs auto-fallback — demo continues seamlessly |
+| Contract call fails | Pre-captured Sepolia explorer tx |
+| Frontend blank | Demo via Swagger API (tab already open) |
+| Database down | `npm run db:seed` live (< 10s) |
+| MCP server crash | Pre-captured terminal logs |
+| Auto-bid misfire | Show evaluation endpoint directly |
+| Video pacing too fast | Practice run-through 2× before recording |
+
+---
+
+## Pacing Guide for Global Audiences
+
+| Section | Words | WPM Target | Notes |
+|---------|-------|------------|-------|
+| Hook | ~35 | 130 | Slow, deliberate — set tone |
+| Seller flow | ~75 | 140 | Speed up during vertical cycling |
+| Multi-wallet | ~70 | 140 | Pause on wallet address change |
+| Settlement | ~60 | 135 | Slow on "4 seconds" emphasis |
+| CRM + MCP | ~55 | 150 | Fastest section — energy bump |
+| Global scale | ~55 | 140 | Steady, authoritative |
+| Testing | ~65 | 155 | Rattle off numbers confidently |
+| Chainlink deep | ~50 | 130 | Slow — let diagram speak |
+| Close | ~30 | 120 | Slowest — memorable ending |
