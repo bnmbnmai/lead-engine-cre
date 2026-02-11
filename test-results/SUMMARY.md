@@ -2,28 +2,28 @@
 # Generated: 2026-02-11T06:40:00-07:00
 # Grand Total: 404 unit/integration + 18 load scenarios = 422
 
-## Unit / Integration Tests (404 passing, 100%)
+## Unit / Integration Tests (420 passing, 100%)
 
 | Suite | Tests | Time | Status |
 |-------|------:|-----:|--------|
-| Backend Jest | 241 | 3.5s | ✅ All passing |
+| Backend Jest | 257 | 3.5s | ✅ All passing |
 | Hardhat Contracts | 62 | 2s | ✅ All passing |
 | Cypress E2E | 101 | ~54s | ✅ All passing |
-| **Total** | **404** | — | **100%** |
+| **Total** | **420** | — | **100%** |
 
 ### Jest Coverage (per-file)
 
 | File | % Stmts | % Branch | % Funcs | % Lines |
 |------|--------:|---------:|--------:|--------:|
-| **All files** | **92.87** | **85.03** | **97.67** | **93.42** |
+| **All files** | **94.55** | **88.72** | **97.67** | **95.03** |
 | ace.service.ts | 94.95 | 90.56 | 100 | 94.91 |
-| auto-bid.service.ts | 100 | 82.05 | 100 | 100 |
-| cre.service.ts | 92.30 | 83.15 | 100 | 92.50 |
+| auto-bid.service.ts | 100 | 92.30 | 100 | 100 |
+| cre.service.ts | 97.63 | 90.52 | 100 | 97.50 |
 | crm.routes.ts | 84.52 | 85.82 | 92.85 | 86.45 |
 | nft.service.ts | 97.14 | 88.67 | 100 | 97.10 |
 | privacy.service.ts | 98.21 | 87.50 | 100 | 98.21 |
-| x402.service.ts | 96.15 | 78.18 | 100 | 96.10 |
-| zk.service.ts | 90.00 | 87.50 | 100 | 90.00 |
+| x402.service.ts | 96.15 | 83.63 | 100 | 96.10 |
+| zk.service.ts | 100 | 100 | 100 | 100 |
 
 ## Artillery Load Tests (18 scenarios, all complete)
 

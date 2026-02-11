@@ -47,8 +47,12 @@ describe('PrivacyService', () => {
             const pii = { firstName: 'Bob' };
             const { encrypted } = privacyService.encryptLeadPII(pii);
 
-            // Tamper with ciphertext
-            const tampered = { ...encrypted, ciphertext: encrypted.ciphertext.replace('0', '1') };
+            // Reliably tamper by flipping every hex char
+            const flipped = encrypted.ciphertext.split('').map(c => {
+                const n = parseInt(c, 16);
+                return isNaN(n) ? c : ((n ^ 0xf).toString(16));
+            }).join('');
+            const tampered = { ...encrypted, ciphertext: flipped };
             expect(() => privacyService.decryptLeadPII(tampered)).toThrow();
         });
 
