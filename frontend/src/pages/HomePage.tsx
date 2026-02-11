@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, TrendingUp, Zap, X, Globe } from 'lucide-react';
+import { Search, MapPin, X, Globe } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { LeadCard } from '@/components/marketplace/LeadCard';
-import { GlassCard } from '@/components/ui/card';
+
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -177,11 +177,7 @@ export function HomePage() {
         setRegion('All');
     };
 
-    const marketplaceStats = [
-        { label: 'Active Leads', value: '2,847', icon: Zap, color: 'text-primary' },
-        { label: 'Avg. Bid', value: '$127', icon: TrendingUp, color: 'text-emerald-500' },
-        { label: 'Countries', value: '20+', icon: Globe, color: 'text-chainlink-steel' },
-    ];
+
 
     return (
         <DashboardLayout>
@@ -224,28 +220,7 @@ export function HomePage() {
                     </section>
                 )}
 
-                {/* Hero — marketplace header */}
-                <section className="text-center pt-4 pb-2">
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-                        <span className="gradient-text">Live Marketplace</span>
-                    </h1>
-                    <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
-                        Browse live auctions and asks from verified sellers across all verticals
-                    </p>
 
-                    {/* Stats */}
-                    <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-4">
-                        {marketplaceStats.map((stat) => (
-                            <GlassCard key={stat.label} className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3">
-                                <stat.icon className={`h-5 w-5 ${stat.color}`} />
-                                <div className="text-left">
-                                    <div className="text-xl sm:text-2xl font-bold">{stat.value}</div>
-                                    <div className="text-xs text-muted-foreground">{stat.label}</div>
-                                </div>
-                            </GlassCard>
-                        ))}
-                    </div>
-                </section>
 
                 {/* Filters */}
                 <section>
