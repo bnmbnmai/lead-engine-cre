@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { authMiddleware, apiKeyMiddleware, AuthenticatedRequest, requireSeller } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, apiKeyMiddleware, AuthenticatedRequest, requireSeller } from '../middleware/auth';
 import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } from '../utils/validation';
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
@@ -13,7 +13,7 @@ const router = Router();
 // List Asks (Marketplace Listings)
 // ============================================
 
-router.get('/asks', generalLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/asks', generalLimiter, optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const validation = AskQuerySchema.safeParse(req.query);
         if (!validation.success) {
@@ -316,7 +316,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
 // List Leads
 // ============================================
 
-router.get('/leads', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const validation = LeadQuerySchema.safeParse(req.query);
         if (!validation.success) {
@@ -329,35 +329,40 @@ router.get('/leads', authMiddleware, async (req: AuthenticatedRequest, res: Resp
         // Build query based on user role
         const where: any = {};
 
-        if (req.user!.role === 'SELLER') {
-            const seller = await prisma.sellerProfile.findFirst({
-                where: { user: { id: req.user!.id } },
-            });
-            if (seller) where.sellerId = seller.id;
+        if (req.user) {
+            // Authenticated: role-based filtering
+            if (req.user.role === 'SELLER') {
+                const seller = await prisma.sellerProfile.findFirst({
+                    where: { user: { id: req.user.id } },
+                });
+                if (seller) where.sellerId = seller.id;
+            }
+
+            if (req.user.role === 'BUYER') {
+                where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
+
+                const buyer = await prisma.buyerProfile.findFirst({
+                    where: { user: { id: req.user.id } },
+                });
+
+                if (buyer) {
+                    if (buyer.verticals.length > 0) {
+                        where.vertical = { in: buyer.verticals };
+                    }
+                    if (!buyer.acceptOffSite) {
+                        where.source = { not: 'OFFSITE' };
+                    }
+                }
+            }
+        } else {
+            // Public (unauthenticated): show all active leads
+            where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
         }
 
+        // Apply user-supplied query filters
         if (vertical) where.vertical = vertical;
         if (status) where.status = status;
         if (state) where.geo = { path: ['state'], equals: state };
-
-        // For buyers, show only in-auction leads they can bid on
-        if (req.user!.role === 'BUYER') {
-            where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
-
-            // Apply buyer preferences
-            const buyer = await prisma.buyerProfile.findFirst({
-                where: { user: { id: req.user!.id } },
-            });
-
-            if (buyer) {
-                if (buyer.verticals.length > 0) {
-                    where.vertical = { in: buyer.verticals };
-                }
-                if (!buyer.acceptOffSite) {
-                    where.source = { not: 'OFFSITE' };
-                }
-            }
-        }
 
         const [leads, total] = await Promise.all([
             prisma.lead.findMany({

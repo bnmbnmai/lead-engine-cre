@@ -119,6 +119,45 @@ export async function authMiddleware(
 }
 
 // ============================================
+// Optional Auth Middleware (public endpoints)
+// Attaches user if valid token present, but
+// proceeds without error if no token / invalid.
+// ============================================
+
+export async function optionalAuthMiddleware(
+    req: AuthenticatedRequest,
+    _res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+            const token = authHeader.slice(7);
+            const decoded = verifyToken(token);
+            if (decoded) {
+                const session = await prisma.session.findFirst({
+                    where: {
+                        userId: decoded.userId,
+                        token,
+                        expiresAt: { gt: new Date() },
+                    },
+                });
+                if (session) {
+                    req.user = {
+                        id: decoded.userId,
+                        walletAddress: decoded.walletAddress,
+                        role: decoded.role,
+                    };
+                }
+            }
+        }
+    } catch {
+        // Silently proceed without user
+    }
+    next();
+}
+
+// ============================================
 // API Key Middleware
 // ============================================
 

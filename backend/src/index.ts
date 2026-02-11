@@ -151,10 +151,6 @@ app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/lander', landerRoutes);
 app.use('/api/v1/demo-panel', demoPanelRoutes);
 
-// Legacy endpoints (backward compatibility)
-app.get('/api/v1/leads', (_req: Request, res: Response) => {
-    res.redirect(307, '/api/v1/leads');
-});
 
 app.post('/api/v1/rtb/bid', (req: Request, res: Response) => {
     res.redirect(307, '/api/v1/bids');
