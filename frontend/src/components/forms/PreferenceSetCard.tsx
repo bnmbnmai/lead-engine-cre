@@ -1,4 +1,4 @@
-import { ArrowUp, ArrowDown, Trash2, Zap, Info } from 'lucide-react';
+import { ArrowUp, ArrowDown, Trash2, Zap, Info, Shield, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { LabeledSwitch } from '@/components/ui/switch';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
@@ -21,6 +21,10 @@ export interface PreferenceSetData {
     dailyBudget?: number;
     autoBidEnabled: boolean;
     autoBidAmount?: number;
+    excludedSellerIds: string[];
+    preferredSellerIds: string[];
+    minSellerReputation?: number;
+    requireVerifiedSeller: boolean;
     acceptOffSite: boolean;
     requireVerified: boolean;
     isActive: boolean;
@@ -68,7 +72,25 @@ export function PreferenceSetCard({
 }: PreferenceSetCardProps) {
     const [showAutoBidTip, setShowAutoBidTip] = useState(false);
 
+    const BUDGET_MAX = 99999999.99;
+
     const update = (patch: Partial<PreferenceSetData>) => {
+        // Client-side sanitisation for budget fields
+        for (const key of ['maxBidPerLead', 'dailyBudget', 'autoBidAmount'] as const) {
+            if (key in patch && patch[key] !== undefined) {
+                const v = patch[key]!;
+                if (v > BUDGET_MAX) {
+                    (patch as any)[key] = BUDGET_MAX;
+                    console.warn(`[PreferenceSetCard] ${key} clamped to ${BUDGET_MAX}`);
+                }
+            }
+        }
+        // Sanitise geo arrays: remove non-alpha entries
+        for (const key of ['geoInclude', 'geoExclude'] as const) {
+            if (key in patch && Array.isArray(patch[key])) {
+                (patch as any)[key] = [...new Set((patch[key] as string[]).filter(s => /^[A-Za-z]{1,4}$/.test(s)))];
+            }
+        }
         onChange({ ...set, ...patch });
     };
 
@@ -180,6 +202,7 @@ export function PreferenceSetCard({
                         <Input
                             type="number"
                             step="0.01"
+                            max={BUDGET_MAX}
                             placeholder="150.00"
                             value={set.maxBidPerLead || ''}
                             onChange={(e) =>
@@ -197,6 +220,7 @@ export function PreferenceSetCard({
                         <Input
                             type="number"
                             step="1"
+                            max={BUDGET_MAX}
                             placeholder="2000"
                             value={set.dailyBudget || ''}
                             onChange={(e) =>
@@ -251,6 +275,7 @@ export function PreferenceSetCard({
                         <Input
                             type="number"
                             step="0.01"
+                            max={BUDGET_MAX}
                             placeholder="150.00"
                             value={set.autoBidAmount || ''}
                             onChange={(e) =>
@@ -265,6 +290,130 @@ export function PreferenceSetCard({
                         </p>
                     </div>
                 )}
+            </div>
+
+            {/* Seller Targeting */}
+            <div className="space-y-4">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                    <Shield className="h-4 w-4 text-blue-500" />
+                    Seller Targeting
+                </h4>
+
+                {/* Excluded Seller IDs */}
+                <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Excluded Sellers
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {set.excludedSellerIds.map((id) => (
+                            <span
+                                key={id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-red-500/10 text-red-400 border border-red-500/20"
+                            >
+                                {id.slice(0, 8)}…
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        update({ excludedSellerIds: set.excludedSellerIds.filter((s) => s !== id) })
+                                    }
+                                    className="hover:text-red-300"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                    <Input
+                        placeholder="Paste seller ID and press Enter"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const val = (e.target as HTMLInputElement).value.trim();
+                                if (val && !set.excludedSellerIds.includes(val)) {
+                                    update({ excludedSellerIds: [...set.excludedSellerIds, val] });
+                                    (e.target as HTMLInputElement).value = '';
+                                }
+                            }
+                        }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Never bid on leads from these sellers. Paste seller profile IDs.
+                    </p>
+                </div>
+
+                {/* Preferred Seller IDs */}
+                <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Preferred Sellers
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {set.preferredSellerIds.map((id) => (
+                            <span
+                                key={id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            >
+                                {id.slice(0, 8)}…
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        update({ preferredSellerIds: set.preferredSellerIds.filter((s) => s !== id) })
+                                    }
+                                    className="hover:text-emerald-300"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                    <Input
+                        placeholder="Paste seller ID and press Enter"
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const val = (e.target as HTMLInputElement).value.trim();
+                                if (val && !set.preferredSellerIds.includes(val)) {
+                                    update({ preferredSellerIds: [...set.preferredSellerIds, val] });
+                                    (e.target as HTMLInputElement).value = '';
+                                }
+                            }
+                        }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Prioritise bids on leads from these sellers.
+                    </p>
+                </div>
+
+                {/* Min Seller Reputation */}
+                <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Minimum Seller Reputation — {((set.minSellerReputation ?? 0) / 100).toFixed(1)}%
+                    </label>
+                    <input
+                        type="range"
+                        min={0}
+                        max={10000}
+                        step={100}
+                        value={set.minSellerReputation ?? 0}
+                        onChange={(e) => update({ minSellerReputation: parseInt(e.target.value) || undefined })}
+                        className="w-full accent-primary"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                        <span>0%</span>
+                        <span>50%</span>
+                        <span>100%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        On-chain reputation score (0–10,000 basis points). Only bid on sellers with score ≥ this threshold.
+                    </p>
+                </div>
+
+                {/* Require Verified Seller */}
+                <LabeledSwitch
+                    label="Require Verified Seller"
+                    description="Only bid on leads from sellers who completed KYC verification on-chain."
+                    checked={set.requireVerifiedSeller}
+                    onCheckedChange={(checked) => update({ requireVerifiedSeller: checked })}
+                />
             </div>
 
             {/* Toggles */}

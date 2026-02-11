@@ -48,6 +48,10 @@ function createDefaultSet(vertical: string, priority: number): PreferenceSetData
         dailyBudget: undefined,
         autoBidEnabled: false,
         autoBidAmount: undefined,
+        excludedSellerIds: [],
+        preferredSellerIds: [],
+        minSellerReputation: undefined,
+        requireVerifiedSeller: false,
         acceptOffSite: true,
         requireVerified: false,
         isActive: true,
@@ -123,16 +127,54 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
         setError(null);
 
         try {
-            const { error: apiError } = await api.updatePreferenceSets({
+            console.info('[PreferencesForm] Saving', sets.length, 'preference sets');
+            const res = await api.updatePreferenceSets({
                 preferenceSets: sets,
             });
-            if (apiError) {
-                setError(apiError.error);
+
+            if (res.error) {
+                const { error: apiErr, code, status } = res.error as any;
+
+                // 409 — stale record, auto-reload
+                if (status === 409 || code === 'STALE_RECORD' || code === 'DUPLICATE') {
+                    console.warn('[PreferencesForm] Conflict detected, reloading sets:', code);
+                    setError(`${apiErr ?? 'Conflict detected'} — reloading your sets…`);
+                    try {
+                        const { data } = await api.getPreferenceSets();
+                        if (data?.sets) setSets(data.sets);
+                    } catch { /* fall through */ }
+                    return;
+                }
+
+                // 401 — auth expired
+                if (status === 401) {
+                    setError('Session expired — please reconnect your wallet');
+                    return;
+                }
+
+                // Other server errors
+                setError(apiErr ?? 'Failed to save preferences');
                 return;
             }
             onSuccess?.();
-        } catch {
-            setError('Failed to save preferences');
+        } catch (err: any) {
+            console.error('[PreferencesForm] Save failed:', err);
+
+            // Axios-style error with response
+            if (err?.response?.status === 409) {
+                setError(err.response.data?.error ?? 'Conflict — please reload');
+                try {
+                    const { data } = await api.getPreferenceSets();
+                    if (data?.sets) setSets(data.sets);
+                } catch { /* fall through */ }
+                return;
+            }
+            if (err?.response?.status === 401) {
+                setError('Session expired — please reconnect your wallet');
+                return;
+            }
+
+            setError(err?.response?.data?.error ?? 'Failed to save preferences');
         } finally {
             setIsSaving(false);
         }

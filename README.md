@@ -1,10 +1,10 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-325%20passing-brightgreen)
-![Jest](https://img.shields.io/badge/Jest-151%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-420%20passing-brightgreen)
+![Jest](https://img.shields.io/badge/Jest-257%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-62%20passing-brightgreen)
-![Cypress](https://img.shields.io/badge/Cypress%20E2E-112%20passing-brightgreen)
+![Cypress](https://img.shields.io/badge/Cypress%20E2E-101%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
 ![Coverage](https://img.shields.io/badge/contracts-5%20verified-orange)
 
@@ -222,7 +222,7 @@ All markets enforce ACE compliance (auto-KYC, jurisdiction policies, reputation 
 | `RTBEscrow.sol` | Sepolia | USDC escrow with platform fees (2.5%) + automated release |
 | `Marketplace.sol` | Sepolia | Central marketplace connecting NFT, compliance, and escrow |
 
-> **Note:** Contract addresses are set after deployment. See [Deployment Guide](docs/DEPLOYMENT.md).
+> **Note:** Contract addresses are set after deployment. See [§ Setup & Deployment](#-setup--deployment) below.
 
 ---
 
@@ -283,20 +283,20 @@ npm run dev
 
 ## 🧪 Testing
 
-> **314 tests passing** across 4 suites — **100% pass rate** on all automated suites.
+> **420 tests passing** across 4 suites — **100% pass rate** on all automated suites.
 > Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
 
 | Suite | Tests | Status | Notes |
 |-------|------:|--------|-------|
-| **Backend Jest** | 151 | ✅ All passing | 11 suites — unit, e2e, security, compliance |
+| **Backend Jest** | 257 | ✅ All passing | 16 suites — unit, e2e, security, compliance, env-guard |
 | **Hardhat Contracts** | 62 | ✅ All passing | 7 suites — settlement, reorg, Chainlink stubs |
 | **Cypress E2E** | 101 | ✅ All passing | 4 specs — UI flows, multi-wallet, stress, copy |
 | **Artillery Load** | 18 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **314+** | **✅ 100%** | |
+| **Total** | **420+** | **✅ 100%** | |
 
-### Backend Jest (151 passing, 11 suites)
+### Backend Jest (257 passing, 16 suites)
 
 | Suite | Tests | Coverage |
 |-------|------:|----------|
@@ -311,6 +311,22 @@ npm run dev
 | E2E Demo Flow | 5 | Full 8-step pipeline simulation |
 | Auto-Bid Engine | 18 | Score gate, geo include/exclude, budget, off-site |
 | CRM Webhooks | 10 | HubSpot/Zapier formatters, CRUD, payload transforms |
+| Env Guard | 18 | Prod mock blocking, dev/prod switches, empty datasets |
+| Preference Debug | 20+ | Seller targeting validation, buyer preferences |
+
+#### Jest Coverage
+
+| File | % Stmts | % Branch | % Funcs | % Lines |
+|------|--------:|---------:|--------:|--------:|
+| **All files** | **94.55** | **88.72** | **97.67** | **95.03** |
+| ace.service.ts | 94.95 | 90.56 | 100 | 94.91 |
+| auto-bid.service.ts | 100 | 92.30 | 100 | 100 |
+| cre.service.ts | 97.63 | 90.52 | 100 | 97.50 |
+| crm.routes.ts | 84.52 | 85.82 | 92.85 | 86.45 |
+| nft.service.ts | 97.14 | 88.67 | 100 | 97.10 |
+| privacy.service.ts | 98.21 | 87.50 | 100 | 98.21 |
+| x402.service.ts | 96.15 | 83.63 | 100 | 96.10 |
+| zk.service.ts | 100 | 100 | 100 | 100 |
 
 > **Note:** Jest requires PostgreSQL (Prisma). In CI, use the `services` block in GitHub Actions. Locally, run `docker compose up db` first.
 
@@ -345,15 +361,12 @@ npm run dev
 
 > **Infra-dependent:** Artillery requires a running backend (`npm run dev:backend`). Thresholds: p99 < 2s, p95 < 1s, 90%+ 2xx under peak.
 
-### Failure Notes
+### Infrastructure Notes
 
 | Issue | Affected Suite | Resolution |
 |-------|---------------|------------|
 | Jest hangs without PostgreSQL | Backend Jest | Start DB first: `docker compose up db` or use CI with `services` block |
 | Artillery needs live backend | Load Tests | Run `npm run dev:backend` before executing Artillery configs |
-| Cypress cross-origin mocks | Cypress E2E | **Fixed** — use string-form `cy.intercept` with full URLs |
-| Flaky wallet disconnect | `multi-wallet.cy.ts` | **Fixed** — broadened assertions for `stubAuth` persistence |
-| Profile wizard blocks tabs | `ui-flows.cy.ts` | **Fixed** — accept wizard as valid test state |
 
 ### Commands
 
@@ -433,15 +446,131 @@ Lead Engine is designed for global scalability across diverse markets and high v
 
 ---
 
-## 📄 Deploy
+## 📄 Setup & Deployment
 
-| Platform | Target | Guide |
-|---------|--------|-------|
-| **Contracts** | Sepolia + Base Sepolia | `.\scripts\deploy-contracts.ps1` |
-| **Backend** | Render | [render.yaml](render.yaml) — one-click Blueprint |
-| **Frontend** | Vercel | Import repo, root = `frontend` |
+### CI/CD Pipeline
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full step-by-step guide.
+The CI workflow runs automatically on push to `main`/`develop` and PRs to `main`:
+
+```
+.github/workflows/test.yml
+├── 🔍 lint           — ESLint on backend + frontend
+├── 🧪 backend-tests  — Jest + PostgreSQL 16 service
+├── ⛓️ hardhat-tests  — Hardhat compile + test
+├── 🌲 cypress-e2e    — 101 Cypress E2E tests
+└── 🚀 artillery-load — RTB baseline (advisory)
+```
+
+All 5 jobs run **in parallel** on `ubuntu-latest` with Node 20.
+
+**Required GitHub Secret:** `JWT_SECRET` — 64-char hex (`openssl rand -hex 32`). All other CI values are auto-constructed.
+
+### Deploy Contracts (Sepolia + Base Sepolia)
+
+```powershell
+# Set deployer key in backend/.env
+DEPLOYER_PRIVATE_KEY=0x...your_private_key
+ALCHEMY_API_KEY=your_alchemy_key
+
+# Deploy
+.\scripts\deploy-contracts.ps1                    # Sepolia (default)
+.\scripts\deploy-contracts.ps1 -Network baseSepolia
+.\scripts\deploy-contracts.ps1 -Network both
+```
+
+Save outputted addresses into `backend/.env` (`ACE_CONTRACT_ADDRESS`, `LEAD_NFT_ADDRESS`, `ESCROW_CONTRACT_ADDRESS`, `MARKETPLACE_ADDRESS`, `CRE_CONTRACT_ADDRESS`).
+
+### Deploy Backend (Render)
+
+**Option A — Blueprint (recommended):** Push to GitHub → Render Dashboard → **New → Blueprint** → connects `render.yaml` automatically. Set `FRONTEND_URL`, `ALCHEMY_API_KEY`, `RPC_URL_SEPOLIA`, contract addresses, and `DEPLOYER_PRIVATE_KEY`.
+
+**Option B — Manual:** New → Web Service → Build: `cd backend && npm install && npx prisma generate && npm run build` → Start: `cd backend && npm run start` → Add PostgreSQL.
+
+```bash
+# Seed demo data
+cd backend && npm run db:seed        # 200+ mock entries
+npm run db:clear-mock                # Remove mock data only (0xMOCK prefix)
+
+# Verify
+curl https://lead-engine-cre-api.onrender.com/health
+```
+
+### Deploy Frontend (Vercel)
+
+1. [vercel.com](https://vercel.com) → Import `bnmbnmai/lead-engine-cre`
+2. **Framework:** Vite · **Root:** `frontend`
+3. Set: `VITE_API_URL`, `VITE_APP_URL`, `VITE_WALLETCONNECT_PROJECT_ID`, `VITE_ALCHEMY_API_KEY`, `VITE_DEFAULT_CHAIN_ID` (11155111), `VITE_ENABLE_TESTNET` (true)
+4. Deploy → Set `FRONTEND_URL` on Render to Vercel URL
+
+### MCP Agent Server
+
+```bash
+cd mcp-server && npm install && npm run dev   # Starts on port 3002
+```
+
+Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
+
+### Post-Deploy Checklist
+
+- [ ] Backend health check returns 200
+- [ ] Frontend loads without console errors
+- [ ] Wallet connects (MetaMask on Sepolia)
+- [ ] `/api/v1/demo/e2e-bid` returns full pipeline results
+- [ ] `/api/swagger` loads Swagger UI
+- [ ] MCP server `POST /rpc` with `search_leads` returns results
+- [ ] Contracts verified on Sepolia Etherscan
+- [ ] CORS: frontend can call backend API
+- [ ] WebSocket connection established
+
+### Environment Reference
+
+<details>
+<summary>Backend env vars (<code>backend/.env</code>)</summary>
+
+| Variable | Example |
+|----------|---------|
+| `NODE_ENV` | production |
+| `PORT` | 3001 |
+| `API_URL` | https://lead-engine-cre-api.onrender.com |
+| `FRONTEND_URL` | https://lead-engine-cre.vercel.app |
+| `DATABASE_URL` | postgresql://user:pass@host:port/db |
+| `REDIS_URL` | redis://... |
+| `JWT_SECRET` | 64-char hex |
+| `ALCHEMY_API_KEY` | From Alchemy dashboard |
+| `RPC_URL_SEPOLIA` | https://eth-sepolia.g.alchemy.com/v2/KEY |
+| `DEPLOYER_PRIVATE_KEY` | 0x... (never commit) |
+| Contract addresses | `ACE_CONTRACT_ADDRESS`, `LEAD_NFT_ADDRESS`, etc. |
+
+</details>
+
+<details>
+<summary>Frontend env vars (<code>frontend/.env.local</code>)</summary>
+
+| Variable | Example |
+|----------|---------|
+| `VITE_API_URL` | https://lead-engine-cre-api.onrender.com |
+| `VITE_APP_URL` | https://lead-engine-cre.vercel.app |
+| `VITE_WALLETCONNECT_PROJECT_ID` | From WalletConnect Cloud |
+| `VITE_ALCHEMY_API_KEY` | Your Alchemy key |
+| `VITE_DEFAULT_CHAIN_ID` | 11155111 |
+| `VITE_ENABLE_TESTNET` | true |
+
+> Use `VITE_` prefix, not `NEXT_PUBLIC_`.
+
+</details>
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `prisma generate` fails on Render | Ensure `prisma` is in `devDependencies` |
+| Frontend proxy 404 | Production uses absolute API URL (not `/api` proxy) |
+| Wallet won't connect on Vercel | Set `VITE_WALLETCONNECT_PROJECT_ID` |
+| Contract deploy fails | Check deployer has Sepolia ETH |
+| CORS blocked | Set `FRONTEND_URL` on Render (no trailing slash) |
+| Mock data not appearing | Set `TEST_MODE=true` in env |
+| `insufficient funds for gas` | Fund wallet: [faucets.chain.link](https://faucets.chain.link) |
+| Artillery timeout | Advisory only (`continue-on-error: true`) — CI stays green |
 
 ---
 

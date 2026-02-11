@@ -162,13 +162,21 @@ export const PreferenceSetSchema = z.object({
     vertical: z.enum(VERTICAL_VALUES),
     priority: z.number().int().min(0).default(0),
     geoCountry: z.string().length(2).default('US'),
-    geoInclude: z.array(z.string().max(4)).default([]),
-    geoExclude: z.array(z.string().max(4)).default([]),
-    maxBidPerLead: z.number().positive().optional(),
-    dailyBudget: z.number().positive().optional(),
+    geoInclude: z.array(z.string().min(1).max(4).regex(/^[A-Za-z]+$/, 'State code must be letters only')).default([])
+        .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate state codes in geoInclude' }),
+    geoExclude: z.array(z.string().min(1).max(4).regex(/^[A-Za-z]+$/, 'State code must be letters only')).default([])
+        .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate state codes in geoExclude' }),
+    maxBidPerLead: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
+    dailyBudget: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
     autoBidEnabled: z.boolean().default(false),
-    autoBidAmount: z.number().positive().optional(),
+    autoBidAmount: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
     minQualityScore: z.number().int().min(0).max(10000).optional(),
+    excludedSellerIds: z.array(z.string().min(1).max(50)).max(100).default([])
+        .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate seller IDs in excludedSellerIds' }),
+    preferredSellerIds: z.array(z.string().min(1).max(50)).max(100).default([])
+        .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate seller IDs in preferredSellerIds' }),
+    minSellerReputation: z.number().int().min(0).max(10000).optional(),
+    requireVerifiedSeller: z.boolean().default(false),
     acceptOffSite: z.boolean().default(true),
     requireVerified: z.boolean().default(false),
     isActive: z.boolean().default(true),

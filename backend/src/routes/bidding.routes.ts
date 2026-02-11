@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { ethers } from 'ethers';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthenticatedRequest, requireBuyer } from '../middleware/auth';
 import { BidCommitSchema, BidRevealSchema, BidDirectSchema, BuyerPreferencesSchema, BuyerPreferencesV2Schema } from '../utils/validation';
@@ -9,6 +10,26 @@ import { dataStreamsService } from '../services/datastreams.service';
 import { evaluateLeadForAutoBid, LeadData } from '../services/auto-bid.service';
 
 const router = Router();
+
+// ── Prisma error classifier ──
+function classifyPrismaError(error: unknown): { status: number; message: string; code?: string } {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+            case 'P2025': // Record not found
+                return { status: 409, message: 'Preference set was modified or deleted by another session — please reload', code: 'STALE_RECORD' };
+            case 'P2002': // Unique constraint violation
+                return { status: 409, message: 'Duplicate preference set detected', code: 'DUPLICATE' };
+            case 'P2028': // Transaction API error
+                return { status: 500, message: 'Transaction failed — please retry', code: 'TX_FAILED' };
+            default:
+                return { status: 500, message: `Database error (${error.code})`, code: error.code };
+        }
+    }
+    if (error instanceof Prisma.PrismaClientValidationError) {
+        return { status: 400, message: 'Invalid data format — check budget and score values', code: 'VALIDATION' };
+    }
+    return { status: 500, message: 'Failed to update preference sets' };
+}
 
 // ============================================
 // Place Bid (Commit-Reveal or Direct)
@@ -486,8 +507,14 @@ router.put('/preferences', authMiddleware, requireBuyer, async (req: Authenticat
 
         res.json({ success: true, message: 'Preferences updated' });
     } catch (error) {
-        console.error('Update preferences error:', error);
-        res.status(500).json({ error: 'Failed to update preferences' });
+        const classified = classifyPrismaError(error);
+        console.error('[PREFS] Update preferences error:', {
+            userId: req.user?.id,
+            code: classified.code,
+            message: classified.message,
+            raw: error instanceof Error ? error.message : error,
+        });
+        res.status(classified.status).json({ error: classified.message, code: classified.code });
     }
 });
 
@@ -543,6 +570,11 @@ router.get('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
                 dailyBudget: s.dailyBudget ? Number(s.dailyBudget) : undefined,
                 autoBidEnabled: s.autoBidEnabled,
                 autoBidAmount: s.autoBidAmount ? Number(s.autoBidAmount) : undefined,
+                minQualityScore: s.minQualityScore ?? undefined,
+                excludedSellerIds: s.excludedSellerIds,
+                preferredSellerIds: s.preferredSellerIds,
+                minSellerReputation: s.minSellerReputation ?? undefined,
+                requireVerifiedSeller: s.requireVerifiedSeller,
                 acceptOffSite: s.acceptOffSite,
                 requireVerified: s.requireVerified,
                 isActive: s.isActive,
@@ -608,6 +640,10 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
                             autoBidEnabled: set.autoBidEnabled,
                             autoBidAmount: set.autoBidAmount,
                             minQualityScore: set.minQualityScore,
+                            excludedSellerIds: set.excludedSellerIds,
+                            preferredSellerIds: set.preferredSellerIds,
+                            minSellerReputation: set.minSellerReputation,
+                            requireVerifiedSeller: set.requireVerifiedSeller,
                             acceptOffSite: set.acceptOffSite,
                             requireVerified: set.requireVerified,
                             isActive: set.isActive,
@@ -628,6 +664,10 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
                             autoBidEnabled: set.autoBidEnabled,
                             autoBidAmount: set.autoBidAmount,
                             minQualityScore: set.minQualityScore,
+                            excludedSellerIds: set.excludedSellerIds,
+                            preferredSellerIds: set.preferredSellerIds,
+                            minSellerReputation: set.minSellerReputation,
+                            requireVerifiedSeller: set.requireVerifiedSeller,
                             acceptOffSite: set.acceptOffSite,
                             requireVerified: set.requireVerified,
                             isActive: set.isActive,
@@ -646,8 +686,15 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
 
         res.json({ success: true, message: 'Preference sets updated' });
     } catch (error) {
-        console.error('Update preference sets error:', error);
-        res.status(500).json({ error: 'Failed to update preference sets' });
+        const classified = classifyPrismaError(error);
+        console.error('[PREFS-V2] Update preference sets error:', {
+            userId: req.user?.id,
+            setCount: req.body?.preferenceSets?.length,
+            code: classified.code,
+            message: classified.message,
+            raw: error instanceof Error ? error.message : error,
+        });
+        res.status(classified.status).json({ error: classified.message, code: classified.code });
     }
 });
 

@@ -4,8 +4,16 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { AnalyticsQuerySchema } from '../utils/validation';
 import { analyticsLimiter } from '../middleware/rateLimit';
 import { analyticsOverviewCache, analyticsLeadCache } from '../lib/cache';
+import { getMockOverview, getMockLeadAnalytics, getMockBidAnalytics } from '../services/analytics-mock';
 
 const router = Router();
+
+const IS_PROD = process.env.NODE_ENV === 'production';
+const USE_MOCK = process.env.USE_MOCK_DATA === 'true' && !IS_PROD;
+
+if (process.env.USE_MOCK_DATA === 'true' && IS_PROD) {
+    console.warn('[analytics] ⚠️  USE_MOCK_DATA=true ignored in production. Using real data from Prisma/Redis.');
+}
 
 // ============================================
 // Dashboard Overview
@@ -15,6 +23,12 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
     try {
         const userId = req.user!.id;
         const role = req.user!.role;
+
+        // ── Mock data shortcut ──
+        if (USE_MOCK) {
+            res.json(getMockOverview(role));
+            return;
+        }
         const cacheKey = `overview:${role}:${userId}`;
         const cached = analyticsOverviewCache.get(cacheKey);
         if (cached) {
@@ -166,6 +180,13 @@ router.get('/leads', analyticsLimiter, authMiddleware, async (req: Authenticated
             return;
         }
 
+        // ── Mock data shortcut ──
+        if (USE_MOCK) {
+            const { groupBy } = validation.data;
+            res.json(getMockLeadAnalytics(groupBy || 'day'));
+            return;
+        }
+
         const { startDate, endDate, vertical, groupBy } = validation.data;
 
         const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -273,6 +294,12 @@ router.get('/leads', analyticsLimiter, authMiddleware, async (req: Authenticated
 
 router.get('/bids', analyticsLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
+        // ── Mock data shortcut ──
+        if (USE_MOCK) {
+            res.json(getMockBidAnalytics());
+            return;
+        }
+
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
         const where: any = {

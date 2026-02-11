@@ -129,6 +129,12 @@ model BuyerPreferenceSet {
   autoBidAmount   Decimal? @db.Decimal(10, 2) // Fixed bid amount when auto-bid fires
   minQualityScore Int?     // 0-10000 scale; "bid if score > 80" = 8000
 
+  // Seller targeting
+  excludedSellerIds   String[]            // Seller profile IDs to never bid on
+  preferredSellerIds  String[]            // Seller profile IDs to prioritise
+  minSellerReputation Int?                // 0-10000 scale (matches SellerProfile.reputationScore)
+  requireVerifiedSeller Boolean @default(false)
+
   // Toggles
   acceptOffSite   Boolean  @default(true)
   requireVerified Boolean  @default(false)

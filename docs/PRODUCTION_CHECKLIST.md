@@ -66,7 +66,7 @@
 ## 📄 Documentation
 
 - [ ] README.md: up to date with current metrics/features
-- [ ] DEPLOYMENT.md: env vars, deploy steps, troubleshooting
+- [ ] README.md § Setup & Deployment: env vars, deploy steps, troubleshooting
 - [ ] MAINNET_MIGRATION.md: ready for post-hackathon
 - [ ] BETA_PLAYBOOK.md: pilot plan documented
 - [ ] AB_TEST_PLAN.md: experiment specs ready

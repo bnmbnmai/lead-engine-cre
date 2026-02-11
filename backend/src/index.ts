@@ -51,6 +51,7 @@ import biddingRoutes from './routes/bidding.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import integrationRoutes from './routes/integration.routes';
 import crmRoutes from './routes/crm.routes';
+import landerRoutes from './routes/lander.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -145,6 +146,7 @@ app.use('/api/v1/bids', biddingRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/demo', integrationRoutes);
 app.use('/api/v1/crm', crmRoutes);
+app.use('/api/v1/lander', landerRoutes);
 
 // Legacy endpoints (backward compatibility)
 app.get('/api/v1/leads', (_req: Request, res: Response) => {

@@ -14,11 +14,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
+const IS_PROD = import.meta.env.PROD;
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true' && !IS_PROD;
+
 // ============================================
 // Mock data fallback (used when API unavailable)
 // ============================================
 
+// Seeded PRNG (mulberry32) — deterministic across renders
+function mulberry32(seed: number) {
+    return () => {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
 function generateRevenueData(days: number) {
+    const rng = mulberry32(67890);
     const data = [];
     const now = new Date();
     for (let i = days - 1; i >= 0; i--) {
@@ -26,9 +40,9 @@ function generateRevenueData(days: number) {
         date.setDate(date.getDate() - i);
         data.push({
             date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            revenue: Math.round(Math.random() * 800 + 100),
-            leads: Math.floor(Math.random() * 15 + 2),
-            gasCost: +(Math.random() * 2.5 + 0.1).toFixed(2),
+            revenue: Math.round(rng() * 800 + 100),
+            leads: Math.floor(rng() * 15 + 2),
+            gasCost: +(rng() * 2.5 + 0.1).toFixed(2),
         });
     }
     return data;
@@ -79,6 +93,7 @@ export function SellerAnalytics() {
     const [period, setPeriod] = useState('30d');
     const [liveTimeSeries, setLiveTimeSeries] = useState<any[] | null>(null);
     const [liveVerticals, setLiveVerticals] = useState<any[] | null>(null);
+    const [apiError, setApiError] = useState(false);
 
     const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
     const revenueData = useMemo(() => {
@@ -94,6 +109,7 @@ export function SellerAnalytics() {
     }, [liveTimeSeries, days]);
 
     useEffect(() => {
+        if (USE_MOCK) return; // skip API when mock mode enabled
         const fetchAnalytics = async () => {
             try {
                 const [, leadsRes] = await Promise.all([
@@ -113,13 +129,18 @@ export function SellerAnalytics() {
                     })));
                 }
             } catch {
-                // Graceful fallback to mock data
+                if (IS_PROD) {
+                    setApiError(true);
+                }
+                // Dev: silent fallback to seeded mock
             }
         };
         fetchAnalytics();
     }, [period]);
 
-    const VERTICAL_DATA = liveVerticals && liveVerticals.length > 0 ? liveVerticals : FALLBACK_VERTICAL_DATA;
+    const VERTICAL_DATA = liveVerticals && liveVerticals.length > 0
+        ? liveVerticals
+        : USE_MOCK ? FALLBACK_VERTICAL_DATA : [];
 
     const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
     const totalLeads = revenueData.reduce((sum, d) => sum + d.leads, 0);
@@ -156,6 +177,11 @@ export function SellerAnalytics() {
                         <p className="text-muted-foreground">Performance metrics, revenue insights, and on-chain activity</p>
                     </div>
                     <div className="flex items-center gap-3">
+                        {USE_MOCK && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                Mock Data
+                            </span>
+                        )}
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-28">
                                 <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
@@ -172,6 +198,14 @@ export function SellerAnalytics() {
                         </Button>
                     </div>
                 </div>
+
+                {/* API Error Banner (prod only) */}
+                {apiError && (
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                        <span className="font-medium">⚠ Analytics data unavailable.</span>
+                        <span className="text-muted-foreground">The API returned an error. Showing empty state — no mock data in production.</span>
+                    </div>
+                )}
 
                 {/* Quick Stats */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

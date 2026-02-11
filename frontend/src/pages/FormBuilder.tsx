@@ -1,11 +1,16 @@
 import { useState, useCallback } from 'react';
-import { GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette } from 'lucide-react';
+import {
+    GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
+    Layers, ChevronLeft, ChevronRight, Download, Sparkles,
+} from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LabeledSwitch } from '@/components/ui/switch';
+import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
+import { LanderExport } from '@/components/forms/LanderExport';
 
 // ============================================
 // Types
@@ -19,6 +24,18 @@ interface FormField {
     required: boolean;
     placeholder?: string;
     options?: string[];
+}
+
+interface FormStep {
+    id: string;
+    label: string;
+    fieldIds: string[];
+}
+
+interface GamificationConfig {
+    showProgress: boolean;
+    showNudges: boolean;
+    confetti: boolean;
 }
 
 // ============================================
@@ -81,39 +98,120 @@ let fieldCounter = 100;
 const genId = () => String(fieldCounter++);
 
 // ============================================
+// Auto-step heuristic
+// ============================================
+
+const CONTACT_KEYS = new Set(['full_name', 'email', 'phone', 'name', 'first_name', 'last_name']);
+const LOCATION_KEYS = new Set(['zip', 'zipcode', 'zip_code', 'state', 'city', 'address', 'region']);
+
+function autoGroupSteps(fields: FormField[]): FormStep[] {
+    const contact: string[] = [];
+    const location: string[] = [];
+    const details: string[] = [];
+
+    for (const f of fields) {
+        if (CONTACT_KEYS.has(f.key)) contact.push(f.id);
+        else if (LOCATION_KEYS.has(f.key)) location.push(f.id);
+        else details.push(f.id);
+    }
+
+    // If location has <= 1 field, merge into contact
+    if (location.length <= 1) {
+        contact.push(...location);
+        location.length = 0;
+    }
+
+    const steps: FormStep[] = [];
+    if (contact.length > 0) steps.push({ id: genId(), label: 'Contact Info', fieldIds: contact });
+    if (location.length > 0) steps.push({ id: genId(), label: 'Location', fieldIds: location });
+
+    // Split details into chunks of 3
+    for (let i = 0; i < details.length; i += 3) {
+        const chunk = details.slice(i, i + 3);
+        steps.push({ id: genId(), label: `Details${steps.length > 1 ? ` ${steps.length}` : ''}`, fieldIds: chunk });
+    }
+
+    // Ensure at least one step
+    if (steps.length === 0) steps.push({ id: genId(), label: 'Your Information', fieldIds: fields.map((f) => f.id) });
+
+    return steps;
+}
+
+// ============================================
 // Component
 // ============================================
 
 export function FormBuilder() {
     const [vertical, setVertical] = useState('roofing');
     const [fields, setFields] = useState<FormField[]>([...VERTICAL_PRESETS.roofing]);
-    const [previewMode, setPreviewMode] = useState<'preview' | 'json'>('preview');
+    const [steps, setSteps] = useState<FormStep[]>(() => autoGroupSteps(VERTICAL_PRESETS.roofing));
+    const [previewMode, setPreviewMode] = useState<'preview' | 'json' | 'export'>('preview');
+    const [previewStep, setPreviewStep] = useState(0);
     const [dragIdx, setDragIdx] = useState<number | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [gamification, setGamification] = useState<GamificationConfig>({
+        showProgress: true,
+        showNudges: true,
+        confetti: false,
+    });
 
     const loadPreset = (v: string) => {
         setVertical(v);
-        setFields([...(VERTICAL_PRESETS[v] || [])]);
+        const presetFields = [...(VERTICAL_PRESETS[v] || [])];
+        setFields(presetFields);
+        setSteps(autoGroupSteps(presetFields));
         setEditingId(null);
+        setPreviewStep(0);
     };
 
     const addField = () => {
         const id = genId();
-        setFields((prev) => [
-            ...prev,
-            { id, key: `field_${id}`, label: 'New Field', type: 'text', required: false, placeholder: '' },
-        ]);
+        const newField: FormField = { id, key: `field_${id}`, label: 'New Field', type: 'text', required: false, placeholder: '' };
+        setFields((prev) => [...prev, newField]);
+        // Add to last step
+        setSteps((prev) => {
+            if (prev.length === 0) return [{ id: genId(), label: 'Step 1', fieldIds: [id] }];
+            const copy = [...prev];
+            copy[copy.length - 1] = { ...copy[copy.length - 1], fieldIds: [...copy[copy.length - 1].fieldIds, id] };
+            return copy;
+        });
         setEditingId(id);
     };
 
     const removeField = (id: string) => {
         setFields((prev) => prev.filter((f) => f.id !== id));
+        setSteps((prev) => prev.map((s) => ({ ...s, fieldIds: s.fieldIds.filter((fid) => fid !== id) })).filter((s) => s.fieldIds.length > 0));
         if (editingId === id) setEditingId(null);
     };
 
     const updateField = (id: string, updates: Partial<FormField>) => {
         setFields((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+    };
+
+    const addStep = () => {
+        setSteps((prev) => [...prev, { id: genId(), label: `Step ${prev.length + 1}`, fieldIds: [] }]);
+    };
+
+    const removeStep = (stepId: string) => {
+        setSteps((prev) => {
+            const step = prev.find((s) => s.id === stepId);
+            if (!step) return prev;
+            // Move orphan fields to previous step
+            const remaining = prev.filter((s) => s.id !== stepId);
+            if (remaining.length > 0 && step.fieldIds.length > 0) {
+                remaining[remaining.length - 1] = {
+                    ...remaining[remaining.length - 1],
+                    fieldIds: [...remaining[remaining.length - 1].fieldIds, ...step.fieldIds],
+                };
+            }
+            return remaining;
+        });
+        if (previewStep >= steps.length - 1) setPreviewStep(Math.max(0, steps.length - 2));
+    };
+
+    const updateStepLabel = (stepId: string, label: string) => {
+        setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, label } : s)));
     };
 
     // ─── Drag-and-Drop ───────────────────────
@@ -124,7 +222,6 @@ export function FormBuilder() {
     const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
         e.preventDefault();
         if (dragIdx === null || dragIdx === idx) return;
-
         setFields((prev) => {
             const next = [...prev];
             const [moved] = next.splice(dragIdx, 1);
@@ -142,7 +239,9 @@ export function FormBuilder() {
     const exportConfig = () => {
         return {
             vertical,
-            fields: fields.map(({ id, ...rest }) => rest),
+            fields: fields.map(({ id, ...rest }) => ({ id, ...rest })),
+            steps,
+            gamification,
             createdAt: new Date().toISOString(),
         };
     };
@@ -153,14 +252,26 @@ export function FormBuilder() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    // ─── Preview helpers ─────────────────────
+    const currentStepFields = steps[previewStep]
+        ? steps[previewStep].fieldIds.map((fid) => fields.find((f) => f.id === fid)).filter(Boolean) as FormField[]
+        : [];
+
+    const emoji = VERTICAL_EMOJI[vertical] || '📋';
+
     return (
         <DashboardLayout>
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold">Form Builder</h1>
+                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                        {emoji} Form Builder
+                        <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            Multi-Step Wizard
+                        </span>
+                    </h1>
                     <p className="text-muted-foreground">
-                        Build custom lead capture forms for any vertical — drag to reorder, click to edit
+                        Build gamified multi-step lead capture forms — drag to reorder, group into steps, export as hosted lander
                     </p>
                 </div>
 
@@ -172,11 +283,12 @@ export function FormBuilder() {
                             <button
                                 key={v}
                                 onClick={() => loadPreset(v)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all ${vertical === v
-                                        ? 'bg-primary text-primary-foreground shadow-sm'
-                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all flex items-center gap-1.5 ${vertical === v
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                                     }`}
                             >
+                                <span>{VERTICAL_EMOJI[v] || ''}</span>
                                 {v.replace('_', ' ')}
                             </button>
                         ))}
@@ -184,9 +296,146 @@ export function FormBuilder() {
                 </div>
 
                 <div className="grid lg:grid-cols-2 gap-6">
-                    {/* ─── Left: Field Editor ───────── */}
+                    {/* ─── Left: Field Editor + Step Manager ───────── */}
                     <div className="space-y-4">
+                        {/* Step Manager */}
                         <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                <Layers className="h-5 w-5 text-primary" />
+                                Steps ({steps.length})
+                            </h2>
+                            <Button variant="outline" size="sm" onClick={addStep}>
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Step
+                            </Button>
+                        </div>
+
+                        {steps.map((step, si) => (
+                            <div key={step.id} className="rounded-xl border border-border bg-background p-3 space-y-2">
+                                {/* Step header */}
+                                <div className="flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
+                                        {si + 1}
+                                    </span>
+                                    <Input
+                                        value={step.label}
+                                        onChange={(e) => updateStepLabel(step.id, e.target.value)}
+                                        className="h-7 text-sm font-medium flex-1"
+                                    />
+                                    {steps.length > 1 && (
+                                        <button
+                                            onClick={() => removeStep(step.id)}
+                                            className="p-1 rounded text-muted-foreground hover:text-destructive transition"
+                                            title="Remove step (fields move to previous)"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Fields in step */}
+                                <div className="space-y-1 pl-8">
+                                    {step.fieldIds.map((fid) => {
+                                        const field = fields.find((f) => f.id === fid);
+                                        if (!field) return null;
+                                        const globalIdx = fields.findIndex((f) => f.id === fid);
+
+                                        return (
+                                            <div
+                                                key={field.id}
+                                                draggable
+                                                onDragStart={() => handleDragStart(globalIdx)}
+                                                onDragOver={(e) => handleDragOver(e, globalIdx)}
+                                                onDragEnd={handleDragEnd}
+                                                className={`group flex items-start gap-2 p-2.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${dragIdx === globalIdx
+                                                    ? 'border-primary bg-primary/5 shadow-sm'
+                                                    : 'border-border/50 bg-background hover:border-primary/30'
+                                                    } ${editingId === field.id ? 'ring-1 ring-primary' : ''}`}
+                                            >
+                                                <div className="pt-0.5 text-muted-foreground">
+                                                    <GripVertical className="h-3.5 w-3.5" />
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    {editingId === field.id ? (
+                                                        <div className="space-y-3">
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <label className="text-xs font-medium text-muted-foreground">Label</label>
+                                                                    <Input value={field.label} onChange={(e) => updateField(field.id, { label: e.target.value })} className="h-8 text-sm" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs font-medium text-muted-foreground">Key</label>
+                                                                    <Input value={field.key} onChange={(e) => updateField(field.id, { key: e.target.value })} className="h-8 text-sm font-mono" />
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <label className="text-xs font-medium text-muted-foreground">Type</label>
+                                                                    <Select value={field.type} onValueChange={(v) => updateField(field.id, { type: v as FormField['type'] })}>
+                                                                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="text">Text</SelectItem>
+                                                                            <SelectItem value="email">Email</SelectItem>
+                                                                            <SelectItem value="phone">Phone</SelectItem>
+                                                                            <SelectItem value="number">Number</SelectItem>
+                                                                            <SelectItem value="select">Dropdown</SelectItem>
+                                                                            <SelectItem value="boolean">Toggle</SelectItem>
+                                                                            <SelectItem value="textarea">Long Text</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-xs font-medium text-muted-foreground">Placeholder</label>
+                                                                    <Input value={field.placeholder || ''} onChange={(e) => updateField(field.id, { placeholder: e.target.value })} className="h-8 text-sm" />
+                                                                </div>
+                                                            </div>
+                                                            {field.type === 'select' && (
+                                                                <div>
+                                                                    <label className="text-xs font-medium text-muted-foreground">Options (comma-separated)</label>
+                                                                    <Input
+                                                                        value={(field.options || []).join(', ')}
+                                                                        onChange={(e) => updateField(field.id, { options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+                                                                        className="h-8 text-sm"
+                                                                        placeholder="Option 1, Option 2, Option 3"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center justify-between">
+                                                                <LabeledSwitch label="Required" checked={field.required} onCheckedChange={(v) => updateField(field.id, { required: v })} />
+                                                                <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>Done</Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <button className="w-full text-left" onClick={() => setEditingId(field.id)}>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-medium">{field.label}</span>
+                                                                {field.required && <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium">REQ</span>}
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{field.type}</span>
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground font-mono mt-0.5">{field.key}</div>
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    onClick={() => removeField(field.id)}
+                                                    className="p-1 rounded text-muted-foreground hover:text-destructive transition opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                    {step.fieldIds.length === 0 && (
+                                        <p className="text-xs text-muted-foreground py-2 text-center">No fields — drag a field here or add a new one</p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Add field button */}
+                        <div className="flex items-center justify-between border-t border-border pt-4">
                             <h2 className="text-lg font-semibold flex items-center gap-2">
                                 <Settings2 className="h-5 w-5 text-primary" />
                                 Fields ({fields.length})
@@ -197,139 +446,31 @@ export function FormBuilder() {
                             </Button>
                         </div>
 
-                        <div className="space-y-2">
-                            {fields.map((field, idx) => (
-                                <div
-                                    key={field.id}
-                                    draggable
-                                    onDragStart={() => handleDragStart(idx)}
-                                    onDragOver={(e) => handleDragOver(e, idx)}
-                                    onDragEnd={handleDragEnd}
-                                    className={`group flex items-start gap-2 p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${dragIdx === idx
-                                            ? 'border-primary bg-primary/5 shadow-sm'
-                                            : 'border-border bg-background hover:border-primary/30'
-                                        } ${editingId === field.id ? 'ring-1 ring-primary' : ''}`}
-                                >
-                                    {/* Drag Handle */}
-                                    <div className="pt-1 text-muted-foreground">
-                                        <GripVertical className="h-4 w-4" />
-                                    </div>
-
-                                    {/* Field Content */}
-                                    <div className="flex-1 min-w-0">
-                                        {editingId === field.id ? (
-                                            /* Editing Mode */
-                                            <div className="space-y-3">
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="text-xs font-medium text-muted-foreground">Label</label>
-                                                        <Input
-                                                            value={field.label}
-                                                            onChange={(e) => updateField(field.id, { label: e.target.value })}
-                                                            className="h-8 text-sm"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium text-muted-foreground">Key</label>
-                                                        <Input
-                                                            value={field.key}
-                                                            onChange={(e) => updateField(field.id, { key: e.target.value })}
-                                                            className="h-8 text-sm font-mono"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="text-xs font-medium text-muted-foreground">Type</label>
-                                                        <Select
-                                                            value={field.type}
-                                                            onValueChange={(v) => updateField(field.id, { type: v as FormField['type'] })}
-                                                        >
-                                                            <SelectTrigger className="h-8 text-sm">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="text">Text</SelectItem>
-                                                                <SelectItem value="email">Email</SelectItem>
-                                                                <SelectItem value="phone">Phone</SelectItem>
-                                                                <SelectItem value="number">Number</SelectItem>
-                                                                <SelectItem value="select">Dropdown</SelectItem>
-                                                                <SelectItem value="boolean">Toggle</SelectItem>
-                                                                <SelectItem value="textarea">Long Text</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium text-muted-foreground">Placeholder</label>
-                                                        <Input
-                                                            value={field.placeholder || ''}
-                                                            onChange={(e) => updateField(field.id, { placeholder: e.target.value })}
-                                                            className="h-8 text-sm"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                {field.type === 'select' && (
-                                                    <div>
-                                                        <label className="text-xs font-medium text-muted-foreground">Options (comma-separated)</label>
-                                                        <Input
-                                                            value={(field.options || []).join(', ')}
-                                                            onChange={(e) => updateField(field.id, {
-                                                                options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                                                            })}
-                                                            className="h-8 text-sm"
-                                                            placeholder="Option 1, Option 2, Option 3"
-                                                        />
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center justify-between">
-                                                    <LabeledSwitch
-                                                        label="Required"
-                                                        checked={field.required}
-                                                        onCheckedChange={(v) => updateField(field.id, { required: v })}
-                                                    />
-                                                    <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>
-                                                        Done
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            /* Display Mode */
-                                            <button
-                                                className="w-full text-left"
-                                                onClick={() => setEditingId(field.id)}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-medium">{field.label}</span>
-                                                    {field.required && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium">REQ</span>
-                                                    )}
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{field.type}</span>
-                                                </div>
-                                                <div className="text-xs text-muted-foreground font-mono mt-0.5">{field.key}</div>
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Delete */}
-                                    <button
-                                        onClick={() => removeField(field.id)}
-                                        className="p-1 rounded text-muted-foreground hover:text-destructive transition opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            ))}
+                        {/* Gamification settings */}
+                        <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-amber-500" />
+                                Gamification
+                            </h3>
+                            <LabeledSwitch
+                                label="Show Progress Bar"
+                                description="Display step progress with percentage"
+                                checked={gamification.showProgress}
+                                onCheckedChange={(v) => setGamification((g) => ({ ...g, showProgress: v }))}
+                            />
+                            <LabeledSwitch
+                                label="Show Nudge Messages"
+                                description="Dynamic encouragement: '13% Complete — almost there!'"
+                                checked={gamification.showNudges}
+                                onCheckedChange={(v) => setGamification((g) => ({ ...g, showNudges: v }))}
+                            />
+                            <LabeledSwitch
+                                label="Confetti on Submit"
+                                description="Celebration animation after form completion"
+                                checked={gamification.confetti}
+                                onCheckedChange={(v) => setGamification((g) => ({ ...g, confetti: v }))}
+                            />
                         </div>
-
-                        {fields.length === 0 && (
-                            <div className="text-center py-12 border border-dashed border-border rounded-xl">
-                                <p className="text-muted-foreground mb-3">No fields yet</p>
-                                <Button variant="outline" onClick={addField}>
-                                    <Plus className="h-4 w-4 mr-1" />
-                                    Add Your First Field
-                                </Button>
-                            </div>
-                        )}
                     </div>
 
                     {/* ─── Right: Live Preview ──────── */}
@@ -343,22 +484,32 @@ export function FormBuilder() {
                                 <button
                                     onClick={() => setPreviewMode('preview')}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${previewMode === 'preview'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'text-muted-foreground hover:text-foreground'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
                                         }`}
                                 >
                                     <Eye className="h-3.5 w-3.5" />
-                                    Visual
+                                    Wizard
                                 </button>
                                 <button
                                     onClick={() => setPreviewMode('json')}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${previewMode === 'json'
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'text-muted-foreground hover:text-foreground'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
                                         }`}
                                 >
                                     <Code className="h-3.5 w-3.5" />
                                     JSON
+                                </button>
+                                <button
+                                    onClick={() => setPreviewMode('export')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${previewMode === 'export'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Export
                                 </button>
                             </div>
                         </div>
@@ -366,7 +517,7 @@ export function FormBuilder() {
                         <Card className="sticky top-24">
                             {previewMode === 'preview' ? (
                                 <>
-                                    <CardHeader className="pb-4">
+                                    <CardHeader className="pb-2">
                                         <CardTitle className="text-lg capitalize">
                                             Get Your Free {vertical.replace('_', ' ')} Quote
                                         </CardTitle>
@@ -375,7 +526,23 @@ export function FormBuilder() {
                                         </p>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
-                                        {fields.map((field) => (
+                                        {/* Step Progress */}
+                                        {gamification.showProgress && (
+                                            <StepProgress
+                                                steps={steps}
+                                                currentStep={previewStep}
+                                                vertical={vertical}
+                                                showNudges={gamification.showNudges}
+                                            />
+                                        )}
+
+                                        {/* Step label */}
+                                        <h3 className="text-sm font-semibold text-primary">
+                                            {steps[previewStep]?.label || 'Step'}
+                                        </h3>
+
+                                        {/* Current step fields */}
+                                        {currentStepFields.map((field) => (
                                             <div key={field.id}>
                                                 <label className="text-sm font-medium mb-1.5 block">
                                                     {field.label}
@@ -410,23 +577,48 @@ export function FormBuilder() {
                                             </div>
                                         ))}
 
-                                        {/* TCPA + Submit */}
-                                        <div className="pt-2 space-y-3">
-                                            <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border border-border">
-                                                <div className="w-4 h-4 rounded border border-border mt-0.5 flex-shrink-0" />
-                                                <p className="text-[11px] text-muted-foreground leading-tight">
-                                                    By submitting, I consent to being contacted by phone, text, or email.
-                                                    I understand I may receive automated communications. Consent is not a
-                                                    condition of purchase.
-                                                </p>
+                                        {/* TCPA on last step */}
+                                        {previewStep === steps.length - 1 && (
+                                            <div className="pt-2 space-y-3">
+                                                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+                                                    <div className="w-4 h-4 rounded border border-border mt-0.5 flex-shrink-0" />
+                                                    <p className="text-[11px] text-muted-foreground leading-tight">
+                                                        By submitting, I consent to being contacted by phone, text, or email.
+                                                        I understand I may receive automated communications. Consent is not a
+                                                        condition of purchase.
+                                                    </p>
+                                                </div>
+                                                <div className="h-11 rounded-lg bg-primary flex items-center justify-center text-sm font-medium text-primary-foreground">
+                                                    Get My Free Quote
+                                                </div>
                                             </div>
-                                            <div className="h-11 rounded-lg bg-primary flex items-center justify-center text-sm font-medium text-primary-foreground">
-                                                Get My Free Quote
-                                            </div>
+                                        )}
+
+                                        {/* Navigation buttons */}
+                                        <div className="flex gap-2 pt-2">
+                                            {previewStep > 0 && (
+                                                <Button
+                                                    variant="outline"
+                                                    className="flex-1"
+                                                    onClick={() => setPreviewStep((p) => Math.max(0, p - 1))}
+                                                >
+                                                    <ChevronLeft className="h-4 w-4 mr-1" />
+                                                    Back
+                                                </Button>
+                                            )}
+                                            {previewStep < steps.length - 1 && (
+                                                <Button
+                                                    className="flex-1"
+                                                    onClick={() => setPreviewStep((p) => Math.min(steps.length - 1, p + 1))}
+                                                >
+                                                    Next
+                                                    <ChevronRight className="h-4 w-4 ml-1" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </CardContent>
                                 </>
-                            ) : (
+                            ) : previewMode === 'json' ? (
                                 <CardContent className="pt-6">
                                     <pre className="bg-background border border-border rounded-lg p-4 text-xs overflow-auto font-mono text-muted-foreground max-h-[600px]">
                                         {JSON.stringify(exportConfig(), null, 2)}
@@ -439,6 +631,15 @@ export function FormBuilder() {
                                     >
                                         {copied ? '✓ Copied!' : 'Copy JSON Config'}
                                     </Button>
+                                </CardContent>
+                            ) : (
+                                <CardContent className="pt-6">
+                                    <LanderExport
+                                        vertical={vertical}
+                                        fields={fields}
+                                        steps={steps}
+                                        gamification={gamification}
+                                    />
                                 </CardContent>
                             )}
                         </Card>
