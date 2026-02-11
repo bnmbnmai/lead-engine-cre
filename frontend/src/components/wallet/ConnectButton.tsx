@@ -16,7 +16,7 @@ import useAuth from '@/hooks/useAuth';
 // On logout/disconnect → navigate to /marketplace.
 
 export function ConnectButton() {
-    const { user, isAuthenticated, logout } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const wasAuthenticated = useRef(isAuthenticated);
 
