@@ -2,6 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { LeadNFTv2 } from "../typechain-types";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("LeadNFTv2", function () {
     let leadNFT: LeadNFTv2;
@@ -42,7 +43,7 @@ describe("LeadNFTv2", function () {
 
     describe("Minting", function () {
         it("Should mint a lead NFT with correct metadata", async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;  // 24h from now
+            const expiresAt = (await time.latest()) + 86400;  // 24h from now
 
             const tx = await leadNFT.connect(minter).mintLead(
                 seller.address,
@@ -66,7 +67,7 @@ describe("LeadNFTv2", function () {
         });
 
         it("Should revert if lead already tokenized", async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;
+            const expiresAt = (await time.latest()) + 86400;
 
             await leadNFT.connect(minter).mintLead(
                 seller.address,
@@ -98,7 +99,7 @@ describe("LeadNFTv2", function () {
         });
 
         it("Should revert if caller is not authorized", async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;
+            const expiresAt = (await time.latest()) + 86400;
 
             await expect(
                 leadNFT.connect(buyer).mintLead(
@@ -117,7 +118,7 @@ describe("LeadNFTv2", function () {
         });
 
         it("Should revert if expiry is in the past", async function () {
-            const pastExpiry = Math.floor(Date.now() / 1000) - 3600;  // 1h ago
+            const pastExpiry = (await time.latest()) - 3600;  // 1h ago
 
             await expect(
                 leadNFT.connect(minter).mintLead(
@@ -140,7 +141,7 @@ describe("LeadNFTv2", function () {
         let tokenId: bigint;
 
         beforeEach(async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;
+            const expiresAt = (await time.latest()) + 86400;
 
             await leadNFT.connect(minter).mintLead(
                 seller.address,
@@ -186,7 +187,7 @@ describe("LeadNFTv2", function () {
         let tokenId: bigint;
 
         beforeEach(async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;
+            const expiresAt = (await time.latest()) + 86400;
 
             await leadNFT.connect(minter).mintLead(
                 seller.address,
@@ -222,7 +223,7 @@ describe("LeadNFTv2", function () {
         let tokenId: bigint;
 
         beforeEach(async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;
+            const expiresAt = (await time.latest()) + 86400;
 
             await leadNFT.connect(minter).mintLead(
                 seller.address,
@@ -251,7 +252,7 @@ describe("LeadNFTv2", function () {
 
     describe("Different Lead Sources", function () {
         it("Should mint leads from different sources", async function () {
-            const expiresAt = Math.floor(Date.now() / 1000) + 86400;
+            const expiresAt = (await time.latest()) + 86400;
 
             // PLATFORM source (0)
             await leadNFT.connect(minter).mintLead(

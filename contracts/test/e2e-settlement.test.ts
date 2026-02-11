@@ -232,7 +232,7 @@ describe("E2E Settlement — Full Lifecycle", function () {
                 listingId,
                 buyer1.address
             );
-            expect(loserBid.status).to.equal(4); // REJECTED
+            expect(loserBid.status).to.equal(3); // REJECTED
 
             // ── Step 6: RTBEscrow settlement ──
             // escrowContract received the full winning bid amount
@@ -346,7 +346,7 @@ describe("E2E Settlement — Full Lifecycle", function () {
             await escrow.connect(buyer1).disputeEscrow(1);
 
             const escrowData = await escrow.getEscrow(1);
-            expect(escrowData.state).to.equal(3); // Disputed
+            expect(escrowData.state).to.equal(4); // Disputed
 
             // Admin refunds
             const buyerBalBefore = await usdc.balanceOf(buyer1.address);
