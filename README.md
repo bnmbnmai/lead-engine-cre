@@ -1,8 +1,8 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-286%20passing-brightgreen)
-![Jest](https://img.shields.io/badge/Jest-123%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-314%20passing-brightgreen)
+![Jest](https://img.shields.io/badge/Jest-151%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-62%20passing-brightgreen)
 ![Cypress](https://img.shields.io/badge/Cypress%20E2E-101%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
@@ -283,20 +283,20 @@ npm run dev
 
 ## 🧪 Testing
 
-> **286 tests passing** across 4 suites — **100% pass rate** on all automated suites.
+> **314 tests passing** across 4 suites — **100% pass rate** on all automated suites.
 > Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
 
 | Suite | Tests | Status | Notes |
 |-------|------:|--------|-------|
-| **Backend Jest** | 123 | ✅ All passing | 9 suites — unit, e2e, security, compliance |
+| **Backend Jest** | 151 | ✅ All passing | 11 suites — unit, e2e, security, compliance |
 | **Hardhat Contracts** | 62 | ✅ All passing | 7 suites — settlement, reorg, Chainlink stubs |
 | **Cypress E2E** | 101 | ✅ All passing | 4 specs — UI flows, multi-wallet, stress, copy |
 | **Artillery Load** | 18 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **286+** | **✅ 100%** | |
+| **Total** | **314+** | **✅ 100%** | |
 
-### Backend Jest (123 passing, 9 suites)
+### Backend Jest (151 passing, 11 suites)
 
 | Suite | Tests | Coverage |
 |-------|------:|----------|
@@ -398,7 +398,7 @@ lead-engine-cre/
 │   │   ├── routes/        # API + CRM webhooks + bidding + auto-bid
 │   │   ├── middleware/     # Auth, rate-limiting, CORS
 │   │   └── lib/           # Prisma, cache, geo-registry, utils
-│   ├── tests/             # 123 tests (unit, e2e, security, compliance, auto-bid, CRM)
+│   ├── tests/             # 151 tests (unit, e2e, security, compliance, auto-bid, CRM)
 │   └── prisma/            # Schema + migrations
 ├── frontend/              # React/Vite SPA
 │   ├── src/

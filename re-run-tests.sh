@@ -18,6 +18,11 @@ skip()   { echo -e "\033[1;33m⊘ $1 (skipped)\033[0m"; }
 # ─── 1. Backend Jest Tests ──────────────────────────────────
 header "Backend Jest Tests (unit + e2e + compliance + security)"
 cd "$ROOT_DIR/backend"
+
+# Ensure Prisma Client is generated (prevents hang from missing types)
+echo "Generating Prisma Client..."
+npm run db:generate 2>&1 || echo "  (Prisma generate skipped — may need DB for full schema)"
+
 if npx jest --verbose --forceExit --testTimeout=15000 2>&1 | tee "$ROOT_DIR/test-results/jest-results.txt"; then
     JEST_COUNT=$(grep -oP 'Tests:\s+\K\d+(?= passed)' "$ROOT_DIR/test-results/jest-results.txt" || echo "0")
     pass "Backend Jest: ${JEST_COUNT} tests passed"

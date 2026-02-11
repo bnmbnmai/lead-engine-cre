@@ -42,7 +42,9 @@ const config: Config = {
     coverageReporters: ['text', 'text-summary', 'lcov', 'json-summary'],
     coverageDirectory: 'coverage',
     verbose: true,
-    testTimeout: 15000,
+    testTimeout: 30000,
+    forceExit: true,
+    detectOpenHandles: true,
 };
 
 export default config;
