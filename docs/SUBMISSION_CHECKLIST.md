@@ -15,13 +15,14 @@
 
 - [ ] Security compliance sim: 29/29 passing
 - [ ] Auto-bid engine: 18/18 passing
-- [ ] CRM webhooks: 10/10 passing
-- [ ] Cypress E2E: 38+ UI tests
+- [ ] CRM webhooks: 10/10 passing (rate limit + circuit breaker)
+- [ ] Cypress E2E: 53+ UI tests
 - [ ] On-chain E2E: settlement (6), reorg (4), Chainlink stubs (5)
-- [ ] Artillery load test: 13 scenarios, 1,500 peak concurrent users
+- [ ] Artillery load test: 23+ scenarios, 10K peak concurrent users
 - [ ] Mock data seeded: 200+ entries (`cd backend && npm run db:seed`)
 - [ ] Testnet sim: 500+ on-chain txs (`npx ts-node scripts/testnet-sim.ts --dry-run`)
 - [ ] MCP tools test: `curl -X POST localhost:3002/rpc -d '{"method":"search_leads","params":{"vertical":"solar"}}'`
+- [ ] GitHub Actions CI: all 5 jobs passing (backend, frontend, Cypress, Artillery, contracts)
 
 ## Smart Contracts
 
@@ -75,13 +76,14 @@
 
 ## Demo Video
 
-- [ ] Recorded (3–4 min) per `docs/DEMO_SCRIPT.md`
+- [ ] Recorded (< 5 min) per `docs/LOOM_SCRIPT.md`
 - [ ] Uploaded to Loom (unlisted)
-- [ ] Covers 10 scenes: landing → seller submit → DECO/Streams → ACE → EU solar auto-bid → MCP agent (8 tools) → encrypted bid → CRM webhooks → global scale → close
+- [ ] 8 scenes: hook → seller flow → auto-bid engine → auction/settlement → CRM → MCP agent → global scale → Chainlink deep dive → close
 - [ ] Shows all 5 Chainlink services (CRE, ACE + DECO, Streams, Confidential stubs)
-- [ ] Shows auto-bid engine firing on EU solar lead
+- [ ] Shows auto-bid engine firing on Boise solar lead
 - [ ] Shows MCP agent: set_auto_bid_rules + configure_crm_webhook + ping_lead
-- [ ] Shows CRM webhook delivery (HubSpot + Zapier)
+- [ ] Shows CRM webhook delivery (HubSpot + Zapier) + CSV export
+- [ ] Shows instant x402 USDC settlement (< 10s)
 - [ ] Backup segments pre-recorded
 
 ## Pitch Deck
@@ -95,7 +97,7 @@
 
 - [ ] Project name: **Lead Engine CRE**
 - [ ] Category: **Chainlink CRE + ACE**
-- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 15+ countries, 151 tests, 500+ testnet txs
+- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 20+ countries, 166+ tests, 500+ testnet txs, Sentry monitoring, CI/CD pipeline
 - [ ] GitHub repo URL: `https://github.com/bnmbnmai/lead-engine-cre`
 - [ ] Demo video URL (Loom)
 - [ ] Live frontend URL: `https://lead-engine-cre.vercel.app`
@@ -108,8 +110,10 @@
 
 - [ ] Test live demo end-to-end one more time
 - [ ] README renders properly on GitHub (mermaid diagram, tables, badges)
+- [ ] CI badge green on README
 - [ ] No LICENSE file in repo (proprietary)
 - [ ] All links in submission form work
 - [ ] Video plays without issues
 - [ ] Pitch deck exported and linked
+- [ ] X/Twitter thread posted (see `docs/X_PROMOTION.md`)
 - [ ] Double-check submission deadline
