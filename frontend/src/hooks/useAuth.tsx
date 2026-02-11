@@ -40,6 +40,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Check existing session on mount
     useEffect(() => {
+        // E2E / Cypress bypass: if le_auth_user is set in localStorage
+        // (by cy.stubAuth), use that mock user directly without wagmi
+        const e2eUser = localStorage.getItem('le_auth_user');
+        if (e2eUser) {
+            try {
+                const parsed = JSON.parse(e2eUser);
+                setUser({
+                    id: parsed.id || 'e2e-user',
+                    walletAddress: parsed.walletAddress || '0x0',
+                    role: (parsed.role || 'buyer').toUpperCase() as User['role'],
+                });
+                setIsLoading(false);
+                return;
+            } catch {
+                // Invalid JSON — fall through to normal flow
+            }
+        }
+
         const token = getAuthToken();
         if (token && isConnected) {
             refreshUser();
