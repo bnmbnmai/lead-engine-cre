@@ -70,3 +70,12 @@ export function formatTimeRemaining(endTime: string | Date): string {
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
 }
+
+/**
+ * Shorten an Ethereum address for display.
+ * e.g. "0x1234567890abcdef..." → "0x1234…cdef"
+ */
+export function shortenAddress(address: string, chars = 4): string {
+  if (!address) return '';
+  return `${address.slice(0, chars + 2)}…${address.slice(-chars)}`;
+}
