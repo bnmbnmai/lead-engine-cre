@@ -39,13 +39,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { signMessageAsync } = useSignMessage();
     const { disconnect } = useDisconnect();
 
-    // ==== Session restore on mount ====
-    // Wait for wagmi to finish reconnecting before evaluating session state.
-    // This fixes the race condition where the auth check fires before wagmi
-    // reconnects, causing session loss on every page refresh.
+    // ==== Wait for wagmi to settle ====
+    // wagmi's status can be 'disconnected' briefly before 'reconnecting' on page load.
+    // We track whether wagmi has "settled" — meaning it went through reconnecting
+    // and came out the other side, OR it was never going to reconnect.
+    const [wagmiReady, setWagmiReady] = useState(false);
+    const hasSeenReconnecting = useRef(false);
+    const sessionRestored = useRef(false);
+
     useEffect(() => {
-        // E2E / Cypress bypass: if le_auth_user is set in localStorage
-        // (by cy.stubAuth), use that mock user directly without wagmi
+        if (status === 'reconnecting') {
+            hasSeenReconnecting.current = true;
+            return;
+        }
+        // Once we've seen 'reconnecting' and now we're not, wagmi is ready
+        if (hasSeenReconnecting.current) {
+            setWagmiReady(true);
+            return;
+        }
+        // If wagmi never enters 'reconnecting' (no saved connector), it goes
+        // straight to 'disconnected' or 'connected'. Use a short delay to
+        // distinguish "initial disconnected" from "truly no saved wallet".
+        const timer = setTimeout(() => setWagmiReady(true), 150);
+        return () => clearTimeout(timer);
+    }, [status]);
+
+    // ==== Session restore ====
+    useEffect(() => {
+        // E2E / Cypress bypass
         const e2eUser = localStorage.getItem('le_auth_user');
         if (e2eUser) {
             try {
@@ -58,26 +79,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setIsLoading(false);
                 return;
             } catch {
-                // Invalid JSON — fall through to normal flow
+                // Invalid JSON — fall through
             }
         }
 
-        // Don't evaluate until wagmi has finished reconnecting
-        if (status === 'reconnecting') return;
+        // Don't evaluate until wagmi has settled
+        if (!wagmiReady) return;
 
         const token = getAuthToken();
-        if (token && isConnected) {
-            // Wallet reconnected + token in localStorage → restore session
+        if (token && isConnected && !sessionRestored.current) {
+            sessionRestored.current = true;
             refreshUser();
-        } else if (token && !isConnected && status === 'disconnected') {
-            // Wallet disconnected externally — clear stale session
+        } else if (token && !isConnected) {
+            // Wallet truly disconnected — clear stale session
             setAuthToken(null);
             setUser(null);
             setIsLoading(false);
         } else {
             setIsLoading(false);
         }
-    }, [isConnected, status]);
+    }, [wagmiReady, isConnected]);
 
     // ==== Auto-SIWE on wallet connect ====
     // When a wallet connects for the first time (no existing token),
