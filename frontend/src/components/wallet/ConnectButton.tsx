@@ -23,7 +23,7 @@ export function ConnectButton() {
     // Redirect to marketplace when user logs out or disconnects
     useEffect(() => {
         if (wasAuthenticated.current && !isAuthenticated) {
-            navigate('/marketplace', { replace: true });
+            navigate('/', { replace: true });
         }
         wasAuthenticated.current = isAuthenticated;
     }, [isAuthenticated, navigate]);

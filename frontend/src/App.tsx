@@ -50,6 +50,17 @@ function AuthErrorDialog() {
     );
 }
 
+// Redirect authenticated users away from public lander to their dashboard
+function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
+    const { isAuthenticated, isLoading, user } = useAuth();
+    if (isLoading) return null; // wait for session restore
+    if (isAuthenticated) {
+        const dest = user?.role === 'SELLER' ? '/seller' : '/buyer';
+        return <Navigate to={dest} replace />;
+    }
+    return <>{children}</>;
+}
+
 function App() {
     return (
         <WagmiProvider config={wagmiConfig}>
@@ -58,9 +69,9 @@ function App() {
                     <AuthProvider>
                         <Router>
                             <Routes>
-                                {/* Marketplace (public landing) */}
-                                <Route path="/" element={<HomePage />} />
-                                <Route path="/marketplace" element={<HomePage />} />
+                                {/* Marketplace (public landing — auth users redirected to dashboard) */}
+                                <Route path="/" element={<RedirectIfAuthenticated><HomePage /></RedirectIfAuthenticated>} />
+                                <Route path="/marketplace" element={<RedirectIfAuthenticated><HomePage /></RedirectIfAuthenticated>} />
                                 <Route path="/auction/:leadId" element={<AuctionPage />} />
 
                                 {/* Buyer Routes (auth required) */}

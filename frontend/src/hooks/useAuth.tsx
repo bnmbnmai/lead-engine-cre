@@ -164,7 +164,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setAuthToken(null);
                 setUser(null);
             } else {
-                setUser(data.user);
+                // Backend /auth/me returns user fields at top level (not nested under .user)
+                const userData = data.user || data;
+                setUser(userData);
             }
         } catch {
             setAuthToken(null);
