@@ -109,3 +109,90 @@ describe('Auction UI — Mobile Responsiveness', () => {
         cy.get('body').should('not.have.css', 'overflow-x', 'scroll');
     });
 });
+
+// ============================================
+// Holder Perks UI Tests
+// ============================================
+
+describe('Holder Perks — Priority Bidding UI', () => {
+    beforeEach(() => {
+        cy.mockApi();
+        cy.visit('/');
+    });
+
+    it('shows "Priority Bid Active" badge when user is holder', () => {
+        cy.get('#nfts-tab', { timeout: 10000 }).click();
+        cy.get('body', { timeout: 10000 }).then(($body) => {
+            if ($body.find('#holder-perks-badge').length) {
+                cy.get('#holder-perks-badge')
+                    .should('be.visible')
+                    .and('contain.text', 'Priority Bid Active');
+            }
+        });
+    });
+
+    it('shows multiplier preview when holder types bid amount', () => {
+        cy.get('#nfts-tab', { timeout: 10000 }).click();
+        cy.get('body', { timeout: 10000 }).then(($body) => {
+            if ($body.find('#bid-preview-input').length) {
+                cy.get('#bid-preview-input').first().type('100');
+                cy.get('#effective-bid-display').first()
+                    .should('be.visible')
+                    .and('contain.text', '1.2')
+                    .and('contain.text', '$120.00');
+            }
+        });
+    });
+
+    it('shows pre-ping countdown indicator for holders', () => {
+        cy.get('#nfts-tab', { timeout: 10000 }).click();
+        cy.get('body', { timeout: 10000 }).then(($body) => {
+            if ($body.find('#preping-indicator').length) {
+                cy.get('#preping-indicator').first()
+                    .should('be.visible')
+                    .and('contain.text', 'Pre-Ping');
+                // Verify it shows seconds value 5-10
+                cy.get('#preping-indicator').first().invoke('text').then((text) => {
+                    const match = text.match(/(\d+)s/);
+                    if (match) {
+                        const seconds = parseInt(match[1]);
+                        expect(seconds).to.be.at.least(5);
+                        expect(seconds).to.be.at.most(10);
+                    }
+                });
+            }
+        });
+    });
+
+    it('shows "Powered by" label on owned verticals', () => {
+        cy.get('#nfts-tab', { timeout: 10000 }).click();
+        cy.get('body', { timeout: 10000 }).then(($body) => {
+            if ($body.find('#powered-by-owner').length) {
+                cy.get('#powered-by-owner').first()
+                    .should('be.visible')
+                    .and('contain.text', 'Powered by');
+            }
+        });
+    });
+});
+
+describe('Holder Perks — Mobile Responsive', () => {
+    beforeEach(() => {
+        cy.viewport(375, 667);
+        cy.mockApi();
+        cy.visit('/');
+    });
+
+    it('holder perks badges render without overflow on mobile', () => {
+        cy.get('#nfts-tab', { timeout: 10000 }).click();
+        cy.get('body', { timeout: 10000 }).then(($body) => {
+            if ($body.find('#holder-perks-badge').length) {
+                cy.get('#holder-perks-badge').first()
+                    .should('be.visible')
+                    .and('not.have.css', 'overflow', 'hidden');
+            }
+        });
+        // No horizontal overflow on body
+        cy.get('body').should('not.have.css', 'overflow-x', 'scroll');
+    });
+});

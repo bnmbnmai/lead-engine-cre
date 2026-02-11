@@ -8,6 +8,7 @@ import { rtbBiddingLimiter } from '../middleware/rateLimit';
 import { aceService } from '../services/ace.service';
 import { dataStreamsService } from '../services/datastreams.service';
 import { evaluateLeadForAutoBid, LeadData } from '../services/auto-bid.service';
+import { applyHolderPerks, applyMultiplier } from '../services/holder-perks.service';
 
 const router = Router();
 
@@ -108,6 +109,12 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                 }
             }
 
+            // Check holder perks (pre-ping + future multiplier at reveal)
+            const holderPerks = await applyHolderPerks(
+                lead.vertical,
+                req.user!.walletAddress,
+            );
+
             // Create or update bid
             const bid = await prisma.bid.upsert({
                 where: {
@@ -156,6 +163,10 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                     status: bid.status,
                     committedAt: bid.createdAt,
                 },
+                holderPerks: holderPerks.isHolder ? {
+                    prePingSeconds: holderPerks.prePingSeconds,
+                    multiplier: holderPerks.multiplier,
+                } : undefined,
                 message: 'Bid committed. Reveal after bidding phase ends.',
             });
         } else {
@@ -201,6 +212,17 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                 return;
             }
 
+            // Check holder perks
+            const holderPerks = await applyHolderPerks(
+                lead.vertical,
+                req.user!.walletAddress,
+            );
+
+            // Apply multiplier for holders (sealed-bid advantage)
+            const effectiveBid = holderPerks.isHolder
+                ? applyMultiplier(amount, holderPerks.multiplier)
+                : amount;
+
             const bid = await prisma.bid.upsert({
                 where: {
                     leadId_buyerId: { leadId, buyerId: req.user!.id },
@@ -208,12 +230,12 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                 create: {
                     leadId,
                     buyerId: req.user!.id,
-                    amount,
+                    amount: effectiveBid,
                     status: 'REVEALED',
                     revealedAt: new Date(),
                 },
                 update: {
-                    amount,
+                    amount: effectiveBid,
                     status: 'REVEALED',
                     revealedAt: new Date(),
                 },
@@ -250,9 +272,15 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                     id: bid.id,
                     leadId: bid.leadId,
                     amount: Number(bid.amount),
+                    rawAmount: holderPerks.isHolder ? amount : undefined,
                     status: bid.status,
                     createdAt: bid.createdAt,
                 },
+                holderPerks: holderPerks.isHolder ? {
+                    prePingSeconds: holderPerks.prePingSeconds,
+                    multiplier: holderPerks.multiplier,
+                    effectiveBid: effectiveBid,
+                } : undefined,
             });
         }
     } catch (error) {

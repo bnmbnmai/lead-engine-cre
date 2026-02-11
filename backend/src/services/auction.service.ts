@@ -10,13 +10,20 @@
 
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
+import {
+    applyHolderPerks,
+    applyMultiplier,
+    checkActivityThreshold,
+    computePrePing,
+    HolderPerks,
+} from './holder-perks.service';
 
 // ============================================
 // Contract Config
 // ============================================
 
 const VERTICAL_AUCTION_ABI = [
-    'function createAuction(address nftContract, uint256 tokenId, uint128 reservePrice, uint40 duration) external returns (uint256)',
+    'function createAuction(address nftContract, uint256 tokenId, bytes32 slug, uint128 reservePrice, uint40 duration) external returns (uint256)',
     'function placeBid(uint256 auctionId) external payable',
     'function settleAuction(uint256 auctionId) external',
     'function cancelAuction(uint256 auctionId) external',
@@ -148,6 +155,7 @@ export interface BidResult {
     success: boolean;
     txHash?: string;
     currentHighBid?: number;
+    holderPerks?: { prePingSeconds: number; multiplier: number; effectiveBid: number };
     error?: string;
 }
 
@@ -172,14 +180,34 @@ export async function placeBid(
     if (now > auction.endTime) {
         return { success: false, error: 'Auction has ended' };
     }
-    if (bidAmount < auction.reservePrice) {
-        return { success: false, error: `Bid $${bidAmount} below reserve $${auction.reservePrice}` };
-    }
-    if (bidAmount <= auction.highBid) {
-        return { success: false, error: `Bid $${bidAmount} not higher than current $${auction.highBid}` };
+
+    // 2. Spam prevention
+    if (!checkActivityThreshold(bidderAddress)) {
+        return { success: false, error: 'Rate limit exceeded — max 5 bids per minute' };
     }
 
-    // 2. Try on-chain bid
+    // 3. Check holder perks (1.2× multiplier for NFT holders)
+    const perks = await applyHolderPerks(auction.verticalSlug, bidderAddress);
+    const effectiveBid = perks.isHolder
+        ? applyMultiplier(bidAmount, perks.multiplier)
+        : bidAmount;
+
+    // 4. Pre-ping enforcement: only holders can bid during pre-ping window
+    if (auction.prePingEndsAt) {
+        if (now < auction.prePingEndsAt && !perks.isHolder) {
+            const remainingSec = Math.ceil((auction.prePingEndsAt.getTime() - now.getTime()) / 1000);
+            return { success: false, error: `Pre-ping window active — holders only (${remainingSec}s remaining)` };
+        }
+    }
+
+    if (effectiveBid < auction.reservePrice) {
+        return { success: false, error: `Bid $${effectiveBid} below reserve $${auction.reservePrice}` };
+    }
+    if (effectiveBid <= auction.highBid) {
+        return { success: false, error: `Bid $${effectiveBid} not higher than current $${auction.highBid}` };
+    }
+
+    // 3. Try on-chain bid
     let txHash = '';
     const contract = getAuctionContract();
     if (contract && auction.auctionId) {
@@ -195,22 +223,28 @@ export async function placeBid(
         }
     }
 
-    // 3. Update Prisma
+    // 6. Update Prisma with effective bid + raw bid
     try {
         await prisma.verticalAuction.update({
             where: { id: auctionDbId },
             data: {
                 highBidder: bidderAddress,
-                highBid: bidAmount,
+                highBid: effectiveBid,
+                rawBid: bidAmount,
             },
         });
 
-        console.log(`[AUCTION] Bid $${bidAmount} from ${bidderAddress} on auction ${auctionDbId}`);
+        console.log(`[AUCTION] Bid $${bidAmount}${perks.isHolder ? ` (effective: $${effectiveBid}, 1.2× holder)` : ''} from ${bidderAddress} on auction ${auctionDbId}`);
 
         return {
             success: true,
             txHash: txHash || undefined,
-            currentHighBid: bidAmount,
+            currentHighBid: effectiveBid,
+            holderPerks: perks.isHolder ? {
+                prePingSeconds: perks.prePingSeconds,
+                multiplier: perks.multiplier,
+                effectiveBid,
+            } : undefined,
         };
     } catch (error: any) {
         return { success: false, error: `Database error: ${error.message}` };

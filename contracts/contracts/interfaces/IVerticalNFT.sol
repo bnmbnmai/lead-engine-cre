@@ -88,4 +88,10 @@ interface IVerticalNFT {
     function slugToToken(bytes32 slug) external view returns (uint256);
     function totalSupply() external view returns (uint256);
     function getFloorPrice() external view returns (int256 price, uint256 updatedAt);
+
+    /// @dev Check if `account` owns the NFT for `slugHash`
+    function isHolder(address account, bytes32 slugHash) external view returns (bool);
+
+    /// @dev Batch check holder status for multiple slugs
+    function batchIsHolder(address account, bytes32[] calldata slugHashes) external view returns (bool[] memory);
 }

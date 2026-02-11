@@ -183,3 +183,22 @@ export const verticalHierarchyCache = new LRUCache<any>({
     maxSize: 50,
     ttlMs: 5 * 60_000,
 });
+
+/** Cache for NFT ownership lookups (2 min TTL) */
+export const nftOwnershipCache = new LRUCache<string | null>({
+    maxSize: 2000,
+    ttlMs: 2 * 60_000,
+});
+
+/** Cache for bid activity counters — spam prevention (60s TTL = 1 minute window) */
+export const bidActivityCache = new LRUCache<number>({
+    maxSize: 10000,
+    ttlMs: 60_000,
+});
+
+/** Cache for holder notification opt-in status (5 min TTL) */
+export const holderNotifyCache = new LRUCache<boolean>({
+    maxSize: 5000,
+    ttlMs: 5 * 60_000,
+});
+

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ExternalLink, Shield, Tag, Gem, Wallet, Timer, Gavel } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ExternalLink, Shield, Tag, Gem, Wallet, Timer, Gavel, Zap, Clock } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
+import { HolderPerksBadge } from './HolderPerksBadge';
 
 // ============================================
 // Types
@@ -99,6 +100,31 @@ export function NFTCard({
     const hasAuction = !!vertical.auction;
     const canBuy = hasMintedNFT && isPlatformOwned && vertical.status === 'ACTIVE' && !hasAuction;
     const resaleCount = vertical.resaleHistory?.length || 0;
+
+    // Holder perks detection
+    const isHolder = useMemo(() => {
+        if (!wallet || !vertical.ownerAddress) return false;
+        return wallet.toLowerCase() === vertical.ownerAddress.toLowerCase();
+    }, [wallet, vertical.ownerAddress]);
+
+    const holderMultiplier = 1.2;
+    const holderPrePing = useMemo(() => {
+        // Deterministic pre-ping per slug (mirrors backend logic)
+        let hash = 0;
+        for (let i = 0; i < vertical.slug.length; i++) {
+            hash = ((hash << 5) - hash + vertical.slug.charCodeAt(i)) | 0;
+        }
+        return 5 + (Math.abs(hash) % 6);
+    }, [vertical.slug]);
+
+    // Bid preview state (for multiplier preview)
+    const [bidPreview, setBidPreview] = useState<number>(0);
+    const effectiveBidPreview = isHolder
+        ? Math.round(bidPreview * holderMultiplier * 100) / 100
+        : bidPreview;
+
+    // "Powered by" — show owner attribution when not platform-owned and has an owner
+    const showPoweredBy = vertical.ownerAddress && !isPlatformOwned;
 
     // Auction countdown
     const [timeLeft, setTimeLeft] = useState('');
@@ -232,10 +258,21 @@ export function NFTCard({
                 {hasAuction && (
                     <div className="mt-3 pt-3 border-t border-border">
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-amber-500 flex items-center gap-1">
-                                <Gavel className="h-3 w-3" />
-                                Auction Live
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-amber-500 flex items-center gap-1">
+                                    <Gavel className="h-3 w-3" />
+                                    Auction Live
+                                </span>
+                                {isHolder && (
+                                    <HolderPerksBadge
+                                        isHolder={true}
+                                        prePingSeconds={holderPrePing}
+                                        multiplier={holderMultiplier}
+                                        ownerAddress={vertical.ownerAddress}
+                                        compact={true}
+                                    />
+                                )}
+                            </div>
                             <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
                                 <Timer className="h-3 w-3" />
                                 {timeLeft}
@@ -250,6 +287,36 @@ export function NFTCard({
                                 }
                             </span>
                         </div>
+
+                        {/* Holder multiplier preview */}
+                        {isHolder && auctionActive && (
+                            <div className="mt-2 space-y-1.5" id="holder-bid-preview">
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        placeholder="Your bid $"
+                                        className="flex-1 h-7 px-2 text-xs rounded border border-amber-500/30 bg-amber-500/5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                                        min={0}
+                                        step={0.01}
+                                        onChange={(e) => setBidPreview(Number(e.target.value) || 0)}
+                                        id="bid-preview-input"
+                                    />
+                                </div>
+                                {bidPreview > 0 && (
+                                    <div className="text-[11px] text-amber-400 flex items-center gap-1" id="effective-bid-display">
+                                        <Zap className="h-3 w-3" />
+                                        Effective: ${bidPreview.toFixed(2)} × {holderMultiplier} = <span className="font-semibold text-green-400">${effectiveBidPreview.toFixed(2)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Powered by owner */}
+                {showPoweredBy && (
+                    <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1" id="powered-by-owner">
+                        Powered by <span className="font-mono text-foreground/60">{truncateHash(vertical.ownerAddress!, 4)}</span>
                     </div>
                 )}
             </CardContent>
@@ -257,23 +324,32 @@ export function NFTCard({
             <CardFooter className="px-6 pb-6">
                 {hasAuction && auctionActive ? (
                     isAuthenticated ? (
-                        <Button
-                            className="w-full group-hover:scale-[1.02] transition-transform gap-2 bg-amber-600 hover:bg-amber-700"
-                            onClick={() => onBid?.(vertical.slug, vertical.auction!.id)}
-                            disabled={isBuying}
-                        >
-                            {isBuying ? (
-                                <>
-                                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                    Bidding...
-                                </>
-                            ) : (
-                                <>
-                                    <Gavel className="h-4 w-4" />
-                                    Place Bid
-                                </>
+                        <div className="w-full space-y-2">
+                            {/* Pre-ping indicator for holders */}
+                            {isHolder && (
+                                <div className="flex items-center justify-center gap-1.5 text-[11px] text-blue-400 bg-blue-500/5 border border-blue-500/20 rounded px-2 py-1" id="preping-indicator">
+                                    <Clock className="h-3 w-3" />
+                                    <span>Pre-Ping: {holderPrePing}s early access</span>
+                                </div>
                             )}
-                        </Button>
+                            <Button
+                                className="w-full group-hover:scale-[1.02] transition-transform gap-2 bg-amber-600 hover:bg-amber-700"
+                                onClick={() => onBid?.(vertical.slug, vertical.auction!.id)}
+                                disabled={isBuying}
+                            >
+                                {isBuying ? (
+                                    <>
+                                        <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                        Bidding...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Gavel className="h-4 w-4" />
+                                        {isHolder ? 'Place Priority Bid' : 'Place Bid'}
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     ) : (
                         <Button
                             className="w-full group-hover:scale-[1.02] transition-transform gap-2"

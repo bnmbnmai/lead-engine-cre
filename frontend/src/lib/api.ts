@@ -223,7 +223,15 @@ export const api = {
         }),
 
     placeBidOnAuction: (auctionId: string, bidderAddress: string, amount: number) =>
-        apiFetch<{ success: boolean; currentHighBid?: number }>(
+        apiFetch<{
+            success: boolean;
+            currentHighBid?: number;
+            holderPerks?: {
+                prePingSeconds: number;
+                multiplier: number;
+                effectiveBid: number;
+            };
+        }>(
             `/api/v1/verticals/auctions/${auctionId}/bid`, {
             method: 'POST',
             body: JSON.stringify({ bidderAddress, amount }),

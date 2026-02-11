@@ -3,6 +3,13 @@ import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
+import {
+    applyHolderPerks,
+    applyMultiplier,
+    checkActivityThreshold,
+    isInPrePingWindow,
+} from '../services/holder-perks.service';
+import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -142,6 +149,12 @@ class RTBSocketServer {
                         return;
                     }
 
+                    // Spam prevention: check activity threshold
+                    if (!checkActivityThreshold(socket.walletAddress || '')) {
+                        socket.emit('error', { message: 'Rate limit exceeded — max 5 bids per minute' });
+                        return;
+                    }
+
                     const lead = await prisma.lead.findUnique({
                         where: { id: data.leadId },
                         include: { auctionRoom: true },
@@ -164,6 +177,27 @@ class RTBSocketServer {
                         return;
                     }
 
+                    // Check holder perks
+                    const perks = await applyHolderPerks(lead.vertical, socket.walletAddress);
+
+                    // Pre-ping enforcement: only holders can bid during pre-ping window
+                    if (lead.auctionRoom?.prePingEndsAt) {
+                        const now = new Date();
+                        if (now < lead.auctionRoom.prePingEndsAt && !perks.isHolder) {
+                            const remainingMs = lead.auctionRoom.prePingEndsAt.getTime() - now.getTime();
+                            socket.emit('error', {
+                                message: `Pre-ping window active — holders only (${Math.ceil(remainingMs / 1000)}s remaining)`,
+                            });
+                            return;
+                        }
+                    }
+
+                    // Calculate effective bid (1.2× for holders)
+                    const rawAmount = data.amount || 0;
+                    const effectiveBid = perks.isHolder
+                        ? applyMultiplier(rawAmount, perks.multiplier)
+                        : rawAmount;
+
                     // Create bid
                     const bid = await prisma.bid.upsert({
                         where: {
@@ -174,25 +208,28 @@ class RTBSocketServer {
                             buyerId: socket.userId!,
                             commitment: data.commitment,
                             amount: data.amount,
+                            effectiveBid,
                             status: data.commitment ? 'PENDING' : 'REVEALED',
                             revealedAt: data.amount ? new Date() : null,
                         },
                         update: {
                             commitment: data.commitment,
                             amount: data.amount,
+                            effectiveBid,
                             status: data.commitment ? 'PENDING' : 'REVEALED',
                             revealedAt: data.amount ? new Date() : null,
                         },
                     });
 
-                    // Update auction room
+                    // Update auction room with effective bid
                     if (lead.auctionRoom) {
                         const updateData: any = { bidCount: { increment: 1 } };
 
-                        if (data.amount) {
+                        if (effectiveBid) {
                             const currentHighest = lead.auctionRoom.highestBid ? Number(lead.auctionRoom.highestBid) : 0;
-                            if (data.amount > currentHighest) {
-                                updateData.highestBid = data.amount;
+                            if (effectiveBid > currentHighest) {
+                                updateData.highestBid = effectiveBid;
+                                updateData.effectiveBid = effectiveBid;
                                 updateData.highestBidder = socket.userId;
                             }
                         }
@@ -207,30 +244,64 @@ class RTBSocketServer {
                         this.io.to(roomId).emit('bid:new', {
                             leadId: data.leadId,
                             bidCount: (lead.auctionRoom.bidCount || 0) + 1,
-                            highestBid: data.amount && data.amount > (Number(lead.auctionRoom.highestBid) || 0)
-                                ? data.amount
+                            highestBid: effectiveBid > (Number(lead.auctionRoom.highestBid) || 0)
+                                ? effectiveBid
                                 : lead.auctionRoom.highestBid,
+                            isHolderBid: perks.isHolder,
                             timestamp: new Date(),
+                        });
+                    }
+
+                    // Emit holder-specific event
+                    if (perks.isHolder) {
+                        socket.emit('bid:holder', {
+                            bidId: bid.id,
+                            rawBid: rawAmount,
+                            effectiveBid,
+                            multiplier: perks.multiplier,
+                            prePingSeconds: perks.prePingSeconds,
                         });
                     }
 
                     socket.emit('bid:confirmed', {
                         bidId: bid.id,
                         status: bid.status,
+                        effectiveBid,
+                        isHolder: perks.isHolder,
                     });
 
                     // Log event
                     await prisma.analyticsEvent.create({
                         data: {
-                            eventType: 'bid_placed_realtime',
+                            eventType: perks.isHolder ? 'holder_bid_placed_realtime' : 'bid_placed_realtime',
                             entityType: 'bid',
                             entityId: bid.id,
                             userId: socket.userId,
+                            metadata: perks.isHolder ? {
+                                rawBid: rawAmount,
+                                effectiveBid,
+                                multiplier: perks.multiplier,
+                            } : undefined,
                         },
                     });
                 } catch (error) {
                     console.error('Socket bid error:', error);
                     socket.emit('error', { message: 'Failed to place bid' });
+                }
+            });
+
+            // Holder notification opt-in toggle
+            socket.on('holder:notify-optin', async (data: { optIn: boolean }) => {
+                try {
+                    if (!socket.userId) {
+                        socket.emit('error', { message: 'Not authenticated' });
+                        return;
+                    }
+                    const result = await setHolderNotifyOptIn(socket.userId, data.optIn);
+                    socket.emit('holder:notify-status', result);
+                } catch (error) {
+                    console.error('Notify opt-in error:', error);
+                    socket.emit('error', { message: 'Failed to update notification preference' });
                 }
             });
 
@@ -311,7 +382,7 @@ class RTBSocketServer {
                     status: 'REVEALED',
                     amount: { not: null },
                 },
-                orderBy: { amount: 'desc' },
+                orderBy: { effectiveBid: 'desc' },
                 include: { buyer: true },
             });
 
@@ -380,7 +451,8 @@ class RTBSocketServer {
             this.io.to(`auction_${leadId}`).emit('auction:resolved', {
                 leadId,
                 winnerId: winningBid.buyerId,
-                winningAmount: Number(winningBid.amount),
+                winningAmount: Number(winningBid.amount), // Raw amount for settlement
+                effectiveBid: Number(winningBid.effectiveBid || winningBid.amount),
             });
 
             console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);

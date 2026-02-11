@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "./interfaces/IVerticalNFT.sol";
 
 /**
  * @title VerticalAuction
@@ -23,11 +24,14 @@ contract VerticalAuction is ReentrancyGuard {
         uint256 tokenId;
         address nftContract;      // VerticalNFT address
         address seller;           // NFT owner (platform)
+        bytes32 slug;             // Vertical slug hash (for holder check)
         uint128 reservePrice;     // Minimum bid in wei
         uint40  startTime;
         uint40  endTime;
+        uint40  prePingEnd;       // startTime + PRE_PING_SECONDS (holder-only window)
         address highBidder;
-        uint128 highBid;
+        uint128 highBid;          // Effective bid (after multiplier) for comparison
+        uint128 highBidRaw;       // Actual ETH sent (used for settlement)
         bool    settled;
         bool    cancelled;
     }
@@ -41,6 +45,14 @@ contract VerticalAuction is ReentrancyGuard {
 
     // Track pending withdrawals (pull pattern for losing bidders)
     mapping(address => uint256) public pendingWithdrawals;
+
+    // ─── Holder Priority Constants ────────────────
+    /// @dev 1.2× multiplier expressed in basis points (1200 / 1000 = 1.2)
+    uint256 public constant HOLDER_MULTIPLIER_BPS = 1200;
+    /// @dev Denominator for multiplier math
+    uint256 public constant MULTIPLIER_DENOM = 1000;
+    /// @dev Pre-ping window in seconds — only holders can bid during this window
+    uint40 public constant PRE_PING_SECONDS = 10;
 
     // ============================================
     // Events
@@ -61,6 +73,14 @@ contract VerticalAuction is ReentrancyGuard {
         uint128 amount
     );
 
+    event HolderBidPlaced(
+        uint256 indexed auctionId,
+        address indexed bidder,
+        uint128 rawBid,
+        uint128 effectiveBid,
+        uint256 multiplierBps
+    );
+
     event AuctionSettled(
         uint256 indexed auctionId,
         address indexed winner,
@@ -78,12 +98,14 @@ contract VerticalAuction is ReentrancyGuard {
      * @dev Create a new auction. Caller must own the NFT and have approved this contract.
      * @param nftContract The VerticalNFT contract address
      * @param tokenId The NFT token ID to auction
+     * @param slug The vertical slug hash (for holder lookup)
      * @param reservePrice Minimum bid in wei
      * @param duration Auction duration in seconds
      */
     function createAuction(
         address nftContract,
         uint256 tokenId,
+        bytes32 slug,
         uint128 reservePrice,
         uint40 duration
     ) external returns (uint256 auctionId) {
@@ -105,24 +127,28 @@ contract VerticalAuction is ReentrancyGuard {
         );
 
         auctionId = nextAuctionId++;
+        uint40 start = uint40(block.timestamp);
 
         auctions[auctionId] = Auction({
             tokenId: tokenId,
             nftContract: nftContract,
             seller: msg.sender,
+            slug: slug,
             reservePrice: reservePrice,
-            startTime: uint40(block.timestamp),
-            endTime: uint40(block.timestamp) + duration,
+            startTime: start,
+            endTime: start + duration,
+            prePingEnd: start + PRE_PING_SECONDS,
             highBidder: address(0),
             highBid: 0,
+            highBidRaw: 0,
             settled: false,
             cancelled: false
         });
 
         emit AuctionCreated(
             auctionId, tokenId, msg.sender,
-            reservePrice, uint40(block.timestamp),
-            uint40(block.timestamp) + duration
+            reservePrice, start,
+            start + duration
         );
     }
 
@@ -131,7 +157,9 @@ contract VerticalAuction is ReentrancyGuard {
     // ============================================
 
     /**
-     * @dev Place a bid on an active auction
+     * @dev Place a bid on an active auction.
+     *      During the pre-ping window (first PRE_PING_SECONDS), only holders can bid.
+     *      Holder bids get a 1.2× effective weight for comparison (but settle at raw ETH).
      */
     function placeBid(uint256 auctionId) external payable nonReentrant {
         Auction storage a = auctions[auctionId];
@@ -139,19 +167,38 @@ contract VerticalAuction is ReentrancyGuard {
         require(!a.settled && !a.cancelled, "Auction: Not active");
         require(block.timestamp >= a.startTime, "Auction: Not started");
         require(block.timestamp < a.endTime, "Auction: Ended");
-        require(msg.value >= a.reservePrice, "Auction: Below reserve");
-        require(msg.value > a.highBid, "Auction: Below current high bid");
         require(msg.sender != a.seller, "Auction: Seller cannot bid");
 
-        // Refund previous high bidder via pull pattern
+        // Check holder status via cross-contract call
+        bool bidderIsHolder = IVerticalNFT(a.nftContract).isHolder(msg.sender, a.slug);
+
+        // Pre-ping gate: only holders can bid before prePingEnd
+        if (block.timestamp < a.prePingEnd) {
+            require(bidderIsHolder, "Auction: Pre-ping window (holders only)");
+        }
+
+        // Calculate effective bid (holder gets 1.2× weight)
+        uint128 effectiveBid = bidderIsHolder
+            ? uint128((uint256(msg.value) * HOLDER_MULTIPLIER_BPS) / MULTIPLIER_DENOM)
+            : uint128(msg.value);
+
+        require(effectiveBid >= a.reservePrice, "Auction: Below reserve");
+        require(effectiveBid > a.highBid, "Auction: Below current high bid");
+
+        // Refund previous high bidder via pull pattern (use raw amount)
         if (a.highBidder != address(0)) {
-            pendingWithdrawals[a.highBidder] += a.highBid;
+            pendingWithdrawals[a.highBidder] += a.highBidRaw;
         }
 
         a.highBidder = msg.sender;
-        a.highBid = uint128(msg.value);
+        a.highBid = effectiveBid;       // Effective (for comparison)
+        a.highBidRaw = uint128(msg.value); // Actual ETH (for settlement)
 
-        emit BidPlaced(auctionId, msg.sender, uint128(msg.value));
+        if (bidderIsHolder) {
+            emit HolderBidPlaced(auctionId, msg.sender, uint128(msg.value), effectiveBid, HOLDER_MULTIPLIER_BPS);
+        } else {
+            emit BidPlaced(auctionId, msg.sender, uint128(msg.value));
+        }
     }
 
     // ============================================
@@ -160,6 +207,7 @@ contract VerticalAuction is ReentrancyGuard {
 
     /**
      * @dev Settle a completed auction. Transfers NFT and pays seller.
+     *      Uses highBidRaw (actual ETH) for payment, not effectiveBid.
      */
     function settleAuction(uint256 auctionId) external nonReentrant {
         Auction storage a = auctions[auctionId];
@@ -170,9 +218,11 @@ contract VerticalAuction is ReentrancyGuard {
 
         a.settled = true;
 
+        // Use highBidRaw (actual ETH held by contract) for settlement
+        uint128 paymentAmount = a.highBidRaw;
+
         // Try calling transferWithRoyalty on the NFT contract
-        // This handles NFT transfer + royalty split in one call
-        (bool success, ) = a.nftContract.call{value: a.highBid}(
+        (bool success, ) = a.nftContract.call{value: paymentAmount}(
             abi.encodeWithSignature(
                 "transferWithRoyalty(uint256,address)",
                 a.tokenId,
@@ -182,13 +232,12 @@ contract VerticalAuction is ReentrancyGuard {
 
         uint256 royaltyPaid = 0;
         if (success) {
-            // transferWithRoyalty handled everything (NFT + royalty + seller payment)
-            // Estimate royalty for event (2% default)
-            royaltyPaid = (uint256(a.highBid) * 200) / 10000;
+            // transferWithRoyalty handled everything
+            royaltyPaid = (uint256(paymentAmount) * 200) / 10000;
         } else {
             // Fallback: simple transfer + send all funds to seller
             IERC721(a.nftContract).transferFrom(a.seller, a.highBidder, a.tokenId);
-            (bool payOk, ) = a.seller.call{value: a.highBid}("");
+            (bool payOk, ) = a.seller.call{value: paymentAmount}("");
             require(payOk, "Auction: Payment failed");
         }
 

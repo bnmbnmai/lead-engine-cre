@@ -1,7 +1,7 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-462%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-523%20passing-brightgreen)
 ![Jest](https://img.shields.io/badge/Jest-269%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-133%20passing-brightgreen)
 ![Cypress](https://img.shields.io/badge/Cypress%20E2E-107%20passing-brightgreen)
@@ -91,6 +91,35 @@ Lead Engine uses a **platform-first minting model** to bootstrap the vertical NF
 ### Institutional Bulk Buys
 
 Large buyers can bid on multiple verticals simultaneously via the `VerticalAuction` contract or backend batch API. Compliance checks (ACE) run per-transaction, ensuring institutional buyers meet KYC/AML requirements across all acquired verticals.
+
+---
+
+## 🏆 NFT Holder Priority Bidding Perks
+
+Holders of vertical NFTs receive on-chain priority in lead auctions:
+
+| Perk | Detail |
+|------|--------|
+| **Pre-Ping Window** | 5–10 second exclusive bidding window at auction start (deterministic per vertical) |
+| **1.2× Bid Multiplier** | Effective bid = raw bid × 1.2, enforced on-chain in `VerticalAuction.sol` |
+| **RTB Score Bonus** | +2000 match score in RTB engine for higher lead priority |
+| **Opt-in Notifications** | Socket-based pre-ping alerts when new auctions start in held verticals |
+| **Spam Prevention** | 5 bids/minute/wallet rate limit via LRU cache |
+
+### How It Works
+
+1. **Lead arrives** → RTB engine matches buyers, holders get +2000 score bonus
+2. **Auction starts** → Pre-ping window (5–10s) opens for holders only
+3. **Holder bids** → Raw bid multiplied by 1.2× for effective bid ranking
+4. **Settlement** → Winner pays raw bid amount; effective bid used only for ranking
+5. **On-chain enforcement** → `VerticalAuction.sol` validates holder status via `IVerticalNFT.isHolder()`
+
+### Loom Demo Notes
+
+- Show `HolderPerksBadge` component with live countdown timer
+- Demonstrate holder bidding during pre-ping (non-holder gets "holders only" error)
+- Show $80 holder bid (effective $96) beating $95 non-holder bid
+- Toggle notification opt-in via bell icon in the perks panel
 
 ---
 
@@ -319,11 +348,11 @@ npm run dev
 
 | Suite | Tests | Status | Notes |
 |-------|------:|--------|-------|
-| **Backend Jest** | 282 | ✅ All passing | 18 suites — unit, e2e, security, compliance, env-guard, NFT service, integration |
+| **Backend Jest** | 333 | ✅ All passing | 19 suites — unit, e2e, security, compliance, env-guard, NFT service, integration, priority bidding |
 | **Hardhat Contracts** | 72 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced |
 | **Cypress E2E** | 113 | ✅ All passing | 5 specs — UI flows, multi-wallet, stress, copy, vertical-nft |
 | **Artillery Load** | 22 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **472+** | **✅ 100%** | |
+| **Total** | **523+** | **✅ 100%** | |
 
 ### Backend Jest (257 passing, 16 suites)
 

@@ -1,6 +1,8 @@
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
 import { creService } from '../services/cre.service';
+import { applyHolderPerks, computePrePing, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
+import { findNotifiableHolders } from '../services/notification.service';
 
 // ============================================
 // RTB Engine
@@ -67,13 +69,17 @@ class RTBEngine {
             const auctionDuration = ask.auctionDuration || 3600;
             const revealWindow = ask.revealWindow || 900;
 
+            // Compute pre-ping window for holder priority
+            const prePingSeconds = computePrePing(lead.vertical);
+            const auctionStartAt = new Date();
+
             await prisma.$transaction([
                 prisma.lead.update({
                     where: { id: leadId },
                     data: {
                         askId: ask.id,
                         status: 'IN_AUCTION',
-                        auctionStartAt: new Date(),
+                        auctionStartAt,
                         auctionEndAt: new Date(Date.now() + auctionDuration * 1000),
                     },
                 }),
@@ -82,6 +88,7 @@ class RTBEngine {
                         leadId,
                         roomId: `auction_${leadId}`,
                         phase: 'BIDDING',
+                        prePingEndsAt: new Date(auctionStartAt.getTime() + prePingSeconds * 1000),
                         biddingEndsAt: new Date(Date.now() + auctionDuration * 1000),
                         revealEndsAt: new Date(Date.now() + (auctionDuration + revealWindow) * 1000),
                     },
@@ -192,9 +199,13 @@ class RTBEngine {
             const excludeList = geoFilters?.excludeRegions || geoFilters?.excludeStates;
             if (excludeList?.includes(geoData?.state)) continue;
 
-            // TODO: Send notification (email, push, websocket)
-            // For now, log
-            console.log(`Notify buyer ${buyer.user.walletAddress} about lead ${leadId}`);
+            // Notify buyer — holders get priority notification
+            const holderPerks = await applyHolderPerks(lead.vertical, buyer.user.walletAddress);
+            if (holderPerks.isHolder) {
+                console.log(`[RTB] Priority notify holder ${buyer.user.walletAddress} about lead ${leadId} (${holderPerks.prePingSeconds}s pre-ping)`);
+            } else {
+                console.log(`[RTB] Notify buyer ${buyer.user.walletAddress} about lead ${leadId}`);
+            }
         }
     }
 
@@ -272,6 +283,12 @@ class RTBEngine {
         if (matchRegionList?.includes(geoData?.state)) score += 1000;
         if (geoFilters?.country && geoData?.country && geoFilters.country === geoData.country) score += 500;
         if (lead.isVerified) score += 500;
+
+        // Holder priority: +2000 score bonus for NFT holders
+        const holderPerks = await applyHolderPerks(lead.vertical, buyer.user.walletAddress);
+        if (holderPerks.isHolder) {
+            score += HOLDER_SCORE_BONUS;
+        }
 
         return { matches: true, buyerId, score: Math.min(10000, score) };
     }

@@ -108,6 +108,61 @@ export function NFTMarketplace() {
         }
     }, [address, fetchNFTs]);
 
+    // ─── Bid Handler ───────────────────────────────
+    const handleBid = useCallback(async (_slug: string, auctionId: string) => {
+        if (!address) {
+            toast({
+                type: 'error',
+                title: 'Wallet Required',
+                description: 'Please connect your wallet to place a bid.',
+            });
+            return;
+        }
+
+        const amountStr = window.prompt('Enter your bid amount ($):');
+        if (!amountStr) return;
+
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            toast({ type: 'error', title: 'Invalid Bid', description: 'Please enter a valid positive number.' });
+            return;
+        }
+
+        setBuyingSlug(_slug);
+        try {
+            const result = await api.placeBidOnAuction(auctionId, address, amount);
+
+            if (result.error) {
+                toast({
+                    type: 'error',
+                    title: 'Bid Failed',
+                    description: (result.error as any).error || 'Bid could not be placed.',
+                });
+                return;
+            }
+
+            if (result.data) {
+                const perks = result.data.holderPerks;
+                toast({
+                    type: 'success',
+                    title: perks ? '⚡ Priority Bid Placed!' : 'Bid Placed! 🎨',
+                    description: perks
+                        ? `$${amount} × ${perks.multiplier} = $${perks.effectiveBid} effective (${perks.prePingSeconds}s pre-ping)`
+                        : `Your bid of $${amount} has been submitted.`,
+                });
+                await fetchNFTs();
+            }
+        } catch (err: any) {
+            toast({
+                type: 'error',
+                title: 'Bid Error',
+                description: err.message || 'An unexpected error occurred.',
+            });
+        } finally {
+            setBuyingSlug(null);
+        }
+    }, [address, fetchNFTs]);
+
     // ─── Render ────────────────────────────────
 
     return (
@@ -172,6 +227,7 @@ export function NFTMarketplace() {
                             key={vertical.slug}
                             vertical={vertical}
                             onBuy={handleBuy}
+                            onBid={handleBid}
                             isAuthenticated={isAuthenticated}
                             currentWallet={address}
                             isBuying={buyingSlug === vertical.slug}

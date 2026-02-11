@@ -100,8 +100,10 @@ model VerticalAuction {
   reservePrice  Float
   startTime     DateTime
   endTime       DateTime
+  prePingEndsAt DateTime?  // End of holder-only pre-ping window
   highBidder    String?
   highBid       Float    @default(0)
+  rawBid        Float?   // Actual bid amount before multiplier
   settled       Boolean  @default(false)
   cancelled     Boolean  @default(false)
   txHash        String?
@@ -168,6 +170,7 @@ model BuyerProfile {
   acceptOffSite     Boolean  @default(true)
   requireVerified   Boolean  @default(false)
   autoAcceptLeads   Boolean  @default(false)
+  holderNotifyOptIn Boolean  @default(false)  // Opt-in for holder priority notifications
   
   // Compliance
   kycStatus         KycStatus @default(PENDING)
@@ -386,8 +389,12 @@ model AuctionRoom {
   
   // Timing
   startedAt       DateTime     @default(now())
+  prePingEndsAt   DateTime?    // End of holder-only pre-ping window
   biddingEndsAt   DateTime
   revealEndsAt    DateTime
+  
+  // Effective bid tracking (holder multiplier applied)
+  effectiveBid    Decimal?     @db.Decimal(10, 2)
   
   // Participants (cached for quick lookup)
   participants    String[]     // Array of user IDs
@@ -412,7 +419,8 @@ model Bid {
   
   // Commit-reveal
   commitment   String?   // Hash of (amount, salt) for sealed bids
-  amount       Decimal?  @db.Decimal(10, 2)  // Revealed amount
+  amount       Decimal?  @db.Decimal(10, 2)  // Revealed amount (raw)
+  effectiveBid Decimal?  @db.Decimal(10, 2)  // Effective bid (after holder multiplier)
   salt         String?   // Revealed salt
   
   status       BidStatus @default(PENDING)
@@ -431,6 +439,7 @@ model Bid {
   @@index([leadId, status])
   @@index([buyerId])
   @@index([leadId, amount(sort: Desc)])  // For finding highest bid
+  @@index([leadId, effectiveBid(sort: Desc)])  // For finding highest effective bid
 }
 
 enum BidStatus {

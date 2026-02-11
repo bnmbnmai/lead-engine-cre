@@ -353,6 +353,35 @@ contract VerticalNFT is
         return _priceFeed;
     }
 
+    /**
+     * @dev Check if `account` holds the NFT for a given vertical slug
+     * @param account Address to check
+     * @param slugHash keccak256 of the vertical slug string
+     * @return true if `account` owns the NFT mapped to `slugHash`
+     */
+    function isHolder(address account, bytes32 slugHash) external view override returns (bool) {
+        uint256 tokenId = slugToToken[slugHash];
+        if (tokenId == 0) return false;
+        return ownerOf(tokenId) == account;
+    }
+
+    /**
+     * @dev Batch check holder status for multiple slugs
+     * @param account Address to check
+     * @param slugHashes Array of slug hashes
+     * @return results Array of booleans (true if holder for each slug)
+     */
+    function batchIsHolder(
+        address account,
+        bytes32[] calldata slugHashes
+    ) external view override returns (bool[] memory results) {
+        results = new bool[](slugHashes.length);
+        for (uint256 i = 0; i < slugHashes.length; i++) {
+            uint256 tokenId = slugToToken[slugHashes[i]];
+            results[i] = (tokenId != 0) && (ownerOf(tokenId) == account);
+        }
+    }
+
     // ============================================
     // Required Overrides
     // ============================================
