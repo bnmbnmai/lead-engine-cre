@@ -177,3 +177,9 @@ export const analyticsLeadCache = new LRUCache<any>({
     maxSize: 300,
     ttlMs: 45_000,
 });
+
+/** Cache for vertical hierarchy tree (5 min TTL — rarely changes) */
+export const verticalHierarchyCache = new LRUCache<any>({
+    maxSize: 50,
+    ttlMs: 5 * 60_000,
+});

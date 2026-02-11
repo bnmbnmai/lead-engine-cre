@@ -12,6 +12,7 @@ export const CONTRACT_ADDRESSES = {
         leadNFT: import.meta.env.VITE_LEAD_NFT_ADDRESS_SEPOLIA || '',
         escrow: import.meta.env.VITE_ESCROW_ADDRESS_SEPOLIA || '',
         ace: import.meta.env.VITE_ACE_ADDRESS_SEPOLIA || '',
+        verticalNFT: import.meta.env.VITE_VERTICAL_NFT_ADDRESS_SEPOLIA || '',
         usdc: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
     },
     baseSepolia: {
@@ -19,6 +20,7 @@ export const CONTRACT_ADDRESSES = {
         leadNFT: import.meta.env.VITE_LEAD_NFT_ADDRESS_BASE || '',
         escrow: import.meta.env.VITE_ESCROW_ADDRESS_BASE || '',
         ace: import.meta.env.VITE_ACE_ADDRESS_BASE || '',
+        verticalNFT: import.meta.env.VITE_VERTICAL_NFT_ADDRESS_BASE || '',
         usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     },
 } as const;
@@ -66,6 +68,17 @@ export const ACE_ABI = [
     'function isKYCValid(address user) external view returns (bool)',
     'function canTransact(address user, bytes32 vertical, bytes32 geoHash) external view returns (bool)',
     'function getReputationScore(address user) external view returns (uint16)',
+] as const;
+
+export const VERTICAL_NFT_ABI = [
+    'function mintVertical(address to, bytes32 slug, bytes32 parentSlug, bytes32 attributesHash, uint16 depth, string uri) external returns (uint256)',
+    'function slugToToken(bytes32 slug) external view returns (uint256)',
+    'function getVertical(uint256 tokenId) external view returns (tuple(bytes32 slug, bytes32 parentSlug, bytes32 attributesHash, uint40 activatedAt, uint16 depth, bool isFractionalizable))',
+    'function getVerticalBySlug(bytes32 slug) external view returns (uint256, tuple(bytes32 slug, bytes32 parentSlug, bytes32 attributesHash, uint40 activatedAt, uint16 depth, bool isFractionalizable))',
+    'function ownerOf(uint256 tokenId) external view returns (address)',
+    'function totalSupply() external view returns (uint256)',
+    'function royaltyInfo(uint256 tokenId, uint256 salePrice) external view returns (address, uint256)',
+    'event VerticalMinted(uint256 indexed tokenId, bytes32 indexed slug, bytes32 indexed parentSlug, address owner, uint16 depth)',
 ] as const;
 
 export const USDC_ABI = [

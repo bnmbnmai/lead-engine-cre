@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { LeadCard } from '@/components/marketplace/LeadCard';
+import { VerticalSelector } from '@/components/marketplace/VerticalSelector';
+import { SuggestVerticalModal } from '@/components/marketplace/SuggestVerticalModal';
 
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -16,8 +18,6 @@ import useAuth from '@/hooks/useAuth';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import ConnectButton from '@/components/wallet/ConnectButton';
-
-const VERTICALS = ['all', 'solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 
 const COUNTRIES = [
     { code: 'ALL', label: 'All Countries' },
@@ -75,6 +75,7 @@ export function HomePage() {
     const [leads, setLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { isAuthenticated } = useAuth();
+    const [suggestOpen, setSuggestOpen] = useState(false);
 
     const regionConfig = country !== 'ALL' ? getRegions(country) : null;
 
@@ -163,6 +164,17 @@ export function HomePage() {
             'marketplace:refreshAll': () => {
                 refetchData();
                 toast({ type: 'info', title: 'Marketplace Updated', description: 'Data has been refreshed' });
+            },
+            'vertical:created': (data: any) => {
+                // Dispatch custom event for VerticalSelector to refresh
+                window.dispatchEvent(new CustomEvent('vertical:updated'));
+                if (data?.name) {
+                    toast({
+                        type: 'success',
+                        title: 'New Vertical Available',
+                        description: `"${data.name}" has been added to the marketplace.`,
+                    });
+                }
             },
         },
         refetchData,
@@ -291,19 +303,14 @@ export function HomePage() {
                                     </Select>
                                 )}
 
-                                {/* Vertical Filter */}
-                                <Select value={vertical} onValueChange={setVertical}>
-                                    <SelectTrigger className="w-full sm:w-44">
-                                        <SelectValue placeholder="Vertical" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {VERTICALS.map((v) => (
-                                            <SelectItem key={v} value={v} className="capitalize">
-                                                {v === 'all' ? 'All Verticals' : v.replace(/_/g, ' ')}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                {/* Vertical Filter (hierarchical) */}
+                                <VerticalSelector
+                                    value={vertical}
+                                    onValueChange={setVertical}
+                                    showSuggest={isAuthenticated}
+                                    onSuggestClick={() => setSuggestOpen(true)}
+                                    disabled={false}
+                                />
                             </div>
                         </div>
 
@@ -377,6 +384,13 @@ export function HomePage() {
                     )}
                 </section>
             </div>
+
+            {/* AI Vertical Suggestion Modal */}
+            <SuggestVerticalModal
+                open={suggestOpen}
+                onOpenChange={setSuggestOpen}
+                parentHint={vertical !== 'all' ? vertical : undefined}
+            />
         </DashboardLayout>
     );
 }

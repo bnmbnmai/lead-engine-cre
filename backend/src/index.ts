@@ -53,6 +53,7 @@ import integrationRoutes from './routes/integration.routes';
 import crmRoutes from './routes/crm.routes';
 import landerRoutes from './routes/lander.routes';
 import demoPanelRoutes from './routes/demo-panel.routes';
+import verticalRoutes from './routes/vertical.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -150,6 +151,7 @@ app.use('/api/v1/demo', integrationRoutes);
 app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/lander', landerRoutes);
 app.use('/api/v1/demo-panel', demoPanelRoutes);
+app.use('/api/v1/verticals', verticalRoutes);
 
 
 app.post('/api/v1/rtb/bid', (req: Request, res: Response) => {

@@ -137,6 +137,21 @@ export const TOOLS: ToolDefinition[] = [
         handler: '/api/v1/leads',
         method: 'GET',
     },
+    {
+        name: 'suggest_vertical',
+        description: 'Analyze a lead description and suggest the best vertical classification. Uses AI with rule-based fallback. PII is auto-scrubbed before processing.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                description: { type: 'string', description: 'Lead description text (PII is automatically scrubbed)' },
+                vertical: { type: 'string', description: 'Optional hint for parent vertical slug (e.g., "home_services")' },
+                leadId: { type: 'string', description: 'Optional source lead ID for tracking suggestion origin' },
+            },
+            required: ['description'],
+        },
+        handler: '/api/v1/verticals/suggest',
+        method: 'POST',
+    },
 ];
 
 // Build a lookup map

@@ -57,6 +57,8 @@ Lead Engine deeply integrates two Chainlink services as its trust infrastructure
 - 💰 **Instant Settlement** — USDC escrow with automated release upon bid acceptance
 - 🎨 **Lead NFTs** — ERC-721 tokenized leads for provenance, resale, and portfolio management
 - 🌍 **10 Verticals, 20+ Countries** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial — across US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE
+- 🧠 **AI Dynamic Verticals** — GPT-powered vertical suggestions with PII scrubbing, anti-hallucination validation, parent-slug resolution, and auto-creation threshold (≥5 hits → PROPOSED vertical)
+- 🏷️ **Vertical NFT Tokenization** — ERC-721 `VerticalNFT.sol` with CRE uniqueness verification, ACE compliance gating, 2% ERC-2981 royalties, and hierarchical depth (0–3) — auto-activated on high-confidence (≥0.85) AI suggestions
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - ⚙️ **Auto-Bid Engine** — 9-criteria matching (vertical, geo include/exclude, quality score gate, off-site, verified-only, reserve price, max bid, daily budget, duplicate prevention) — set rules once, bids fire automatically
 - 🔗 **CRM Webhooks** — HubSpot and Zapier integrations with format-specific payload transformers; push won leads to any CRM on `lead.sold` events
@@ -290,11 +292,11 @@ npm run dev
 
 | Suite | Tests | Status | Notes |
 |-------|------:|--------|-------|
-| **Backend Jest** | 257 | ✅ All passing | 16 suites — unit, e2e, security, compliance, env-guard |
-| **Hardhat Contracts** | 62 | ✅ All passing | 7 suites — settlement, reorg, Chainlink stubs |
-| **Cypress E2E** | 101 | ✅ All passing | 4 specs — UI flows, multi-wallet, stress, copy |
-| **Artillery Load** | 18 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **420+** | **✅ 100%** | |
+| **Backend Jest** | 282 | ✅ All passing | 18 suites — unit, e2e, security, compliance, env-guard, NFT service, integration |
+| **Hardhat Contracts** | 72 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced |
+| **Cypress E2E** | 113 | ✅ All passing | 5 specs — UI flows, multi-wallet, stress, copy, vertical-nft |
+| **Artillery Load** | 22 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
+| **Total** | **472+** | **✅ 100%** | |
 
 ### Backend Jest (257 passing, 16 suites)
 

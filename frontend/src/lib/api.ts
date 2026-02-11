@@ -169,6 +169,26 @@ export const api = {
     },
     getBidAnalytics: () => apiFetch<any>('/api/v1/analytics/bids'),
 
+    // Verticals
+    getVerticalHierarchy: () =>
+        apiFetch<{ tree: any[] }>('/api/v1/verticals/hierarchy'),
+
+    getVerticalFlat: (params?: Record<string, string>) => {
+        const query = params ? `?${new URLSearchParams(params)}` : '';
+        return apiFetch<{ verticals: any[]; total: number }>(`/api/v1/verticals/flat${query}`);
+    },
+
+    suggestVertical: (data: { description: string; vertical?: string; leadId?: string }) =>
+        apiFetch<{ suggestion: any }>('/api/v1/verticals/suggest', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
+    getVerticalSuggestions: (params?: Record<string, string>) => {
+        const query = params ? `?${new URLSearchParams(params)}` : '';
+        return apiFetch<{ suggestions: any[]; total: number }>(`/api/v1/verticals/suggestions${query}`);
+    },
+
     // Demo Panel (dev-only)
     demoStatus: () => apiFetch<{ seeded: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/status'),
     demoSeed: () => apiFetch<{ success: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/seed', { method: 'POST' }),

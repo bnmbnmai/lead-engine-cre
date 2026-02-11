@@ -41,6 +41,55 @@ enum UserRole {
   ADMIN
 }
 
+// ============================================
+// Hierarchical Verticals
+// ============================================
+
+enum VerticalStatus {
+  PROPOSED     // Community-submitted, needs admin review
+  ACTIVE       // Live and usable in leads/asks
+  DEPRECATED   // No new usage, existing data preserved
+  REJECTED     // Admin rejected the proposal
+}
+
+model Vertical {
+  id          String         @id @default(cuid())
+  slug        String         @unique   // "solar", "home_services.plumbing"
+  name        String                   // "Solar", "Plumbing"
+  description String?
+  parentId    String?                  // NULL = top-level
+  depth       Int            @default(0)  // 0 = root, 1 = child, max 3
+  sortOrder   Int            @default(0)
+
+  // Metadata
+  attributes  Json?          // { compliance: ["TCPA"], budget: ">10K", icon: "wrench" }
+  aliases     String[]       // ["plumber", "pipe_repair"] for overlap/search
+  status      VerticalStatus @default(PROPOSED)
+
+  // Compliance auto-flags
+  requiresTcpa    Boolean @default(false)
+  requiresKyc     Boolean @default(false)
+  restrictedGeos  String[]  // ISO country codes where this vertical is restricted
+
+  // NFT tokenization (set after activation)
+  nftTokenId      Int?       // On-chain VerticalNFT token ID
+  nftTxHash       String?    // Mint transaction hash
+  ownerAddress    String?    // Current NFT owner wallet address
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Self-referential relation
+  parent   Vertical?  @relation("VerticalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children Vertical[] @relation("VerticalHierarchy")
+
+  @@index([parentId])
+  @@index([status])
+  @@index([slug])
+  @@index([depth, status])
+  @@index([nftTokenId])
+}
+
 model Session {
   id           String   @id @default(cuid())
   userId       String
@@ -478,4 +527,31 @@ model AnalyticsEvent {
   @@index([eventType, createdAt])
   @@index([userId, createdAt])
   @@index([entityType, entityId])
+}
+
+// ============================================
+// AI Vertical Suggestions
+// ============================================
+
+model VerticalSuggestion {
+  id              String         @id @default(cuid())
+  suggestedSlug   String         @unique
+  suggestedName   String
+  parentSlug      String
+  attributes      Json?
+  confidence      Float          @default(0)
+  reasoning       String?
+  source          String         @default("ai")  // "ai", "rule", "user"
+  hitCount        Int            @default(1)
+  status          VerticalStatus @default(PROPOSED)
+
+  // Source lead reference (no FK — lead may be deleted)
+  sourceLeadId    String?
+  sourceText      String?  // Scrubbed description snippet
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([parentSlug])
+  @@index([status, hitCount])
 }

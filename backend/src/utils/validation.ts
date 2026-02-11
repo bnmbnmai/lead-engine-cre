@@ -198,6 +198,32 @@ export const AnalyticsQuerySchema = z.object({
 });
 
 // ============================================
+// Verticals
+// ============================================
+
+export const VerticalCreateSchema = z.object({
+    name: z.string().min(2).max(100),
+    parentSlug: z.string().max(200).optional(),
+    description: z.string().max(500).optional(),
+    attributes: z.record(z.any()).optional(),
+    aliases: z.array(z.string().max(60)).max(10).optional(),
+    requiresTcpa: z.boolean().optional(),
+    requiresKyc: z.boolean().optional(),
+    restrictedGeos: z.array(z.string().length(2)).optional(),
+});
+
+export const VerticalUpdateSchema = VerticalCreateSchema.partial().extend({
+    status: z.enum(['PROPOSED', 'ACTIVE', 'DEPRECATED', 'REJECTED']).optional(),
+    sortOrder: z.number().int().min(0).optional(),
+});
+
+export const VerticalQuerySchema = z.object({
+    status: z.enum(['PROPOSED', 'ACTIVE', 'DEPRECATED', 'REJECTED']).optional(),
+    depth: z.coerce.number().int().min(0).max(3).optional(),
+    parentSlug: z.string().optional(),
+});
+
+// ============================================
 // Type Exports
 // ============================================
 
@@ -212,3 +238,6 @@ export type BidDirect = z.infer<typeof BidDirectSchema>;
 export type BuyerPreferences = z.infer<typeof BuyerPreferencesSchema>;
 export type PreferenceSet = z.infer<typeof PreferenceSetSchema>;
 export type BuyerPreferencesV2 = z.infer<typeof BuyerPreferencesV2Schema>;
+export type VerticalCreate = z.infer<typeof VerticalCreateSchema>;
+export type VerticalUpdate = z.infer<typeof VerticalUpdateSchema>;
+export type VerticalQuery = z.infer<typeof VerticalQuerySchema>;

@@ -38,6 +38,10 @@
 
 **Screen:** Show CRE quality badge → ACE check → NFT minted toast. Hold each for 2s.
 
+> *"Now watch our AI vertical optimizer — I'll describe a niche lead like 'EV charging station for commercial fleet.' GPT analyzes it, suggests a new sub-vertical under Auto, and because confidence hits 85%, it auto-activates: CRE verifies uniqueness, ACE checks compliance, and a VerticalNFT mints on-chain — all automatic."*
+
+**Screen:** Show the Suggest Vertical modal → AI response with confidence score → NFT badge appears.
+
 ---
 
 ### 🎬 1:00–1:40 — Multi-Wallet Auction (40s)
@@ -91,11 +95,11 @@
 
 ### 🎬 3:10–3:40 — Testing & CI/CD (30s)
 
-> *"This isn't a prototype. We run 325 automated tests on every push."*
+> *"This isn't a prototype. We run 472 automated tests on every push."*
 
 **Action:** Show GitHub Actions badge in README → briefly flash test results.
 
-> *"112 Cypress E2E tests with full wallet mocking — Chainlink latency simulation, payment failures, mid-session wallet switching. 151 Jest tests. 62 Hardhat contract tests. 10,000 concurrent user load tests with Artillery. All automated via GitHub Actions CI/CD with PostgreSQL service containers."*
+> *"282 Jest tests. 72 Hardhat contract tests — including VerticalNFT batch minting, hierarchy depth limits, royalty math. 113 Cypress E2E tests with full wallet mocking. 22 Artillery load test scenarios. Plus AI vertical integration tests that validate the full suggest → verify → mint → activate pipeline. All automated via GitHub Actions CI/CD."*
 
 **Screen:** Hold on README badges (2s) → Quick flash of CI actions tab.
 **Pacing tip:** This is a speed section — rattle off numbers with confidence.
@@ -137,7 +141,7 @@ Use this to verify every judging criterion is visibly demonstrated in the video:
 | **Innovation / novelty** | Commit-reveal bidding, x402 instant settlement, MCP agent | 1:00–2:40 |
 | **Technical complexity** | Multi-wallet, 9-criteria auto-bid, CRE+ACE pipeline | 1:00–1:40 |
 | **Completeness** | 10 verticals, 20+ countries, CRM, webhooks | 0:20, 2:40 |
-| **Testing / quality** | 325 tests, CI/CD, load tests | 3:10–3:40 |
+| **Testing / quality** | 472 tests, CI/CD, load tests | 3:10–3:40 |
 | **UX / design** | Clean UI, vertical-adaptive forms, toast notifications | Throughout |
 | **Business viability** | $200B market, reinvestment loop, instant settlements | 0:00, 1:40 |
 

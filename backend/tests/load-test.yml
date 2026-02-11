@@ -261,3 +261,61 @@ scenarios:
                     - 429
           count: 10
 
+  # ─── Vertical suggest (5% traffic) ──────────
+  - name: "Suggest vertical (AI)"
+    weight: 5
+    flow:
+      - post:
+          url: "/api/v1/verticals/suggest"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          json:
+            description: "{{ $randomItem(['Need roofing repair for storm damage', 'Looking for solar panel installation for commercial building', 'Emergency plumbing leak in basement', 'Personal injury attorney after car accident', 'CRM software for mid-market B2B company']) }}"
+            vertical: "{{ $randomItem(['solar', 'roofing', 'insurance', 'legal', 'b2b_saas']) }}"
+          expect:
+            - statusCode:
+                - 200
+                - 201
+                - 400
+
+  # ─── Activate vertical (2% traffic) ─────────
+  - name: "Activate vertical NFT"
+    weight: 2
+    flow:
+      - put:
+          url: "/api/v1/verticals/{{ $randomItem(['solar.residential', 'roofing.repair', 'insurance.auto', 'legal.personal_injury']) }}/activate"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          json:
+            recipientAddress: "0x{{ $randomString(40) }}"
+          expect:
+            - statusCode:
+                - 200
+                - 400
+                - 404
+                - 409
+
+  # ─── Get vertical hierarchy (3% traffic) ────
+  - name: "Get vertical hierarchy"
+    weight: 3
+    flow:
+      - get:
+          url: "/api/v1/verticals/hierarchy"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode: 200
+
+  # ─── Get vertical by slug (2% traffic) ──────
+  - name: "Get vertical by slug"
+    weight: 2
+    flow:
+      - get:
+          url: "/api/v1/verticals/{{ $randomItem(['solar', 'mortgage', 'roofing.repair', 'insurance.auto', 'legal.personal_injury', 'b2b_saas.crm']) }}"
+          headers:
+            Authorization: "Bearer {{ $processEnvironment.TEST_TOKEN }}"
+          expect:
+            - statusCode:
+                - 200
+                - 404
+
