@@ -34,7 +34,7 @@ export const wagmiConfig = getDefaultConfig({
     projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo',
     chains: [sepolia, baseSepolia, mainnet],
     transports: {
-        [mainnet.id]: http(),
+        [mainnet.id]: http(import.meta.env.VITE_RPC_URL_MAINNET || 'https://cloudflare-eth.com'),
         [sepolia.id]: http(import.meta.env.VITE_RPC_URL_SEPOLIA),
         [baseSepolia.id]: http(import.meta.env.VITE_RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org'),
     },
