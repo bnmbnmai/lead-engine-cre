@@ -6,6 +6,7 @@ import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
 import { marketplaceAsksCache } from '../lib/cache';
+import { redactLeadForPreview } from '../services/piiProtection';
 
 const router = Router();
 
@@ -200,18 +201,22 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
         const data = validation.data;
 
         // Get seller profile
-        const seller = await prisma.sellerProfile.findFirst({
+        let seller = await prisma.sellerProfile.findFirst({
             where: { user: { id: req.user!.id } },
         });
 
+        // Auto-create basic seller profile on first lead submit
         if (!seller) {
-            res.status(400).json({
-                error: 'A seller profile is required to submit leads.',
-                code: 'SELLER_PROFILE_MISSING',
-                resolution: 'Create your seller profile first by completing the setup wizard. You will need a company name and at least one lead vertical.',
-                action: { label: 'Create Seller Profile', href: '/seller/submit' },
+            seller = await prisma.sellerProfile.create({
+                data: {
+                    userId: req.user!.id,
+                    companyName: req.user!.walletAddress
+                        ? req.user!.walletAddress.slice(0, 10) + '…'
+                        : 'New Seller',
+                    verticals: [data.vertical],
+                },
             });
-            return;
+            console.log(`[MARKETPLACE] Auto-created seller profile ${seller.id} for user ${req.user!.id}`);
         }
 
         // Create lead
@@ -222,6 +227,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
                 geo: data.geo as any,
                 source: data.source as any,
                 parameters: data.parameters as any,
+                adSource: data.adSource as any,
                 reservePrice: data.reservePrice,
                 tcpaConsentAt: data.tcpaConsentAt ? new Date(data.tcpaConsentAt) : null,
                 consentProof: data.consentProof,
@@ -441,6 +447,42 @@ router.get('/leads/:id', authMiddleware, async (req: AuthenticatedRequest, res: 
     } catch (error) {
         console.error('Get lead error:', error);
         res.status(500).json({ error: 'Failed to get lead' });
+    }
+});
+
+// ============================================
+// Lead Preview (Redacted for Buyers)
+// ============================================
+
+router.get('/leads/:id/preview', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const lead = await prisma.lead.findUnique({
+            where: { id: req.params.id },
+            select: {
+                id: true,
+                vertical: true,
+                geo: true,
+                source: true,
+                status: true,
+                isVerified: true,
+                createdAt: true,
+                reservePrice: true,
+                dataHash: true,
+                parameters: true,
+                // Never select: encryptedData, sellerId, etc.
+            },
+        });
+
+        if (!lead) {
+            res.status(404).json({ error: 'Lead not found' });
+            return;
+        }
+
+        const preview = redactLeadForPreview(lead as any);
+        res.json({ preview });
+    } catch (error) {
+        console.error('Lead preview error:', error);
+        res.status(500).json({ error: 'Failed to get lead preview' });
     }
 });
 

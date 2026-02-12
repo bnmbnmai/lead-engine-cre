@@ -46,12 +46,21 @@ export const LeadSubmitSchema = z.object({
     geo: GeoSchema,
     source: z.enum(['PLATFORM', 'API', 'OFFSITE']).optional().default('PLATFORM'),
     parameters: z.record(z.unknown()).optional(),
+    adSource: z.object({
+        utm_source: z.string().max(200).optional(),
+        utm_medium: z.string().max(200).optional(),
+        utm_campaign: z.string().max(200).optional(),
+        utm_content: z.string().max(200).optional(),
+        utm_term: z.string().max(200).optional(),
+        ad_id: z.string().max(200).optional(),
+        ad_platform: z.enum(['google', 'facebook', 'tiktok', 'linkedin', 'bing', 'other']).optional(),
+    }).optional(),
     reservePrice: z.number().positive().optional(),
     tcpaConsentAt: z.string().datetime().optional(),
     consentProof: z.string().optional(),
     encryptedData: z.string().optional(),
     dataHash: z.string().optional(),
-    expiresInMinutes: z.number().min(5).max(10080).optional().default(60), // 5min to 7days
+    expiresInMinutes: z.number().min(5).max(10080).optional().default(5), // 5min to 7days, default 5min
 });
 
 export const LeadQuerySchema = z.object({
@@ -89,7 +98,7 @@ export const AskCreateSchema = z.object({
     buyNowPrice: z.number().positive().optional(),
     parameters: z.record(z.unknown()).optional(),
     acceptOffSite: z.boolean().optional().default(true),
-    auctionDuration: z.number().min(300).max(604800).optional().default(3600), // 5min to 7days
+    auctionDuration: z.number().min(60).max(3600).optional().default(300), // 1min to 1hr, default 5min
     revealWindow: z.number().min(60).max(3600).optional().default(900), // 1min to 1hr
     expiresInDays: z.number().min(1).max(90).optional().default(30),
 });

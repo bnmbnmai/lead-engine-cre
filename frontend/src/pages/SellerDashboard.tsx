@@ -238,7 +238,7 @@ export function SellerDashboard() {
                                     {recentLeads.map((lead) => (
                                         <Link
                                             key={lead.id}
-                                            to={`/lead/${lead.id}`}
+                                            to={`/seller/leads/${lead.id}`}
                                             className="flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted transition"
                                         >
                                             <div className="flex items-center gap-3">

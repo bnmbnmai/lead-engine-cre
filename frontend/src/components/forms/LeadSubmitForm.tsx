@@ -1,8 +1,8 @@
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useState } from 'react';
-import { Send, FileText, Globe, Shield } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Send, FileText, Globe, Shield, ChevronDown, ChevronUp, Plus, Trash2, Megaphone, Code, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -146,6 +146,15 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [tcpaConsent, setTcpaConsent] = useState(false);
     const [customParams, setCustomParams] = useState<Record<string, unknown>>({});
     const [selectedCountry, setSelectedCountry] = useState('US');
+    // Ad tracking state
+    const [showAdTracking, setShowAdTracking] = useState(false);
+    const [showMoreUtm, setShowMoreUtm] = useState(false);
+    const [adSource, setAdSource] = useState<Record<string, string>>({});
+    // Structured lead data editor
+    const [leadDataRows, setLeadDataRows] = useState<{ key: string; value: string }[]>([]);
+    const [rawJsonMode, setRawJsonMode] = useState(false);
+    const [rawJsonText, setRawJsonText] = useState('');
+    const [jsonError, setJsonError] = useState<string | null>(null);
 
     const regionConfig = getRegionOptions(selectedCountry);
 
@@ -160,6 +169,36 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
 
     const selectedVertical = watch('vertical');
     const verticalFields = selectedVertical ? (VERTICAL_FIELDS[selectedVertical] || []) : [];
+
+    // Auto-read UTM params from URL on mount
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ad_id', 'ad_platform'];
+        const found: Record<string, string> = {};
+        let hasAny = false;
+        for (const key of utmKeys) {
+            const val = params.get(key);
+            if (val) { found[key] = val; hasAny = true; }
+        }
+        if (hasAny) {
+            setAdSource(found);
+            setShowAdTracking(true);
+        }
+    }, []);
+
+    // Vertical-specific placeholder data for the structured editor
+    const verticalPlaceholders: Record<string, { key: string; value: string }[]> = useMemo(() => ({
+        mortgage: [{ key: 'borrower_name', value: 'Jane Smith' }, { key: 'loan_amount', value: '350000' }],
+        solar: [{ key: 'homeowner', value: 'Alex J.' }, { key: 'system_kw', value: '8.5' }],
+        roofing: [{ key: 'roof_type', value: 'shingle' }, { key: 'damage_type', value: 'storm' }],
+        insurance: [{ key: 'coverage_type', value: 'auto' }, { key: 'current_provider', value: 'State Farm' }],
+        home_services: [{ key: 'service_type', value: 'hvac' }, { key: 'urgency', value: 'this_week' }],
+        real_estate: [{ key: 'property_type', value: 'single_family' }, { key: 'price_range', value: '500k-1m' }],
+        auto: [{ key: 'vehicle_make', value: 'Toyota' }, { key: 'vehicle_model', value: 'Camry' }],
+        b2b_saas: [{ key: 'company_size', value: '51-200' }, { key: 'industry', value: 'technology' }],
+        legal: [{ key: 'case_type', value: 'personal_injury' }, { key: 'urgency', value: 'this_week' }],
+        financial: [{ key: 'service_type', value: 'financial_planning' }, { key: 'portfolio_size', value: '250k-1m' }],
+    }), []);
 
     const updateParam = (key: string, value: unknown) => {
         setCustomParams((prev) => ({ ...prev, [key]: value }));
@@ -184,6 +223,14 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                 ...data,
                 tcpaConsentAt: new Date().toISOString(),
                 parameters: Object.keys(nonEmptyParams).length > 0 ? nonEmptyParams : undefined,
+                // Ad tracking
+                adSource: Object.keys(adSource).filter(k => adSource[k]).length > 0
+                    ? Object.fromEntries(Object.entries(adSource).filter(([, v]) => v))
+                    : undefined,
+                // Structured lead data as encrypted payload
+                encryptedData: leadDataRows.length > 0
+                    ? JSON.stringify(Object.fromEntries(leadDataRows.filter(r => r.key).map(r => [r.key, r.value])))
+                    : data.encryptedData || undefined,
             };
 
             const { data: result, error: apiError } = await api.submitLead(submitData);
@@ -411,13 +458,221 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                         />
                     </div>
 
-                    {/* Encrypted Data (for real leads) */}
+                    {/* Ad Tracking (Optional) */}
+                    <div className="border border-border rounded-xl overflow-hidden">
+                        <button
+                            type="button"
+                            className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                            onClick={() => setShowAdTracking(!showAdTracking)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <Megaphone className="h-4 w-4 text-orange-500" />
+                                <span className="text-sm font-medium">Ad Tracking (Optional)</span>
+                                <span className="text-xs text-muted-foreground" title="Track which ad campaign generated this lead for ROI analytics">
+                                    <Info className="h-3 w-3 inline" />
+                                </span>
+                            </div>
+                            {showAdTracking ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                        {showAdTracking && (
+                            <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label className="text-xs text-muted-foreground mb-1 block">UTM Source</label>
+                                        <Input
+                                            placeholder="google"
+                                            value={adSource.utm_source || ''}
+                                            onChange={(e) => setAdSource(s => ({ ...s, utm_source: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground mb-1 block">UTM Medium</label>
+                                        <Input
+                                            placeholder="cpc"
+                                            value={adSource.utm_medium || ''}
+                                            onChange={(e) => setAdSource(s => ({ ...s, utm_medium: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground mb-1 block">UTM Campaign</label>
+                                        <Input
+                                            placeholder="solar_q1"
+                                            value={adSource.utm_campaign || ''}
+                                            onChange={(e) => setAdSource(s => ({ ...s, utm_campaign: e.target.value }))}
+                                        />
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                                    onClick={() => setShowMoreUtm(!showMoreUtm)}
+                                >
+                                    {showMoreUtm ? 'Less' : 'More tracking fields'}
+                                    {showMoreUtm ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                </button>
+                                {showMoreUtm && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-xs text-muted-foreground mb-1 block">UTM Content</label>
+                                            <Input
+                                                placeholder="banner_v2"
+                                                value={adSource.utm_content || ''}
+                                                onChange={(e) => setAdSource(s => ({ ...s, utm_content: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground mb-1 block">UTM Term</label>
+                                            <Input
+                                                placeholder="solar panels"
+                                                value={adSource.utm_term || ''}
+                                                onChange={(e) => setAdSource(s => ({ ...s, utm_term: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground mb-1 block">Ad ID</label>
+                                            <Input
+                                                placeholder="ad_123456"
+                                                value={adSource.ad_id || ''}
+                                                onChange={(e) => setAdSource(s => ({ ...s, ad_id: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-muted-foreground mb-1 block">Ad Platform</label>
+                                            <select
+                                                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                                value={adSource.ad_platform || ''}
+                                                onChange={(e) => setAdSource(s => ({ ...s, ad_platform: e.target.value }))}
+                                            >
+                                                <option value="">Select platform</option>
+                                                <option value="google">Google</option>
+                                                <option value="facebook">Facebook</option>
+                                                <option value="tiktok">TikTok</option>
+                                                <option value="linkedin">LinkedIn</option>
+                                                <option value="bing">Bing</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Lead Data — Structured Editor */}
                     <div>
-                        <label className="text-sm font-medium mb-2 block">Lead Data (Encrypted)</label>
-                        <Textarea
-                            placeholder="Paste encrypted lead data or leave empty for demo"
-                            {...register('encryptedData')}
-                        />
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium">Lead Data (Encrypted)</label>
+                                <span className="text-xs text-muted-foreground" title="Custom lead data (encrypted before storage). Add key-value pairs for buyer matching.">
+                                    <Info className="h-3 w-3 inline" />
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                                onClick={() => {
+                                    if (!rawJsonMode && leadDataRows.length > 0) {
+                                        // Switching to raw: serialize rows
+                                        const obj = Object.fromEntries(leadDataRows.filter(r => r.key).map(r => [r.key, r.value]));
+                                        setRawJsonText(JSON.stringify(obj, null, 2));
+                                    } else if (rawJsonMode && rawJsonText.trim()) {
+                                        // Switching to structured: parse JSON
+                                        try {
+                                            const obj = JSON.parse(rawJsonText);
+                                            setLeadDataRows(Object.entries(obj).map(([k, v]) => ({ key: k, value: String(v) })));
+                                            setJsonError(null);
+                                        } catch {
+                                            setJsonError('Invalid JSON — fix before switching');
+                                            return;
+                                        }
+                                    }
+                                    setRawJsonMode(!rawJsonMode);
+                                }}
+                            >
+                                <Code className="h-3 w-3" />
+                                {rawJsonMode ? 'Key-Value' : 'Raw JSON'}
+                            </button>
+                        </div>
+
+                        {rawJsonMode ? (
+                            <div>
+                                <Textarea
+                                    className="font-mono text-xs min-h-[120px]"
+                                    placeholder='{"borrower_name": "Jane Smith", "loan_amount": "350000"}'
+                                    value={rawJsonText}
+                                    onChange={(e) => {
+                                        setRawJsonText(e.target.value);
+                                        if (jsonError) {
+                                            try { JSON.parse(e.target.value); setJsonError(null); } catch { /* still invalid */ }
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        if (rawJsonText.trim()) {
+                                            try {
+                                                JSON.parse(rawJsonText);
+                                                setJsonError(null);
+                                            } catch {
+                                                setJsonError('Invalid JSON format');
+                                            }
+                                        } else {
+                                            setJsonError(null);
+                                        }
+                                    }}
+                                />
+                                {jsonError && (
+                                    <p className="text-xs text-destructive mt-1">{jsonError}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {leadDataRows.map((row, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                        <Input
+                                            className="flex-1 text-sm"
+                                            placeholder="Key"
+                                            value={row.key}
+                                            onChange={(e) => {
+                                                const updated = [...leadDataRows];
+                                                updated[idx] = { ...updated[idx], key: e.target.value };
+                                                setLeadDataRows(updated);
+                                            }}
+                                        />
+                                        <span className="text-muted-foreground text-xs">·</span>
+                                        <Input
+                                            className="flex-1 text-sm"
+                                            placeholder="Value"
+                                            value={row.value}
+                                            onChange={(e) => {
+                                                const updated = [...leadDataRows];
+                                                updated[idx] = { ...updated[idx], value: e.target.value };
+                                                setLeadDataRows(updated);
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="text-muted-foreground hover:text-destructive transition-colors"
+                                            onClick={() => setLeadDataRows(rows => rows.filter((_, i) => i !== idx))}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    className="w-full flex items-center justify-center gap-1 py-2 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-primary transition-colors"
+                                    onClick={() => {
+                                        if (leadDataRows.length === 0 && selectedVertical && verticalPlaceholders[selectedVertical]) {
+                                            setLeadDataRows(verticalPlaceholders[selectedVertical]);
+                                        } else {
+                                            setLeadDataRows(rows => [...rows, { key: '', value: '' }]);
+                                        }
+                                    }}
+                                >
+                                    <Plus className="h-3 w-3" />
+                                    {leadDataRows.length === 0 && selectedVertical ? 'Add sample data' : 'Add field'}
+                                </button>
+                            </div>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">
                             In production, lead PII is encrypted before submission
                         </p>

@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     TrendingUp, BarChart3, DollarSign, Activity, Globe, Download, ArrowUpRight,
-    ArrowDownRight, Fuel, Clock, FileText, Zap, Filter
+    ArrowDownRight, Fuel, Clock, FileText, Zap, Filter, Megaphone
 } from 'lucide-react';
 import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, Legend,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -83,6 +83,16 @@ const ACTIVITY_LOG: { time: string; event: string; detail: string; icon: React.E
 ];
 
 const PIE_COLORS = ['#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#06b6d4', '#ec4899', '#f97316'];
+const CONVERSION_COLORS = { leads: '#6366f1', sold: '#22c55e', direct: '#94a3b8' };
+
+const FALLBACK_CONVERSION_DATA = [
+    { source: 'google', leads: 68, sold: 42, convRate: 61.8, revenue: 5460 },
+    { source: 'facebook', leads: 45, sold: 22, convRate: 48.9, revenue: 2860 },
+    { source: 'linkedin', leads: 12, sold: 8, convRate: 66.7, revenue: 2400 },
+    { source: 'direct', leads: 94, sold: 56, convRate: 59.6, revenue: 4480 },
+    { source: 'bing', leads: 8, sold: 4, convRate: 50.0, revenue: 520 },
+    { source: 'tiktok', leads: 15, sold: 6, convRate: 40.0, revenue: 780 },
+];
 
 // ============================================
 // Component
@@ -92,6 +102,7 @@ export function SellerAnalytics() {
     const [period, setPeriod] = useState('30d');
     const [liveTimeSeries, setLiveTimeSeries] = useState<any[] | null>(null);
     const [liveVerticals, setLiveVerticals] = useState<any[] | null>(null);
+    const [liveConversions, setLiveConversions] = useState<any[] | null>(null);
     const [apiError, setApiError] = useState(false);
 
     // Reactive mock toggle — reads localStorage every render so DemoPanel toggle takes effect
@@ -130,6 +141,13 @@ export function SellerAnalytics() {
                         color: colors[i % colors.length],
                     })));
                 }
+                // Fetch conversion data
+                try {
+                    const convRes = await api.getConversions();
+                    if (convRes.data?.conversions) {
+                        setLiveConversions(convRes.data.conversions);
+                    }
+                } catch { /* conversion endpoint may not be available yet */ }
             } catch {
                 if (IS_PROD) {
                     setApiError(true);
@@ -143,6 +161,10 @@ export function SellerAnalytics() {
     const VERTICAL_DATA = liveVerticals && liveVerticals.length > 0
         ? liveVerticals
         : useMock ? FALLBACK_VERTICAL_DATA : [];
+
+    const CONVERSION_DATA = liveConversions && liveConversions.length > 0
+        ? liveConversions
+        : useMock ? FALLBACK_CONVERSION_DATA : [];
 
     const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
     const totalLeads = revenueData.reduce((sum, d) => sum + d.leads, 0);
@@ -352,6 +374,42 @@ export function SellerAnalytics() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Conversion by Ad Source */}
+                {CONVERSION_DATA.length > 0 && (
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <div className="flex items-center gap-2">
+                                <Megaphone className="h-4 w-4 text-orange-500" />
+                                <CardTitle className="text-lg">Conversion by Ad Source</CardTitle>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={260}>
+                                <BarChart data={CONVERSION_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                    <XAxis dataKey="source" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                                    <Tooltip
+                                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '12px', fontSize: 13 }}
+                                    />
+                                    <Legend />
+                                    <Bar dataKey="leads" name="Total Leads" fill={CONVERSION_COLORS.leads} radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="sold" name="Sold" fill={CONVERSION_COLORS.sold} radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+                                {CONVERSION_DATA.slice(0, 6).map((c: any) => (
+                                    <div key={c.source} className="p-2.5 rounded-lg bg-muted/30">
+                                        <p className="text-xs text-muted-foreground capitalize">{c.source}</p>
+                                        <p className="text-sm font-semibold">{c.leads} leads</p>
+                                        <p className="text-xs text-emerald-500">{c.convRate?.toFixed(1) ?? '—'}% conv.</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Geo Performance + Activity Log */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -227,19 +227,33 @@ export function AuctionPage() {
                             )}
 
                             {/* Contract Link */}
-                            <Card>
-                                <CardContent className="p-4">
-                                    <a
-                                        href={`https://sepolia.etherscan.io/address/${lead.id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition"
-                                    >
-                                        View on Etherscan
-                                        <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                </CardContent>
-                            </Card>
+                            {(() => {
+                                const explorerUrl = import.meta.env.VITE_BLOCK_EXPLORER_URL || 'https://sepolia.etherscan.io';
+                                const isMockId = !lead.id || !/^0x[0-9a-fA-F]{40}$/.test(lead.id);
+                                return (
+                                    <Card>
+                                        <CardContent className="p-4">
+                                            <a
+                                                href={isMockId ? '#' : `${explorerUrl}/address/${lead.id}`}
+                                                target={isMockId ? undefined : '_blank'}
+                                                rel="noopener noreferrer"
+                                                className={`flex items-center justify-between text-sm transition ${isMockId ? 'text-muted-foreground/50 cursor-default' : 'text-muted-foreground hover:text-foreground'}`}
+                                                onClick={isMockId ? (e: React.MouseEvent) => e.preventDefault() : undefined}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    View on Etherscan
+                                                    {isMockId && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+                                                            MOCK
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <ExternalLink className="h-4 w-4" />
+                                            </a>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

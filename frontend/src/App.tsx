@@ -85,6 +85,7 @@ function App() {
                                 {/* Seller Routes (auth required) */}
                                 <Route path="/seller" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
                                 <Route path="/seller/leads" element={<ProtectedRoute><SellerLeads /></ProtectedRoute>} />
+                                <Route path="/seller/leads/:leadId" element={<ProtectedRoute><SellerLeads /></ProtectedRoute>} />
                                 <Route path="/seller/asks" element={<ProtectedRoute><SellerAsks /></ProtectedRoute>} />
                                 <Route path="/seller/asks/new" element={<ProtectedRoute><CreateAsk /></ProtectedRoute>} />
                                 <Route path="/seller/submit" element={<ProtectedRoute><SellerSubmit /></ProtectedRoute>} />

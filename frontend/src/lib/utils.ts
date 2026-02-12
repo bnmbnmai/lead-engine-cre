@@ -67,8 +67,7 @@ export function formatTimeRemaining(endTime: string | Date): string {
     return `${days}d ${hours % 24}h`;
   }
   if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 /**

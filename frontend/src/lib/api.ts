@@ -168,6 +168,14 @@ export const api = {
         return apiFetch<any>(`/api/v1/analytics/leads${query}`);
     },
     getBidAnalytics: () => apiFetch<any>('/api/v1/analytics/bids'),
+    getConversions: (params?: Record<string, string>) => {
+        const query = params ? `?${new URLSearchParams(params)}` : '';
+        return apiFetch<any>(`/api/v1/analytics/conversions${query}`);
+    },
+    getConversionsByPlatform: (params?: Record<string, string>) => {
+        const query = params ? `?${new URLSearchParams(params)}` : '';
+        return apiFetch<any>(`/api/v1/analytics/conversions/by-platform${query}`);
+    },
 
     // Verticals
     getVerticalHierarchy: () =>

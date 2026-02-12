@@ -113,6 +113,7 @@ model VerticalAuction {
 
   settled       Boolean  @default(false)
   cancelled     Boolean  @default(false)
+  extensionCount Int     @default(0)    // Auto-extend counter (max 5)
   txHash        String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -342,6 +343,9 @@ model Lead {
   // Custom parameters (for matching)
   parameters      Json?       // { "creditScore": 720, "propertyType": "single_family", "loanAmount": 350000 }
   
+  // Ad tracking (UTM / campaign attribution)
+  adSource        Json?       // { "utm_source": "google", "utm_medium": "cpc", "utm_campaign": "solar_q1", "ad_id": "...", "ad_platform": "google" }
+  
   // Pricing
   reservePrice    Decimal?    @db.Decimal(10, 2)
   winningBid      Decimal?    @db.Decimal(10, 2)
@@ -373,6 +377,7 @@ model Lead {
   @@index([sellerId])
   @@index([status, createdAt])
   @@index([askId])
+  @@index([createdAt])          // conversion analytics time-range
 }
 
 enum LeadSource {

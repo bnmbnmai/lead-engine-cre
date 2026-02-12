@@ -129,6 +129,7 @@ export function NFTCard({
     // Auction countdown
     const [timeLeft, setTimeLeft] = useState('');
     const [auctionActive, setAuctionActive] = useState(false);
+    const [urgency, setUrgency] = useState<'normal' | 'warning' | 'critical' | 'ended'>('normal');
 
     useEffect(() => {
         if (!vertical.auction?.endTime) return;
@@ -139,13 +140,27 @@ export function NFTCard({
             if (diff <= 0) {
                 setTimeLeft('Ended');
                 setAuctionActive(false);
+                setUrgency('ended');
                 return;
             }
             setAuctionActive(true);
-            const h = Math.floor(diff / 3_600_000);
-            const m = Math.floor((diff % 3_600_000) / 60_000);
-            const s = Math.floor((diff % 60_000) / 1_000);
-            setTimeLeft(`${h}h ${m}m ${s}s`);
+
+            // Urgency thresholds for RTB-aligned short auctions
+            if (diff < 30_000) setUrgency('critical');
+            else if (diff < 60_000) setUrgency('warning');
+            else setUrgency('normal');
+
+            // Format: mm:ss for < 1 hour, Xh Ym for ≥ 1 hour
+            const totalSecs = Math.floor(diff / 1000);
+            if (totalSecs < 3600) {
+                const m = Math.floor(totalSecs / 60);
+                const s = totalSecs % 60;
+                setTimeLeft(`${m}:${String(s).padStart(2, '0')}`);
+            } else {
+                const h = Math.floor(totalSecs / 3600);
+                const m = Math.floor((totalSecs % 3600) / 60);
+                setTimeLeft(`${h}h ${m}m`);
+            }
         };
 
         tick();
@@ -273,7 +288,10 @@ export function NFTCard({
                                     />
                                 )}
                             </div>
-                            <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+                            <span className={`text-xs font-mono flex items-center gap-1 ${urgency === 'critical' ? 'text-red-500 animate-pulse font-bold' :
+                                    urgency === 'warning' ? 'text-amber-500 font-semibold' :
+                                        'text-muted-foreground'
+                                }`}>
                                 <Timer className="h-3 w-3" />
                                 {timeLeft}
                             </span>

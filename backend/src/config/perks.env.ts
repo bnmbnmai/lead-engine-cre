@@ -72,10 +72,29 @@ export const IP_BLOCKLIST_MAX_SIZE = parseInt(process.env.IP_BLOCKLIST_MAX_SIZE 
 /** Enable structured PII scrub audit logging (GDPR Article 30 compliance) */
 export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 
+// ── Auction Durations ──────────────────────────────
+
+/** Default lead auction duration (seconds) — 5 minutes for RTB alignment */
+export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '300', 10);
+
+/** Default vertical NFT auction duration (seconds) — 10 minutes */
+export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '600', 10);
+
+/** Auto-extend increment (seconds) — added when late bids arrive on low-activity auctions */
+export const AUTO_EXTEND_INCREMENT_SECS = parseInt(process.env.AUTO_EXTEND_INCREMENT_SECS || '60', 10);
+
+/** Maximum number of auto-extensions per auction */
+export const AUTO_EXTEND_MAX = parseInt(process.env.AUTO_EXTEND_MAX || '5', 10);
+
 // ── Hierarchy ──────────────────────────────
 
 /** Maximum vertical hierarchy depth (prevents infinite nesting) */
 export const MAX_HIERARCHY_DEPTH = parseInt(process.env.MAX_HIERARCHY_DEPTH || '5', 10);
+
+// ── Feature Flags ──────────────────────────────────────
+
+/** Enable NFT features (minting, auctions, resale). Set to 'false' to run as pure lead exchange. */
+export const NFT_FEATURES_ENABLED = process.env.NFT_FEATURES_ENABLED !== 'false';
 
 // ── Aggregate export ──────────────────────────────
 
@@ -113,5 +132,14 @@ export const PERKS_CONFIG = {
     },
     hierarchy: {
         maxDepth: MAX_HIERARCHY_DEPTH,
+    },
+    auction: {
+        leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
+        nftDurationSecs: NFT_AUCTION_DURATION_SECS,
+        autoExtendIncrementSecs: AUTO_EXTEND_INCREMENT_SECS,
+        autoExtendMax: AUTO_EXTEND_MAX,
+    },
+    nft: {
+        enabled: NFT_FEATURES_ENABLED,
     },
 } as const;

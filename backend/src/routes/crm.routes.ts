@@ -361,6 +361,7 @@ function formatHubSpotPayload(leads: any[]) {
     return {
         inputs: leads.map((l) => {
             const geo = l.geo as any;
+            const ad = l.adSource as any;
             return {
                 properties: {
                     firstname: l.firstName || '',
@@ -380,6 +381,14 @@ function formatHubSpotPayload(leads: any[]) {
                     lead_reserve_price: String(l.reservePrice || 0),
                     lead_winning_bid: l.bids?.[0]?.amount ? String(l.bids[0].amount) : '',
                     hs_lead_status: l.status === 'SOLD' ? 'QUALIFIED' : 'NEW',
+                    // Ad tracking
+                    utm_source: ad?.utm_source || '',
+                    utm_medium: ad?.utm_medium || '',
+                    utm_campaign: ad?.utm_campaign || '',
+                    utm_content: ad?.utm_content || '',
+                    utm_term: ad?.utm_term || '',
+                    ad_id: ad?.ad_id || '',
+                    ad_platform: ad?.ad_platform || '',
                 },
             };
         }),
@@ -393,6 +402,7 @@ function formatHubSpotPayload(leads: any[]) {
 function formatZapierPayload(leads: any[]) {
     return leads.map((l) => {
         const geo = l.geo as any;
+        const ad = l.adSource as any;
         const winBid = l.bids?.[0];
         return {
             lead_id: l.id,
@@ -407,6 +417,12 @@ function formatZapierPayload(leads: any[]) {
             reserve_price: parseFloat(l.reservePrice?.toString() || '0'),
             winning_bid: winBid ? parseFloat(winBid.amount?.toString() || '0') : null,
             quality_score: l.qualityScore || null,
+            // Ad tracking
+            utm_source: ad?.utm_source || '',
+            utm_medium: ad?.utm_medium || '',
+            utm_campaign: ad?.utm_campaign || '',
+            ad_id: ad?.ad_id || '',
+            ad_platform: ad?.ad_platform || '',
             created_at: l.createdAt?.toISOString(),
             event_type: 'lead.sold',
             event_timestamp: new Date().toISOString(),
@@ -420,6 +436,7 @@ function formatZapierPayload(leads: any[]) {
 
 function mapLeadToExport(l: any) {
     const geo = l.geo as any;
+    const ad = l.adSource as any;
     const winBid = l.bids?.[0];
     return {
         lead_id: l.id,
@@ -438,6 +455,13 @@ function mapLeadToExport(l: any) {
             winning_bid: winBid ? parseFloat(winBid.amount?.toString() || '0') : null,
         },
         quality_score: l.qualityScore || null,
+        ad_source: ad ? {
+            utm_source: ad.utm_source || null,
+            utm_medium: ad.utm_medium || null,
+            utm_campaign: ad.utm_campaign || null,
+            ad_id: ad.ad_id || null,
+            ad_platform: ad.ad_platform || null,
+        } : null,
         created_at: l.createdAt?.toISOString(),
         crm_import_date: new Date().toISOString(),
     };
@@ -447,11 +471,14 @@ function formatCsv(leads: any[]): string {
     const headers = [
         'lead_id', 'vertical', 'country', 'state', 'city', 'zip',
         'status', 'source', 'seller_company', 'reserve_price',
-        'winning_bid', 'quality_score', 'created_at', 'crm_import_date',
+        'winning_bid', 'quality_score',
+        'utm_source', 'utm_medium', 'utm_campaign', 'ad_id', 'ad_platform',
+        'created_at', 'crm_import_date',
     ];
 
     const rows = leads.map((l) => {
         const geo = l.geo as any;
+        const ad = l.adSource as any;
         const winBid = l.bids?.[0];
         return [
             l.id, l.vertical, geo?.country || 'US',
@@ -460,6 +487,8 @@ function formatCsv(leads: any[]): string {
             l.reservePrice?.toString() || '0',
             winBid?.amount?.toString() || '',
             l.qualityScore?.toString() || '',
+            ad?.utm_source || '', ad?.utm_medium || '', ad?.utm_campaign || '',
+            ad?.ad_id || '', ad?.ad_platform || '',
             l.createdAt?.toISOString(),
             new Date().toISOString(),
         ].map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',');

@@ -17,8 +17,21 @@ import { suggestVertical, listSuggestions } from '../services/vertical-optimizer
 import * as verticalNFTService from '../services/vertical-nft.service';
 import * as auctionService from '../services/auction.service';
 import { z } from 'zod';
+import { NFT_FEATURES_ENABLED } from '../config/perks.env';
 
 const router = Router();
+
+// NFT feature guard — returns 501 when NFT features are disabled
+function requireNFT(_req: AuthenticatedRequest, res: Response, next: () => void) {
+    if (!NFT_FEATURES_ENABLED) {
+        res.status(501).json({
+            error: 'NFT features are disabled',
+            resolution: 'Set NFT_FEATURES_ENABLED=true in your environment to enable NFT minting, auctions, and resale.',
+        });
+        return;
+    }
+    next();
+}
 
 // ============================================
 // GET /hierarchy — Full vertical tree (cached)
@@ -265,7 +278,7 @@ router.delete('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Res
 // Runs: CRE verification → ACE compliance → Mint VerticalNFT → Update Prisma
 // ============================================
 
-router.put('/:slug/activate', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:slug/activate', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
     try {
         // Admin only
         if (req.user!.role !== 'ADMIN') {
@@ -314,7 +327,7 @@ const ResaleSchema = z.object({
     salePrice: z.number().positive('Sale price must be positive'),
 });
 
-router.post('/:slug/resale', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:slug/resale', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
     try {
         // Admin only
         if (req.user!.role !== 'ADMIN') {
@@ -374,7 +387,7 @@ const AuctionCreateSchema = z.object({
     durationSecs: z.number().int().min(60).max(604800), // 1 min to 7 days
 });
 
-router.post('/:slug/auction', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:slug/auction', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
     try {
         if (req.user!.role !== 'ADMIN') {
             res.status(403).json({ error: 'Admin access required' });

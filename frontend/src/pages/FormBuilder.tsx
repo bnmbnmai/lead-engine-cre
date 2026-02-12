@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LabeledSwitch } from '@/components/ui/switch';
 import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { LanderExport } from '@/components/forms/LanderExport';
+import { getContrastText, meetsWcagAA } from '@/lib/contrast';
 
 // ============================================
 // Types
@@ -643,6 +644,9 @@ export function FormBuilder() {
                                             style={{ backgroundColor: scheme.swatch }}
                                         />
                                         {scheme.name}
+                                        {!meetsWcagAA(scheme.vars['--form-text'], scheme.vars['--form-bg']) && (
+                                            <span title="Low contrast — text may be hard to read" className="text-amber-500">⚠️</span>
+                                        )}
                                     </button>
                                 ))}
                             </div>
@@ -773,8 +777,8 @@ export function FormBuilder() {
                                                     </p>
                                                 </div>
                                                 <button
-                                                    className="h-11 rounded-lg flex items-center justify-center text-sm font-medium text-white w-full cursor-pointer transition-all hover:opacity-90 active:scale-[0.98] relative overflow-hidden"
-                                                    style={{ backgroundColor: colorScheme.vars['--form-accent'] }}
+                                                    className="h-11 rounded-lg flex items-center justify-center text-sm font-medium w-full cursor-pointer transition-all hover:opacity-90 active:scale-[0.98] relative overflow-hidden"
+                                                    style={{ backgroundColor: colorScheme.vars['--form-accent'], color: getContrastText(colorScheme.vars['--form-accent']) }}
                                                     onClick={() => {
                                                         setSubmitted(true);
                                                         if (gamification.confetti) {

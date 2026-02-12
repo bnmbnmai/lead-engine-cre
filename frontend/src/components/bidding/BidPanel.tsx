@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
+import { LeadPreview } from './LeadPreview';
 
 const bidSchema = z.object({
     amount: z.number().positive('Amount must be positive'),
@@ -26,6 +27,7 @@ interface BidPanelProps {
 }
 
 export function BidPanel({
+    leadId,
     reservePrice,
     highestBid,
     phase,
@@ -143,7 +145,7 @@ export function BidPanel({
                             }`}
                     >
                         <Gavel className="h-4 w-4" />
-                        Direct Bid
+                        Open Bid
                     </button>
                     <button
                         type="button"
@@ -152,7 +154,7 @@ export function BidPanel({
                             }`}
                     >
                         <Lock className="h-4 w-4" />
-                        Commit-Reveal
+                        Sealed Bid
                     </button>
                 </div>
 
@@ -161,8 +163,8 @@ export function BidPanel({
                     <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                     <p className="text-xs text-muted-foreground leading-relaxed">
                         {bidMode === 'direct'
-                            ? 'Your bid amount is visible immediately. Simple and fast — best when you want quick placement.'
-                            : 'Your bid is encrypted (sealed) until the reveal phase. Prevents front-running and protects your bidding strategy.'}
+                            ? 'Open Bid — your bid amount is visible immediately. Simple and fast, best for quick placement.'
+                            : 'Sealed Bid — your bid is encrypted until the reveal phase. Prevents front-running and protects your strategy.'}
                     </p>
                 </div>
 
@@ -179,6 +181,9 @@ export function BidPanel({
                         </div>
                     </div>
                 </div>
+
+                {/* Lead Preview (non-PII fields) */}
+                <LeadPreview leadId={leadId} />
 
                 {/* Bid Form */}
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

@@ -7,6 +7,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
+import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 
 const router = Router();
 
@@ -163,7 +164,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     reservePrice: rand(PRICING[vertical].min, PRICING[vertical].max),
                     status: 'ACTIVE',
                     parameters: { _demoTag: DEMO_TAG },
-                    auctionDuration: 3600,
+                    auctionDuration: LEAD_AUCTION_DURATION_SECS,
                     revealWindow: 900,
                 },
             });
@@ -339,7 +340,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                 tcpaConsentAt: new Date(),
                 consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
-                auctionEndAt: new Date(Date.now() + 3600000), // 1 hour
+                auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), // configurable
             },
         });
 
@@ -355,7 +356,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                     geo: { country: 'US', state },
                     isVerified: true,
                     auctionStartAt: new Date().toISOString(),
-                    auctionEndAt: new Date(Date.now() + 3600000).toISOString(),
+                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString(),
                     _count: { bids: 0 },
                 },
             });

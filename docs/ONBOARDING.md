@@ -369,3 +369,53 @@ If you're focusing on improving the frontend visual design, these are the files 
 4. **Web3-native** — wallet connect is a first-class UX. Don't hide it.
 5. **Responsive** — must work mobile/tablet/desktop. Use Tailwind breakpoints (`sm:`, `md:`, `lg:`).
 6. **Performance** — minimize bundle size. Use dynamic imports for heavy pages if needed.
+
+---
+
+## 11. Bid Previews & Compliance
+
+### Bid Modes
+
+| Mode | Label | Description |
+|------|-------|-------------|
+| `direct` | **Open Bid** | Bid amount is visible immediately. Best for speed and simple auctions. |
+| `commit-reveal` | **Sealed Bid** | Bid is encrypted (AES-256-GCM) until the reveal phase. Prevents front-running. |
+
+### Lead Preview (Non-PII)
+
+The `LeadPreview` component (`components/bidding/LeadPreview.tsx`) shows buyers redacted lead data grouped by form step — field values like "Loan Type: Refinance" without any personally identifiable information. ZK-verified leads display a green "ZK Verified" badge.
+
+### KYC Flow
+
+- Sellers see a **"Verify Now →"** CTA on the submit page if unverified
+- KYC-required errors include an actionable button routing to `/seller/kyc`
+- Verified sellers earn higher trust scores and faster settlement
+
+---
+
+## 12. NFT Features (Optional)
+
+NFT minting, auctions, and resale can be disabled to run Lead Engine as a pure lead exchange.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `NFT_FEATURES_ENABLED` | `true` | When `false`, NFT endpoints return `501 Not Implemented` |
+
+Set in your `.env`:
+
+```bash
+NFT_FEATURES_ENABLED=false   # Disable NFTs for lead-only mode
+```
+
+Routes guarded: `PUT /:slug/activate`, `POST /:slug/resale`, `POST /:slug/auction`
+
+---
+
+## 13. Additional Environment Variables
+
+| Variable | Location | Purpose |
+|----------|----------|---------|
+| `VITE_BLOCK_EXPLORER_URL` | Frontend | Block explorer base URL (default: `https://sepolia.etherscan.io`) |
+| `NFT_FEATURES_ENABLED` | Backend | Toggle NFT features on/off (default: `true`) |
+| `AUTO_EXTEND_INCREMENT_SECS` | Backend | Auction auto-extend duration in seconds |
+| `AUTO_EXTEND_MAX` | Backend | Maximum number of auto-extensions per auction |

@@ -27,6 +27,7 @@
 3. Fill mortgage fields: Loan Amount = $450K, Credit Range = 720-750, Property Type = SFR
 4. Submit → CRE verification starts → quality score 7,850/10,000
 5. Quick switch to API tab → show curl example for programmatic submission
+6. Note: ad tracking fields (utm_source, ad_platform) auto-populated from URL
 
 **Say:**
 > "A seller submits a $450K mortgage lead from New York. Our form adapts per vertical — mortgage-specific fields appear automatically. CRE begins on-chain verification immediately, scoring this lead 7,850 out of 10,000."
@@ -96,13 +97,13 @@
 
 **Show:** Buyer Dashboard → bid placement → settlement
 **Actions:**
-1. Buyer places encrypted $95 bid on mortgage lead
+1. Buyer places sealed $95 bid on mortgage lead ("Sealed Bid" mode)
 2. Show commitment hash (keccak256)
 3. Bid reveal → verified → buyer wins
 4. NFT minted with quality score → USDC escrow → settlement (2.5% fee)
 
 **Say:**
-> "The buyer's $95 bid is encrypted with AES-256-GCM and committed on-chain. After reveal, the commitment is verified — if it doesn't match, the bid is rejected. The lead is minted as an ERC-721 NFT, payment flows through USDC escrow, and settlement happens automatically."
+> "The buyer's $95 sealed bid is encrypted with AES-256-GCM and committed on-chain. After reveal, the commitment is verified — if it doesn't match, the bid is rejected. The lead is minted as an ERC-721 NFT, payment flows through USDC escrow, and settlement happens automatically."
 
 ---
 

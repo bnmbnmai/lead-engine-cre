@@ -358,4 +358,151 @@ router.get('/bids', analyticsLimiter, authMiddleware, async (req: AuthenticatedR
     }
 });
 
+// ============================================
+// Conversion Analytics — Ad Source Tracking
+// ============================================
+
+router.get('/conversions', analyticsLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const days = Math.min(parseInt((req.query.days as string) || '30') || 30, 365);
+        const vertical = req.query.vertical as string | undefined;
+
+        const seller = await prisma.sellerProfile.findFirst({
+            where: { user: { id: req.user!.id } },
+        });
+
+        if (!seller) {
+            res.status(403).json({ error: 'Seller profile required for conversion analytics' });
+            return;
+        }
+
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+
+        const where: any = { sellerId: seller.id, createdAt: { gte: since } };
+        if (vertical) where.vertical = vertical;
+
+        const leads = await prisma.lead.findMany({
+            where,
+            select: {
+                id: true,
+                status: true,
+                adSource: true,
+                winningBid: true,
+                vertical: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // Group by utm_source (or "direct" if no adSource)
+        const groups = new Map<string, { leads: number; sold: number; revenue: number; bids: number[] }>();
+
+        for (const lead of leads) {
+            const ad = lead.adSource as any;
+            const source = ad?.utm_source || 'direct';
+
+            if (!groups.has(source)) {
+                groups.set(source, { leads: 0, sold: 0, revenue: 0, bids: [] });
+            }
+
+            const g = groups.get(source)!;
+            g.leads++;
+
+            if (lead.status === 'SOLD' && lead.winningBid) {
+                g.sold++;
+                const bid = parseFloat(lead.winningBid.toString());
+                g.revenue += bid;
+                g.bids.push(bid);
+            }
+        }
+
+        const conversions = Array.from(groups.entries())
+            .map(([source, data]) => ({
+                source,
+                leads: data.leads,
+                sold: data.sold,
+                conversionRate: data.leads > 0 ? Math.round((data.sold / data.leads) * 10000) / 100 : 0,
+                revenue: Math.round(data.revenue * 100) / 100,
+                avgBid: data.bids.length > 0
+                    ? Math.round((data.revenue / data.bids.length) * 100) / 100
+                    : 0,
+            }))
+            .sort((a, b) => b.revenue - a.revenue);
+
+        const totalLeads = leads.length;
+        const directLeads = groups.get('direct')?.leads || 0;
+
+        res.json({
+            conversions,
+            meta: {
+                days,
+                total: totalLeads,
+                directPct: totalLeads > 0 ? Math.round((directLeads / totalLeads) * 100) : 0,
+                queriedAt: new Date().toISOString(),
+            },
+        });
+    } catch (error) {
+        console.error('Conversion analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch conversion analytics' });
+    }
+});
+
+router.get('/conversions/by-platform', analyticsLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const days = Math.min(parseInt((req.query.days as string) || '30') || 30, 365);
+
+        const seller = await prisma.sellerProfile.findFirst({
+            where: { user: { id: req.user!.id } },
+        });
+
+        if (!seller) {
+            res.status(403).json({ error: 'Seller profile required' });
+            return;
+        }
+
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+
+        const leads = await prisma.lead.findMany({
+            where: { sellerId: seller.id, createdAt: { gte: since } },
+            select: { status: true, adSource: true, winningBid: true },
+        });
+
+        const platforms = new Map<string, { leads: number; sold: number; revenue: number }>();
+
+        for (const lead of leads) {
+            const ad = lead.adSource as any;
+            const platform = ad?.ad_platform || 'none';
+
+            if (!platforms.has(platform)) {
+                platforms.set(platform, { leads: 0, sold: 0, revenue: 0 });
+            }
+
+            const p = platforms.get(platform)!;
+            p.leads++;
+
+            if (lead.status === 'SOLD' && lead.winningBid) {
+                p.sold++;
+                p.revenue += parseFloat(lead.winningBid.toString());
+            }
+        }
+
+        const result = Array.from(platforms.entries())
+            .map(([platform, data]) => ({
+                platform,
+                leads: data.leads,
+                sold: data.sold,
+                conversionRate: data.leads > 0 ? Math.round((data.sold / data.leads) * 10000) / 100 : 0,
+                revenue: Math.round(data.revenue * 100) / 100,
+            }))
+            .sort((a, b) => b.revenue - a.revenue);
+
+        res.json({ platforms: result });
+    } catch (error) {
+        console.error('Platform analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch platform analytics' });
+    }
+});
+
 export default router;

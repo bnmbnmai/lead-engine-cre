@@ -5,7 +5,7 @@
  * automatically places bids for matching preference sets.
  *
  * Rules evaluated per preference set:
- *   1. Vertical match
+ *   1. Vertical match (exact or wildcard '*')
  *   2. Geo match (country + include/exclude states)
  *   3. Quality score gate (minQualityScore)
  *   4. Off-site toggle (acceptOffSite)
@@ -65,10 +65,10 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         skipped: [],
     };
 
-    // Find all active auto-bid preference sets matching this vertical
+    // Find all active auto-bid preference sets matching this vertical (or wildcard)
     const matchingSets = await prisma.buyerPreferenceSet.findMany({
         where: {
-            vertical: lead.vertical,
+            vertical: { in: [lead.vertical, '*'] },
             isActive: true,
             autoBidEnabled: true,
             autoBidAmount: { not: null },

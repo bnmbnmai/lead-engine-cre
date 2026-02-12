@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Globe, Layout, Copy, Check, ExternalLink, Wallet, UserPlus, Building2, CheckCircle } from 'lucide-react';
+import { FileText, Globe, Layout, Copy, Check, ExternalLink, Wallet, UserPlus, Building2, CheckCircle, Shield } from 'lucide-react';
 import { ErrorDetail, parseApiError } from '@/components/ui/ErrorDetail';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { LeadSubmitForm } from '@/components/forms/LeadSubmitForm';
@@ -41,7 +41,7 @@ function CurlExample({ vertical = 'roofing', state = 'FL', country = 'US', zip =
     "source": "API",
     "geo": { "country": "${country}", "state": "${state}", "zip": "${zip}" },
     "reservePrice": 35.00,
-    "expiresInMinutes": 60,
+    "expiresInMinutes": 5,
     "tcpaConsentAt": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
     "parameters": ${paramsStr}
   }'`;
@@ -214,9 +214,24 @@ export function SellerSubmit() {
                                 </div>
                             </div>
 
-                            {/* KYC Note */}
-                            <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
-                                <strong>KYC Notice:</strong> Full identity verification will be required before your leads can settle on-chain. You can start submitting leads now and complete KYC later.
+                            {/* KYC CTA */}
+                            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                <Shield className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                                        KYC verification required for on-chain settlement
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        You can submit leads now, but verified sellers settle faster and earn higher trust scores.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition"
+                                        onClick={() => window.open('/seller/kyc', '_blank')}
+                                    >
+                                        Verify Now →
+                                    </button>
+                                </div>
                             </div>
 
                             {profileError && (
@@ -274,7 +289,7 @@ export function SellerSubmit() {
                 {activeTab === 'PLATFORM' && (
                     <LeadSubmitForm
                         source="PLATFORM"
-                        onSuccess={(lead) => navigate(`/lead/${lead.id}`)}
+                        onSuccess={(lead) => navigate(`/seller/leads/${lead.id}`)}
                     />
                 )}
 
@@ -332,7 +347,7 @@ export function SellerSubmit() {
                                                 <tr><td className="p-3 font-mono text-xs">reservePrice</td><td className="p-3 text-muted-foreground">number</td><td className="p-3 text-muted-foreground">Min acceptable bid in USDC</td></tr>
                                                 <tr><td className="p-3 font-mono text-xs">tcpaConsentAt</td><td className="p-3 text-muted-foreground">datetime</td><td className="p-3 text-muted-foreground">ISO 8601 timestamp of consent</td></tr>
                                                 <tr><td className="p-3 font-mono text-xs">parameters</td><td className="p-3 text-muted-foreground">object</td><td className="p-3 text-muted-foreground">Vertical-specific fields (roof_type, loan_type, etc.)</td></tr>
-                                                <tr><td className="p-3 font-mono text-xs">expiresInMinutes</td><td className="p-3 text-muted-foreground">number</td><td className="p-3 text-muted-foreground">5–10080 (default: 60)</td></tr>
+                                                <tr><td className="p-3 font-mono text-xs">expiresInMinutes</td><td className="p-3 text-muted-foreground">number</td><td className="p-3 text-muted-foreground">5–10080 (default: 5)</td></tr>
                                             </tbody>
                                         </table>
                                     </div>

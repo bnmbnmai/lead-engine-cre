@@ -19,6 +19,11 @@ import {
     isInPrePingWindow,
     HolderPerks,
 } from './holder-perks.service';
+import {
+    NFT_AUCTION_DURATION_SECS,
+    AUTO_EXTEND_INCREMENT_SECS,
+    AUTO_EXTEND_MAX,
+} from '../config/perks.env';
 
 // ============================================
 // Contract Config
@@ -244,6 +249,12 @@ export async function placeBid(
             },
         });
 
+        // 7. Auto-extend if this is a low-activity auction near expiry
+        const extended = await autoExtendAuction(auctionDbId);
+        if (extended) {
+            console.log(`[AUCTION] Auto-extended auction ${auctionDbId} by ${AUTO_EXTEND_INCREMENT_SECS}s`);
+        }
+
         console.log(`[AUCTION] Bid $${bidAmount}${perks.isHolder ? ` (effective: $${effectiveBid}, 1.2× holder)` : ''} from ${bidderAddress} on auction ${auctionDbId}`);
 
         return {
@@ -259,6 +270,41 @@ export async function placeBid(
     } catch (error: any) {
         return { success: false, error: `Database error: ${error.message}` };
     }
+}
+
+// ============================================
+// Auto-Extend Auction
+// ============================================
+
+/**
+ * Auto-extend an auction by AUTO_EXTEND_INCREMENT_SECS when:
+ *  1. The auction has < AUTO_EXTEND_INCREMENT_SECS remaining
+ *  2. The extension count is below AUTO_EXTEND_MAX
+ *  3. The auction is still active (not settled/cancelled)
+ *
+ * This prevents low-volume auctions from closing before buyers
+ * have a chance to respond, while capping total extension time.
+ */
+export async function autoExtendAuction(auctionDbId: string): Promise<boolean> {
+    const auction = await prisma.verticalAuction.findUnique({ where: { id: auctionDbId } });
+    if (!auction || auction.settled || auction.cancelled) return false;
+
+    const extensions = (auction as any).extensionCount || 0;
+    if (extensions >= AUTO_EXTEND_MAX) return false;
+
+    const remainingMs = auction.endTime.getTime() - Date.now();
+    if (remainingMs > AUTO_EXTEND_INCREMENT_SECS * 1000) return false;
+
+    const newEndTime = new Date(auction.endTime.getTime() + AUTO_EXTEND_INCREMENT_SECS * 1000);
+    await prisma.verticalAuction.update({
+        where: { id: auctionDbId },
+        data: {
+            endTime: newEndTime,
+            extensionCount: extensions + 1,
+        },
+    });
+
+    return true;
 }
 
 // ============================================

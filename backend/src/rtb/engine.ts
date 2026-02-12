@@ -4,6 +4,7 @@ import { aceService } from '../services/ace.service';
 import { creService } from '../services/cre.service';
 import { applyHolderPerks, computePrePing, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
 import { findNotifiableHolders } from '../services/notification.service';
+import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 
 // ============================================
 // RTB Engine
@@ -67,7 +68,7 @@ class RTBEngine {
 
             // Start auction
             const ask = matchingAsks[0];
-            const auctionDuration = ask.auctionDuration || 3600;
+            const auctionDuration = ask.auctionDuration || LEAD_AUCTION_DURATION_SECS;
             const revealWindow = ask.revealWindow || 900;
 
             // Compute pre-ping window with per-auction nonce for unpredictability
