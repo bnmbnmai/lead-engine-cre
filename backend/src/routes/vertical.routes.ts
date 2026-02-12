@@ -30,7 +30,10 @@ router.get('/hierarchy', generalLimiter, async (_req: AuthenticatedRequest, res:
         res.json({ tree });
     } catch (error) {
         console.error('Get hierarchy error:', error);
-        res.status(500).json({ error: 'Failed to fetch vertical hierarchy' });
+        res.status(500).json({
+            error: 'Failed to fetch vertical hierarchy',
+            ...(process.env.NODE_ENV !== 'production' && { detail: String(error) }),
+        });
     }
 });
 

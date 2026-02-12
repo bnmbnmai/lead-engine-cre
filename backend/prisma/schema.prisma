@@ -75,7 +75,7 @@ model Vertical {
   nftTokenId      Int?       // On-chain VerticalNFT token ID
   nftTxHash       String?    // Mint transaction hash
   ownerAddress    String?    // Current NFT owner wallet address
-  resaleHistory   Json[]     // [{ buyer, seller, price, royalty, txHash, timestamp }]
+  resaleHistory   Json[]     @default([]) // [{ buyer, seller, price, royalty, txHash, timestamp }]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
