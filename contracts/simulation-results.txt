@@ -1,0 +1,65 @@
+
+════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════
+[2026-02-12T17:53:57.551Z] 🔑 Generating 7 ephemeral wallets from deployer...
+[2026-02-12T17:54:12.053Z]   💸 Funded wallet[1] 0xDDe4007937… with 0.01 ETH
+[2026-02-12T17:54:24.057Z]   💸 Funded wallet[2] 0x4814677732… with 0.01 ETH
+[2026-02-12T17:54:36.231Z]   💸 Funded wallet[3] 0x850daEd5c1… with 0.01 ETH
+[2026-02-12T17:54:48.162Z]   💸 Funded wallet[4] 0x8039482E2a… with 0.01 ETH
+[2026-02-12T17:55:00.069Z]   💸 Funded wallet[5] 0xb506F61Dc0… with 0.01 ETH
+[2026-02-12T17:55:24.779Z]   💸 Funded wallet[6] 0x3cacf9921B… with 0.01 ETH
+[2026-02-12T17:55:35.812Z]   💸 Funded wallet[7] 0x54f0E8a5aA… with 0.01 ETH
+[2026-02-12T17:55:35.812Z]   ✅ 7 ephemeral wallets created and funded
+
+[2026-02-12T17:55:35.813Z] ════════════════════════════════════════════════════════════
+[2026-02-12T17:55:35.813Z] 🏁 LEAD ENGINE CRE — FULL CYCLE SIMULATION
+[2026-02-12T17:55:35.813Z] ════════════════════════════════════════════════════════════
+[2026-02-12T17:55:35.813Z] Network:  sepolia (chainId 11155111)
+[2026-02-12T17:55:35.813Z] Deployer: 0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70
+[2026-02-12T17:55:35.813Z] Wallets:  [0] 0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70
+          [1] 0xDDe4007937CacBF8A59f19E0F4F47790739E4606
+          [2] 0x4814677732e3A075eBAfD9ab8A829ffaF31f4e19
+          [3] 0x850daEd5c1357F3454A62776F202B9A002b951FD
+          [4] 0x8039482E2a21993F84a65000B4815BAcDe6b6Cd8
+          [5] 0xb506F61Dc001d1455CE989c9f1AA9c733f87AdE2
+          [6] 0x3cacf9921B06482a6ce10e6d6a289aEa61521913
+          [7] 0x54f0E8a5aA3D693F86e5a05739d5C863287b446f
+[2026-02-12T17:55:35.870Z] Balance:  0.055765042771531826 ETH
+[2026-02-12T17:55:35.870Z] 
+[2026-02-12T17:55:35.870Z] 📦 Phase 0: Loading deployed contracts (Sepolia)...
+[2026-02-12T17:55:35.900Z]   ⚠️  VerticalNFT/VerticalAuction not found — Phases 4-5 will be skipped
+[2026-02-12T17:55:35.901Z]   ✅ Contracts loaded from .env
+[2026-02-12T17:55:35.901Z] 
+🔑 Phase 1: KYC Setup + Lead Minting
+[2026-02-12T17:55:35.901Z] ────────────────────────────────────────
+[2026-02-12T17:55:48.066Z]   ✅ KYC verify wallet[0] 0x6BBcf283… — tx 0x9dc242d0906e76c558d2096bb15ab269450d7c70db3c2ac435299c6854b3ea9e (gas: 73259)
+[2026-02-12T17:55:59.892Z]   ✅ KYC verify wallet[1] 0xDDe40079… — tx 0xaf1d2b8a23d706eaa314c1a1aba3f42c3ab532c98ecc1528d695a55452584647 (gas: 73247)
+[2026-02-12T17:56:11.702Z]   ✅ KYC verify wallet[2] 0x48146777… — tx 0xdec190a05ef419be53dbf5d7a71e6de6e2552aba93be3890af10d32915283a56 (gas: 73259)
+[2026-02-12T17:56:24.561Z]   ✅ KYC verify wallet[3] 0x850daEd5… — tx 0xc21e448c1aee0a5d38f9f35e0bc7ea3d3237e954f36c0f427c772a7a314b5488 (gas: 73259)
+[2026-02-12T17:56:36.208Z]   ✅ KYC verify wallet[4] 0x8039482E… — tx 0xdd582f72d1bd9c60f2089fd9825c007bbd15b4b1df553d565ce373daca5850bb (gas: 73247)
+[2026-02-12T17:56:47.924Z]   ✅ KYC verify wallet[5] 0xb506F61D… — tx 0x4660a08b93092e49db1280f5ed3756af560e098e63c41ad585a88931224898af (gas: 73259)
+[2026-02-12T17:57:03.573Z]   ✅ KYC verify wallet[6] 0x3cacf992… — tx 0x078ab2a96c70fc9d5de174871696853d7a422db23a479787982674ba089ac221 (gas: 73259)
+[2026-02-12T17:57:12.394Z]   ✅ KYC verify wallet[7] 0x54f0E8a5… — tx 0x4c150f058cd60471a5ee6c5aaa338318eb934666efbd336d517a3e5ea22f30be (gas: 73259)
+[2026-02-12T17:57:24.107Z]   ✅ Mint LeadNFT #1 → 0xDDe40079… — tx 0xcf2f0d4f21c73c18cd79ceabaf17538938a376705afa5ae587f35742304e0df6 (gas: 284229)
+[2026-02-12T17:57:35.795Z]   ✅ Mint LeadNFT #2 → 0xDDe40079… — tx 0x7adb6e1052922c3b2ef8993ac35f0504b8ef0d53ee5623e5012ce723134c19d3 (gas: 250029)
+[2026-02-12T17:57:48.405Z]   ✅ Mint LeadNFT #3 → 0x48146777… — tx 0x0a1703aea89eccde67e673833e945cb297c5e5973bcf201ca02133bff4772085 (gas: 267141)
+[2026-02-12T17:58:00.273Z]   ✅ Mint LeadNFT #4 → 0x48146777… — tx 0x7142b1b71893bed777c7ede0d3513a95630bd7eb2594194df651b7c8341227ba (gas: 250041)
+[2026-02-12T17:58:00.274Z] 
+✅ Phase 1 complete — 8 wallets KYC'd, 4 leads minted
+[2026-02-12T17:58:00.274Z] 
+🏷️  Phase 2: Commit-Reveal Bidding (USDC)
+[2026-02-12T17:58:00.274Z] ────────────────────────────────────────
+[2026-02-12T17:58:11.917Z]   ✅ SellerA approves LeadNFT #1 — tx 0x8203b56651e23ffdd9c733b670c05a4e4261e50f36825925cb3c65d131112d76 (gas: 48318)
+[2026-02-12T17:58:12.047Z]   ⚠️  SellerA lists LeadNFT #1 (auction) attempt 1/3 failed: execution reverted: Marketplace: Invalid duration
+[2026-02-12T17:58:13.186Z]   ⚠️  SellerA lists LeadNFT #1 (auction) attempt 2/3 failed: execution reverted: Marketplace: Invalid duration
+[2026-02-12T17:58:15.337Z]   ⚠️  SellerA lists LeadNFT #1 (auction) attempt 3/3 failed: execution reverted: Marketplace: Invalid duration
+[2026-02-12T17:58:15.337Z]   ❌ SellerA lists LeadNFT #1 (auction) FAILED after 3 attempts
+
+════════════════════════════════════════════════════════════════════════
+[2026-02-12T17:59:19.289Z] 🔑 Generating 7 ephemeral wallets from deployer...
+[2026-02-12T17:59:24.471Z]   💸 Funded wallet[1] 0x393ab17084… with 0.01 ETH
+[2026-02-12T17:59:36.490Z]   💸 Funded wallet[2] 0x94fC20c7C3… with 0.01 ETH
+[2026-02-12T17:59:48.395Z]   💸 Funded wallet[3] 0x2a356c8409… with 0.01 ETH
+[2026-02-12T18:00:11.885Z]   💸 Funded wallet[4] 0xF7A84cefE8… with 0.01 ETH

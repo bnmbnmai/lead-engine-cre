@@ -181,12 +181,7 @@ async function x402Pay(
 // ============================================
 
 async function main() {
-    const signers = await ethers.getSigners();
-    if (signers.length < 8) {
-        throw new Error(`Need 8 signers, have ${signers.length}. Set TESTNET_MNEMONIC in .env`);
-    }
-
-    const [deployer, sellerA, sellerB, buyer1, buyer2, buyer3, buyer4, reseller] = signers;
+    const hardhatSigners = await ethers.getSigners();
     const chainId = Number((await ethers.provider.getNetwork()).chainId);
     const networkName = chainId === 31337 ? "hardhat" : chainId === 11155111 ? "sepolia" : `chain-${chainId}`;
 
@@ -194,12 +189,42 @@ async function main() {
     const AUCTION_DURATION = chainId === 31337 ? 3600 : 90;   // 1h local, 90s live
     const REVEAL_WINDOW = chainId === 31337 ? 900 : 45;    // 15m local, 45s live
 
+    let deployer: any, sellerA: any, sellerB: any, buyer1: any, buyer2: any, buyer3: any, buyer4: any, reseller: any;
+    let allWallets: any[];
+
+    if (hardhatSigners.length < 8) {
+        throw new Error(
+            `Need 8 signers, have ${hardhatSigners.length}. ` +
+            `Add TESTNET_MNEMONIC to backend/.env (hardhat.config.ts derives 10 HD wallets from it).`
+        );
+    }
+
+    [deployer, sellerA, sellerB, buyer1, buyer2, buyer3, buyer4, reseller] = hardhatSigners;
+    allWallets = hardhatSigners.slice(0, 8);
+
+    // Auto-fund any wallet with zero balance (first run only; subsequent runs reuse balances)
+    if (chainId !== 31337) {
+        const ETH_FUND = ethers.parseEther("0.002");
+        let funded = 0;
+        for (let i = 1; i < 8; i++) {
+            const bal = await ethers.provider.getBalance(allWallets[i].address);
+            if (bal === 0n) {
+                const tx = await deployer.sendTransaction({ to: allWallets[i].address, value: ETH_FUND });
+                await tx.wait();
+                emit(`  💸 Funded wallet[${i}] ${allWallets[i].address.slice(0, 12)}… with 0.002 ETH`);
+                funded++;
+            }
+        }
+        if (funded > 0) emit(`  ✅ ${funded} wallets funded (${ethers.formatEther(ETH_FUND * BigInt(funded))} ETH total)\n`);
+        else emit("  ✅ All wallets already funded from previous run\n");
+    }
+
     emit("═".repeat(60));
     emit("🏁 LEAD ENGINE CRE — FULL CYCLE SIMULATION");
     emit("═".repeat(60));
     emit(`Network:  ${networkName} (chainId ${chainId})`);
     emit(`Deployer: ${deployer.address}`);
-    emit(`Wallets:  ${signers.slice(0, 8).map((s, i) => `[${i}] ${s.address}`).join("\n          ")}`);
+    emit(`Wallets:  ${allWallets.map((s: any, i: number) => `[${i}] ${s.address}`).join("\n          ")}`);
     emit(`Balance:  ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} ETH`);
     emit("");
 
@@ -291,6 +316,21 @@ async function main() {
         }
 
         emit("  ✅ Contracts loaded from .env");
+    }
+
+    // ============================================
+    // Demo override: lower auction duration minimums on live networks
+    // ============================================
+
+    if (chainId !== 31337) {
+        emit("⚙️  Lowering auction duration minimums for demo...");
+        await sendTx("setAuctionSettings(60s min, 7d max, 30s reveal)", () =>
+            marketplace.setAuctionSettings(
+                60,              // minDuration: 60s (was 1h)
+                7 * 24 * 3600,   // maxDuration: 7d (unchanged)
+                30               // minRevealWindow: 30s (was 15m)
+            )
+        );
     }
 
     // ============================================

@@ -63,6 +63,7 @@ describe('Auction Duration Config', () => {
         expect(auctionConfig).toBeDefined();
         expect(auctionConfig).toEqual({
             leadDurationSecs: 300,
+            leadMaxDurationSecs: 600,
             nftDurationSecs: 600,
             autoExtendIncrementSecs: 60,
             autoExtendMax: 5,

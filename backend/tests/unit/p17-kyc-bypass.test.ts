@@ -5,7 +5,7 @@
  * storage event propagation, admin bypass, edge cases.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// Jest globals: describe, it, expect, beforeEach, afterEach are provided automatically
 
 // StorageEvent polyfill for Node.js test environment
 class MockStorageEvent {
@@ -64,7 +64,7 @@ describe('ACE KYC Bypass: isKYCValid', () => {
     });
 
     it('should log "Demo KYC bypassed" when bypassing', () => {
-        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
         const walletAddress = '0xDEMO_SELLER_KYC';
         const env = makeEnv('true');
         if (isDemoBypass(env)) {

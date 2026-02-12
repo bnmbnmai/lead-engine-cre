@@ -8,10 +8,20 @@ const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY || "";
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
 const TESTNET_MNEMONIC = process.env.TESTNET_MNEMONIC || "";
 
-// Use mnemonic-derived accounts if available, otherwise single private key
-const accountsConfig = TESTNET_MNEMONIC
-    ? { mnemonic: TESTNET_MNEMONIC, count: 10 }
-    : [PRIVATE_KEY];
+// Deployer private key is always account[0]; mnemonic-derived wallets [1]-[7] for simulation
+import { HDNodeWallet, Mnemonic } from "ethers";
+function buildAccounts(): string[] {
+    const keys = [PRIVATE_KEY];
+    if (TESTNET_MNEMONIC) {
+        const mn = Mnemonic.fromPhrase(TESTNET_MNEMONIC);
+        for (let i = 0; i < 7; i++) {
+            const w = HDNodeWallet.fromMnemonic(mn, `m/44'/60'/0'/0/${i}`);
+            keys.push(w.privateKey);
+        }
+    }
+    return keys;
+}
+const accountsConfig = buildAccounts();
 
 const config: HardhatUserConfig = {
     solidity: {

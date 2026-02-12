@@ -34,6 +34,8 @@ const mockPrisma = {
 
 jest.mock('../../src/lib/prisma', () => ({ prisma: mockPrisma }));
 
+afterEach(() => { jest.restoreAllMocks(); });
+
 // ============================================
 // 1. Marketplace Search (6 tests)
 // ============================================
@@ -141,7 +143,7 @@ describe('Analytics Real Data Hooks', () => {
         const filePath = require('path').resolve(__dirname, '../../..', 'frontend/src/pages/SellerAnalytics.tsx');
         const fs = require('fs');
         const content = fs.readFileSync(filePath, 'utf-8');
-        expect(content).toContain('if (useMock) return;');
+        expect(content).toContain('if (useMock && !useRealData) return;');
     });
 
     test('SellerAnalytics has API error banner', () => {

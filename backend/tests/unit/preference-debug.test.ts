@@ -124,10 +124,10 @@ describe('PreferenceSetSchema', () => {
 
     // ── Vertical validation ──
 
-    test('rejects unknown vertical', () => {
+    test('rejects invalid vertical slug format', () => {
         const result = PreferenceSetSchema.safeParse({
             ...VALID_SET,
-            vertical: 'cryptocurrency',
+            vertical: '123invalid', // starts with digit — fails /^[a-z][a-z0-9_.]{0,99}$/
         });
         expect(result.success).toBe(false);
     });

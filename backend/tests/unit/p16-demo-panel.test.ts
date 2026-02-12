@@ -5,7 +5,7 @@
  * reset endpoint, and live countdown timer.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// Jest globals: describe, it, expect, beforeEach, afterEach are provided automatically
 
 // ── Constants mirrored from demo-panel.routes ──
 
@@ -46,7 +46,7 @@ function formatTimeRemaining(endTime: string | Date): string {
 describe('Demo Panel: Clear-All', () => {
     it('should delete ALL leads regardless of consentProof tag', () => {
         // Simulated clear function — no WHERE clause
-        const deleteMany = vi.fn().mockResolvedValue({ count: 25 });
+        const deleteMany = jest.fn().mockResolvedValue({ count: 25 });
         // Before fix: only { where: { consentProof: 'DEMO_TAG' } }
         // After fix: deleteMany({}) — no filter
         const query = {}; // empty = all records
@@ -62,7 +62,7 @@ describe('Demo Panel: Clear-All', () => {
     });
 
     it('should emit marketplace:refreshAll after clearing', () => {
-        const io = { emit: vi.fn() };
+        const io = { emit: jest.fn() };
         io.emit('marketplace:refreshAll');
         expect(io.emit).toHaveBeenCalledWith('marketplace:refreshAll');
     });
@@ -205,7 +205,7 @@ describe('Demo Panel: Reset to Clean Demo State', () => {
     });
 
     it('should emit marketplace:refreshAll after reset', () => {
-        const io = { emit: vi.fn() };
+        const io = { emit: jest.fn() };
         io.emit('marketplace:refreshAll');
         expect(io.emit).toHaveBeenCalledWith('marketplace:refreshAll');
     });
@@ -221,8 +221,8 @@ describe('Demo Panel: Reset to Clean Demo State', () => {
 // Group 5: Live Countdown Timer (LeadCard)
 // ============================================
 describe('LeadCard: Live Countdown Timer', () => {
-    beforeEach(() => { vi.useFakeTimers(); });
-    afterEach(() => { vi.useRealTimers(); });
+    beforeEach(() => { jest.useFakeTimers(); });
+    afterEach(() => { jest.useRealTimers(); });
 
     it('formatTimeRemaining should return mm:ss for <1 hour', () => {
         const end = new Date(Date.now() + 300000); // 5 min
@@ -238,7 +238,7 @@ describe('LeadCard: Live Countdown Timer', () => {
     it('countdown should decrease after 1 second', () => {
         const end = new Date(Date.now() + 120000); // 2 min
         const before = formatTimeRemaining(end);
-        vi.advanceTimersByTime(1000);
+        jest.advanceTimersByTime(1000);
         const after = formatTimeRemaining(end);
         // After 1 second, the countdown should differ
         expect(before).not.toBe(after);
@@ -246,7 +246,7 @@ describe('LeadCard: Live Countdown Timer', () => {
 
     it('countdown should show "Ended" when timer expires', () => {
         const end = new Date(Date.now() + 2000); // 2s
-        vi.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(3000);
         expect(formatTimeRemaining(end)).toBe('Ended');
     });
 
@@ -259,7 +259,7 @@ describe('LeadCard: Live Countdown Timer', () => {
             return Math.round((elapsed / total) * 100);
         };
         const p1 = calcProgress();
-        vi.advanceTimersByTime(60000); // 1 minute
+        jest.advanceTimersByTime(60000); // 1 minute
         const p2 = calcProgress();
         expect(p2).toBeGreaterThan(p1);
         expect(p2).toBeCloseTo(20, 0); // 1/5 = 20%
@@ -268,7 +268,7 @@ describe('LeadCard: Live Countdown Timer', () => {
     it('progress should cap at 100%', () => {
         const start = Date.now();
         const end = start + 300000;
-        vi.advanceTimersByTime(600000); // double the time
+        jest.advanceTimersByTime(600000); // double the time
         const total = end - start;
         const elapsed = Math.min(Date.now() - start, total);
         const progress = Math.min(Math.round((elapsed / total) * 100), 100);

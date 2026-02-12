@@ -5,7 +5,7 @@
  * cache key isolation, toggle state management, environment guards.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+// Jest globals: describe, it, expect are provided automatically
 
 // ── Source param routing ──
 
@@ -184,27 +184,27 @@ describe('Analytics: Empty State', () => {
     it('should detect empty real data state', () => {
         const useRealData = true;
         const overview = null;
-        const liveByVertical: any[] | null = null;
+        const liveByVertical: any[] = [];
         const useMock = false;
-        const isEmptyRealData = useRealData && !overview && (!liveByVertical || liveByVertical.length === 0) && !useMock;
+        const isEmptyRealData = useRealData && !overview && liveByVertical.length === 0 && !useMock;
         expect(isEmptyRealData).toBe(true);
     });
 
     it('should NOT show empty state when overview exists', () => {
         const useRealData = true;
         const overview = { totalBids: 5 };
-        const liveByVertical: any[] | null = null;
+        const liveByVertical: any[] = [];
         const useMock = false;
-        const isEmptyRealData = useRealData && !overview && (!liveByVertical || liveByVertical.length === 0) && !useMock;
+        const isEmptyRealData = useRealData && !overview && liveByVertical.length === 0 && !useMock;
         expect(isEmptyRealData).toBe(false);
     });
 
     it('should NOT show empty state in mock mode', () => {
         const useRealData = false;
         const overview = null;
-        const liveByVertical: any[] | null = null;
+        const liveByVertical: any[] = [];
         const useMock = true;
-        const isEmptyRealData = useRealData && !overview && (!liveByVertical || liveByVertical.length === 0) && !useMock;
+        const isEmptyRealData = useRealData && !overview && liveByVertical.length === 0 && !useMock;
         expect(isEmptyRealData).toBe(false);
     });
 });
