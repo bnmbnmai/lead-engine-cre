@@ -38,6 +38,7 @@ interface LeadPreviewData {
 
 interface LeadPreviewProps {
     leadId: string;
+    autoExpand?: boolean;
 }
 
 // ── Hook ──────────────────────────────
@@ -53,7 +54,8 @@ function useLeadPreview(leadId: string) {
         const fetchPreview = async () => {
             try {
                 setLoading(true);
-                const res = await fetch(`/api/marketplace/leads/${leadId}/preview`, {
+                const baseUrl = import.meta.env.VITE_API_URL || '';
+                const res = await fetch(`${baseUrl}/marketplace/leads/${leadId}/preview`, {
                     credentials: 'include',
                 });
 
@@ -130,9 +132,9 @@ function StepAccordion({ step, defaultOpen = false }: { step: FormStep; defaultO
 
 // ── Main Component ──────────────────────────────
 
-export function LeadPreview({ leadId }: LeadPreviewProps) {
+export function LeadPreview({ leadId, autoExpand = false }: LeadPreviewProps) {
     const { data, loading, error } = useLeadPreview(leadId);
-    const [expanded, setExpanded] = useState(false);
+    const [expanded, setExpanded] = useState(autoExpand);
 
     if (loading) {
         return (

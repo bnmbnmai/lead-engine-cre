@@ -77,6 +77,9 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 /** Default lead auction duration (seconds) — 5 minutes for RTB alignment */
 export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '300', 10);
 
+/** Maximum lead auction duration (seconds) — 10 minutes hard cap */
+export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '600', 10);
+
 /** Default vertical NFT auction duration (seconds) — 10 minutes */
 export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '600', 10);
 
@@ -135,6 +138,7 @@ export const PERKS_CONFIG = {
     },
     auction: {
         leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
+        leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS,
         nftDurationSecs: NFT_AUCTION_DURATION_SECS,
         autoExtendIncrementSecs: AUTO_EXTEND_INCREMENT_SECS,
         autoExtendMax: AUTO_EXTEND_MAX,

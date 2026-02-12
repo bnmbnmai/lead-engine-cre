@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AuctionTimer } from '@/components/bidding/AuctionTimer';
 import { BidPanel } from '@/components/bidding/BidPanel';
+import { LeadPreview } from '@/components/bidding/LeadPreview';
 import { useAuction } from '@/hooks/useAuction';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
@@ -207,6 +208,9 @@ export function AuctionPage() {
                                     )}
                                 </CardContent>
                             </Card>
+
+                            {/* Non-PII Lead Preview (Form Fields) */}
+                            <LeadPreview leadId={lead.id} autoExpand={true} />
                         </div>
 
                         {/* Bid Panel */}

@@ -129,7 +129,7 @@ const leadSchema = z.object({
     reservePrice: z.number().positive('Reserve price required'),
     tcpaConsentAt: z.string().optional(),
     encryptedData: z.string().optional(),
-    expiresInMinutes: z.number().min(15).max(1440).default(60),
+    expiresInMinutes: z.number().min(5).max(1440).default(5),
     parameters: z.record(z.unknown()).optional(),
 });
 
@@ -162,7 +162,7 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
         resolver: zodResolver(leadSchema),
         defaultValues: {
             source,
-            expiresInMinutes: 60,
+            expiresInMinutes: 5,
             geo: { country: 'US' },
         },
     });
@@ -446,6 +446,8 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="5">5 minutes</SelectItem>
+                                        <SelectItem value="15">15 minutes</SelectItem>
                                         <SelectItem value="30">30 minutes</SelectItem>
                                         <SelectItem value="60">1 hour</SelectItem>
                                         <SelectItem value="120">2 hours</SelectItem>

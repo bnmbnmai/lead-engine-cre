@@ -1,6 +1,7 @@
 import { ReactNode, useState, createContext, useContext } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import { FeedbackButton } from '@/components/ui/FeedbackButton';
 import useAuth from '@/hooks/useAuth';
 
 // ============================================
@@ -53,6 +54,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         {children}
                     </div>
                 </main>
+                {isAuthenticated && <FeedbackButton />}
             </div>
         </SidebarContext.Provider>
     );

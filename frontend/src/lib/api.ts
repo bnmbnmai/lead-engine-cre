@@ -194,8 +194,20 @@ export const api = {
 
     getVerticalSuggestions: (params?: Record<string, string>) => {
         const query = params ? `?${new URLSearchParams(params)}` : '';
-        return apiFetch<{ suggestions: any[]; total: number }>(`/api/v1/verticals/suggestions${query}`);
+        return apiFetch<{ suggestions: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/v1/verticals/suggestions${query}`);
     },
+
+    approveSuggestion: (id: string, mintNft = false) =>
+        apiFetch<{ message: string; vertical: any; nft: any }>(`/api/v1/verticals/suggestions/${id}/approve`, {
+            method: 'PUT',
+            body: JSON.stringify({ mintNft }),
+        }),
+
+    rejectSuggestion: (id: string, reason?: string) =>
+        apiFetch<{ message: string; suggestion: any }>(`/api/v1/verticals/suggestions/${id}/reject`, {
+            method: 'PUT',
+            body: JSON.stringify({ reason }),
+        }),
 
     activateVertical: (slug: string) =>
         apiFetch<{ activated: boolean; tokenId: number; txHash: string; slug: string }>(

@@ -15,6 +15,8 @@ export interface StepProgressProps {
     showNudges?: boolean;
     showPercentage?: boolean;
     className?: string;
+    /** When rendered inside FormBuilder preview, pass the form color scheme vars for auto-contrast. */
+    colorVars?: Record<string, string>;
 }
 
 // ============================================
@@ -85,17 +87,24 @@ export function StepProgress({
     showNudges = true,
     showPercentage = true,
     className,
+    colorVars,
 }: StepProgressProps) {
     const totalSteps = steps.length;
     const pct = totalSteps > 0 ? Math.round(((currentStep) / (totalSteps - 1)) * 100) : 0;
     const clampedPct = Math.min(100, Math.max(0, pct));
     const VerticalIcon = VERTICAL_ICONS[vertical] || Sparkles;
 
+    // When colorVars provided, compute inline style overrides for auto-contrast
+    const mutedStyle = colorVars ? { color: colorVars['--form-muted'] } : undefined;
+    const accentStyle = colorVars ? { color: colorVars['--form-accent'] } : undefined;
+    const barBgStyle = colorVars ? { backgroundColor: colorVars['--form-border'] } : undefined;
+    const barFillStyle = colorVars ? { background: `linear-gradient(to right, ${colorVars['--form-accent']}, ${colorVars['--form-accent']}cc)` } : undefined;
+
     return (
         <div className={cn('space-y-3', className)}>
             {/* Nudge message */}
             {showNudges && (
-                <div className="flex items-center gap-2 text-sm text-primary font-medium animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+                <div className="flex items-center gap-2 text-sm text-primary font-medium animate-in fade-in-0 slide-in-from-bottom-1 duration-300" style={accentStyle}>
                     <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
                     <span>{getNudgeMessage(currentStep, totalSteps, vertical)}</span>
                 </div>
@@ -103,14 +112,14 @@ export function StepProgress({
 
             {/* Progress bar */}
             <div className="relative">
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-2 bg-muted rounded-full overflow-hidden" style={barBgStyle}>
                     <div
                         className="h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary transition-all duration-500 ease-out"
-                        style={{ width: `${clampedPct}%` }}
+                        style={{ width: `${clampedPct}%`, ...(barFillStyle || {}) }}
                     />
                 </div>
                 {showPercentage && (
-                    <span className="absolute right-0 -top-5 text-[10px] font-semibold text-muted-foreground tabular-nums">
+                    <span className="absolute right-0 -top-5 text-[10px] font-semibold text-muted-foreground tabular-nums" style={mutedStyle}>
                         {clampedPct}%
                     </span>
                 )}
@@ -167,6 +176,7 @@ export function StepProgress({
                                     'text-[10px] font-medium text-center leading-tight max-w-[80px] truncate',
                                     isCurrent ? 'text-primary' : 'text-muted-foreground'
                                 )}
+                                style={isCurrent ? accentStyle : mutedStyle}
                             >
                                 {step.label}
                             </span>
@@ -177,11 +187,11 @@ export function StepProgress({
 
             {/* Mobile compact — just current step label */}
             <div className="flex sm:hidden items-center justify-between text-xs">
-                <span className="font-medium text-primary flex items-center gap-1.5">
+                <span className="font-medium text-primary flex items-center gap-1.5" style={accentStyle}>
                     <VerticalIcon className="h-3.5 w-3.5" />
                     Step {currentStep + 1}: {steps[currentStep]?.label}
                 </span>
-                <span className="text-muted-foreground tabular-nums">
+                <span className="text-muted-foreground tabular-nums" style={mutedStyle}>
                     {currentStep + 1} / {totalSteps}
                 </span>
             </div>

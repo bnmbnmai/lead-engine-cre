@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, AlertTriangle } from 'lucide-react';
+import { Save, Plus, AlertTriangle, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
@@ -11,41 +11,21 @@ import {
 import { PreferenceSetCard, type PreferenceSetData } from './PreferenceSetCard';
 import { ConflictModal } from '@/components/preferences/ConflictModal';
 import api from '@/lib/api';
-
-// ============================================
-// Verticals
-// ============================================
-
-const VERTICALS = [
-    { value: 'solar', label: 'Solar' },
-    { value: 'mortgage', label: 'Mortgage' },
-    { value: 'roofing', label: 'Roofing' },
-    { value: 'insurance', label: 'Insurance' },
-    { value: 'home_services', label: 'Home Services' },
-    { value: 'b2b_saas', label: 'B2B SaaS' },
-    { value: 'real_estate', label: 'Real Estate' },
-    { value: 'auto', label: 'Auto' },
-    { value: 'legal', label: 'Legal' },
-    { value: 'financial_services', label: 'Financial Services' },
-];
-
-const VERTICAL_LABELS: Record<string, string> = Object.fromEntries(
-    VERTICALS.map((v) => [v.value, v.label])
-);
+import { useVerticals } from '@/hooks/useVerticals';
 
 // ============================================
 // Defaults
 // ============================================
 
-function createDefaultSet(vertical: string, priority: number): PreferenceSetData {
+function createDefaultSet(vertical: string, verticalLabel: string, priority: number): PreferenceSetData {
     return {
-        label: `${VERTICAL_LABELS[vertical] || vertical} — US`,
+        label: `${verticalLabel || vertical} — US`,
         vertical,
         priority,
         geoCountry: 'US',
         geoInclude: [],
         geoExclude: [],
-        maxBidPerLead: undefined,
+        maxBidPerLead: 100,
         dailyBudget: undefined,
         autoBidEnabled: false,
         autoBidAmount: undefined,
@@ -73,8 +53,13 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showVerticalPicker, setShowVerticalPicker] = useState(false);
+    const [verticalSearch, setVerticalSearch] = useState('');
     const [conflictModalOpen, setConflictModalOpen] = useState(false);
     const [serverSets, setServerSets] = useState<PreferenceSetData[]>([]);
+
+    // Dynamic verticals from API
+    const { flatList: availableVerticals, labelMap: verticalLabels, loading: verticalsLoading, search: searchVerticals } = useVerticals();
+    const filteredVerticals = verticalSearch ? searchVerticals(verticalSearch) : availableVerticals;
 
     // Load existing preference sets
     useEffect(() => {
@@ -95,8 +80,9 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     // ── Handlers ──
 
     const addSet = (vertical: string) => {
-        setSets((prev) => [...prev, createDefaultSet(vertical, prev.length)]);
+        setSets((prev) => [...prev, createDefaultSet(vertical, verticalLabels[vertical] || vertical, prev.length)]);
         setShowVerticalPicker(false);
+        setVerticalSearch('');
     };
 
     const updateSet = (index: number, updated: PreferenceSetData) => {
@@ -197,7 +183,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     for (const [v, count] of Object.entries(verticalCounts)) {
         if (count > 1) {
             overlapWarnings.push(
-                `${VERTICAL_LABELS[v] || v} has ${count} active sets — highest priority wins when a lead matches multiple.`
+                `${verticalLabels[v] || v} has ${count} active sets — highest priority wins when a lead matches multiple.`
             );
         }
     }
@@ -228,19 +214,47 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                             <p className="text-muted-foreground text-sm">
                                 No preference sets yet. Add your first vertical to get started.
                             </p>
-                            <div className="flex flex-wrap justify-center gap-2">
-                                {VERTICALS.map((v) => (
-                                    <Button
-                                        key={v.value}
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => addSet(v.value)}
-                                    >
-                                        <Plus className="h-3.5 w-3.5 mr-1" />
-                                        {v.label}
+                            {verticalsLoading ? (
+                                <div className="flex justify-center py-4">
+                                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                </div>
+                            ) : availableVerticals.length === 0 ? (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-muted-foreground">No verticals available yet.</p>
+                                    <Button variant="outline" size="sm" onClick={() => window.open('/verticals/suggest', '_blank')}>
+                                        <Sparkles className="h-3.5 w-3.5 mr-1" />
+                                        Suggest New Vertical
                                     </Button>
-                                ))}
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {availableVerticals.length > 10 && (
+                                        <div className="relative max-w-xs mx-auto">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search verticals..."
+                                                value={verticalSearch}
+                                                onChange={(e) => setVerticalSearch(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="flex flex-wrap justify-center gap-2">
+                                        {filteredVerticals.filter(v => v.depth === 0).map((v) => (
+                                            <Button
+                                                key={v.value}
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => addSet(v.value)}
+                                            >
+                                                <Plus className="h-3.5 w-3.5 mr-1" />
+                                                {v.label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <Accordion defaultOpen={sets.length === 1 ? [sets[0].id || '0'] : []}>
@@ -254,7 +268,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                                                     #{i + 1}
                                                 </span>
                                                 <span className="font-medium text-sm">
-                                                    {set.label || `${VERTICAL_LABELS[set.vertical]} set`}
+                                                    {set.label || `${verticalLabels[set.vertical] || set.vertical} set`}
                                                 </span>
                                                 {!set.isActive && (
                                                     <span className="text-xs text-muted-foreground italic">
@@ -273,6 +287,7 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                                                 set={set}
                                                 index={i}
                                                 total={sets.length}
+                                                verticalLabels={verticalLabels}
                                                 onChange={(updated) => updateSet(i, updated)}
                                                 onMoveUp={() => moveSet(i, i - 1)}
                                                 onMoveDown={() => moveSet(i, i + 1)}
@@ -305,8 +320,20 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                             <p className="text-xs font-medium text-muted-foreground mb-2">
                                 Select a vertical:
                             </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                                {VERTICALS.map((v) => (
+                            {availableVerticals.length > 10 && (
+                                <div className="relative mb-2">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search verticals..."
+                                        value={verticalSearch}
+                                        onChange={(e) => setVerticalSearch(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                    />
+                                </div>
+                            )}
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 max-h-60 overflow-y-auto">
+                                {filteredVerticals.filter(v => v.depth === 0).map((v) => (
                                     <button
                                         key={v.value}
                                         type="button"
@@ -317,6 +344,15 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                                     </button>
                                 ))}
                             </div>
+                            {filteredVerticals.length === 0 && (
+                                <div className="text-center py-3 space-y-2">
+                                    <p className="text-xs text-muted-foreground">No matching verticals found.</p>
+                                    <Button variant="ghost" size="sm" onClick={() => window.open('/verticals/suggest', '_blank')}>
+                                        <Sparkles className="h-3 w-3 mr-1" />
+                                        Suggest New
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

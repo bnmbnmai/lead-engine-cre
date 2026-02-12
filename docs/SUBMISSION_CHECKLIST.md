@@ -93,6 +93,17 @@
 - [ ] Exported as PDF or Google Slides link
 - [ ] Innovation highlights: MCP agent, DECO/Streams/Confidential Compute, ZK privacy, CCIP-ready
 
+## Lead RTB Focus
+
+- [ ] Marketplace search wired (keyword + vertical + geo + price)
+- [ ] Analytics dashboards use real API data (mock fallback in dev only)
+- [ ] Feedback widget rendered for authenticated users
+- [ ] KYC "Verify Now" banner + deep-link in seller flows
+- [ ] NFT features toggleable via env vars (`NFT_FEATURES_ENABLED`, `VITE_NFT_ENABLED`)
+- [ ] Admin sidebar with NFT Admin + Verticals links
+- [ ] Ad Conversions page accessible from seller sidebar
+- [ ] NFT deprecation notice displayed on Admin NFTs page
+
 ## Submission Form
 
 - [ ] Project name: **Lead Engine CRE**

@@ -55,6 +55,9 @@ function truncateHash(hash: string, chars = 6): string {
 // Admin NFTs Page
 // ============================================
 
+// Frontend NFT toggle: mirrors backend NFT_FEATURES_ENABLED
+const NFT_ENABLED = import.meta.env.VITE_NFT_ENABLED !== 'false';
+
 export default function AdminNFTs() {
     const { user, isLoading: authLoading } = useAuth();
 
@@ -214,6 +217,34 @@ export default function AdminNFTs() {
                     </Button>
                 </div>
 
+                {/* NFT Disabled Banner */}
+                {!NFT_ENABLED && (
+                    <Card className="border-amber-500/30 bg-amber-500/5">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                            <div>
+                                <p className="text-sm font-medium">NFT Features Disabled</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Set <code className="text-xs">VITE_NFT_ENABLED=true</code> (frontend) and{' '}
+                                    <code className="text-xs">NFT_FEATURES_ENABLED=true</code> (backend) to enable minting and resale.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* RTB Focus Notice */}
+                <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-primary/5 border border-primary/10 text-sm" id="nft-deprecation-notice">
+                    <span className="text-lg leading-none mt-0.5">💡</span>
+                    <div>
+                        <p className="font-medium">NFTs are optional — Leads are the core value</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Vertical NFTs add on-chain provenance but the platform&apos;s primary focus is <strong>real-time lead bidding (RTB)</strong>.
+                            NFTs may be deprecated in a future release.
+                        </p>
+                    </div>
+                </div>
+
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Card>
@@ -364,6 +395,8 @@ export default function AdminNFTs() {
                                                         onClick={() => handleMint(v.slug)}
                                                         className="gap-2 w-full sm:w-auto"
                                                         id={`mint-btn-${v.slug}`}
+                                                        disabled={!NFT_ENABLED}
+                                                        title={!NFT_ENABLED ? 'NFT features are disabled' : undefined}
                                                     >
                                                         <Gem className="h-4 w-4" />
                                                         Mint NFT
@@ -471,6 +504,7 @@ export default function AdminNFTs() {
                                                     onClick={() => handleStartAuction(v.slug)}
                                                     className="gap-1"
                                                     id={`auction-btn-${v.slug}`}
+                                                    disabled={!NFT_ENABLED}
                                                 >
                                                     <Gavel className="h-3 w-3" />
                                                     Start Auction

@@ -21,6 +21,8 @@ import {
 } from './holder-perks.service';
 import {
     NFT_AUCTION_DURATION_SECS,
+    LEAD_AUCTION_DURATION_SECS,
+    LEAD_AUCTION_MAX_DURATION_SECS,
     AUTO_EXTEND_INCREMENT_SECS,
     AUTO_EXTEND_MAX,
 } from '../config/perks.env';
@@ -81,12 +83,17 @@ export interface CreateAuctionResult {
 
 /**
  * Create an auction for a platform-owned vertical NFT.
+ *
+ * Duration is clamped to [60, LEAD_AUCTION_MAX_DURATION_SECS] (default 600s).
+ * If omitted, defaults to LEAD_AUCTION_DURATION_SECS (300s / 5 min).
  */
 export async function createAuction(
     slug: string,
     reservePrice: number,
-    durationSecs: number,
+    durationSecs: number = LEAD_AUCTION_DURATION_SECS,
 ): Promise<CreateAuctionResult> {
+    // Clamp duration to configured bounds
+    durationSecs = Math.max(60, Math.min(durationSecs, LEAD_AUCTION_MAX_DURATION_SECS));
     // 1. Look up vertical
     const vertical = await prisma.vertical.findUnique({ where: { slug } });
     if (!vertical) {

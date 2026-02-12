@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
     Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
+    Search,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { LabeledSwitch } from '@/components/ui/switch';
 import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { LanderExport } from '@/components/forms/LanderExport';
 import { getContrastText, meetsWcagAA } from '@/lib/contrast';
+import { useVerticals } from '@/hooks/useVerticals';
 
 // ============================================
 // Types
@@ -183,7 +185,13 @@ const VERTICAL_PRESETS: Record<string, FormField[]> = {
     ],
 };
 
-const VERTICALS = Object.keys(VERTICAL_PRESETS);
+// Generic fallback template for verticals without a specific preset
+const GENERIC_TEMPLATE: FormField[] = [
+    { id: '1', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Your Name' },
+    { id: '2', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
+    { id: '3', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 000-0000' },
+    { id: '4', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '00000' },
+];
 
 let fieldCounter = 100;
 const genId = () => String(fieldCounter++);
@@ -257,6 +265,7 @@ export function FormBuilder() {
     const [dragIdx, setDragIdx] = useState<number | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [verticalSearch, setVerticalSearch] = useState('');
     const [gamification, setGamification] = useState<GamificationConfig>({
         showProgress: true,
         showNudges: true,
@@ -266,13 +275,23 @@ export function FormBuilder() {
     const [submitted, setSubmitted] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
 
+    // Dynamic verticals from API
+    const { flatList: apiVerticals, search: searchVerticals } = useVerticals();
+    const filteredVerticals = verticalSearch ? searchVerticals(verticalSearch) : apiVerticals;
+    // Merge: show API verticals (top-level only) and ensure preset keys are included
+    const allVerticalSlugs = [...new Set([
+        ...Object.keys(VERTICAL_PRESETS),
+        ...filteredVerticals.filter(v => v.depth === 0).map(v => v.value),
+    ])];
+
     const loadPreset = (v: string) => {
         setVertical(v);
-        const presetFields = [...(VERTICAL_PRESETS[v] || [])];
+        const presetFields = [...(VERTICAL_PRESETS[v] || GENERIC_TEMPLATE)];
         setFields(presetFields);
         setSteps(autoGroupSteps(presetFields));
         setEditingId(null);
         setPreviewStep(0);
+        setVerticalSearch('');
     };
 
     const addField = () => {
@@ -402,10 +421,24 @@ export function FormBuilder() {
                 </div>
 
                 {/* Vertical Selector */}
-                <div className="flex items-center gap-4 mb-6">
-                    <label className="text-sm font-medium">Vertical Template:</label>
-                    <div className="flex gap-2 flex-wrap">
-                        {VERTICALS.map((v) => (
+                <div className="mb-6 space-y-3">
+                    <div className="flex items-center gap-4">
+                        <label className="text-sm font-medium">Vertical Template:</label>
+                        {allVerticalSlugs.length > 10 && (
+                            <div className="relative flex-1 max-w-xs">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                <input
+                                    type="text"
+                                    placeholder="Search verticals..."
+                                    value={verticalSearch}
+                                    onChange={(e) => setVerticalSearch(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2 flex-wrap max-h-40 overflow-y-auto">
+                        {allVerticalSlugs.map((v) => (
                             <button
                                 key={v}
                                 onClick={() => loadPreset(v)}
@@ -416,9 +449,17 @@ export function FormBuilder() {
                             >
                                 <span>{VERTICAL_EMOJI[v] || ''}</span>
                                 {v.replace(/_/g, ' ')}
+                                {!VERTICAL_PRESETS[v] && (
+                                    <span className="text-[10px] opacity-60">(generic)</span>
+                                )}
                             </button>
                         ))}
                     </div>
+                    {!VERTICAL_PRESETS[vertical] && (
+                        <p className="text-xs text-muted-foreground italic">
+                            No preset template for this vertical — using generic contact fields. Customise below.
+                        </p>
+                    )}
                 </div>
 
                 <div className="grid lg:grid-cols-2 gap-6">
@@ -721,6 +762,7 @@ export function FormBuilder() {
                                                 currentStep={previewStep}
                                                 vertical={vertical}
                                                 showNudges={gamification.showNudges}
+                                                colorVars={colorScheme.vars}
                                             />
                                         )}
 

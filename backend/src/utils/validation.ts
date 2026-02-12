@@ -67,6 +67,8 @@ export const LeadQuerySchema = z.object({
     vertical: z.string().optional(),
     status: z.enum(['PENDING_AUCTION', 'IN_AUCTION', 'REVEAL_PHASE', 'SOLD', 'EXPIRED']).optional(),
     state: z.string().length(2).optional(),
+    country: z.string().optional(),
+    search: z.string().max(100).optional(),
     limit: z.coerce.number().min(1).max(100).optional().default(20),
     offset: z.coerce.number().min(0).optional().default(0),
     sortBy: z.enum(['createdAt', 'reservePrice', 'auctionEndAt']).optional().default('createdAt'),
@@ -109,6 +111,8 @@ export const AskQuerySchema = z.object({
     minPrice: z.coerce.number().optional(),
     maxPrice: z.coerce.number().optional(),
     state: z.string().length(2).optional(),
+    country: z.string().optional(),
+    search: z.string().max(100).optional(),
     limit: z.coerce.number().min(1).max(100).optional().default(20),
     offset: z.coerce.number().min(0).optional().default(0),
 });
@@ -160,22 +164,21 @@ export const BuyerPreferencesSchema = z.object({
     autoAcceptLeads: z.boolean().optional(),
 });
 
-const VERTICAL_VALUES = [
-    'solar', 'mortgage', 'roofing', 'insurance', 'home_services',
-    'b2b_saas', 'real_estate', 'auto', 'legal', 'financial',
-] as const;
+// Dynamic verticals — no longer restricted to a hard-coded enum.
+// Slug format: lowercase letters, numbers, underscores, dots (for sub-verticals).
+const VERTICAL_SLUG_PATTERN = /^[a-z][a-z0-9_.]{0,99}$/;
 
 export const PreferenceSetSchema = z.object({
     id: z.string().optional(),
     label: z.string().min(1).max(100),
-    vertical: z.enum(VERTICAL_VALUES),
+    vertical: z.string().min(1).max(100).regex(VERTICAL_SLUG_PATTERN, 'Invalid vertical slug format'),
     priority: z.number().int().min(0).default(0),
     geoCountry: z.string().length(2).default('US'),
     geoInclude: z.array(z.string().min(1).max(4).regex(/^[A-Za-z]+$/, 'State code must be letters only')).default([])
         .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate state codes in geoInclude' }),
     geoExclude: z.array(z.string().min(1).max(4).regex(/^[A-Za-z]+$/, 'State code must be letters only')).default([])
         .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate state codes in geoExclude' }),
-    maxBidPerLead: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
+    maxBidPerLead: z.number().min(1, 'maxBidPerLead must be at least $1').max(99999999.99, 'Exceeds Decimal(10,2) limit').default(100),
     dailyBudget: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
     autoBidEnabled: z.boolean().default(false),
     autoBidAmount: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),

@@ -29,7 +29,7 @@ router.get('/asks', generalLimiter, optionalAuthMiddleware, async (req: Authenti
             return;
         }
 
-        const { vertical, status, minPrice, maxPrice, state, limit, offset } = validation.data;
+        const { vertical, status, minPrice, maxPrice, state, country, search, limit, offset } = validation.data;
 
         const where: any = {};
 
@@ -38,6 +38,8 @@ router.get('/asks', generalLimiter, optionalAuthMiddleware, async (req: Authenti
         if (minPrice) where.reservePrice = { ...where.reservePrice, gte: minPrice };
         if (maxPrice) where.reservePrice = { ...where.reservePrice, lte: maxPrice };
         if (state) where.geoTargets = { path: ['states'], array_contains: state };
+        if (country) where.geoTargets = { ...where.geoTargets, path: ['country'], equals: country };
+        if (search) where.vertical = { contains: search, mode: 'insensitive' };
 
         const [asks, total] = await Promise.all([
             prisma.ask.findMany({
@@ -330,7 +332,7 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             return;
         }
 
-        const { vertical, status, state, limit, offset, sortBy, sortOrder } = validation.data;
+        const { vertical, status, state, country, search, limit, offset, sortBy, sortOrder } = validation.data;
 
         // Build query based on user role
         const where: any = {};
@@ -369,6 +371,8 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
         if (vertical) where.vertical = vertical;
         if (status) where.status = status;
         if (state) where.geo = { path: ['state'], equals: state };
+        if (country) where.geo = { ...where.geo, path: ['country'], equals: country };
+        if (search) where.vertical = { contains: search, mode: 'insensitive' };
 
         const [leads, total] = await Promise.all([
             prisma.lead.findMany({

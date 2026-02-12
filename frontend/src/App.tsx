@@ -25,6 +25,8 @@ import FormBuilder from '@/pages/FormBuilder';
 import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import AdminNFTs from '@/pages/AdminNFTs';
+import AdminVerticals from '@/pages/AdminVerticals';
+import AdConversions from '@/pages/AdConversions';
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';
 import { ErrorDialog } from '@/components/ui/ErrorDialog';
@@ -76,24 +78,29 @@ function App() {
                                 <Route path="/marketplace" element={<HomePage />} />
                                 <Route path="/auction/:leadId" element={<AuctionPage />} />
 
-                                {/* Buyer Routes (auth required) */}
-                                <Route path="/buyer" element={<ProtectedRoute><BuyerDashboard /></ProtectedRoute>} />
-                                <Route path="/buyer/bids" element={<ProtectedRoute><BuyerBids /></ProtectedRoute>} />
-                                <Route path="/buyer/analytics" element={<ProtectedRoute><BuyerAnalytics /></ProtectedRoute>} />
-                                <Route path="/buyer/preferences" element={<ProtectedRoute><BuyerPreferences /></ProtectedRoute>} />
+                                {/* Buyer Routes (auth + role required) */}
+                                <Route path="/buyer" element={<ProtectedRoute role="BUYER"><BuyerDashboard /></ProtectedRoute>} />
+                                <Route path="/buyer/bids" element={<ProtectedRoute role="BUYER"><BuyerBids /></ProtectedRoute>} />
+                                <Route path="/buyer/analytics" element={<ProtectedRoute role="BUYER"><BuyerAnalytics /></ProtectedRoute>} />
+                                <Route path="/buyer/preferences" element={<ProtectedRoute role="BUYER"><BuyerPreferences /></ProtectedRoute>} />
 
-                                {/* Seller Routes (auth required) */}
-                                <Route path="/seller" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
-                                <Route path="/seller/leads" element={<ProtectedRoute><SellerLeads /></ProtectedRoute>} />
-                                <Route path="/seller/leads/:leadId" element={<ProtectedRoute><SellerLeads /></ProtectedRoute>} />
-                                <Route path="/seller/asks" element={<ProtectedRoute><SellerAsks /></ProtectedRoute>} />
-                                <Route path="/seller/asks/new" element={<ProtectedRoute><CreateAsk /></ProtectedRoute>} />
-                                <Route path="/seller/submit" element={<ProtectedRoute><SellerSubmit /></ProtectedRoute>} />
-                                <Route path="/seller/form-builder" element={<ProtectedRoute><FormBuilder /></ProtectedRoute>} />
-                                <Route path="/seller/analytics" element={<ProtectedRoute><SellerAnalytics /></ProtectedRoute>} />
+                                {/* Seller Routes (auth + role required) */}
+                                <Route path="/seller" element={<ProtectedRoute role="SELLER"><SellerDashboard /></ProtectedRoute>} />
+                                <Route path="/seller/leads" element={<ProtectedRoute role="SELLER"><SellerLeads /></ProtectedRoute>} />
+                                <Route path="/seller/leads/:leadId" element={<ProtectedRoute role="SELLER"><SellerLeads /></ProtectedRoute>} />
+                                <Route path="/seller/asks" element={<ProtectedRoute role="SELLER"><SellerAsks /></ProtectedRoute>} />
+                                <Route path="/seller/asks/:askId" element={<ProtectedRoute role="SELLER"><SellerAsks /></ProtectedRoute>} />
+                                <Route path="/seller/asks/new" element={<ProtectedRoute role="SELLER"><CreateAsk /></ProtectedRoute>} />
+                                <Route path="/seller/submit" element={<ProtectedRoute role="SELLER"><SellerSubmit /></ProtectedRoute>} />
+                                <Route path="/seller/form-builder" element={<ProtectedRoute role="SELLER"><FormBuilder /></ProtectedRoute>} />
+                                <Route path="/seller/analytics" element={<ProtectedRoute role="SELLER"><SellerAnalytics /></ProtectedRoute>} />
 
                                 {/* Admin Routes (auth required, role checked inside) */}
                                 <Route path="/admin/nfts" element={<ProtectedRoute><AdminNFTs /></ProtectedRoute>} />
+                                <Route path="/admin/verticals" element={<ProtectedRoute><AdminVerticals /></ProtectedRoute>} />
+
+                                {/* Seller: Ad Conversions */}
+                                <Route path="/seller/conversions" element={<ProtectedRoute role="SELLER"><AdConversions /></ProtectedRoute>} />
 
                                 {/* Fallback */}
                                 <Route path="*" element={<Navigate to="/" replace />} />

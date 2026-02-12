@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap, UserPlus } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -28,6 +28,7 @@ export function SellerDashboard() {
     const [recentLeads, setRecentLeads] = useState<any[]>([]);
     const [activeAsks, setActiveAsks] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [hasProfile, setHasProfile] = useState<boolean | null>(null);
 
     const activeTab = DASHBOARD_TABS.find((t) => t.path === location.pathname)?.key || 'overview';
 
@@ -41,10 +42,12 @@ export function SellerDashboard() {
                 ]);
 
                 setOverview(overviewRes.data?.stats);
+                setHasProfile(!!overviewRes.data?.stats);
                 setRecentLeads(leadsRes.data?.leads || []);
                 setActiveAsks(asksRes.data?.asks || []);
             } catch (error) {
                 console.error('Dashboard fetch error:', error);
+                setHasProfile(false);
             } finally {
                 setIsLoading(false);
             }
@@ -134,6 +137,20 @@ export function SellerDashboard() {
                         </Button>
                     </div>
                 </div>
+
+                {/* Profile creation CTA — shown when no profile detected */}
+                {hasProfile === false && (
+                    <div className="flex items-center gap-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                        <UserPlus className="h-6 w-6 text-amber-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">Complete your seller profile</p>
+                            <p className="text-xs text-muted-foreground">Set up your company and verticals to start submitting leads</p>
+                        </div>
+                        <Button size="sm" asChild>
+                            <Link to="/seller/submit">Create Profile</Link>
+                        </Button>
+                    </div>
+                )}
 
                 {/* Inline Tab Strip */}
                 <div className="flex gap-1 p-1 rounded-xl bg-muted/50 overflow-x-auto">
@@ -294,7 +311,7 @@ export function SellerDashboard() {
                         ) : (
                             <div className="grid md:grid-cols-2 gap-4">
                                 {activeAsks.map((ask) => (
-                                    <AskCard key={ask.id} ask={ask} />
+                                    <AskCard key={ask.id} ask={ask} basePath="/seller/asks" />
                                 ))}
                             </div>
                         )}

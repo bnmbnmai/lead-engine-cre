@@ -11,6 +11,9 @@ import {
     Blocks,
     ShoppingCart,
     X,
+    Gem,
+    Layers,
+    Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,9 +48,16 @@ const sellerItems: SidebarItem[] = [
     { href: '/seller/submit', label: 'Submit Lead', icon: <Send className="h-5 w-5" /> },
     { href: '/seller/form-builder', label: 'Form Builder', icon: <Blocks className="h-5 w-5" /> },
     { href: '/seller/analytics', label: 'Analytics', icon: <TrendingUp className="h-5 w-5" /> },
+    { href: '/seller/conversions', label: 'Ad Conversions', icon: <Megaphone className="h-5 w-5" /> },
+];
+
+const adminItems: SidebarItem[] = [
+    { href: '/admin/nfts', label: 'NFT Admin', icon: <Gem className="h-5 w-5" /> },
+    { href: '/admin/verticals', label: 'Verticals', icon: <Layers className="h-5 w-5" /> },
 ];
 
 function getContextItems(pathname: string) {
+    if (pathname.startsWith('/admin')) return { label: 'Admin', items: adminItems };
     if (pathname.startsWith('/seller')) return { label: 'Seller', items: sellerItems };
     if (pathname.startsWith('/buyer')) return { label: 'Buyer', items: buyerItems };
     return { label: 'Marketplace', items: marketplaceItems };

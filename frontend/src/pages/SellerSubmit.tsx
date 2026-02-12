@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useAuth from '@/hooks/useAuth';
+import { useVerticals } from '@/hooks/useVerticals';
 import api from '@/lib/api';
 
 type SourceTab = 'PLATFORM' | 'API' | 'OFFSITE';
@@ -82,7 +83,7 @@ export function SellerSubmit() {
     const [wizardSubmitting, setWizardSubmitting] = useState(false);
     const [profileError, setProfileError] = useState<any>(null);
 
-    const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'];
+    const { flatList: verticals, loading: verticalsLoading } = useVerticals();
 
     // Check for seller profile
     useEffect(() => {
@@ -197,20 +198,30 @@ export function SellerSubmit() {
                                 <label className="text-sm font-medium">Lead Verticals</label>
                                 <p className="text-xs text-muted-foreground">Select the verticals you plan to sell leads in</p>
                                 <div className="flex flex-wrap gap-2">
-                                    {VERTICALS.map((v) => (
-                                        <button
-                                            key={v}
-                                            onClick={() => setWizardVerticals((prev) =>
-                                                prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
-                                            )}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${wizardVerticals.includes(v)
-                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'bg-muted/50 text-muted-foreground border-border hover:border-primary/50'
-                                                }`}
-                                        >
-                                            {v.replace('_', ' ')}
-                                        </button>
-                                    ))}
+                                    {verticalsLoading ? (
+                                        <div className="flex gap-2">
+                                            {[1, 2, 3, 4].map((i) => (
+                                                <div key={i} className="animate-pulse h-8 w-20 bg-muted rounded-lg" />
+                                            ))}
+                                        </div>
+                                    ) : verticals.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">No verticals available</p>
+                                    ) : (
+                                        verticals.map((v) => (
+                                            <button
+                                                key={v.value}
+                                                onClick={() => setWizardVerticals((prev) =>
+                                                    prev.includes(v.value) ? prev.filter((x) => x !== v.value) : [...prev, v.value]
+                                                )}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${wizardVerticals.includes(v.value)
+                                                    ? 'bg-primary text-primary-foreground border-primary'
+                                                    : 'bg-muted/50 text-muted-foreground border-border hover:border-primary/50'
+                                                    }`}
+                                            >
+                                                {v.label}
+                                            </button>
+                                        ))
+                                    )}
                                 </div>
                             </div>
 

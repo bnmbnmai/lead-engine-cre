@@ -155,6 +155,23 @@ Chainlink Hackathon 2026 — Convergence
 
 ---
 
+## Slide 10.5: Lead RTB Focus
+
+The **core value proposition** is real-time lead bidding — not NFTs.
+
+| Pillar | Detail |
+|--------|--------|
+| **RTB Engine** | Commit-reveal auction with auto-extend, 5-min to 24-hr durations, sealed bids |
+| **Marketplace Search** | Keyword + vertical + geo + price filters, debounced UI, paginated API |
+| **Analytics (Real-Time)** | API-first dashboards for sellers + buyers; mock fallback in dev, error banners in prod |
+| **KYC Pipeline** | ACE-powered auto-KYC, status banners, "Verify Now" deep-links |
+| **Data-Provider Ready** | API-key auth + webhook endpoints for 3rd-party data providers to submit leads |
+| **Optional NFTs** | Vertical NFTs add provenance but can be disabled via `NFT_FEATURES_ENABLED=false` |
+| **User Feedback** | Floating feedback widget for bug reports and feature requests |
+| **Ad Conversion Tracking** | Campaign-level analytics with per-source revenue and conversion rates |
+
+---
+
 ## Slide 10: Post-Hackathon Roadmap
 
 | Phase | Timeline | Deliverable |

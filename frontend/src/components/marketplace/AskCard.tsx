@@ -27,9 +27,11 @@ interface Ask {
 interface AskCardProps {
     ask: Ask;
     isAuthenticated?: boolean;
+    /** Link prefix for the "View Ask" button. Seller pages should pass '/seller/asks'. */
+    basePath?: string;
 }
 
-export function AskCard({ ask, isAuthenticated = true }: AskCardProps) {
+export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/ask' }: AskCardProps) {
     const { openConnectModal } = useConnectModal();
     const statesDisplay = ask.geoTargets.states?.slice(0, 3).join(', ') || 'Nationwide';
     const moreStates = (ask.geoTargets.states?.length || 0) > 3
@@ -101,7 +103,7 @@ export function AskCard({ ask, isAuthenticated = true }: AskCardProps) {
             <CardFooter className="px-6 pb-6">
                 {isAuthenticated ? (
                     <Button asChild className="w-full group-hover:scale-[1.02] transition-transform">
-                        <Link to={`/marketplace/ask/${ask.id}`}>
+                        <Link to={`${basePath}/${ask.id}`}>
                             View Ask
                             <ArrowRight className="h-4 w-4 ml-2" />
                         </Link>

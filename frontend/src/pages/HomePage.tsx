@@ -72,6 +72,7 @@ export function HomePage() {
     const [country, setCountry] = useState('ALL');
     const [region, setRegion] = useState('All');
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [asks, setAsks] = useState<any[]>([]);
     const [leads, setLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -79,6 +80,12 @@ export function HomePage() {
     const [suggestOpen, setSuggestOpen] = useState(false);
 
     const regionConfig = country !== 'ALL' ? getRegions(country) : null;
+
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(search), 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -88,6 +95,7 @@ export function HomePage() {
                 if (vertical !== 'all') params.vertical = vertical;
                 if (country !== 'ALL') params.country = country;
                 if (region !== 'All') params.state = region;
+                if (debouncedSearch) params.search = debouncedSearch;
 
                 if (view === 'asks') {
                     const { data } = await api.listAsks(params);
@@ -104,7 +112,7 @@ export function HomePage() {
         };
 
         fetchData();
-    }, [view, vertical, country, region]);
+    }, [view, vertical, country, region, debouncedSearch]);
 
     // Wrap fetchData for polling fallback
     const refetchData = useCallback(() => {
@@ -114,6 +122,7 @@ export function HomePage() {
                 if (vertical !== 'all') params.vertical = vertical;
                 if (country !== 'ALL') params.country = country;
                 if (region !== 'All') params.state = region;
+                if (debouncedSearch) params.search = debouncedSearch;
 
                 if (view === 'asks') {
                     const { data } = await api.listAsks(params);
@@ -127,7 +136,7 @@ export function HomePage() {
             }
         };
         fetchData();
-    }, [view, vertical, country, region]);
+    }, [view, vertical, country, region, debouncedSearch]);
 
     // Real-time socket listeners
     const leadsRef = useRef(leads);

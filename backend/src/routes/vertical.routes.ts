@@ -14,6 +14,7 @@ import { generalLimiter } from '../middleware/rateLimit';
 import { VerticalCreateSchema, VerticalUpdateSchema, VerticalQuerySchema } from '../utils/validation';
 import * as verticalService from '../services/vertical.service';
 import { suggestVertical, listSuggestions } from '../services/vertical-optimizer.service';
+import { prisma } from '../lib/prisma';
 import * as verticalNFTService from '../services/vertical-nft.service';
 import * as auctionService from '../services/auction.service';
 import { z } from 'zod';
@@ -103,6 +104,7 @@ router.post('/suggest', optionalAuthMiddleware, async (req: AuthenticatedRequest
 
 // ============================================
 // GET /suggestions — List pending suggestions (Admin)
+// Supports: ?status=, ?minHits=, ?search=, ?page=, ?limit=
 // ============================================
 
 router.get('/suggestions', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
@@ -114,12 +116,150 @@ router.get('/suggestions', authMiddleware, async (req: AuthenticatedRequest, res
 
         const status = req.query.status as string | undefined;
         const minHits = req.query.minHits ? parseInt(req.query.minHits as string) : undefined;
+        const search = req.query.search as string | undefined;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
 
-        const suggestions = await listSuggestions({ status, minHits });
-        res.json({ suggestions, total: suggestions.length });
+        const allSuggestions = await listSuggestions({ status, minHits });
+
+        // Apply search filter
+        const filtered = search
+            ? allSuggestions.filter((s: any) =>
+                s.suggestedName.toLowerCase().includes(search.toLowerCase()) ||
+                s.suggestedSlug.toLowerCase().includes(search.toLowerCase())
+            )
+            : allSuggestions;
+
+        // Paginate
+        const total = filtered.length;
+        const start = (page - 1) * limit;
+        const suggestions = filtered.slice(start, start + limit);
+
+        res.json({
+            suggestions,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        });
     } catch (error) {
         console.error('List suggestions error:', error);
         res.status(500).json({ error: 'Failed to list suggestions' });
+    }
+});
+
+// ============================================
+// PUT /suggestions/:id/approve — Promote suggestion to Vertical
+// Optionally mints NFT when NFT_FEATURES_ENABLED=true
+// ============================================
+
+router.put('/suggestions/:id/approve', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        const { id } = req.params;
+        const { mintNft } = req.body || {};
+
+        // Find the suggestion
+        const suggestion = await prisma.verticalSuggestion.findUnique({ where: { id } });
+        if (!suggestion) {
+            res.status(404).json({ error: 'Suggestion not found' });
+            return;
+        }
+        if (suggestion.status !== 'PROPOSED') {
+            res.status(400).json({ error: `Suggestion already ${suggestion.status.toLowerCase()}` });
+            return;
+        }
+
+        // Create the vertical (or activate existing PROPOSED one)
+        let vertical = await prisma.vertical.findUnique({ where: { slug: suggestion.suggestedSlug } });
+
+        if (vertical) {
+            vertical = await prisma.vertical.update({
+                where: { id: vertical.id },
+                data: { status: 'ACTIVE', name: suggestion.suggestedName },
+            });
+        } else {
+            vertical = await prisma.vertical.create({
+                data: {
+                    slug: suggestion.suggestedSlug,
+                    name: suggestion.suggestedName,
+                    status: 'ACTIVE',
+                    depth: suggestion.parentSlug ? 1 : 0,
+                    attributes: suggestion.attributes as any,
+                    parent: suggestion.parentSlug
+                        ? { connect: { slug: suggestion.parentSlug } }
+                        : undefined,
+                },
+            });
+        }
+
+        // Update suggestion status
+        await prisma.verticalSuggestion.update({
+            where: { id },
+            data: { status: 'ACTIVE' },
+        });
+
+        // Optionally mint NFT
+        let nftResult = null;
+        if (mintNft && NFT_FEATURES_ENABLED) {
+            try {
+                nftResult = await verticalNFTService.activateVertical(vertical.slug);
+            } catch (nftErr) {
+                console.warn(`[vertical] NFT mint failed for ${vertical.slug}:`, nftErr);
+            }
+        }
+
+        res.json({
+            message: `Vertical '${vertical.name}' approved and activated`,
+            vertical,
+            nft: nftResult,
+        });
+    } catch (error) {
+        console.error('Approve suggestion error:', error);
+        res.status(500).json({ error: 'Failed to approve suggestion' });
+    }
+});
+
+// ============================================
+// PUT /suggestions/:id/reject — Reject a suggestion
+// ============================================
+
+router.put('/suggestions/:id/reject', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        const { id } = req.params;
+        const { reason } = req.body || {};
+
+        const suggestion = await prisma.verticalSuggestion.findUnique({ where: { id } });
+        if (!suggestion) {
+            res.status(404).json({ error: 'Suggestion not found' });
+            return;
+        }
+        if (suggestion.status !== 'PROPOSED') {
+            res.status(400).json({ error: `Suggestion already ${suggestion.status.toLowerCase()}` });
+            return;
+        }
+
+        const updated = await prisma.verticalSuggestion.update({
+            where: { id },
+            data: {
+                status: 'REJECTED',
+                reasoning: reason || suggestion.reasoning,
+            },
+        });
+
+        res.json({
+            message: `Suggestion '${updated.suggestedName}' rejected`,
+            suggestion: updated,
+        });
+    } catch (error) {
+        console.error('Reject suggestion error:', error);
+        res.status(500).json({ error: 'Failed to reject suggestion' });
     }
 });
 
@@ -384,7 +524,7 @@ router.post('/:slug/resale', authMiddleware, requireNFT, async (req: Authenticat
 
 const AuctionCreateSchema = z.object({
     reservePrice: z.number().positive('Reserve price must be positive'),
-    durationSecs: z.number().int().min(60).max(604800), // 1 min to 7 days
+    durationSecs: z.number().int().min(60).max(600).optional(), // 1 min to 10 min; defaults to 300s
 });
 
 router.post('/:slug/auction', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {

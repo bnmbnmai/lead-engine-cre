@@ -62,15 +62,15 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
     })();
 
     return (
-        <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow' : ''}`}>
+        <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow-ready' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${lead.isVerified ? 'bg-[#375BD2]/15' : 'bg-gray-500/20'
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${lead.isVerified ? 'bg-emerald-500/15 verified-glow' : 'bg-gray-500/20'
                             }`}>
                             {lead.isVerified ? (
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-[#6B93F5]" aria-label="Chainlink Verified">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-emerald-500" aria-label="Chainlink Verified">
                                     <path d="M12 1.5L3 7v10l9 5.5L21 17V7L12 1.5zM12 4.31l6 3.67v7.04l-6 3.67-6-3.67V7.98l6-3.67z" />
                                     <path d="M12 8l-4 2.45v4.1L12 17l4-2.45v-4.1L12 8z" />
                                 </svg>

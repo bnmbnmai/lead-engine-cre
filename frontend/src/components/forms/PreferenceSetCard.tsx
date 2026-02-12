@@ -30,18 +30,6 @@ export interface PreferenceSetData {
     isActive: boolean;
 }
 
-const VERTICAL_LABELS: Record<string, string> = {
-    solar: 'Solar',
-    mortgage: 'Mortgage',
-    roofing: 'Roofing',
-    insurance: 'Insurance',
-    home_services: 'Home Services',
-    b2b_saas: 'B2B SaaS',
-    real_estate: 'Real Estate',
-    auto: 'Auto',
-    legal: 'Legal',
-    financial: 'Financial',
-};
 
 // ============================================
 // Props
@@ -51,6 +39,7 @@ interface PreferenceSetCardProps {
     set: PreferenceSetData;
     index: number;
     total: number;
+    verticalLabels: Record<string, string>;
     onChange: (updated: PreferenceSetData) => void;
     onMoveUp: () => void;
     onMoveDown: () => void;
@@ -65,6 +54,7 @@ export function PreferenceSetCard({
     set,
     index,
     total,
+    verticalLabels,
     onChange,
     onMoveUp,
     onMoveDown,
@@ -105,7 +95,7 @@ export function PreferenceSetCard({
                     <Input
                         value={set.label}
                         onChange={(e) => update({ label: e.target.value })}
-                        placeholder={`${VERTICAL_LABELS[set.vertical] || set.vertical} — Region`}
+                        placeholder={`${verticalLabels[set.vertical] || set.vertical} — Region`}
                         className="font-medium"
                     />
                 </div>
@@ -119,7 +109,7 @@ export function PreferenceSetCard({
                                 : 'bg-muted text-muted-foreground'
                         )}
                     >
-                        {VERTICAL_LABELS[set.vertical] || set.vertical}
+                        {verticalLabels[set.vertical] || set.vertical}
                     </span>
 
                     <button

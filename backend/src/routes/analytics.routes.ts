@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { AnalyticsQuerySchema } from '../utils/validation';
+import { z } from 'zod';
 import { analyticsLimiter } from '../middleware/rateLimit';
 import { analyticsOverviewCache, analyticsLeadCache } from '../lib/cache';
 import { getMockOverview, getMockLeadAnalytics, getMockBidAnalytics } from '../services/analytics-mock';
@@ -502,6 +503,141 @@ router.get('/conversions/by-platform', analyticsLimiter, authMiddleware, async (
     } catch (error) {
         console.error('Platform analytics error:', error);
         res.status(500).json({ error: 'Failed to fetch platform analytics' });
+    }
+});
+// ============================================
+// Ad Conversion Analytics
+// Groups leads by adSource UTM fields for campaign ROI
+// ============================================
+
+const ConversionQuerySchema = AnalyticsQuerySchema.extend({
+    platform: z.string().optional(),
+    campaign: z.string().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+router.get('/conversions', analyticsLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const validation = ConversionQuerySchema.safeParse(req.query);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid query', details: validation.error.issues });
+            return;
+        }
+
+        const { startDate: from, endDate: to, vertical, platform, campaign, page, limit } = validation.data;
+
+        // Build where clause: only leads with adSource present
+        const where: any = { adSource: { not: null } };
+
+        if (from) where.createdAt = { ...(where.createdAt || {}), gte: new Date(from) };
+        if (to) where.createdAt = { ...(where.createdAt || {}), lte: new Date(to) };
+        if (vertical) where.vertical = vertical;
+
+        // Scope to seller if not admin
+        if (req.user!.role === 'SELLER') {
+            const seller = await prisma.sellerProfile.findFirst({
+                where: { user: { id: req.user!.id } },
+            });
+            if (seller) where.sellerId = seller.id;
+        }
+
+        // Fetch all matching leads
+        const leads = await prisma.lead.findMany({
+            where,
+            select: {
+                id: true,
+                adSource: true,
+                status: true,
+                vertical: true,
+                winningBid: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // Aggregate by utm_source + utm_campaign
+        const campaigns: Record<string, {
+            utmSource: string;
+            utmCampaign: string;
+            utmMedium: string;
+            adPlatform: string;
+            totalLeads: number;
+            sold: number;
+            revenue: number;
+            bidSum: number;
+            bidCount: number;
+        }> = {};
+
+        for (const lead of leads) {
+            const ad = lead.adSource as any;
+            if (!ad) continue;
+
+            const src = ad.utm_source || 'unknown';
+            const camp = ad.utm_campaign || 'unknown';
+            const med = ad.utm_medium || '';
+            const plat = ad.ad_platform || src;
+
+            // Apply post-fetch filters
+            if (platform && plat !== platform) continue;
+            if (campaign && camp !== campaign) continue;
+
+            const key = `${src}::${camp}`;
+            if (!campaigns[key]) {
+                campaigns[key] = {
+                    utmSource: src,
+                    utmCampaign: camp,
+                    utmMedium: med,
+                    adPlatform: plat,
+                    totalLeads: 0,
+                    sold: 0,
+                    revenue: 0,
+                    bidSum: 0,
+                    bidCount: 0,
+                };
+            }
+
+            campaigns[key].totalLeads++;
+            if (lead.status === 'SOLD') {
+                campaigns[key].sold++;
+                const bid = Number(lead.winningBid || 0);
+                campaigns[key].revenue += bid;
+                campaigns[key].bidSum += bid;
+                campaigns[key].bidCount++;
+            }
+        }
+
+        // Build result array with computed rates
+        const allCampaigns = Object.values(campaigns)
+            .map((c) => ({
+                utmSource: c.utmSource,
+                utmCampaign: c.utmCampaign,
+                utmMedium: c.utmMedium,
+                adPlatform: c.adPlatform,
+                totalLeads: c.totalLeads,
+                sold: c.sold,
+                conversionRate: c.totalLeads > 0
+                    ? Math.round((c.sold / c.totalLeads) * 10000) / 100
+                    : 0,
+                revenue: Math.round(c.revenue * 100) / 100,
+                avgBidPrice: c.bidCount > 0
+                    ? Math.round((c.bidSum / c.bidCount) * 100) / 100
+                    : 0,
+            }))
+            .sort((a, b) => b.revenue - a.revenue);
+
+        // Paginate
+        const total = allCampaigns.length;
+        const start = (page - 1) * limit;
+        const paginated = allCampaigns.slice(start, start + limit);
+
+        res.json({
+            campaigns: paginated,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        });
+    } catch (error) {
+        console.error('Conversion analytics error:', error);
+        res.status(500).json({ error: 'Failed to fetch conversion analytics' });
     }
 });
 
