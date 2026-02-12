@@ -105,7 +105,7 @@ app.get('/health', async (_req: Request, res: Response) => {
         res.json({
             status: 'ok',
             timestamp: new Date().toISOString(),
-            version: '1.0.0',
+            version: '1.1.0',
             service: 'lead-engine-cre-api',
             database: 'connected',
             socket: 'active',
