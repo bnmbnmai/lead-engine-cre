@@ -97,41 +97,6 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Health check endpoint
-// Temporary diagnostic endpoint to debug production schema issues
-app.get('/debug/schema', async (_req: Request, res: Response) => {
-    const results: Record<string, any> = {};
-
-    // Test 1: Raw query
-    try {
-        const tables = await prisma.$queryRaw`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'Vertical' 
-            ORDER BY ordinal_position`;
-        results.verticalColumns = tables;
-    } catch (e) {
-        results.verticalColumnsError = String(e);
-    }
-
-    // Test 2: Simple vertical findMany
-    try {
-        const count = await prisma.vertical.count();
-        results.verticalCount = count;
-    } catch (e) {
-        results.verticalCountError = String(e);
-    }
-
-    // Test 3: Full findMany (what getHierarchy does)
-    try {
-        const v = await prisma.vertical.findMany({ take: 1 });
-        results.verticalSample = v;
-    } catch (e) {
-        results.verticalFindManyError = String(e);
-    }
-
-    res.json(results);
-});
-
 app.get('/health', async (_req: Request, res: Response) => {
     try {
         // Check database connection
