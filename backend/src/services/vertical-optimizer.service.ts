@@ -174,9 +174,57 @@ const PII_PATTERNS = [
     /[\u0900-\u097F]{2,6}/g,
     // Arabic names: 2–8 character sequences
     /[\u0600-\u06FF]{2,8}/g,
+    // Thai names: 2–8 character sequences
+    /[\u0E00-\u0E7F]{2,8}/g,
+    // Cyrillic names: 2–8 character sequences (Russian, Ukrainian, etc.)
+    /[\u0400-\u04FF]{2,8}/g,
+    // Armenian names: 2–6 character sequences
+    /[\u0530-\u058F]{2,6}/g,
+    // Georgian names: 2–6 character sequences
+    /[\u10A0-\u10FF]{2,6}/g,
     // Unicode title prefixes: Herr, Frau, Señor/a, San/ta, 先生, etc.
     /\b(?:Herr|Frau|Señor|Señora|Monsieur|Madame|San|Santa)\.?\s+\p{L}+(?:\s+\p{L}+)?/gu,
+    // IBAN numbers (international bank account)
+    /\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b/g,
+    // EU VAT IDs (country prefix + 5-12 digits/letters)
+    /\b(?:AT|BE|BG|CY|CZ|DE|DK|EE|EL|ES|FI|FR|HR|HU|IE|IT|LT|LU|LV|MT|NL|PL|PT|RO|SE|SI|SK)[A-Z0-9]{5,12}\b/g,
+    // UK National Insurance numbers
+    /\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b/g,
 ];
+
+// Script detection patterns for cross-border compliance
+const SCRIPT_DETECTORS: [string, RegExp][] = [
+    ['latin', /[A-Za-z]{3,}/],
+    ['cjk', /[\u4E00-\u9FFF\u3400-\u4DBF]/],
+    ['hangul', /[\uAC00-\uD7AF]/],
+    ['devanagari', /[\u0900-\u097F]/],
+    ['arabic', /[\u0600-\u06FF]/],
+    ['thai', /[\u0E00-\u0E7F]/],
+    ['cyrillic', /[\u0400-\u04FF]/],
+    ['armenian', /[\u0530-\u058F]/],
+    ['georgian', /[\u10A0-\u10FF]/],
+];
+
+// Geo → compliance framework mapping
+const GEO_COMPLIANCE_FLAGS: Record<string, string[]> = {
+    'DE': ['EU_GDPR'], 'FR': ['EU_GDPR'], 'IT': ['EU_GDPR'], 'ES': ['EU_GDPR'],
+    'NL': ['EU_GDPR'], 'BE': ['EU_GDPR'], 'AT': ['EU_GDPR'], 'PL': ['EU_GDPR'],
+    'SE': ['EU_GDPR'], 'FI': ['EU_GDPR'], 'DK': ['EU_GDPR'], 'IE': ['EU_GDPR'],
+    'PT': ['EU_GDPR'], 'GR': ['EU_GDPR'], 'CZ': ['EU_GDPR'], 'RO': ['EU_GDPR'],
+    'HU': ['EU_GDPR'], 'BG': ['EU_GDPR'], 'HR': ['EU_GDPR'], 'SK': ['EU_GDPR'],
+    'SI': ['EU_GDPR'], 'LT': ['EU_GDPR'], 'LV': ['EU_GDPR'], 'EE': ['EU_GDPR'],
+    'CY': ['EU_GDPR'], 'LU': ['EU_GDPR'], 'MT': ['EU_GDPR'],
+    'GB': ['UK_GDPR'],
+    'US': ['CCPA'], 'CA': ['PIPEDA'], 'BR': ['LGPD'],
+    'JP': ['APPI'], 'KR': ['PIPA'], 'IN': ['DPDP'],
+    'AU': ['APPs'],
+};
+
+export interface ScrubResult {
+    text: string;
+    detectedScripts: string[];
+    crossBorderFlags: string[];
+}
 
 export function scrubPII(text: string): string {
     let scrubbed = text;
@@ -184,6 +232,34 @@ export function scrubPII(text: string): string {
         scrubbed = scrubbed.replace(pattern, '[REDACTED]');
     }
     return scrubbed;
+}
+
+/**
+ * Enhanced PII scrubber returning cross-border metadata.
+ * Detects scripts present in text and maps to compliance frameworks.
+ */
+export function scrubPIIWithMetadata(text: string, geoHint?: string): ScrubResult {
+    const scrubbed = scrubPII(text);
+
+    // Detect scripts present in original text
+    const detectedScripts: string[] = [];
+    for (const [script, pattern] of SCRIPT_DETECTORS) {
+        if (pattern.test(text)) detectedScripts.push(script);
+    }
+
+    // Determine compliance flags from geo hint
+    const crossBorderFlags: string[] = [];
+    if (geoHint) {
+        const flags = GEO_COMPLIANCE_FLAGS[geoHint.toUpperCase()];
+        if (flags) crossBorderFlags.push(...flags);
+    }
+
+    // Infer additional flags from detected scripts
+    if (detectedScripts.includes('cyrillic')) crossBorderFlags.push('RU_PD_LAW');
+    if (detectedScripts.includes('hangul') && !crossBorderFlags.includes('PIPA')) crossBorderFlags.push('PIPA');
+    if (detectedScripts.includes('cjk') && !crossBorderFlags.includes('APPI')) crossBorderFlags.push('PIPL');
+
+    return { text: scrubbed, detectedScripts, crossBorderFlags: [...new Set(crossBorderFlags)] };
 }
 
 // ============================================

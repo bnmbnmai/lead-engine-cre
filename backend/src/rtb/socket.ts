@@ -16,7 +16,82 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 /** Per-user debounce map for notify-optin (prevents rapid toggling) */
 const NOTIFY_DEBOUNCE_MS = 10_000; // 10 seconds
 const notifyDebounceMap = new Map<string, number>();
-export { NOTIFY_DEBOUNCE_MS }; // Export for testing
+export { NOTIFY_DEBOUNCE_MS, notifyDebounceMap }; // Export for testing
+
+/**
+ * Debounced notify handler — lodash-inspired trailing-edge debounce.
+ * Emits 'holder:notify-pending' with ARIA 'Updating...' immediately,
+ * then executes after debounce window. Prevents rapid toggling.
+ */
+class DebouncedNotifyHandler {
+    private pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    /**
+     * Debounce a notify-optin toggle.
+     * Returns true if the call was debounced (pending), false if executed immediately.
+     */
+    handle(
+        userId: string,
+        optIn: boolean,
+        socket: any,
+        executor: (userId: string, optIn: boolean) => Promise<any>,
+    ): boolean {
+        // Check cooldown from last execution
+        const lastCall = notifyDebounceMap.get(userId);
+        const now = Date.now();
+
+        if (lastCall && (now - lastCall) < NOTIFY_DEBOUNCE_MS) {
+            const waitMs = NOTIFY_DEBOUNCE_MS - (now - lastCall);
+
+            // Emit ARIA-friendly pending state
+            socket.emit('holder:notify-pending', {
+                status: 'debounced',
+                message: `Updating... please wait ${Math.ceil(waitMs / 1000)}s`,
+                ariaLive: 'assertive',
+                role: 'status',
+                retryAfterMs: waitMs,
+            });
+
+            // Cancel any existing pending timer for this user
+            const existing = this.pendingTimers.get(userId);
+            if (existing) clearTimeout(existing);
+
+            // Schedule trailing-edge execution
+            const timer = setTimeout(async () => {
+                this.pendingTimers.delete(userId);
+                notifyDebounceMap.set(userId, Date.now());
+                try {
+                    const result = await executor(userId, optIn);
+                    socket.emit('holder:notify-status', {
+                        ...result,
+                        ariaLive: 'polite',
+                        role: 'status',
+                    });
+                } catch (error) {
+                    socket.emit('error', { message: 'Failed to update notification preference' });
+                }
+            }, waitMs);
+
+            this.pendingTimers.set(userId, timer);
+            return true; // debounced
+        }
+
+        // Not debounced — execute immediately
+        notifyDebounceMap.set(userId, now);
+        return false;
+    }
+
+    /** Cancel all pending timers (for cleanup/testing) */
+    cancelAll(): void {
+        for (const timer of this.pendingTimers.values()) clearTimeout(timer);
+        this.pendingTimers.clear();
+    }
+
+    get pendingCount(): number { return this.pendingTimers.size; }
+}
+
+const debouncedNotify = new DebouncedNotifyHandler();
+export { DebouncedNotifyHandler, debouncedNotify };
 
 interface AuthenticatedSocket extends Socket {
     userId?: string;
@@ -295,7 +370,7 @@ class RTBSocketServer {
                 }
             });
 
-            // Holder notification opt-in toggle (debounced — 10s cooldown per user)
+            // Holder notification opt-in toggle (debounced — 10s trailing-edge per user)
             socket.on('holder:notify-optin', async (data: { optIn: boolean }) => {
                 try {
                     if (!socket.userId) {
@@ -303,25 +378,23 @@ class RTBSocketServer {
                         return;
                     }
 
-                    // Debounce check — prevent rapid toggling
-                    const lastCall = notifyDebounceMap.get(socket.userId);
-                    const now = Date.now();
-                    if (lastCall && (now - lastCall) < NOTIFY_DEBOUNCE_MS) {
-                        const waitMs = NOTIFY_DEBOUNCE_MS - (now - lastCall);
+                    // Use debounced handler — emits 'pending' ARIA state if throttled
+                    const wasDebounced = debouncedNotify.handle(
+                        socket.userId,
+                        data.optIn,
+                        socket,
+                        setHolderNotifyOptIn,
+                    );
+
+                    if (!wasDebounced) {
+                        // Execute immediately (not in cooldown)
+                        const result = await setHolderNotifyOptIn(socket.userId, data.optIn);
                         socket.emit('holder:notify-status', {
-                            success: false,
-                            error: `Please wait ${Math.ceil(waitMs / 1000)}s before toggling again`,
-                            debounced: true,
-                            retryAfterMs: waitMs,
-                            ariaLive: 'polite', // ARIA: screen reader friendly
+                            ...result,
+                            ariaLive: 'polite',
                             role: 'status',
                         });
-                        return;
                     }
-                    notifyDebounceMap.set(socket.userId, now);
-
-                    const result = await setHolderNotifyOptIn(socket.userId, data.optIn);
-                    socket.emit('holder:notify-status', result);
                 } catch (error) {
                     console.error('Notify opt-in error:', error);
                     socket.emit('error', { message: 'Failed to update notification preference' });

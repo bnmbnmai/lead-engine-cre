@@ -132,6 +132,7 @@ enum LeaseStatus {
   GRACE_PERIOD
   EXPIRED
   RENEWED
+  PAUSED   // Mid-auction: lease check suspended until auction resolves
 }
 
 model Session {
@@ -408,6 +409,7 @@ model AuctionRoom {
   // Timing
   startedAt       DateTime     @default(now())
   prePingEndsAt   DateTime?    // End of holder-only pre-ping window
+  prePingNonce    String?      // Crypto nonce for audit trail / recomputation
   biddingEndsAt   DateTime
   revealEndsAt    DateTime
   

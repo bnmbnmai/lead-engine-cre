@@ -198,6 +198,14 @@ export function invalidateNftOwnership(slug: string): void {
     nftOwnershipCache.delete(`nft-owner:${slug}`);
 }
 
+/**
+ * Invalidate vertical hierarchy cache.
+ * Call after ownership change, vertical creation, or status update.
+ */
+export function invalidateVerticalHierarchy(): void {
+    verticalHierarchyCache.clear();
+}
+
 /** Cache for bid activity counters — spam prevention (60s TTL = 1 minute window) */
 export const bidActivityCache = new LRUCache<number>({
     maxSize: 10000,
@@ -209,4 +217,18 @@ export const holderNotifyCache = new LRUCache<boolean>({
     maxSize: 5000,
     ttlMs: 5 * 60_000,
 });
+
+/**
+ * Combo invalidation for resale/settle events.
+ * Clears all caches affected by ownership change:
+ *  - NFT ownership for this slug
+ *  - Vertical hierarchy (tree structure may change)
+ *  - Holder notification opt-in (new holder may have different prefs)
+ */
+export function invalidateAllForResale(slug: string): void {
+    invalidateNftOwnership(slug);
+    invalidateVerticalHierarchy();
+    holderNotifyCache.delete(`notify-optin:${slug}`);
+    console.log(`[CACHE] Full resale invalidation for "${slug}" — nft+hierarchy+notify cleared`);
+}
 

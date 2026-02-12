@@ -1,6 +1,60 @@
-import rateLimit from 'express-rate-limit';
-import { Request, Response } from 'express';
+import rateLimit, { Store, IncrementResponse } from 'express-rate-limit';
+import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth';
+import { LRUCache } from '../lib/cache';
+
+// ============================================
+// LRU-Backed Rate Limit Store
+// ============================================
+
+/**
+ * Custom rate-limit store backed by our LRU cache.
+ * Provides unified memory management (eviction, TTL) across all limiters.
+ * Falls back gracefully — if LRU evicts an entry, user gets a fresh window.
+ */
+class LRURateLimitStore implements Store {
+    private lru: LRUCache<{ totalHits: number; resetTime: Date }>;
+    private windowMs: number;
+
+    constructor(windowMs: number, maxSize: number = 50000) {
+        this.windowMs = windowMs;
+        this.lru = new LRUCache<{ totalHits: number; resetTime: Date }>({
+            maxSize,
+            ttlMs: windowMs,
+        });
+    }
+
+    async increment(key: string): Promise<IncrementResponse> {
+        const now = Date.now();
+        const existing = this.lru.get(key);
+
+        if (existing) {
+            existing.totalHits++;
+            this.lru.set(key, existing, this.windowMs);
+            return { totalHits: existing.totalHits, resetTime: existing.resetTime };
+        }
+
+        const entry = { totalHits: 1, resetTime: new Date(now + this.windowMs) };
+        this.lru.set(key, entry, this.windowMs);
+        return { totalHits: 1, resetTime: entry.resetTime };
+    }
+
+    async decrement(key: string): Promise<void> {
+        const existing = this.lru.get(key);
+        if (existing && existing.totalHits > 0) {
+            existing.totalHits--;
+            this.lru.set(key, existing);
+        }
+    }
+
+    async resetKey(key: string): Promise<void> {
+        this.lru.delete(key);
+    }
+
+    async resetAll(): Promise<void> {
+        // LRU doesn't have a targeted clear, but entries will expire via TTL
+    }
+}
 
 // ============================================
 // Rate Limit Configurations
@@ -13,19 +67,21 @@ export const generalLimiter = rateLimit({
     message: { error: 'Too many requests, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
+    store: new LRURateLimitStore(60_000),
     keyGenerator: (req: Request) => {
         const authReq = req as AuthenticatedRequest;
         return authReq.user?.id || req.ip || 'anonymous';
     },
 });
 
-// RTB Bidding - 10 per minute per user (aligned with LRU-based 5/min inner limit)
+// RTB Bidding - 10 per minute per user (aligned with LRU-based inner limit)
 export const rtbBiddingLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 10,
     message: { error: 'Bid rate limit exceeded — max 10 bids per minute' },
     standardHeaders: true,
     legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 20000),
     keyGenerator: (req: Request) => {
         const authReq = req as AuthenticatedRequest;
         return authReq.user?.id || req.ip || 'anonymous';
@@ -43,6 +99,7 @@ export const authLimiter = rateLimit({
     message: { error: 'Too many authentication attempts' },
     standardHeaders: true,
     legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 5000),
 });
 
 // Lead submission - 50 per minute
@@ -52,6 +109,7 @@ export const leadSubmitLimiter = rateLimit({
     message: { error: 'Lead submission rate limit exceeded' },
     standardHeaders: true,
     legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 10000),
     keyGenerator: (req: Request) => {
         const authReq = req as AuthenticatedRequest;
         return authReq.user?.id || req.ip || 'anonymous';
@@ -65,6 +123,7 @@ export const analyticsLimiter = rateLimit({
     message: { error: 'Analytics rate limit exceeded' },
     standardHeaders: true,
     legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 5000),
 });
 
 // ============================================
@@ -78,6 +137,54 @@ export const TIER_MULTIPLIERS = {
 } as const;
 
 export const TIER_HARD_CEILING = 30; // Absolute max requests/min regardless of tier
+const TIER_LOOKUP_CACHE_MS = 30_000; // Cache tier lookups for 30s to avoid DB hits
+
+/** Per-user tier cache: userId → { tier, expiresAt } */
+const tierCache = new Map<string, { tier: keyof typeof TIER_MULTIPLIERS; expiresAt: number }>();
+
+/**
+ * Look up user's rate limit tier.
+ * Checks NFT holder status (cache) and premium/KYC status (DB-backed).
+ * Results cached for 30s to avoid per-request DB hits.
+ */
+export async function lookupUserTier(
+    userId?: string,
+    walletAddress?: string,
+): Promise<keyof typeof TIER_MULTIPLIERS> {
+    if (!userId) return 'DEFAULT';
+
+    // Check tier cache first
+    const cached = tierCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) return cached.tier;
+
+    let tier: keyof typeof TIER_MULTIPLIERS = 'DEFAULT';
+
+    try {
+        // 1. Check NFT holder status via cache
+        if (walletAddress) {
+            const { nftOwnershipCache } = require('../lib/cache');
+            const cachedOwner = nftOwnershipCache.get(`nft-holder:${walletAddress.toLowerCase()}`);
+            if (cachedOwner) tier = 'HOLDER';
+        }
+
+        // 2. Check premium status via DB (verified KYC = premium proxy)
+        const { prisma } = require('../lib/prisma');
+        const profile = await prisma.buyerProfile.findFirst({
+            where: { userId },
+            select: { kycStatus: true },
+        });
+        if (profile?.kycStatus === 'VERIFIED') {
+            tier = 'PREMIUM'; // Premium overrides holder
+        }
+    } catch { /* fall through to cached or default tier */ }
+
+    // Cache the result
+    tierCache.set(userId, { tier, expiresAt: Date.now() + TIER_LOOKUP_CACHE_MS });
+    return tier;
+}
+
+/** Clear tier cache (for testing) */
+export function clearTierCache(): void { tierCache.clear(); }
 
 export function createTieredLimiter(baseLimitPerMinute: number) {
     return rateLimit({
@@ -86,20 +193,11 @@ export function createTieredLimiter(baseLimitPerMinute: number) {
             const authReq = req as AuthenticatedRequest;
             if (!authReq.user) return baseLimitPerMinute;
 
-            let multiplier: number = TIER_MULTIPLIERS.DEFAULT;
-
-            // Check holder status for tiered rate limit
-            try {
-                const walletAddress = (authReq.user as any).walletAddress;
-                if (walletAddress) {
-                    const { nftOwnershipCache } = require('../lib/cache');
-                    const cachedOwner = nftOwnershipCache.get(`nft-holder:${walletAddress.toLowerCase()}`);
-                    if (cachedOwner) multiplier = TIER_MULTIPLIERS.HOLDER;
-                }
-
-                // Future: check premium plan from DB
-                // if (isPremiumUser(authReq.user.id)) multiplier = TIER_MULTIPLIERS.PREMIUM;
-            } catch { /* fall through to base limit */ }
+            const tier = await lookupUserTier(
+                authReq.user.id,
+                (authReq.user as any).walletAddress,
+            );
+            const multiplier = TIER_MULTIPLIERS[tier];
 
             return Math.min(baseLimitPerMinute * multiplier, TIER_HARD_CEILING);
         },
@@ -116,4 +214,67 @@ export function createTieredLimiter(baseLimitPerMinute: number) {
         },
     });
 }
+
+// ============================================
+// Coordinated Spam Detection (IP Diversity)
+// ============================================
+
+const COORDINATED_SPAM_THRESHOLD = 5; // 5+ distinct users from same /24 subnet
+const SUBNET_WINDOW_MS = 60_000;       // 60-second tracking window
+
+/** Cache: /24 prefix → Set of user IDs seen in window */
+export const subnetActivityCache = new LRUCache<Set<string>>({
+    maxSize: 10000,
+    ttlMs: SUBNET_WINDOW_MS,
+});
+
+/**
+ * Extract /24 subnet prefix from IP address.
+ * IPv4: "192.168.1.42" → "192.168.1"
+ * IPv6: uses first 3 segments
+ */
+function getSubnetPrefix(ip: string): string {
+    if (!ip) return 'unknown';
+    // Handle IPv4
+    const parts = ip.replace('::ffff:', '').split('.');
+    if (parts.length === 4) return parts.slice(0, 3).join('.');
+    // IPv6 — use first 3 hextets
+    const v6parts = ip.split(':');
+    return v6parts.slice(0, 3).join(':');
+}
+
+/**
+ * Middleware: Detect coordinated spam from /24 subnet clusters.
+ * If 5+ distinct authenticated users send bids from the same /24 in 60s → 429.
+ */
+export function coordinatedSpamCheck(req: Request, res: Response, next: NextFunction): void {
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id;
+    if (!userId) { next(); return; }
+
+    const subnet = getSubnetPrefix(req.ip || '');
+    const existing = subnetActivityCache.get(`subnet:${subnet}`);
+
+    if (existing) {
+        existing.add(userId);
+        subnetActivityCache.set(`subnet:${subnet}`, existing, SUBNET_WINDOW_MS);
+
+        if (existing.size >= COORDINATED_SPAM_THRESHOLD) {
+            console.warn(`[SPAM-DETECTION] Coordinated spam: ${existing.size} users from ${subnet}.* in 60s: [${[...existing].join(', ')}]`);
+            res.status(429).json({
+                error: 'Coordinated spam detected',
+                subnet: `${subnet}.*`,
+                distinctUsers: existing.size,
+            });
+            return;
+        }
+    } else {
+        subnetActivityCache.set(`subnet:${subnet}`, new Set([userId]), SUBNET_WINDOW_MS);
+    }
+
+    next();
+}
+
+// Export for testing
+export { LRURateLimitStore, COORDINATED_SPAM_THRESHOLD, getSubnetPrefix };
 

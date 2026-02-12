@@ -152,8 +152,13 @@ export function buildHolderNotifications(
 // Notification Batching & Fatigue Reduction
 // ============================================
 
-const DIGEST_INTERVAL_MS = 5 * 60_000; // Flush every 5 minutes
-const DAILY_NOTIFICATION_CAP = 50;      // Max notifications per user per day
+import {
+    DIGEST_INTERVAL_MS,
+    DAILY_NOTIFICATION_CAP,
+} from '../config/perks.env';
+
+const BATCH_SIZE_LIMIT = 100;           // Max notifications per flush per user
+const HIGH_VOLUME_WARNING = 60;         // Log warning at this queue depth
 
 /** Per-user notification queue (flushed every 5 min) */
 const notificationQueue = new Map<string, HolderNotification[]>();
@@ -183,16 +188,27 @@ export async function queueNotification(notification: HolderNotification): Promi
     const queue = notificationQueue.get(notification.userId) || [];
     queue.push(notification);
     notificationQueue.set(notification.userId, queue);
+
+    // High-volume warning
+    if (queue.length >= HIGH_VOLUME_WARNING) {
+        console.warn(`[NOTIFICATION] High-volume holder: ${notification.userId} has ${queue.length} pending notifications`);
+    }
+
     return true;
 }
 
 /**
  * Flush all pending notifications as a single digest per user.
  * Called by interval timer or manually.
+ *
+ * High-volume holders (> BATCH_SIZE_LIMIT) get their queue split:
+ *   - First BATCH_SIZE_LIMIT items are flushed now
+ *   - Remainder stays in queue for next flush cycle (spillover)
  */
 export function flushNotificationDigest(): Map<string, HolderNotification[]> {
     const digests = new Map<string, HolderNotification[]>();
     const today = new Date().toISOString().slice(0, 10);
+    const spillover = new Map<string, HolderNotification[]>();
 
     for (const [userId, notifications] of notificationQueue) {
         if (notifications.length === 0) continue;
@@ -204,18 +220,30 @@ export function flushNotificationDigest(): Map<string, HolderNotification[]> {
             existing.date = today;
         }
 
-        // Cap the batch to remaining daily budget
+        // Cap the batch to remaining daily budget AND batch size
         const remaining = DAILY_NOTIFICATION_CAP - existing.count;
-        const batch = notifications.slice(0, remaining);
+        const maxThisFlush = Math.min(remaining, BATCH_SIZE_LIMIT);
+        const batch = notifications.slice(0, maxThisFlush);
+
         if (batch.length > 0) {
             digests.set(userId, batch);
             existing.count += batch.length;
             dailySendCount.set(userId, existing);
         }
+
+        // Spillover: anything beyond batch limit stays for next flush
+        const leftover = notifications.slice(maxThisFlush);
+        if (leftover.length > 0) {
+            spillover.set(userId, leftover);
+            console.log(`[NOTIFICATION] Spillover: ${leftover.length} notifications deferred for ${userId}`);
+        }
     }
 
-    // Clear all queues after flush
+    // Replace queue with spillover instead of fully clearing
     notificationQueue.clear();
+    for (const [userId, items] of spillover) {
+        notificationQueue.set(userId, items);
+    }
 
     console.log(`[NOTIFICATION] Digest flushed: ${digests.size} users, ${[...digests.values()].reduce((s, v) => s + v.length, 0)} total`);
     return digests;
@@ -242,4 +270,7 @@ export function startDigestTimer(): void {
 export const NOTIFICATION_CONSTANTS = {
     DIGEST_INTERVAL_MS,
     DAILY_NOTIFICATION_CAP,
+    BATCH_SIZE_LIMIT,
+    HIGH_VOLUME_WARNING,
 } as const;
+

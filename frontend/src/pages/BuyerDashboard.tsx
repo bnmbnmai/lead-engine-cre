@@ -13,6 +13,7 @@ import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
+import { PerksPanel } from '@/components/marketplace/PerksPanel';
 
 export function BuyerDashboard() {
     const [overview, setOverview] = useState<any>(null);
@@ -140,6 +141,9 @@ export function BuyerDashboard() {
                         </GlassCard>
                     ))}
                 </div>
+
+                {/* Holder Perks Panel */}
+                <PerksPanel />
 
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Recent Bids */}

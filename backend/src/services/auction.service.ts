@@ -10,7 +10,7 @@
 
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
-import { invalidateNftOwnership } from '../lib/cache';
+import { invalidateAllForResale } from '../lib/cache';
 import {
     applyHolderPerks,
     applyMultiplier,
@@ -337,7 +337,7 @@ export async function settleAuction(auctionDbId: string): Promise<SettleResult> 
         });
 
         // Invalidate NFT ownership cache — old owner loses perks immediately
-        invalidateNftOwnership(auction.verticalSlug);
+        invalidateAllForResale(auction.verticalSlug);
 
         console.log(`[AUCTION] Settled: ${auction.verticalSlug} → ${auction.highBidder} for $${auction.highBid}`);
 

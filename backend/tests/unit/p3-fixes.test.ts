@@ -124,18 +124,22 @@ describe('#12 Seed Step Numbering', () => {
         );
     });
 
-    test('all step labels use N/8 format', () => {
-        const stepLabels = seedContent.match(/Step \d+\/\d+/g) || [];
-        expect(stepLabels.length).toBe(8);
-        for (const label of stepLabels) {
-            expect(label).toMatch(/^Step \d+\/8$/);
-        }
+    test('uses dynamic step() helper with TOTAL_STEPS', () => {
+        // Verify the dynamic step tracking pattern exists
+        expect(seedContent).toContain('TOTAL_STEPS');
+        expect(seedContent).toContain('currentStep');
+        // The step() function should produce formatted output
+        const stepFn = seedContent.match(/const step.*=.*console\.log/);
+        expect(stepFn).not.toBeNull();
     });
 
-    test('steps are sequential 1 through 8', () => {
-        const stepNumbers = (seedContent.match(/Step (\d+)\/8/g) || [])
-            .map(s => parseInt(s.split(' ')[1]));
-        expect(stepNumbers).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    test('step() calls match TOTAL_STEPS count', () => {
+        // Count step() calls in main()
+        const stepCalls = seedContent.match(/\bstep\(['"]/g) || [];
+        const totalMatch = seedContent.match(/TOTAL_STEPS\s*=\s*(\d+)/);
+        expect(totalMatch).not.toBeNull();
+        const totalSteps = parseInt(totalMatch![1]);
+        expect(stepCalls.length).toBe(totalSteps);
     });
 
     test('no stale /5 or /7 denominators remain', () => {

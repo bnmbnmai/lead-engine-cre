@@ -570,39 +570,44 @@ async function main() {
     console.log(`  • ~160 analytics events`);
     console.log('');
 
+    // Dynamic step tracking — auto-adjusts when new stages are added
+    const TOTAL_STEPS = 8;
+    let currentStep = 0;
+    const step = (label: string) => console.log(`→ Step ${++currentStep}/${TOTAL_STEPS}: ${label}`);
+
     // 1. Users
-    console.log('→ Step 1/8: Users');
+    step('Users');
     const allUsers = await seedUsers(BUYER_COUNT + SELLER_COUNT);
     const buyerUsers = allUsers.slice(0, BUYER_COUNT);
     const sellerUsers = allUsers.slice(BUYER_COUNT);
 
     // 2. Profiles
-    console.log('→ Step 2/8: Profiles');
+    step('Profiles');
     await seedBuyerProfiles(buyerUsers);
     const sellers = await seedSellerProfiles(sellerUsers);
 
     // 3. Asks
-    console.log('→ Step 3/8: Asks');
+    step('Asks');
     const asks = await seedAsks(sellers, ASK_COUNT);
 
     // 4. Leads
-    console.log('→ Step 4/8: Leads');
+    step('Leads');
     const leads = await seedLeads(sellers, asks, LEAD_COUNT);
 
     // 5. Bids
-    console.log('→ Step 5/8: Bids');
+    step('Bids');
     await seedBids(leads, buyerUsers, BID_COUNT);
 
     // 6. Transactions
-    console.log('→ Step 6/8: Transactions');
+    step('Transactions');
     await seedTransactions(leads, buyerUsers);
 
     // 7. Analytics events
-    console.log('→ Step 7/8: Analytics Events');
+    step('Analytics Events');
     await seedAnalyticsEvents(leads, buyerUsers);
 
     // 8. Holder perk scenarios (P2 #6)
-    console.log('→ Step 8/8: Holder Perk Scenarios');
+    step('Holder Perk Scenarios');
     await seedHolderPerkScenarios(buyerUsers, leads);
 
     // Summary
@@ -716,6 +721,66 @@ async function seedHolderPerkScenarios(buyerUsers: any[], leads: any[]) {
         } catch { /* skip duplicates */ }
     }
     console.log('  Created 100 spam-test vertical suggestions');
+
+    // 5. Cross-border leads with EU geo for GDPR consent scenarios
+    const euCountries = ['DE', 'FR', 'IT', 'ES', 'NL'];
+    for (let i = 0; i < 5; i++) {
+        const geo = GEO_CONFIGS.find(g => g.country === euCountries[i]) || GEO_CONFIGS[0];
+        try {
+            await prisma.lead.create({
+                data: {
+                    sellerId: buyerUsers[0].id, // reuse any user as seller for test data
+                    vertical: 'real_estate',
+                    geo: { country: euCountries[i], state: geo.states[0], city: geo.cities[0], zip: geo.zipFn() },
+                    source: 'PLATFORM',
+                    status: 'PENDING_AUCTION',
+                    parameters: { crossBorder: true, gdprRequired: true, region: 'EU' } as any,
+                    reservePrice: 50 + Math.random() * 100,
+                    tcpaConsentAt: new Date(),
+                    isVerified: true,
+                },
+            });
+        } catch { /* skip constraint violations */ }
+    }
+    console.log('  Created 5 cross-border EU leads (GDPR scenarios)');
+
+    // 6. High-volume holder: 65 notifications queued (tests batch spillover at 60 warning + 100 limit)
+    // We just annotate via a marker bid — actual notification queueing happens at runtime
+    const highVolumeLeads = leads.slice(15, Math.min(80, leads.length));
+    for (let i = 0; i < highVolumeLeads.length; i++) {
+        try {
+            await prisma.bid.create({
+                data: {
+                    amount: parseFloat((10 + Math.random() * 50).toFixed(2)),
+                    effectiveBid: parseFloat((12 + Math.random() * 60).toFixed(2)),
+                    status: 'PENDING',
+                    lead: { connect: { id: highVolumeLeads[i].id } },
+                    buyer: { connect: { id: buyerUsers[0].id } },  // All from same holder → high volume
+                },
+            });
+        } catch { /* skip constraint violations */ }
+    }
+    console.log(`  Created ${highVolumeLeads.length} high-volume holder bids (batch spillover test)`);
+
+    // 7. Coordinated IP data: 5 users sharing same /24 prefix (for IP diversity spam tests)
+    const coordIps = [
+        '192.168.42.10', '192.168.42.20', '192.168.42.30',
+        '192.168.42.40', '192.168.42.50',
+    ];
+    for (let i = 0; i < 5; i++) {
+        if (buyerUsers[i + 3]) {
+            try {
+                await prisma.analyticsEvent.create({
+                    data: {
+                        eventType: 'seed:coordinated-ip-test',
+                        userId: buyerUsers[i + 3].id,
+                        metadata: { testIp: coordIps[i], subnet: '192.168.42', purpose: 'P2 spam detection test' },
+                    },
+                });
+            } catch { /* skip */ }
+        }
+    }
+    console.log('  Created 5 coordinated-IP analytics events (subnet: 192.168.42.*)');
 }
 
 main()

@@ -6,32 +6,148 @@
  *  - 7-day grace period before re-auction
  *  - Lease renewal (extends 90 days)
  *  - Re-auction trigger for expired verticals
- *  - Mid-auction safety: skip if active auction exists
+ *  - Mid-auction safety: PAUSED status when active auction exists
+ *  - GDPR-aware notifications for lease events
+ *  - Spam caps: minimum activity for re-auction eligibility
  *
  * Chainlink Keepers stub exported for future on-chain automation.
  */
 
 import { prisma } from '../lib/prisma';
+import { hasGdprConsent, queueNotification, getHolderNotifyOptIn } from './notification.service';
 
 // ── Constants ─────────────────────────────────────────
 
 const GRACE_PERIOD_DAYS = 7;
 const LEASE_DURATION_DAYS = 90; // ~1 quarter
 const MS_PER_DAY = 86_400_000;
+const MIN_BIDS_FOR_REAUCTION = 5;    // Min bids in last 90 days to participate
+const MAX_REAUCTIONS_PER_CYCLE = 10; // Cap simultaneous re-auctions per reset cycle
 
 // ── Types ─────────────────────────────────────────────
+
+export type LeaseEvent = 'GRACE_PERIOD_ENTERED' | 'LEASE_EXPIRED' | 'LEASE_RENEWED';
 
 export interface LeaseCheckResult {
     expiredCount: number;
     graceEnteredCount: number;
     reAuctionTriggered: string[]; // vertical slugs
     skippedActiveAuction: string[];
+    pausedCount: number;          // Leases paused due to mid-auction
+    notificationsSent: number;
 }
 
 export interface RenewalResult {
     success: boolean;
     newLeaseEndDate?: Date;
     error?: string;
+}
+
+export interface ResetEligibility {
+    eligible: boolean;
+    bidCount: number;
+    reason?: string;
+}
+
+// ── GDPR-Aware Notifications ──────────────────────────
+
+/**
+ * Send a lease lifecycle notification to the holder if GDPR consent
+ * and opt-in are both satisfied.
+ */
+export async function notifyLeaseHolder(
+    auction: { verticalSlug: string; highBidder: string | null },
+    event: LeaseEvent,
+): Promise<boolean> {
+    if (!auction.highBidder) return false;
+
+    try {
+        // Find user by wallet address
+        const user = await prisma.user.findUnique({
+            where: { walletAddress: auction.highBidder.toLowerCase() },
+        });
+        if (!user) return false;
+
+        // GDPR gate: check consent + opt-in
+        const [consent, optIn] = await Promise.all([
+            hasGdprConsent(user.id),
+            getHolderNotifyOptIn(user.id),
+        ]);
+
+        if (!consent || !optIn) {
+            console.log(`[QUARTERLY-RESET] Skipping notification for ${auction.highBidder} (consent=${consent}, optIn=${optIn})`);
+            return false;
+        }
+
+        // Queue notification
+        const messages: Record<LeaseEvent, string> = {
+            GRACE_PERIOD_ENTERED: `Your lease on vertical "${auction.verticalSlug}" has expired. You have ${GRACE_PERIOD_DAYS} days to renew before re-auction.`,
+            LEASE_EXPIRED: `Your lease on vertical "${auction.verticalSlug}" has expired and the vertical is now open for re-auction.`,
+            LEASE_RENEWED: `Your lease on vertical "${auction.verticalSlug}" has been renewed for ${LEASE_DURATION_DAYS} days.`,
+        };
+
+        queueNotification({
+            userId: user.id,
+            walletAddress: auction.highBidder,
+            vertical: auction.verticalSlug,
+            leadId: 'lease-lifecycle',
+            auctionStart: new Date(),
+            prePingSeconds: 0,
+        });
+
+        console.log(`[QUARTERLY-RESET] Notification queued: ${event} for ${auction.highBidder} on "${auction.verticalSlug}"`);
+        return true;
+    } catch (error: any) {
+        console.error(`[QUARTERLY-RESET] Notification failed for ${auction.highBidder}:`, error.message);
+        return false;
+    }
+}
+
+// ── Spam Caps / Reset Eligibility ─────────────────────
+
+/**
+ * Check if a wallet has sufficient activity to participate in re-auctions.
+ * Prevents sybil attacks during quarterly reset windows.
+ *
+ * @param walletAddress - Wallet to check
+ * @returns eligibility status with bid count
+ */
+export async function checkResetEligibility(walletAddress: string): Promise<ResetEligibility> {
+    const ninetyDaysAgo = new Date(Date.now() - LEASE_DURATION_DAYS * MS_PER_DAY);
+
+    // Find user by wallet, then count their bids
+    const user = await prisma.user.findUnique({
+        where: { walletAddress: walletAddress.toLowerCase() },
+    });
+
+    if (!user) {
+        return { eligible: false, bidCount: 0, reason: 'User not found' };
+    }
+
+    const bidCount = await prisma.bid.count({
+        where: {
+            buyerId: user.id,
+            createdAt: { gte: ninetyDaysAgo },
+        },
+    });
+
+    if (bidCount < MIN_BIDS_FOR_REAUCTION) {
+        return {
+            eligible: false,
+            bidCount,
+            reason: `Minimum ${MIN_BIDS_FOR_REAUCTION} bids in last 90 days required (found ${bidCount})`,
+        };
+    }
+
+    return { eligible: true, bidCount };
+}
+
+/**
+ * Returns the maximum number of re-auctions allowed per reset cycle.
+ * Configurable via env for load testing.
+ */
+export function getResetSpamCap(): number {
+    return parseInt(process.env.MAX_REAUCTIONS_PER_CYCLE || '', 10) || MAX_REAUCTIONS_PER_CYCLE;
 }
 
 // ── Core Functions ────────────────────────────────────
@@ -42,11 +158,14 @@ export interface RenewalResult {
  */
 export async function checkExpiredLeases(): Promise<LeaseCheckResult> {
     const now = new Date();
+    const reAuctionCap = getResetSpamCap();
     const result: LeaseCheckResult = {
         expiredCount: 0,
         graceEnteredCount: 0,
         reAuctionTriggered: [],
         skippedActiveAuction: [],
+        pausedCount: 0,
+        notificationsSent: 0,
     };
 
     // 1. Find ACTIVE leases past their end date
@@ -62,7 +181,11 @@ export async function checkExpiredLeases(): Promise<LeaseCheckResult> {
     for (const auction of expiredActive) {
         result.expiredCount++;
         const entered = await enterGracePeriod(auction.id);
-        if (entered) result.graceEnteredCount++;
+        if (entered) {
+            result.graceEnteredCount++;
+            const notified = await notifyLeaseHolder(auction, 'GRACE_PERIOD_ENTERED');
+            if (notified) result.notificationsSent++;
+        }
     }
 
     // 2. Find GRACE_PERIOD leases past renewal deadline
@@ -76,6 +199,12 @@ export async function checkExpiredLeases(): Promise<LeaseCheckResult> {
     });
 
     for (const auction of expiredGrace) {
+        // Enforce re-auction cap per cycle
+        if (result.reAuctionTriggered.length >= reAuctionCap) {
+            console.log(`[QUARTERLY-RESET] Re-auction cap (${reAuctionCap}) reached — deferring "${auction.verticalSlug}"`);
+            break;
+        }
+
         // Check if there's an active auction for this vertical (mid-auction safety)
         const activeAuction = await prisma.verticalAuction.findFirst({
             where: {
@@ -88,16 +217,24 @@ export async function checkExpiredLeases(): Promise<LeaseCheckResult> {
         });
 
         if (activeAuction) {
-            console.log(`[QUARTERLY-RESET] Skipping re-auction for "${auction.verticalSlug}" — active auction ${activeAuction.id} in progress`);
+            // PAUSED: lease check suspended until auction resolves
+            await prisma.verticalAuction.update({
+                where: { id: auction.id },
+                data: { leaseStatus: 'PAUSED' },
+            });
+            console.log(`[QUARTERLY-RESET] Paused lease for "${auction.verticalSlug}" — active auction ${activeAuction.id} in progress`);
             result.skippedActiveAuction.push(auction.verticalSlug);
+            result.pausedCount++;
             continue;
         }
 
         await expireLease(auction.id);
+        const notified = await notifyLeaseHolder(auction, 'LEASE_EXPIRED');
+        if (notified) result.notificationsSent++;
         result.reAuctionTriggered.push(auction.verticalSlug);
     }
 
-    console.log(`[QUARTERLY-RESET] Check complete: ${result.expiredCount} expired, ${result.graceEnteredCount} entered grace, ${result.reAuctionTriggered.length} re-auctioned, ${result.skippedActiveAuction.length} skipped`);
+    console.log(`[QUARTERLY-RESET] Check complete: ${result.expiredCount} expired, ${result.graceEnteredCount} entered grace, ${result.reAuctionTriggered.length} re-auctioned, ${result.skippedActiveAuction.length} skipped/paused, ${result.notificationsSent} notifications`);
     return result;
 }
 
@@ -185,6 +322,9 @@ export async function renewLease(auctionId: string, txHash?: string): Promise<Re
             },
         });
 
+        // GDPR-aware notification
+        await notifyLeaseHolder(auction, 'LEASE_RENEWED');
+
         console.log(`[QUARTERLY-RESET] Lease renewed for auction ${auctionId} — new end: ${newLeaseEndDate.toISOString()}`);
         return { success: true, newLeaseEndDate };
     } catch (error: any) {
@@ -236,4 +376,6 @@ export function getLeaseCheckCalldata(): { checkUpkeepSelector: string; performU
 export const LEASE_CONSTANTS = {
     GRACE_PERIOD_DAYS,
     LEASE_DURATION_DAYS,
+    MIN_BIDS_FOR_REAUCTION,
+    MAX_REAUCTIONS_PER_CYCLE,
 } as const;

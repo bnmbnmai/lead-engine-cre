@@ -228,32 +228,36 @@ contract VerticalAuction is ReentrancyGuard {
         require(block.timestamp >= a.endTime, "Auction: Not ended yet");
         require(a.highBidder != address(0), "Auction: No bids");
 
+        // Cache in memory to avoid repeated SLOAD (~2,100 gas each)
+        address highBidder = a.highBidder;
+        uint128 paymentAmount = a.highBidRaw;
+        address nftContract = a.nftContract;
+        uint256 tokenId = a.tokenId;
+        address seller = a.seller;
+        uint128 highBid = a.highBid;
+
         a.settled = true;
 
-        // Use highBidRaw (actual ETH held by contract) for settlement
-        uint128 paymentAmount = a.highBidRaw;
-
         // Try calling transferWithRoyalty on the NFT contract
-        (bool success, ) = a.nftContract.call{value: paymentAmount}(
+        (bool success, ) = nftContract.call{value: paymentAmount}(
             abi.encodeWithSignature(
                 "transferWithRoyalty(uint256,address)",
-                a.tokenId,
-                a.highBidder
+                tokenId,
+                highBidder
             )
         );
 
         uint256 royaltyPaid = 0;
         if (success) {
-            // transferWithRoyalty handled everything
             royaltyPaid = (uint256(paymentAmount) * 200) / 10000;
         } else {
             // Fallback: simple transfer + send all funds to seller
-            IERC721(a.nftContract).transferFrom(a.seller, a.highBidder, a.tokenId);
-            (bool payOk, ) = a.seller.call{value: paymentAmount}("");
+            IERC721(nftContract).transferFrom(seller, highBidder, tokenId);
+            (bool payOk, ) = seller.call{value: paymentAmount}("");
             require(payOk, "Auction: Payment failed");
         }
 
-        emit AuctionSettled(auctionId, a.highBidder, a.highBid, royaltyPaid);
+        emit AuctionSettled(auctionId, highBidder, highBid, royaltyPaid);
     }
 
     // ============================================

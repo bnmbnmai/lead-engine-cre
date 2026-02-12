@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
 import { creService } from '../services/cre.service';
@@ -69,8 +70,10 @@ class RTBEngine {
             const auctionDuration = ask.auctionDuration || 3600;
             const revealWindow = ask.revealWindow || 900;
 
-            // Compute pre-ping window for holder priority
-            const prePingSeconds = computePrePing(lead.vertical);
+            // Compute pre-ping window with per-auction nonce for unpredictability
+            // (Fix #16: must use nonce to stay in sync with createAuction logic)
+            const prePingNonce = crypto.randomBytes(8).toString('hex');
+            const prePingSeconds = computePrePing(lead.vertical, prePingNonce);
             const auctionStartAt = new Date();
 
             await prisma.$transaction([
@@ -89,6 +92,7 @@ class RTBEngine {
                         roomId: `auction_${leadId}`,
                         phase: 'BIDDING',
                         prePingEndsAt: new Date(auctionStartAt.getTime() + prePingSeconds * 1000),
+                        prePingNonce, // Persist for audit trail / recomputation
                         biddingEndsAt: new Date(Date.now() + auctionDuration * 1000),
                         revealEndsAt: new Date(Date.now() + (auctionDuration + revealWindow) * 1000),
                     },

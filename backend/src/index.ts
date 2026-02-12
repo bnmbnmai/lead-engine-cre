@@ -8,6 +8,7 @@ import { join } from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { prisma } from './lib/prisma';
 import RTBSocketServer from './rtb/socket';
+import { startQuarterlyResetCron } from './services/quarterly-reset.service';
 
 // Load environment variables FIRST
 dotenv.config();
@@ -224,6 +225,9 @@ httpServer.listen(PORT, () => {
     CRM Export:  /api/v1/crm/*
   ────────────────────────────
   `);
+
+    // Start quarterly lease reset cron (daily at midnight UTC)
+    startQuarterlyResetCron();
 });
 
 export { app, httpServer, socketServer };
