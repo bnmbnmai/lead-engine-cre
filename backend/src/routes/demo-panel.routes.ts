@@ -90,11 +90,14 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 router.post('/seed', async (req: Request, res: Response) => {
     try {
-        // Check if demo data already exists
+        // Auto-clear existing demo data (makes seed idempotent)
         const existing = await prisma.lead.count({ where: { consentProof: DEMO_TAG } });
         if (existing > 0) {
-            res.status(409).json({ error: 'Demo data already exists. Clear first.', leads: existing });
-            return;
+            console.log(`[DEMO] Auto-clearing ${existing} existing demo leads before re-seed`);
+            await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+            await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
+            await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
+            clearAllCaches();
         }
 
         // Find or create a demo user + profiles
@@ -530,10 +533,20 @@ router.post('/reset', async (req: Request, res: Response) => {
             });
         }
 
-        const seller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
+        // Ensure profiles exist (may have been cascade-deleted by a previous partial reset)
+        let seller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
         if (!seller) {
-            res.status(500).json({ error: 'Failed to find/create seller profile' });
-            return;
+            console.log('[DEMO] Recreating missing seller profile for demo user');
+            seller = await prisma.sellerProfile.create({
+                data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+            });
+        }
+        const existingBuyerP = await prisma.buyerProfile.findFirst({ where: { userId: demoUser.id } });
+        if (!existingBuyerP) {
+            console.log('[DEMO] Recreating missing buyer profile for demo user');
+            await prisma.buyerProfile.create({
+                data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true },
+            });
         }
 
         // Create demo buyers
