@@ -13,9 +13,9 @@
 > **Built for [Chainlink Hackathon 2026 — Convergence](https://chain.link/hackathon)**
 > Powered by **Chainlink CRE** (Custom Functions) + **ACE** (Automated Compliance Engine)
 
-Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **5-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and optional ERC-721 lead tokenization on purchase.
+Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **5-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and **ERC-721 lead tokenization on every purchase**.
 
-**Key Differentiator:** First platform to tokenize leads as on-chain assets — every purchased lead can be minted as an ERC-721 NFT via `LeadNFTv2.sol`, providing immutable provenance, quality scores, and portfolio management for buyers.
+**Key Differentiator:** First platform to tokenize leads as on-chain assets — every purchased lead is minted as an ERC-721 NFT via `LeadNFTv2.sol`, providing immutable provenance, quality scores, resale capability, royalty earnings, and full portfolio management for buyers. Lead tokenization is **core** — not optional.
 
 ---
 
@@ -108,9 +108,10 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 
 ## ⚡ Features
 
-### Core — Real-Time Lead Bidding
+### Core — Real-Time Lead Bidding + On-Chain Tokenization
 
 - 🔄 **RTB Engine** — Sub-second real-time matching and bidding with WebSocket streaming; 5-minute default auctions (configurable 60s–10min)
+- 🎨 **Lead Tokenization (Core)** — Every purchased lead is minted as an ERC-721 NFT via `LeadNFTv2.sol` — on-chain provenance, quality scores, resale capability, royalty earnings, and full portfolio management. Buyers own the lead on-chain.
 - ✅ **Automated Compliance** — KYC/AML, TCPA, MiCA, jurisdiction checks with zero manual review
 - 🔒 **Privacy-Preserving** — ZK proofs + encrypted bids; buyers see non-PII previews (per-vertical redaction via `piiProtection.ts`) before purchase, full PII only after
 - 💰 **Instant Settlement** — USDC escrow via `RTBEscrow.sol` with automated release upon bid acceptance (2.5% platform fee)
@@ -125,14 +126,13 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
 
-### Optional — NFT Monetization Layer
+### Optional — Vertical NFT Monetization Layer
 
-- 🎨 **Lead NFTs** — ERC-721 tokenized leads via `LeadNFTv2.sol` — minted during the verification pipeline, providing on-chain provenance, quality scores, and portfolio management
 - 🏷️ **Vertical NFTs** — `VerticalNFT.sol` with CRE uniqueness verification, ACE compliance gating, 2% ERC-2981 royalties, and hierarchical depth (0–3)
 - 🔨 **Vertical Auctions** — `VerticalAuction.sol` sealed-bid auctions for platform-minted vertical NFTs with configurable bid windows (60s–7 days) and reserve pricing
-- 🏆 **Holder Perks** — NFT holders get 5–10s pre-ping window, 1.2× bid multiplier, +2000 RTB score bonus, and opt-in notifications
+- 🏆 **Holder Perks** — Vertical NFT holders get 5–10s pre-ping window, 1.2× bid multiplier, +2000 RTB score bonus, and opt-in notifications
 
-> NFTs are a supplementary monetization and retention layer. The core value proposition — verified RTB with instant settlement and non-PII previews — works without them.
+> Vertical NFTs are a supplementary monetization and retention layer. **Lead tokenization is core** — every purchase mints an ERC-721. The RTB marketplace with instant settlement and non-PII previews works independently of vertical NFTs.
 
 ---
 
@@ -145,7 +145,7 @@ Traditional lead marketplaces hold funds for 7-30 days. Lead Engine settles via 
 1. Lead verified by CRE → quality score published on-chain
 2. Sealed-bid auction runs (auto-bid or manual) — **5-minute default window**
 3. Winner pays via x402 → USDC released to seller instantly
-4. Lead minted as ERC-721 NFT for buyer provenance
+4. Lead minted as ERC-721 NFT — buyer owns it on-chain, can resell + earn royalties
 5. Seller reinvests in next campaign with zero float lag
 
 > **Result:** 10-50x faster capital turnover vs. traditional marketplaces.
@@ -665,13 +665,13 @@ Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
 | **Confidential Compute** | 🔌 Stub-ready | `confidential.service.ts` — TEE lead scoring; activates when access granted |
 
 **Key differentiators:**
-1. **First platform to tokenize leads** — ERC-721 via `LeadNFTv2.sol` for on-chain provenance, quality scores, and verifiable trade history
+1. **First platform to tokenize leads** — every purchased lead becomes an ERC-721 NFT via `LeadNFTv2.sol` with on-chain provenance, quality scores, resale, and royalties. **This is core, not optional.**
 2. Privacy-preserving commit-reveal bidding with ZK fraud detection and **non-PII buyer previews**
 3. Cross-border compliance engine with state-level enforcement across 20+ countries
 4. **Dynamic verticals** — AI-powered vertical suggestions with PII scrubbing, anti-hallucination validation, and auto-creation
 5. **Autonomous bidding** — 7-criteria auto-bid engine + MCP agent server with 9 tools + LangChain integration
 6. **CRM pipeline** — HubSpot and Zapier webhook integrations for enterprise buyers
-7. Optional NFT monetization layer for vertical ownership and holder perks — supplementary, not core
+7. Optional **vertical NFT** monetization layer for vertical ownership and holder perks — supplementary, not core
 
 ---
 

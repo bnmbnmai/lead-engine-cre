@@ -7,7 +7,7 @@ import { useSidebar } from '@/components/layout/DashboardLayout';
 
 export function Navbar() {
     const location = useLocation();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
 
     // Try to get sidebar context (exists when inside DashboardLayout)
     let sidebarToggle: (() => void) | null = null;
@@ -36,6 +36,9 @@ export function Navbar() {
             { href: '/buyer', label: 'Buyer' },
             { href: '/seller', label: 'Seller' },
         );
+        if (user?.role === 'ADMIN') {
+            navLinks.push({ href: '/admin', label: 'Admin' });
+        }
     }
 
     return (

@@ -8,6 +8,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
+import { clearAllCaches } from '../lib/cache';
 
 const router = Router();
 
@@ -282,6 +283,9 @@ router.post('/clear', async (req: Request, res: Response) => {
         const deletedLeads = await prisma.lead.deleteMany({});
         const deletedAsks = await prisma.ask.deleteMany({});
 
+        // Flush all in-memory LRU caches so stale data doesn't persist
+        const cachesFlushed = clearAllCaches();
+
         // Notify clients marketplace is empty
         const io = req.app.get('io');
         if (io) io.emit('marketplace:refreshAll');
@@ -293,6 +297,7 @@ router.post('/clear', async (req: Request, res: Response) => {
                 bids: deletedBids.count,
                 asks: deletedAsks.count,
             },
+            cachesFlushed,
         });
     } catch (error) {
         console.error('Demo clear error:', error);

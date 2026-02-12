@@ -253,6 +253,22 @@ export function invalidateOnAuctionSettle(slug: string, auctionId?: string): voi
 }
 
 /**
+ * Clear ALL cache instances — used by demo panel "Clear Demo Data".
+ * Returns the number of caches flushed.
+ */
+export function clearAllCaches(): number {
+    const caches = [
+        qualityScoreCache, parameterMatchCache, complianceCache, kycCache,
+        marketplaceAsksCache, marketplaceLeadsCache, analyticsOverviewCache,
+        analyticsLeadCache, verticalHierarchyCache, nftOwnershipCache,
+        bidActivityCache, holderNotifyCache,
+    ];
+    caches.forEach(c => c.clear());
+    console.log(`[CACHE] All ${caches.length} caches flushed (demo clear)`);
+    return caches.length;
+}
+
+/**
  * Evict all expired entries across all named cache instances.
  * Intended for periodic cleanup (e.g. every 5 minutes via cron).
  * Returns total number of evicted entries.

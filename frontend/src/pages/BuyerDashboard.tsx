@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -19,6 +19,7 @@ export function BuyerDashboard() {
     const [overview, setOverview] = useState<any>(null);
     const [recentBids, setRecentBids] = useState<any[]>([]);
     const [activeLeads, setActiveLeads] = useState<any[]>([]);
+    const [purchasedLeads, setPurchasedLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -33,6 +34,9 @@ export function BuyerDashboard() {
                 setOverview(overviewRes.data?.stats);
                 setRecentBids(bidsRes.data?.bids?.slice(0, 5) || []);
                 setActiveLeads(leadsRes.data?.leads || []);
+                // Filter accepted/won bids as purchased leads
+                const allBids = bidsRes.data?.bids || [];
+                setPurchasedLeads(allBids.filter((b: any) => b.status === 'ACCEPTED' || b.status === 'WON'));
             } catch (error) {
                 console.error('Dashboard fetch error:', error);
             } finally {
@@ -55,6 +59,8 @@ export function BuyerDashboard() {
                 setOverview(overviewRes.data?.stats);
                 setRecentBids(bidsRes.data?.bids?.slice(0, 5) || []);
                 setActiveLeads(leadsRes.data?.leads || []);
+                const allBids = bidsRes.data?.bids || [];
+                setPurchasedLeads(allBids.filter((b: any) => b.status === 'ACCEPTED' || b.status === 'WON'));
             } catch (error) {
                 console.error('Poll fetch error:', error);
             }
@@ -242,6 +248,53 @@ export function BuyerDashboard() {
                         )}
                     </div>
                 </div>
+
+                {/* Purchased Leads */}
+                {purchasedLeads.length > 0 && (
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-semibold flex items-center gap-2">
+                                <CheckCircle className="h-5 w-5 text-emerald-500" />
+                                Purchased Leads
+                            </h2>
+                            <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
+                                {purchasedLeads.length} won
+                            </Badge>
+                        </div>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {purchasedLeads.map((bid) => (
+                                <Card key={bid.id} className="border-emerald-500/20">
+                                    <CardContent className="p-5">
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div>
+                                                <h3 className="font-semibold capitalize">{bid.lead?.vertical || 'Lead'}</h3>
+                                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                    <MapPin className="h-3 w-3" />
+                                                    {bid.lead?.geo?.city ? `${bid.lead.geo.city}, ` : ''}{bid.lead?.geo?.state || 'Unknown'}
+                                                </div>
+                                            </div>
+                                            <Badge className="bg-emerald-500/15 text-emerald-500 border-0">
+                                                Won
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-3 border-t border-border">
+                                            <div>
+                                                <span className="text-xs text-muted-foreground">Amount Paid</span>
+                                                <div className="text-lg font-bold">{formatCurrency(bid.amount || 0)}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-xs text-muted-foreground">Purchased</span>
+                                                <div className="text-sm font-medium">
+                                                    {new Date(bid.updatedAt || bid.createdAt).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </DashboardLayout>
     );
