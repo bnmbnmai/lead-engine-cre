@@ -140,8 +140,6 @@ export function DemoPanel() {
         const next = !mockData;
         setMockData(next);
         localStorage.setItem('VITE_USE_MOCK_DATA', next ? 'true' : 'false');
-        // Update in-memory env for Vite
-        (import.meta.env as any).VITE_USE_MOCK_DATA = next ? 'true' : 'false';
         setActions(prev => ({
             ...prev,
             mock: { state: 'success', message: next ? '📊 Mock data enabled' : '📊 Mock data disabled' },
