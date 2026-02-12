@@ -3,9 +3,10 @@
  *
  * Tests for fixes:
  *  - #3   Rate limit alignment (10/min unified)
+ *  - #3   IP blocklist middleware
  *  - #5   Trademark blocklist + Jaccard dedup
- *  - #14  PII scrubber Unicode enhancement
- *  - #8   NFT cache invalidation on resale/settle
+ *  - #14  PII scrubber Unicode enhancement + audit logging
+ *  - #8   Cache invalidation on ownership change/settle
  *  - Notification batching + daily cap + GDPR consent
  *
  * 27 tests total.
@@ -77,9 +78,20 @@ import {
     queueNotification,
     flushNotificationDigest,
     hasGdprConsent,
+    queueOrSendNotification,
     NOTIFICATION_CONSTANTS,
     HolderNotification,
 } from '../../src/services/notification.service';
+
+import {
+    IpBlocklist,
+    normalizeIp,
+    getSubnetPrefix,
+} from '../../src/middleware/rateLimit';
+
+import {
+    scrubPIIWithAuditLog,
+} from '../../src/services/vertical-optimizer.service';
 
 // ============================================
 // 1. Rate Limit Alignment (#3) — 3 tests
@@ -317,12 +329,119 @@ describe('Coordinated Spam Edge Cases', () => {
 });
 
 // ============================================
+// 8. IP Blocklist (#3) — 4 tests
+// ============================================
+
+describe('#3 IP Blocklist', () => {
+    test('blocks exact IP', () => {
+        const bl = new IpBlocklist(100);
+        bl.add('10.0.0.1');
+        expect(bl.isBlocked('10.0.0.1')).toBe(true);
+    });
+
+    test('allows non-blocked IP', () => {
+        const bl = new IpBlocklist(100);
+        bl.add('10.0.0.1');
+        expect(bl.isBlocked('10.0.0.2')).toBe(false);
+    });
+
+    test('blocks by /24 subnet', () => {
+        const bl = new IpBlocklist(100);
+        bl.add('192.168.1'); // /24 subnet
+        expect(bl.isBlocked('192.168.1.99')).toBe(true);
+        expect(bl.isBlocked('192.168.2.1')).toBe(false);
+    });
+
+    test('normalizeIp handles ::ffff: prefix', () => {
+        expect(normalizeIp('::ffff:192.168.1.42')).toBe('192.168.1.42');
+        expect(normalizeIp('10.0.0.1')).toBe('10.0.0.1');
+        expect(normalizeIp('')).toBe('');
+    });
+});
+
+// ============================================
+// 9. PII Audit Logging (#14) — 1 test
+// ============================================
+
+describe('#14 PII Audit Logging', () => {
+    test('scrubPIIWithAuditLog logs structured JSON for redactions', () => {
+        const logSpy = jest.spyOn(console, 'log').mockImplementation();
+        const result = scrubPIIWithAuditLog('Contact john@example.com for details', 'US', { leadId: 'test-1' });
+        expect(result.text).toContain('[REDACTED]');
+        // Check that a PII_SCRUB_AUDIT event was logged
+        const auditCall = logSpy.mock.calls.find(call =>
+            typeof call[0] === 'string' && call[0].includes('PII_SCRUB_AUDIT')
+        );
+        expect(auditCall).toBeDefined();
+        if (auditCall) {
+            const parsed = JSON.parse(auditCall[0]);
+            expect(parsed.event).toBe('PII_SCRUB_AUDIT');
+            expect(parsed.redactionCount).toBeGreaterThan(0);
+            expect(parsed.leadId).toBe('test-1');
+        }
+        logSpy.mockRestore();
+    });
+});
+
+// ============================================
+// 10. Priority Notifications — 3 tests
+// ============================================
+
+describe('Priority Notifications', () => {
+    function makeNotification(userId: string, priority?: 'normal' | 'critical'): HolderNotification {
+        return {
+            userId,
+            walletAddress: '0xTEST',
+            vertical: 'solar',
+            leadId: `lead-${Math.random().toString(36).slice(2)}`,
+            auctionStart: new Date(),
+            prePingSeconds: 30,
+            priority,
+        };
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        flushNotificationDigest();
+    });
+
+    test('critical notification returns immediate=true', async () => {
+        mockHolderNotifyCache.getOrSet.mockResolvedValue(true);
+        const result = await queueOrSendNotification(makeNotification('user-crit', 'critical'));
+        expect(result.immediate).toBe(true);
+        expect(result.queued).toBe(false);
+        expect(result.digest?.get('user-crit')?.length).toBe(1);
+    });
+
+    test('normal notification returns queued=true', async () => {
+        mockHolderNotifyCache.getOrSet.mockResolvedValue(true);
+        const result = await queueOrSendNotification(makeNotification('user-norm', 'normal'));
+        expect(result.queued).toBe(true);
+        expect(result.immediate).toBe(false);
+    });
+
+    test('critical notification respects daily cap', async () => {
+        mockHolderNotifyCache.getOrSet.mockResolvedValue(true);
+        // Fill up daily cap
+        for (let i = 0; i < 55; i++) {
+            await queueNotification(makeNotification('cap-test'));
+        }
+        flushNotificationDigest(); // Flushes up to daily cap
+
+        // Now try critical — should be blocked by cap
+        const result = await queueOrSendNotification(makeNotification('cap-test', 'critical'));
+        expect(result.immediate).toBe(false);
+        expect(result.queued).toBe(false);
+    });
+});
+
+// ============================================
 // Summary
 // ============================================
 
 describe('P2 Fix Test Count', () => {
-    test('minimum 27 tests in this file', () => {
-        // 3 + 4 + 4 + 5 + 3 + 6 + 2 = 27
+    test('minimum 35 tests in this file', () => {
+        // 3 + 4 + 4 + 5 + 3 + 6 + 2 + 4 + 1 + 3 = 35
         expect(true).toBe(true);
     });
 });

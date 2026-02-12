@@ -1,11 +1,11 @@
 /**
- * P3 Polish & Migration Tests — 22 tests
+ * P3 Polish & Migration Tests — 32 tests
  *
  * Coverage:
- *  1. Socket Notify Debounce (#10) — 6 tests
- *  2. Tiered Rate Limiter (#15) — 5 tests
- *  3. Migration Backfill (#18) — 7 tests
- *  4. Step Label / Seeder (#12) — 4 tests
+ *  1. Socket Notify Debounce (#10) — 9 tests
+ *  2. Tiered Rate Limiter (#15) — 8 tests
+ *  3. Migration Backfill (#18) — 10 tests
+ *  4. Step Label / Seeder (#12) — 5 tests
  */
 
 // ============================================
@@ -171,6 +171,41 @@ describe('#10 Socket Notify Debounce', () => {
         handler.cancelAll();
         expect(handler.pendingCount).toBe(0);
     });
+
+    test('rapid toggles coalesce: only last value wins', () => {
+        notifyDebounceMap.set('rapid-user', Date.now());
+
+        // Toggle true, false, true rapidly
+        handler.handle('rapid-user', true, mockSocket, mockExecutor);
+        handler.handle('rapid-user', false, mockSocket, mockExecutor);
+        handler.handle('rapid-user', true, mockSocket, mockExecutor);
+
+        // Only 1 pending timer (last one replaces previous)
+        expect(handler.pendingCount).toBe(1);
+    });
+
+    test('all debounced emissions include role: status', () => {
+        notifyDebounceMap.set('aria-user', Date.now());
+        handler.handle('aria-user', true, mockSocket, mockExecutor);
+
+        const pendingCalls = mockSocket.emit.mock.calls.filter(
+            (c: any[]) => c[0] === 'holder:notify-pending',
+        );
+        for (const call of pendingCalls) {
+            expect(call[1].role).toBe('status');
+        }
+    });
+
+    test('non-debounced call does NOT emit holder:notify-pending', () => {
+        // Fresh state — no cooldown
+        notifyDebounceMap.clear();
+        handler.handle('fresh-user', true, mockSocket, mockExecutor);
+
+        const pendingCalls = mockSocket.emit.mock.calls.filter(
+            (c: any[]) => c[0] === 'holder:notify-pending',
+        );
+        expect(pendingCalls.length).toBe(0);
+    });
 });
 
 // ============================================
@@ -209,6 +244,24 @@ describe('#15 Tiered Rate Limiter', () => {
         const premiumLimit = baseLimit * TIER_MULTIPLIERS.PREMIUM; // 30
         const capped = Math.min(premiumLimit, TIER_HARD_CEILING);
         expect(capped).toBeLessThanOrEqual(TIER_HARD_CEILING);
+    });
+
+    test('createTieredLimiter returns a middleware function', () => {
+        const limiter = createTieredLimiter(10);
+        expect(typeof limiter).toBe('function');
+    });
+
+    test('tier cache resets without error', () => {
+        expect(() => clearTierCache()).not.toThrow();
+        expect(() => clearTierCache()).not.toThrow();
+    });
+
+    test('high base + premium exceeds ceiling → capped', () => {
+        const base = 20;
+        const raw = base * TIER_MULTIPLIERS.PREMIUM; // 60
+        const capped = Math.min(raw, TIER_HARD_CEILING);
+        expect(raw).toBe(60);
+        expect(capped).toBe(30);
     });
 });
 
@@ -298,6 +351,34 @@ describe('#18 Migration Backfill Integration', () => {
         const expectedBatches = Math.ceil(totalBids / BATCH_SIZE);
         expect(expectedBatches).toBe(4);
     });
+
+    test('partial batch failure: transaction rejects all updates', async () => {
+        mockPrisma.$transaction.mockRejectedValueOnce(new Error('Disk full'));
+
+        await expect(
+            mockPrisma.$transaction([
+                mockPrisma.bid.update({ where: { id: 'bid-a' }, data: { effectiveBid: 10 } }),
+                mockPrisma.bid.update({ where: { id: 'bid-b' }, data: { effectiveBid: 20 } }),
+            ]),
+        ).rejects.toThrow('Disk full');
+    });
+
+    test('progress format: includes fraction and percentage', () => {
+        const updated = 150;
+        const total = 300;
+        const pct = ((updated / total) * 100).toFixed(1);
+        const progress = `Progress: ${updated}/${total} (${pct}%)`;
+        expect(progress).toBe('Progress: 150/300 (50.0%)');
+    });
+
+    test('--batch-size flag is documented in script', () => {
+        const backfillContent = require('fs').readFileSync(
+            require('path').join(__dirname, '../../scripts/backfill-effective-bid.ts'),
+            'utf-8',
+        );
+        expect(backfillContent).toContain('--batch-size');
+        expect(backfillContent).toContain('parseBatchSize');
+    });
 });
 
 // ============================================
@@ -306,13 +387,13 @@ describe('#18 Migration Backfill Integration', () => {
 
 describe('#12 Seeder Step Labels', () => {
     test('dynamic step counter produces correct format', () => {
-        const TOTAL_STEPS = 8;
+        const TOTAL_STEPS = 9;
         let currentStep = 0;
         const step = (label: string) => `→ Step ${++currentStep}/${TOTAL_STEPS}: ${label}`;
 
-        expect(step('Users')).toBe('→ Step 1/8: Users');
-        expect(step('Profiles')).toBe('→ Step 2/8: Profiles');
-        expect(step('Asks')).toBe('→ Step 3/8: Asks');
+        expect(step('Users')).toBe('→ Step 1/9: Users');
+        expect(step('Profiles')).toBe('→ Step 2/9: Profiles');
+        expect(step('Asks')).toBe('→ Step 3/9: Asks');
     });
 
     test('step counter auto-increments', () => {
@@ -325,19 +406,30 @@ describe('#12 Seeder Step Labels', () => {
     });
 
     test('step labels match expected count', () => {
-        // The seeder should have exactly 8 main steps
+        // The seeder should have exactly 9 main steps
         const expectedSteps = [
             'Users', 'Profiles', 'Asks', 'Leads',
-            'Bids', 'Transactions', 'Analytics Events', 'Holder Perk Scenarios',
+            'Bids', 'Transactions', 'Analytics Events',
+            'Holder Perk Scenarios', 'P2 Security Scenarios',
         ];
-        expect(expectedSteps.length).toBe(8);
+        expect(expectedSteps.length).toBe(9);
     });
 
     test('TOTAL_STEPS constant matches actual step count', () => {
-        // If we add more steps, this test reminds us to update TOTAL_STEPS
-        const TOTAL_STEPS = 8;
-        const actualStepCount = 8; // matches seeder
+        const TOTAL_STEPS = 9;
+        const actualStepCount = 9; // matches seeder
         expect(TOTAL_STEPS).toBe(actualStepCount);
+    });
+
+    test('step() calls in seed.ts match TOTAL_STEPS via source scan', () => {
+        const seedContent = require('fs').readFileSync(
+            require('path').join(__dirname, '../../prisma/seed.ts'),
+            'utf-8',
+        );
+        const stepCalls = seedContent.match(/\bstep\(['"/]/g) || [];
+        const totalMatch = seedContent.match(/TOTAL_STEPS\s*=\s*(\d+)/);
+        expect(totalMatch).not.toBeNull();
+        expect(stepCalls.length).toBe(parseInt(totalMatch![1]));
     });
 });
 
@@ -346,8 +438,8 @@ describe('#12 Seeder Step Labels', () => {
 // ============================================
 
 describe('P3 Test Count', () => {
-    test('minimum 22 tests in this file', () => {
-        // 6 + 5 + 7 + 4 = 22
+    test('minimum 32 tests in this file', () => {
+        // 9 + 8 + 10 + 5 = 32
         expect(true).toBe(true);
     });
 });

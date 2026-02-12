@@ -16,6 +16,7 @@ import {
     applyMultiplier,
     checkActivityThreshold,
     computePrePing,
+    isInPrePingWindow,
     HolderPerks,
 } from './holder-perks.service';
 
@@ -202,11 +203,11 @@ export async function placeBid(
         : bidAmount;
 
     // 4. Pre-ping enforcement: only holders can bid during pre-ping window
-    if (auction.prePingEndsAt) {
-        if (now < auction.prePingEndsAt && !perks.isHolder) {
-            const remainingSec = Math.ceil((auction.prePingEndsAt.getTime() - now.getTime()) / 1000);
-            return { success: false, error: `Pre-ping window active — holders only (${remainingSec}s remaining)` };
-        }
+    //    Uses isInPrePingWindow() to include grace period for latency tolerance
+    const prePingStatus = isInPrePingWindow(auction.prePingEndsAt ?? null);
+    if (prePingStatus.inWindow && !perks.isHolder) {
+        const remainingSec = Math.ceil(prePingStatus.remainingMs / 1000);
+        return { success: false, error: `Pre-ping window active — holders only (${remainingSec}s remaining)` };
     }
 
     if (effectiveBid < auction.reservePrice) {

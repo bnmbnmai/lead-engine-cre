@@ -571,7 +571,7 @@ async function main() {
     console.log('');
 
     // Dynamic step tracking — auto-adjusts when new stages are added
-    const TOTAL_STEPS = 8;
+    const TOTAL_STEPS = 9;
     let currentStep = 0;
     const step = (label: string) => console.log(`→ Step ${++currentStep}/${TOTAL_STEPS}: ${label}`);
 
@@ -609,6 +609,10 @@ async function main() {
     // 8. Holder perk scenarios (P2 #6)
     step('Holder Perk Scenarios');
     await seedHolderPerkScenarios(buyerUsers, leads);
+
+    // 9. P2 Security Scenarios
+    step('P2 Security Scenarios');
+    await seedP2SecurityScenarios(buyerUsers);
 
     // Summary
     const counts = {
@@ -713,7 +717,7 @@ async function seedHolderPerkScenarios(buyerUsers: any[], leads: any[]) {
                     suggestedName: `Spam Test ${slug}`,
                     parentSlug: 'solar',
                     confidence: 0.1 + Math.random() * 0.3,
-                    reason: 'seed:spam-threshold-test',
+                    reasoning: 'seed:spam-threshold-test',
                     sourceLeadId: leads[Math.floor(Math.random() * leads.length)]?.id || 'unknown',
                     sourceText: `Automated spam test suggestion ${slug}`,
                 },
@@ -781,6 +785,44 @@ async function seedHolderPerkScenarios(buyerUsers: any[], leads: any[]) {
         }
     }
     console.log('  Created 5 coordinated-IP analytics events (subnet: 192.168.42.*)');
+}
+
+// ─── Step 9: P2 Security Scenarios ──────────────────
+async function seedP2SecurityScenarios(buyerUsers: any[]) {
+    // 1. Blocklist IPs via analytics events (for load test verification)
+    const blockedIps = ['10.99.99.1', '10.99.99.2', '172.16.255.1'];
+    for (const ip of blockedIps) {
+        try {
+            await prisma.analyticsEvent.create({
+                data: {
+                    eventType: 'seed:ip-blocklist-entry',
+                    metadata: { ip, reason: 'P2 seed: known bad actor', addedAt: new Date().toISOString() },
+                },
+            });
+        } catch { /* skip */ }
+    }
+    console.log(`  Created ${blockedIps.length} IP blocklist seed entries`);
+
+    // 2. Notification opt-in scenarios
+    const optInUsers = buyerUsers.slice(0, 3);
+    const optOutUsers = buyerUsers.slice(3, 5);
+    for (const user of optInUsers) {
+        try {
+            await prisma.buyerProfile.updateMany({
+                where: { userId: user.id },
+                data: { holderNotifyOptIn: true },
+            });
+        } catch { /* skip */ }
+    }
+    for (const user of optOutUsers) {
+        try {
+            await prisma.buyerProfile.updateMany({
+                where: { userId: user.id },
+                data: { holderNotifyOptIn: false },
+            });
+        } catch { /* skip */ }
+    }
+    console.log(`  Set ${optInUsers.length} users to holderNotifyOptIn=true, ${optOutUsers.length} to false`);
 }
 
 main()

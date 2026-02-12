@@ -97,10 +97,10 @@ describe('P4: Perks Engine Unified API', () => {
         }
     });
 
-    test('exports MAX_VERTICAL_DEPTH = 4', () => {
-        expect(engineContent).toContain('MAX_VERTICAL_DEPTH = 4');
+    test('exports MAX_VERTICAL_DEPTH derived from config', () => {
+        expect(engineContent).toContain('MAX_HIERARCHY_DEPTH as MAX_VERTICAL_DEPTH');
         const { MAX_VERTICAL_DEPTH } = require('../../src/services/perks-engine');
-        expect(MAX_VERTICAL_DEPTH).toBe(4);
+        expect(MAX_VERTICAL_DEPTH).toBe(5); // Derived from perks.env MAX_HIERARCHY_DEPTH
     });
 });
 
@@ -297,8 +297,8 @@ describe('P4: Mobile Responsiveness', () => {
         expect(panelContent).toContain('sm:hidden');
     });
 
-    test('toggles use responsive grid (1 col mobile, 2 col desktop)', () => {
-        expect(panelContent).toContain('grid-cols-1 sm:grid-cols-2');
+    test('toggles use responsive grid (1 col mobile, 3 col desktop)', () => {
+        expect(panelContent).toContain('grid-cols-1 sm:grid-cols-3');
     });
 });
 
@@ -316,7 +316,7 @@ describe('P4: PerksPanel Integration', () => {
     test('PerksPanel has GDPR consent toggle (functional)', () => {
         const panelContent = readFrontend('src/components/marketplace/PerksPanel.tsx');
         expect(panelContent).toContain('GDPR Consent');
-        expect(panelContent).toContain('/api/buyer/gdpr-consent');
+        expect(panelContent).toContain('/api/v1/buyer/gdpr-consent');
     });
 
     test('PerksPanel embeds HolderWinRateChart', () => {

@@ -6,7 +6,10 @@
  * resolveAuction ordering works correctly without relying on fallback logic.
  *
  * Usage:  npx ts-node scripts/backfill-effective-bid.ts
+ *         npx ts-node scripts/backfill-effective-bid.ts --commit
+ *         npx ts-node scripts/backfill-effective-bid.ts --commit --batch-size 50
  * Safety: Read-only by default. Pass --commit to apply changes.
+ * Idempotent: Safe to re-run — only touches bids where effectiveBid IS NULL.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -14,13 +17,29 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const DRY_RUN = !process.argv.includes('--commit');
 
+/** Parse --batch-size N from CLI args (default: 100) */
+function parseBatchSize(): number {
+    const idx = process.argv.indexOf('--batch-size');
+    if (idx !== -1 && process.argv[idx + 1]) {
+        const parsed = parseInt(process.argv[idx + 1], 10);
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 1000) return parsed;
+        console.warn(`[BACKFILL] Invalid --batch-size, using default 100`);
+    }
+    return 100;
+}
+
+const BATCH_SIZE = parseBatchSize();
+
 async function main() {
+    const startTime = Date.now();
+
     console.log(`\n╔══════════════════════════════════════════╗`);
     console.log(`║  Backfill effectiveBid on legacy bids    ║`);
     console.log(`║  Mode: ${DRY_RUN ? 'DRY RUN (pass --commit to apply)' : '⚠️  COMMITTING CHANGES'}       ║`);
+    console.log(`║  Batch size: ${String(BATCH_SIZE).padEnd(28)}║`);
     console.log(`╚══════════════════════════════════════════╝\n`);
 
-    // 1. Count affected bids
+    // 1. Count affected bids (idempotent: only null effectiveBid)
     const nullBids = await prisma.bid.findMany({
         where: {
             effectiveBid: null,
@@ -33,6 +52,7 @@ async function main() {
 
     if (nullBids.length === 0) {
         console.log('✅ Nothing to backfill — all bids have effectiveBid set.');
+        logAudit(startTime, 0, 0);
         return;
     }
 
@@ -48,11 +68,11 @@ async function main() {
     // 3. Apply updates
     if (DRY_RUN) {
         console.log('\n🔒 DRY RUN — no changes made. Run with --commit to apply.');
+        logAudit(startTime, nullBids.length, 0);
         return;
     }
 
     let updated = 0;
-    const BATCH_SIZE = 100;
 
     // Process in batched transactions for atomicity + performance
     for (let i = 0; i < nullBids.length; i += BATCH_SIZE) {
@@ -81,7 +101,29 @@ async function main() {
     if (remaining === 0) {
         console.log('🎉 All bids now have effectiveBid set.');
     }
+
+    logAudit(startTime, nullBids.length, updated);
 }
+
+/** Structured audit log for deployment tracking */
+function logAudit(startTime: number, found: number, updated: number): void {
+    const durationMs = Date.now() - startTime;
+    console.log(JSON.stringify({
+        event: 'MIGRATION_BACKFILL_AUDIT',
+        script: 'backfill-effective-bid',
+        timestamp: new Date().toISOString(),
+        durationMs,
+        durationSec: (durationMs / 1000).toFixed(2),
+        mode: DRY_RUN ? 'dry-run' : 'commit',
+        batchSize: BATCH_SIZE,
+        found,
+        updated,
+        remaining: found - updated,
+    }));
+}
+
+// Export for testing
+export { parseBatchSize, DRY_RUN, BATCH_SIZE };
 
 main()
     .catch((e) => {

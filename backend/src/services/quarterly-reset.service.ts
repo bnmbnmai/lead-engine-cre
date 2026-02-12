@@ -235,7 +235,62 @@ export async function checkExpiredLeases(): Promise<LeaseCheckResult> {
     }
 
     console.log(`[QUARTERLY-RESET] Check complete: ${result.expiredCount} expired, ${result.graceEnteredCount} entered grace, ${result.reAuctionTriggered.length} re-auctioned, ${result.skippedActiveAuction.length} skipped/paused, ${result.notificationsSent} notifications`);
+
+    // 3. Resume any PAUSED leases where the blocking auction has settled
+    const resumed = await resumePausedLeases();
+    result.reAuctionTriggered.push(...resumed);
+
     return result;
+}
+
+/**
+ * Resume leases in PAUSED status after the blocking mid-auction settles/cancels.
+ * When a lease was paused due to an active auction on the same vertical,
+ * this function checks if that auction has now concluded and, if so,
+ * expires the lease and triggers re-auction.
+ *
+ * @returns array of vertical slugs where re-auction was triggered
+ */
+export async function resumePausedLeases(): Promise<string[]> {
+    const now = new Date();
+    const resumed: string[] = [];
+
+    const pausedAuctions = await prisma.verticalAuction.findMany({
+        where: {
+            leaseStatus: 'PAUSED',
+            settled: false,
+            cancelled: false,
+        },
+    });
+
+    for (const auction of pausedAuctions) {
+        // Check if any active auction still exists for this vertical
+        const activeAuction = await prisma.verticalAuction.findFirst({
+            where: {
+                verticalSlug: auction.verticalSlug,
+                settled: false,
+                cancelled: false,
+                endTime: { gt: now },
+                id: { not: auction.id },
+            },
+        });
+
+        if (activeAuction) {
+            // Still blocked — keep paused
+            continue;
+        }
+
+        // Blocking auction resolved — expire the paused lease and trigger re-auction
+        await expireLease(auction.id);
+        const notified = await notifyLeaseHolder(auction, 'LEASE_EXPIRED');
+        if (notified) {
+            console.log(`[QUARTERLY-RESET] Resumed + notified: ${auction.verticalSlug}`);
+        }
+        resumed.push(auction.verticalSlug);
+        console.log(`[QUARTERLY-RESET] Resumed paused lease for "${auction.verticalSlug}" — blocking auction resolved`);
+    }
+
+    return resumed;
 }
 
 /**

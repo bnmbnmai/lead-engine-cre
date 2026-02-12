@@ -1,9 +1,9 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-886%20passing-brightgreen)
-![Jest](https://img.shields.io/badge/Jest-646%20passing-brightgreen)
-![Hardhat](https://img.shields.io/badge/Hardhat-133%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-957%20passing-brightgreen)
+![Jest](https://img.shields.io/badge/Jest-816%20passing-brightgreen)
+![Hardhat](https://img.shields.io/badge/Hardhat-141%20passing-brightgreen)
 ![Cypress](https://img.shields.io/badge/Cypress%20E2E-107%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
 ![Coverage](https://img.shields.io/badge/contracts-5%20verified-orange)
@@ -354,20 +354,20 @@ npm run dev
 
 ## 🧪 Testing
 
-> **420 tests passing** across 4 suites — **100% pass rate** on all automated suites.
+> **957+ tests passing** across 4 suites — **100% pass rate** on all automated suites.
 > Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
 
 | Suite | Tests | Status | Notes |
 |-------|------:|--------|-------|
-| **Backend Jest** | 333 | ✅ All passing | 19 suites — unit, e2e, security, compliance, env-guard, NFT service, integration, priority bidding |
-| **Hardhat Contracts** | 72 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced |
-| **Cypress E2E** | 113 | ✅ All passing | 5 specs — UI flows, multi-wallet, stress, copy, vertical-nft |
+| **Backend Jest** | 816 | ✅ All passing | 32 suites — unit, e2e, security, compliance, env-guard, NFT service, integration, priority bidding, UX polish, final integration |
+| **Hardhat Contracts** | 141 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced, VerticalAuction SLOAD optimization |
+| **Cypress E2E** | 107 | ✅ All passing | 5 specs — UI flows, multi-wallet, stress, copy, vertical-nft |
 | **Artillery Load** | 22 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **523+** | **✅ 100%** | |
+| **Total** | **1064+** | **✅ 100%** | |
 
-### Backend Jest (257 passing, 16 suites)
+### Backend Jest (816 passing, 32 suites)
 
 | Suite | Tests | Coverage |
 |-------|------:|----------|
@@ -383,7 +383,10 @@ npm run dev
 | Auto-Bid Engine | 18 | Score gate, geo include/exclude, budget, off-site |
 | CRM Webhooks | 10 | HubSpot/Zapier formatters, CRUD, payload transforms |
 | Env Guard | 18 | Prod mock blocking, dev/prod switches, empty datasets |
-| Preference Debug | 20+ | Seller targeting validation, buyer preferences |
+| Preference Debug | 31 | PreferenceSet schema, BuyerPreferencesV2, edge cases |
+| Integration | 56 | Full lifecycle, stacking, migration, ACE+GDPR, cache |
+| P0-P5 Fixes | 200+ | Holder perks, pre-ping nonce, quarterly reset, UX polish |
+| P5 Final Integration | 50 | E2E flow, perk stacking, bot sim, GDPR, config validation |
 
 #### Jest Coverage
 
@@ -401,7 +404,7 @@ npm run dev
 
 > **Note:** Jest requires PostgreSQL (Prisma). In CI, use the `services` block in GitHub Actions. Locally, run `docker compose up db` first.
 
-### Hardhat Contract Tests (62 passing, 7 suites)
+### Hardhat Contract Tests (141 passing, 8 suites)
 
 | Suite | Tests | Coverage |
 |-------|------:|----------|
@@ -412,8 +415,9 @@ npm run dev
 | E2E Settlement | 6 | 5 wallets, escrow, dispute/refund, buy-now |
 | E2E Reorg | 4 | State restoration, re-bidding, double-spend |
 | Chainlink Stubs | 5 | MockFunctionsRouter, parameter match, ZK proofs |
+| VerticalNFT Advanced | 80+ | Royalties, hierarchy, fractionalization, interface support |
 
-### Cypress E2E (101 passing, 4 specs)
+### Cypress E2E (107 passing, 5 specs)
 
 | Spec | Tests | Coverage |
 |------|------:|----------|
@@ -421,6 +425,7 @@ npm run dev
 | `multi-wallet.cy.ts` | 22 | Multi-wallet auctions, disconnect/reconnect, role switching |
 | `stress-ui.cy.ts` | 16 | UI stability, error states, rapid navigation, 504 handling |
 | `copy-assertions.cy.ts` | 15 | $200B+ copy, tooltips, dashboard subtitles |
+| `vertical-nft.cy.ts` | 6 | NFT vertical flows, minting, auction UI |
 
 ### Artillery Load Tests (18 scenarios, 10K peak)
 
@@ -482,17 +487,17 @@ lead-engine-cre/
 │   │   ├── routes/        # API + CRM webhooks + bidding + auto-bid
 │   │   ├── middleware/     # Auth, rate-limiting, CORS
 │   │   └── lib/           # Prisma, cache, geo-registry, utils
-│   ├── tests/             # 151 tests (unit, e2e, security, compliance, auto-bid, CRM)
+│   ├── tests/             # 816 tests (unit, e2e, security, compliance, auto-bid, CRM, UX polish)
 │   └── prisma/            # Schema + migrations
 ├── frontend/              # React/Vite SPA
 │   ├── src/
 │   │   ├── components/    # UI (shadcn/ui + custom)
 │   │   ├── pages/         # Buyer/Seller dashboards, marketplace
 │   │   └── hooks/         # Wallet, WebSocket, API hooks
-│   └── cypress/           # 101 E2E tests (UI flows, stress, copy, multi-wallet)
+│   └── cypress/           # 107 E2E tests (UI flows, stress, copy, multi-wallet, vertical-nft)
 ├── contracts/             # Solidity/Hardhat
 │   ├── contracts/         # 6 contracts + interfaces + mocks
-│   └── test/              # 62 tests — settlement, reorg, Chainlink stubs
+│   └── test/              # 141 tests — settlement, reorg, Chainlink stubs, VerticalNFT
 ├── mcp-server/            # MCP Agent Server (8 tools, LangChain agent)
 ├── docs/                  # Deployment, demo script, pitch deck, submission
 ├── tests/load/            # Artillery (18 scenarios, 10K peak)

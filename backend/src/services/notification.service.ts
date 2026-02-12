@@ -30,6 +30,7 @@ export interface HolderNotification {
     leadId: string;
     auctionStart: Date;
     prePingSeconds: number;
+    priority?: 'normal' | 'critical'; // critical = bypass queue delay
 }
 
 // ============================================
@@ -195,6 +196,46 @@ export async function queueNotification(notification: HolderNotification): Promi
     }
 
     return true;
+}
+
+/**
+ * Queue or immediately send a notification based on priority.
+ * Critical notifications (lease expiry, settle) bypass the digest queue
+ * and are returned immediately for socket delivery.
+ * They still count toward the daily cap.
+ */
+export async function queueOrSendNotification(
+    notification: HolderNotification,
+): Promise<{ queued: boolean; immediate: boolean; digest?: Map<string, HolderNotification[]> }> {
+    // GDPR consent check
+    if (!(await hasGdprConsent(notification.userId))) {
+        return { queued: false, immediate: false };
+    }
+
+    // Daily cap check
+    const today = new Date().toISOString().slice(0, 10);
+    const userCount = dailySendCount.get(notification.userId);
+    if (userCount && userCount.date === today && userCount.count >= DAILY_NOTIFICATION_CAP) {
+        console.log(`[NOTIFICATION] Daily cap (${DAILY_NOTIFICATION_CAP}) reached for ${notification.userId}`);
+        return { queued: false, immediate: false };
+    }
+
+    if (notification.priority === 'critical') {
+        // Increment daily count for critical too
+        const existing = dailySendCount.get(notification.userId) || { count: 0, date: today };
+        if (existing.date !== today) { existing.count = 0; existing.date = today; }
+        existing.count++;
+        dailySendCount.set(notification.userId, existing);
+
+        const digest = new Map<string, HolderNotification[]>();
+        digest.set(notification.userId, [notification]);
+        console.log(`[NOTIFICATION] Critical alert sent immediately to ${notification.userId}: ${notification.vertical}`);
+        return { queued: false, immediate: true, digest };
+    }
+
+    // Normal priority → queue for batch
+    const result = await queueNotification(notification);
+    return { queued: result, immediate: false };
 }
 
 /**

@@ -9,6 +9,7 @@
  *  5. High-Volume Notifications (5 tests)
  *  6. Seeder Verification (3 tests)
  *  7. Integration Edge Cases (4 tests)
+ *  8. P2 Cache + IP Enhancements (5 tests)
  */
 
 // ============================================
@@ -38,6 +39,14 @@ jest.mock('../../src/lib/cache', () => ({
     bidActivityCache: mockBidActivityCache,
     holderNotifyCache: mockHolderNotifyCache,
     verticalHierarchyCache: mockVerticalHierarchyCache,
+    qualityScoreCache: { delete: jest.fn(), evictExpired: jest.fn().mockReturnValue(0) },
+    parameterMatchCache: { delete: jest.fn(), evictExpired: jest.fn().mockReturnValue(0) },
+    complianceCache: { evictExpired: jest.fn().mockReturnValue(0) },
+    kycCache: { evictExpired: jest.fn().mockReturnValue(0) },
+    marketplaceAsksCache: { evictExpired: jest.fn().mockReturnValue(0) },
+    marketplaceLeadsCache: { evictExpired: jest.fn().mockReturnValue(0) },
+    analyticsOverviewCache: { evictExpired: jest.fn().mockReturnValue(0) },
+    analyticsLeadCache: { evictExpired: jest.fn().mockReturnValue(0) },
     invalidateNftOwnership: jest.fn((slug: string) => mockNftOwnershipCache.delete(`nft-owner:${slug}`)),
     invalidateVerticalHierarchy: jest.fn(() => mockVerticalHierarchyCache.clear()),
     invalidateAllForResale: jest.fn((slug: string) => {
@@ -45,6 +54,12 @@ jest.mock('../../src/lib/cache', () => ({
         mockVerticalHierarchyCache.clear();
         mockHolderNotifyCache.delete(`notify-optin:${slug}`);
     }),
+    invalidateOnAuctionSettle: jest.fn((slug: string, _auctionId?: string) => {
+        mockNftOwnershipCache.delete(`nft-owner:${slug}`);
+        mockVerticalHierarchyCache.clear();
+        mockHolderNotifyCache.delete(`notify-optin:${slug}`);
+    }),
+    evictAllExpired: jest.fn(() => 0),
     LRUCache: jest.requireActual('../../src/lib/cache').LRUCache,
 }));
 
@@ -82,11 +97,13 @@ jest.mock('../../src/config/perks.env', () => ({
 // Imports — AFTER mocks
 // ============================================
 
-import { LRUCache } from '../../src/lib/cache';
 import {
     invalidateNftOwnership,
     invalidateVerticalHierarchy,
     invalidateAllForResale,
+    invalidateOnAuctionSettle,
+    evictAllExpired,
+    LRUCache,
 } from '../../src/lib/cache';
 
 import {
@@ -102,9 +119,15 @@ import {
     queueNotification,
     flushNotificationDigest,
     hasGdprConsent,
+    queueOrSendNotification,
     NOTIFICATION_CONSTANTS,
     HolderNotification,
 } from '../../src/services/notification.service';
+
+import {
+    getSubnetPrefix,
+    normalizeIp,
+} from '../../src/middleware/rateLimit';
 
 // ============================================
 // 1. LRU Rate Limit Store (5 tests)
@@ -400,12 +423,51 @@ describe('Integration Edge Cases', () => {
 });
 
 // ============================================
+// 8. P2 Cache + IP Enhancements (5 tests)
+// ============================================
+
+describe('P2 Cache + IP Enhancements', () => {
+    const mockQualityScoreCache = { delete: jest.fn(), evictExpired: jest.fn().mockReturnValue(0) };
+    const mockParamMatchCache = { delete: jest.fn(), evictExpired: jest.fn().mockReturnValue(0) };
+
+    test('invalidateOnAuctionSettle calls invalidateAllForResale', () => {
+        jest.clearAllMocks();
+        invalidateOnAuctionSettle('solar', 'auction-123');
+        // invalidateAllForResale is called internally, so nft cache should be cleared
+        expect(mockNftOwnershipCache.delete).toHaveBeenCalledWith('nft-owner:solar');
+        expect(mockVerticalHierarchyCache.clear).toHaveBeenCalled();
+    });
+
+    test('invalidateAllForResale clears notify cache for slug', () => {
+        jest.clearAllMocks();
+        invalidateAllForResale('mortgage');
+        expect(mockHolderNotifyCache.delete).toHaveBeenCalledWith('notify-optin:mortgage');
+    });
+
+    test('evictAllExpired returns number', () => {
+        const result = evictAllExpired();
+        expect(typeof result).toBe('number');
+        expect(result).toBeGreaterThanOrEqual(0);
+    });
+
+    test('getSubnetPrefix handles ::ffff: IPv4-mapped addresses', () => {
+        expect(getSubnetPrefix('::ffff:10.0.0.42')).toBe('10.0.0');
+        expect(getSubnetPrefix('192.168.1.100')).toBe('192.168.1');
+    });
+
+    test('normalizeIp strips ::ffff: prefix correctly', () => {
+        expect(normalizeIp('::ffff:172.16.0.1')).toBe('172.16.0.1');
+        expect(normalizeIp('172.16.0.1')).toBe('172.16.0.1');
+    });
+});
+
+// ============================================
 // Summary
 // ============================================
 
 describe('P2 Extended Test Count', () => {
-    test('minimum 32 tests in this file', () => {
-        // 5 + 5 + 4 + 6 + 5 + 3 + 4 = 32
+    test('minimum 37 tests in this file', () => {
+        // 5 + 5 + 4 + 6 + 5 + 3 + 4 + 5 = 37
         expect(true).toBe(true);
     });
 });

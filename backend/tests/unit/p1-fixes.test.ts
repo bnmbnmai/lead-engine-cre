@@ -195,7 +195,8 @@ describe('Quarterly Reset Service', () => {
             .mockResolvedValueOnce([  // expired active
                 { id: 'a1', verticalSlug: 'solar', leaseStatus: 'ACTIVE', leaseEndDate: new Date(Date.now() - 1000) },
             ])
-            .mockResolvedValueOnce([]); // expired grace
+            .mockResolvedValueOnce([]) // expired grace
+            .mockResolvedValueOnce([]); // paused auctions (resumePausedLeases)
 
         mockPrisma.verticalAuction.update.mockResolvedValue({});
 
@@ -260,7 +261,8 @@ describe('Quarterly Reset Service', () => {
             .mockResolvedValueOnce([])  // expired active
             .mockResolvedValueOnce([    // expired grace
                 { id: 'a1', verticalSlug: 'solar', leaseStatus: 'GRACE_PERIOD', renewalDeadline: new Date(Date.now() - 1000) },
-            ]);
+            ])
+            .mockResolvedValueOnce([]); // paused auctions (resumePausedLeases)
 
         // An active auction exists for solar
         mockPrisma.verticalAuction.findFirst.mockResolvedValue({

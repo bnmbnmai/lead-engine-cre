@@ -226,3 +226,30 @@ export function computePrePing(slug: string, nonce: string = ''): number {
     return PRE_PING_MIN + (Math.abs(hash) % (PRE_PING_MAX - PRE_PING_MIN + 1));
 }
 
+/**
+ * Verify a stored prePingNonce against the DB-stored prePingEndsAt.
+ * Used in audit/dispute workflows to prove the pre-ping window was correctly computed.
+ *
+ * @param slug              Vertical slug
+ * @param storedNonce       The nonce persisted in VerticalAuction.prePingNonce
+ * @param auctionStartTime  When the auction started (VerticalAuction.startTime)
+ * @param storedPrePingEndsAt  The prePingEndsAt from the DB record
+ * @returns valid flag, the expected end time, and any drift in ms
+ */
+export function verifyPrePingNonce(
+    slug: string,
+    storedNonce: string,
+    auctionStartTime: Date,
+    storedPrePingEndsAt: Date,
+): { valid: boolean; expectedEndsAt: Date; driftMs: number } {
+    const recomputedSeconds = computePrePing(slug, storedNonce);
+    const expectedEndsAt = new Date(auctionStartTime.getTime() + recomputedSeconds * 1000);
+    const driftMs = Math.abs(expectedEndsAt.getTime() - storedPrePingEndsAt.getTime());
+
+    return {
+        valid: driftMs < 1000, // Allow <1s drift for rounding / clock resolution
+        expectedEndsAt,
+        driftMs,
+    };
+}
+

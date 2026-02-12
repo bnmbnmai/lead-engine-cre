@@ -33,6 +33,7 @@ export {
     isInPrePingWindowLegacy,
     checkActivityThreshold,
     computePrePing,
+    verifyPrePingNonce,
 } from './holder-perks.service';
 
 // ── Notifications ──────────────────────────────
@@ -148,5 +149,5 @@ export async function getPerksOverview(
     };
 }
 
-/** Maximum hierarchy depth — prevents infinite nesting bloat */
-export const MAX_VERTICAL_DEPTH = 4;
+/** Maximum hierarchy depth — derived from centralized config (prevents infinite nesting) */
+export { MAX_HIERARCHY_DEPTH as MAX_VERTICAL_DEPTH } from '../config/perks.env';

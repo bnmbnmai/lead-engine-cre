@@ -423,6 +423,7 @@ model AuctionRoom {
 
   @@index([roomId])
   @@index([phase, biddingEndsAt])
+  @@index([prePingEndsAt])           // Socket room pre-ping window filtering
 }
 
 enum AuctionPhase {

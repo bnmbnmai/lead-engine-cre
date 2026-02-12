@@ -32,6 +32,7 @@ interface PerksOverview {
     prePingSeconds: number;
     notifyOptedIn: boolean;
     gdprConsent: boolean;
+    autoBidEnabled: boolean;
     winStats: {
         totalBids: number;
         wonBids: number;
@@ -67,6 +68,7 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
                     prePingSeconds: 7,
                     notifyOptedIn: true,
                     gdprConsent: true,
+                    autoBidEnabled: false,
                     winStats: { totalBids: 42, wonBids: 18, winRate: 43 },
                 });
             } finally {
@@ -78,7 +80,7 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
 
     // Toggle handler with ARIA feedback
     const handleToggle = useCallback(async (
-        key: 'notifyOptedIn' | 'gdprConsent',
+        key: 'notifyOptedIn' | 'gdprConsent' | 'autoBidEnabled',
         value: boolean,
         label: string,
     ) => {
@@ -88,6 +90,8 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
                 await api.apiFetch('/api/v1/buyer/notify-optin', { method: 'POST', body: JSON.stringify({ optIn: value }), headers: { 'Content-Type': 'application/json' } });
             } else if (key === 'gdprConsent') {
                 await api.apiFetch('/api/v1/buyer/gdpr-consent', { method: 'POST', body: JSON.stringify({ consent: value }), headers: { 'Content-Type': 'application/json' } });
+            } else if (key === 'autoBidEnabled') {
+                await api.apiFetch('/api/v1/buyer/auto-bid', { method: 'POST', body: JSON.stringify({ enabled: value }), headers: { 'Content-Type': 'application/json' } });
             }
             setPerks(prev => prev ? { ...prev, [key]: value } : prev);
             toast({
@@ -172,7 +176,7 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
             {expanded && (
                 <CardContent id="perks-panel-content" className="pt-0 space-y-6">
                     {/* Toggle Switches */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-3">
                             <LabeledSwitch
                                 label="Auction Notifications"
@@ -202,6 +206,25 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
                             />
                             {updating === 'gdprConsent' && (
                                 <p id="gdpr-updating" className="text-xs text-muted-foreground animate-pulse" role="status" aria-live="assertive">
+                                    Updating...
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-3">
+                            <Tooltip content="Automatically place bids at your preset amount when matching leads appear in your verticals.">
+                                <LabeledSwitch
+                                    label="Auto-Bid"
+                                    description="Automatically bid on matching leads (uses preference set amount)"
+                                    checked={perks.autoBidEnabled}
+                                    onCheckedChange={(v: boolean) => handleToggle('autoBidEnabled', v, 'Auto-Bid')}
+                                    disabled={updating === 'autoBidEnabled'}
+                                    aria-label="Toggle automatic bidding on matching leads"
+                                    aria-describedby="autobid-desc"
+                                />
+                            </Tooltip>
+                            {updating === 'autoBidEnabled' && (
+                                <p id="autobid-updating" className="text-xs text-muted-foreground animate-pulse" role="status" aria-live="assertive">
                                     Updating...
                                 </p>
                             )}

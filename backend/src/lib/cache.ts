@@ -224,11 +224,56 @@ export const holderNotifyCache = new LRUCache<boolean>({
  *  - NFT ownership for this slug
  *  - Vertical hierarchy (tree structure may change)
  *  - Holder notification opt-in (new holder may have different prefs)
+ *  - Quality scores referencing this slug
+ *  - Parameter match results for this slug
  */
 export function invalidateAllForResale(slug: string): void {
     invalidateNftOwnership(slug);
     invalidateVerticalHierarchy();
     holderNotifyCache.delete(`notify-optin:${slug}`);
-    console.log(`[CACHE] Full resale invalidation for "${slug}" — nft+hierarchy+notify cleared`);
+    qualityScoreCache.delete(`quality:${slug}`);
+    parameterMatchCache.delete(`param:${slug}`);
+    console.log(`[CACHE] Full resale invalidation for "${slug}" — nft+hierarchy+notify+quality+param cleared`);
+}
+
+/**
+ * Event-driven invalidation for auction settlement.
+ * Calls invalidateAllForResale + logs structured settle event.
+ */
+export function invalidateOnAuctionSettle(slug: string, auctionId?: string): void {
+    invalidateAllForResale(slug);
+    console.log(JSON.stringify({
+        event: 'CACHE_INVALIDATION',
+        trigger: 'auction_settle',
+        slug,
+        auctionId: auctionId || 'unknown',
+        timestamp: new Date().toISOString(),
+        caches: ['nftOwnership', 'verticalHierarchy', 'holderNotify', 'qualityScore', 'parameterMatch'],
+    }));
+}
+
+/**
+ * Evict all expired entries across all named cache instances.
+ * Intended for periodic cleanup (e.g. every 5 minutes via cron).
+ * Returns total number of evicted entries.
+ */
+export function evictAllExpired(): number {
+    let total = 0;
+    total += qualityScoreCache.evictExpired();
+    total += parameterMatchCache.evictExpired();
+    total += complianceCache.evictExpired();
+    total += kycCache.evictExpired();
+    total += marketplaceAsksCache.evictExpired();
+    total += marketplaceLeadsCache.evictExpired();
+    total += analyticsOverviewCache.evictExpired();
+    total += analyticsLeadCache.evictExpired();
+    total += verticalHierarchyCache.evictExpired();
+    total += nftOwnershipCache.evictExpired();
+    total += bidActivityCache.evictExpired();
+    total += holderNotifyCache.evictExpired();
+    if (total > 0) {
+        console.log(`[CACHE] Periodic cleanup: ${total} expired entries evicted across all caches`);
+    }
+    return total;
 }
 

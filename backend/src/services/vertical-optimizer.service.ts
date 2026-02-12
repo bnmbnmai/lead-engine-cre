@@ -15,6 +15,7 @@ import { prisma } from '../lib/prisma';
 import { verticalHierarchyCache } from '../lib/cache';
 import { dataStreamsService } from './datastreams.service';
 import { activateVertical } from './vertical-nft.service';
+import { PII_AUDIT_ENABLED } from '../config/perks.env';
 
 // ============================================
 // Configuration
@@ -260,6 +261,38 @@ export function scrubPIIWithMetadata(text: string, geoHint?: string): ScrubResul
     if (detectedScripts.includes('cjk') && !crossBorderFlags.includes('APPI')) crossBorderFlags.push('PIPL');
 
     return { text: scrubbed, detectedScripts, crossBorderFlags: [...new Set(crossBorderFlags)] };
+}
+
+/**
+ * PII scrubber with GDPR Article 30 audit logging.
+ * Wraps scrubPIIWithMetadata and logs a structured JSON record
+ * of each scrub operation for compliance auditing.
+ */
+export function scrubPIIWithAuditLog(
+    text: string,
+    geoHint?: string,
+    context?: { leadId?: string; source?: string },
+): ScrubResult {
+    const result = scrubPIIWithMetadata(text, geoHint);
+
+    // Count redactions by comparing original vs scrubbed
+    const redactionCount = (result.text.match(/\[REDACTED\]/g) || []).length;
+
+    if (PII_AUDIT_ENABLED && redactionCount > 0) {
+        console.log(JSON.stringify({
+            event: 'PII_SCRUB_AUDIT',
+            timestamp: new Date().toISOString(),
+            redactionCount,
+            detectedScripts: result.detectedScripts,
+            crossBorderFlags: result.crossBorderFlags,
+            inputLength: text.length,
+            outputLength: result.text.length,
+            leadId: context?.leadId || 'unknown',
+            source: context?.source || 'vertical-optimizer',
+        }));
+    }
+
+    return result;
 }
 
 // ============================================
@@ -604,8 +637,9 @@ async function checkAndAutoCreate(suggestion: any): Promise<boolean> {
 export async function suggestVertical(input: SuggestInput): Promise<SuggestionResult> {
     const { description, vertical: parentHint, leadId } = input;
 
-    // 1. PII scrub
-    const scrubbed = scrubPII(description);
+    // 1. PII scrub (with audit logging for GDPR Article 30)
+    const scrubResult = scrubPIIWithAuditLog(description, undefined, { leadId, source: 'vertical-optimizer' });
+    const scrubbed = scrubResult.text;
     console.log(`[VERTICAL-OPTIMIZER] Processing: "${scrubbed.slice(0, 80)}..." (LLM: ${LLM_ENABLED})`);
 
     // 2. Check if exact match to existing vertical

@@ -343,8 +343,9 @@ describe('Migration Script Integrity', () => {
         expect(backfillContent).toContain('BATCH_SIZE');
     });
 
-    test('batch size is between 50-500', () => {
-        const match = backfillContent.match(/BATCH_SIZE\s*=\s*(\d+)/);
+    test('batch size default is between 50-500', () => {
+        // parseBatchSize() returns 100 by default — check via the return statement
+        const match = backfillContent.match(/return\s+(\d+)\s*;\s*[\r\n]+\s*\}\s*[\r\n]+\s*[\r\n]*\s*const BATCH_SIZE/);
         expect(match).not.toBeNull();
         const size = parseInt(match![1]);
         expect(size).toBeGreaterThanOrEqual(50);

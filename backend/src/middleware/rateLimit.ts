@@ -216,6 +216,104 @@ export function createTieredLimiter(baseLimitPerMinute: number) {
 }
 
 // ============================================
+// IP Blocklist
+// ============================================
+
+import { IP_BLOCKLIST_MAX_SIZE } from '../config/perks.env';
+
+/**
+ * Static IP blocklist with exact IP and /24 subnet matching.
+ * Used to permanently block known bad actors identified through
+ * coordinated spam detection or manual review.
+ */
+class IpBlocklist {
+    private exactIps: Set<string> = new Set();
+    private subnets: Set<string> = new Set(); // /24 prefixes
+    private readonly maxSize: number;
+
+    constructor(maxSize: number = 10000) {
+        this.maxSize = maxSize;
+    }
+
+    /** Add an IP or /24 subnet (e.g. "192.168.1.42" or "192.168.1") */
+    add(entry: string): boolean {
+        if (this.exactIps.size + this.subnets.size >= this.maxSize) {
+            console.warn(`[IP-BLOCKLIST] Max size (${this.maxSize}) reached — cannot add "${entry}"`);
+            return false;
+        }
+        const normalized = normalizeIp(entry);
+        const parts = normalized.split('.');
+        if (parts.length === 3) {
+            this.subnets.add(normalized);
+        } else {
+            this.exactIps.add(normalized);
+        }
+        console.log(`[IP-BLOCKLIST] Added: ${normalized} (exact: ${this.exactIps.size}, subnets: ${this.subnets.size})`);
+        return true;
+    }
+
+    /** Remove an IP or subnet from the blocklist */
+    remove(entry: string): boolean {
+        const normalized = normalizeIp(entry);
+        return this.exactIps.delete(normalized) || this.subnets.delete(normalized);
+    }
+
+    /** Check if an IP is blocked (exact match or /24 subnet match) */
+    isBlocked(ip: string): boolean {
+        const normalized = normalizeIp(ip);
+        if (this.exactIps.has(normalized)) return true;
+        const prefix = getSubnetPrefix(normalized);
+        return this.subnets.has(prefix);
+    }
+
+    /** Get current blocklist size */
+    get size(): number { return this.exactIps.size + this.subnets.size; }
+
+    /** Clear entire blocklist */
+    clear(): void {
+        this.exactIps.clear();
+        this.subnets.clear();
+    }
+}
+
+/** Normalize IP: strip ::ffff: prefix for IPv4-mapped IPv6 */
+function normalizeIp(ip: string): string {
+    if (!ip) return '';
+    // Handle IPv4-mapped IPv6 (e.g. "::ffff:192.168.1.42")
+    if (ip.startsWith('::ffff:')) {
+        const v4 = ip.slice(7); // "::ffff:".length === 7
+        if (v4.includes('.')) return v4;
+    }
+    return ip;
+}
+
+/** Singleton blocklist instance */
+export const ipBlocklist = new IpBlocklist(IP_BLOCKLIST_MAX_SIZE);
+
+/** Convenience: add IP to blocklist */
+export function addBlockedIp(ip: string): boolean { return ipBlocklist.add(ip); }
+
+/** Convenience: remove IP from blocklist */
+export function removeBlockedIp(ip: string): boolean { return ipBlocklist.remove(ip); }
+
+/** Convenience: check if IP is blocked */
+export function isBlocked(ip: string): boolean { return ipBlocklist.isBlocked(ip); }
+
+/**
+ * Middleware: Reject requests from blocked IPs.
+ * Runs BEFORE rate limiting to save resources on known bad actors.
+ */
+export function ipBlocklistMiddleware(req: Request, res: Response, next: NextFunction): void {
+    const clientIp = req.ip || '';
+    if (ipBlocklist.isBlocked(clientIp)) {
+        console.warn(`[IP-BLOCKLIST] Blocked request from ${clientIp}`);
+        res.status(403).json({ error: 'Access denied' });
+        return;
+    }
+    next();
+}
+
+// ============================================
 // Coordinated Spam Detection (IP Diversity)
 // ============================================
 
@@ -232,14 +330,18 @@ export const subnetActivityCache = new LRUCache<Set<string>>({
  * Extract /24 subnet prefix from IP address.
  * IPv4: "192.168.1.42" → "192.168.1"
  * IPv6: uses first 3 segments
+ * IPv4-mapped IPv6: "::ffff:192.168.1.42" → "192.168.1"
  */
 function getSubnetPrefix(ip: string): string {
     if (!ip) return 'unknown';
+    // Normalize IPv4-mapped IPv6 first
+    const normalized = normalizeIp(ip);
     // Handle IPv4
-    const parts = ip.replace('::ffff:', '').split('.');
+    const parts = normalized.split('.');
     if (parts.length === 4) return parts.slice(0, 3).join('.');
+    if (parts.length === 3) return normalized; // Already a /24 prefix
     // IPv6 — use first 3 hextets
-    const v6parts = ip.split(':');
+    const v6parts = normalized.split(':');
     return v6parts.slice(0, 3).join(':');
 }
 
@@ -276,5 +378,5 @@ export function coordinatedSpamCheck(req: Request, res: Response, next: NextFunc
 }
 
 // Export for testing
-export { LRURateLimitStore, COORDINATED_SPAM_THRESHOLD, getSubnetPrefix };
+export { IpBlocklist, LRURateLimitStore, COORDINATED_SPAM_THRESHOLD, getSubnetPrefix, normalizeIp };
 

@@ -62,6 +62,16 @@ export const RTB_RATE_LIMIT_PER_MIN = parseInt(process.env.RTB_RATE_LIMIT_PER_MI
 /** Tiered limiter hard ceiling (absolute max per minute) */
 export const TIER_HARD_CEILING = parseInt(process.env.TIER_HARD_CEILING || '30', 10);
 
+// ── IP Blocklist ──────────────────────────────
+
+/** Maximum number of blocked IPs/subnets */
+export const IP_BLOCKLIST_MAX_SIZE = parseInt(process.env.IP_BLOCKLIST_MAX_SIZE || '10000', 10);
+
+// ── PII Audit ──────────────────────────────
+
+/** Enable structured PII scrub audit logging (GDPR Article 30 compliance) */
+export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
+
 // ── Hierarchy ──────────────────────────────
 
 /** Maximum vertical hierarchy depth (prevents infinite nesting) */
@@ -94,6 +104,12 @@ export const PERKS_CONFIG = {
     rateLimit: {
         rtbPerMin: RTB_RATE_LIMIT_PER_MIN,
         hardCeiling: TIER_HARD_CEILING,
+    },
+    ipBlocklist: {
+        maxSize: IP_BLOCKLIST_MAX_SIZE,
+    },
+    piiAudit: {
+        enabled: PII_AUDIT_ENABLED,
     },
     hierarchy: {
         maxDepth: MAX_HIERARCHY_DEPTH,

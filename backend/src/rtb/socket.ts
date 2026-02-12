@@ -261,15 +261,13 @@ class RTBSocketServer {
                     const perks = await applyHolderPerks(lead.vertical, socket.walletAddress);
 
                     // Pre-ping enforcement: only holders can bid during pre-ping window
-                    if (lead.auctionRoom?.prePingEndsAt) {
-                        const now = new Date();
-                        if (now < lead.auctionRoom.prePingEndsAt && !perks.isHolder) {
-                            const remainingMs = lead.auctionRoom.prePingEndsAt.getTime() - now.getTime();
-                            socket.emit('error', {
-                                message: `Pre-ping window active — holders only (${Math.ceil(remainingMs / 1000)}s remaining)`,
-                            });
-                            return;
-                        }
+                    //   Uses isInPrePingWindow() to include grace period for latency tolerance
+                    const prePingStatus = isInPrePingWindow(lead.auctionRoom?.prePingEndsAt ?? null);
+                    if (prePingStatus.inWindow && !perks.isHolder) {
+                        socket.emit('error', {
+                            message: `Pre-ping window active — holders only (${Math.ceil(prePingStatus.remainingMs / 1000)}s remaining)`,
+                        });
+                        return;
                     }
 
                     // Calculate effective bid (1.2× for holders)
