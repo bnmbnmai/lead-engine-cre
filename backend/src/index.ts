@@ -55,6 +55,7 @@ import crmRoutes from './routes/crm.routes';
 import landerRoutes from './routes/lander.routes';
 import demoPanelRoutes from './routes/demo-panel.routes';
 import verticalRoutes from './routes/vertical.routes';
+import buyerRoutes from './routes/buyer.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -98,7 +99,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Health check endpoint
-app.get('/health', async (_req: Request, res: Response) => {
+const healthHandler = async (_req: Request, res: Response) => {
     try {
         // Check database connection
         await prisma.$queryRaw`SELECT 1`;
@@ -118,7 +119,9 @@ app.get('/health', async (_req: Request, res: Response) => {
             database: 'disconnected',
         });
     }
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // Swagger UI — serve OpenAPI docs
 try {
@@ -153,6 +156,7 @@ app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/lander', landerRoutes);
 app.use('/api/v1/demo-panel', demoPanelRoutes);
 app.use('/api/v1/verticals', verticalRoutes);
+app.use('/api/v1/buyer', buyerRoutes);
 
 
 app.post('/api/v1/rtb/bid', (req: Request, res: Response) => {

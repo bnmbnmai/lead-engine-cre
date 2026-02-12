@@ -512,6 +512,9 @@ router.post('/reset', async (req: Request, res: Response) => {
         const cleared = await prisma.lead.deleteMany({});
         await prisma.ask.deleteMany({});
 
+        // Flush all in-memory LRU caches so stale data doesn't persist
+        clearAllCaches();
+
         // 2. Re-seed with short auctions (delegate to seed logic)
         // Find or create demo user
         let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
