@@ -10,13 +10,14 @@ const walletAddresses: Record<string, string> = {
     buyer: mockWallets.buyer1.address,
     buyer1: mockWallets.buyer1.address,
     buyer2: mockWallets.buyer2.address,
+    admin: mockWallets.admin.address,
 };
 
 declare global {
     namespace Cypress {
         interface Chainable {
             /** Stub wallet auth so the app thinks we're authenticated */
-            stubAuth(role?: 'buyer' | 'seller' | 'buyer1' | 'buyer2'): Chainable<void>;
+            stubAuth(role?: 'buyer' | 'seller' | 'buyer1' | 'buyer2' | 'admin'): Chainable<void>;
             /**
              * Mock an ethers.js-compatible Ethereum provider on window.ethereum.
              * Supports multi-wallet switching and RPC call interception.
@@ -25,15 +26,15 @@ declare global {
              * @param options - { wrongNetwork?: boolean, rejectSign?: boolean }
              */
             mockWallet(
-                wallet?: 'seller' | 'buyer1' | 'buyer2',
+                wallet?: 'seller' | 'buyer1' | 'buyer2' | 'admin',
                 options?: { wrongNetwork?: boolean; rejectSign?: boolean },
             ): Chainable<void>;
         }
     }
 }
 
-Cypress.Commands.add('stubAuth', (role: 'buyer' | 'seller' | 'buyer1' | 'buyer2' = 'buyer') => {
-    const normalizedRole = role.startsWith('buyer') ? 'buyer' : 'seller';
+Cypress.Commands.add('stubAuth', (role: 'buyer' | 'seller' | 'buyer1' | 'buyer2' | 'admin' = 'buyer') => {
+    const normalizedRole = role === 'admin' ? 'admin' : role.startsWith('buyer') ? 'buyer' : 'seller';
     const mockUser = {
         id: `test-user-${role}`,
         walletAddress: walletAddresses[role] || walletAddresses.buyer,
@@ -46,7 +47,7 @@ Cypress.Commands.add('stubAuth', (role: 'buyer' | 'seller' | 'buyer1' | 'buyer2'
 Cypress.Commands.add(
     'mockWallet',
     (
-        wallet: 'seller' | 'buyer1' | 'buyer2' = 'buyer1',
+        wallet: 'seller' | 'buyer1' | 'buyer2' | 'admin' = 'buyer1',
         options: { wrongNetwork?: boolean; rejectSign?: boolean } = {},
     ) => {
         const walletState = mockWallets[wallet];

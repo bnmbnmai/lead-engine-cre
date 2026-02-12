@@ -1,19 +1,21 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-957%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1039%20passing-brightgreen)
 ![Jest](https://img.shields.io/badge/Jest-816%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-141%20passing-brightgreen)
-![Cypress](https://img.shields.io/badge/Cypress%20E2E-107%20passing-brightgreen)
+![Cypress](https://img.shields.io/badge/Cypress%20E2E-82%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
-![Coverage](https://img.shields.io/badge/contracts-5%20verified-orange)
+![Contracts](https://img.shields.io/badge/contracts-8%20deployed-orange)
 
 ### Decentralized Real-Time Bidding for the $200B+ Lead Marketplace
 
 > **Built for [Chainlink Hackathon 2026 — Convergence](https://chain.link/hackathon)**
 > Powered by **Chainlink CRE** (Custom Functions) + **ACE** (Automated Compliance Engine)
 
-Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market ([Martal Group 2024 projection](https://martal.ca/lead-generation-statistics/)) — enabling transparent, verifiable real-time bidding across 10 verticals and 20+ countries with **5-minute default auctions** and instant USDC settlement.
+Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **5-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and optional ERC-721 lead tokenization on purchase.
+
+**Key Differentiator:** First platform to tokenize leads as on-chain assets — every purchased lead can be minted as an ERC-721 NFT via `LeadNFTv2.sol`, providing immutable provenance, quality scores, and portfolio management for buyers.
 
 ---
 
@@ -25,10 +27,12 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 |---------|--------------------|-------------|
 | **Speed** | Manual review, batch sales | **5-minute RTB auctions** with sub-second matching |
 | **Trust** | No verification, rampant fraud | **Chainlink CRE** quality scoring (0–10,000) + ZK fraud proofs |
+| **Privacy** | Buyers see all PII before purchase | **Non-PII previews** — per-vertical redaction; full PII only after purchase |
 | **Settlement** | 7–30 day payouts | **Instant USDC** via x402 escrow — sellers reinvest same day |
 | **Compliance** | Manual KYC review | **Chainlink ACE** auto-KYC, jurisdiction matrix, MiCA (zero manual) |
-| **Automation** | No buyer tools | **9-criteria auto-bid** fires 24/7 across 20+ markets |
-| **API Access** | None | **MCP agent server** — 8 tools + LangChain autonomous bidding |
+| **Automation** | No buyer tools | **7-criteria auto-bid** fires 24/7 across 20+ markets |
+| **API Access** | None | **MCP agent server** — 9 tools + LangChain autonomous bidding |
+| **Provenance** | No audit trail | **ERC-721 lead NFTs** — on-chain quality scores, ownership, and trade history |
 
 ### How a Lead Moves Through the System
 
@@ -60,10 +64,11 @@ sequenceDiagram
     RTB->>Escrow: Winner pays USDC
     Escrow->>Seller: Instant settlement (minus 2.5% fee)
     Escrow->>Buyer: Decrypted lead data + PII
+    Note over Buyer: Lead minted as ERC-721 NFT
     Buyer->>Buyer: CRM webhook → HubSpot/Zapier
 ```
 
-> **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads automatically. No intermediaries.
+> **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
 
 ---
 
@@ -105,14 +110,14 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 
 ### Core — Real-Time Lead Bidding
 
-- 🔄 **RTB Engine** — Sub-second real-time matching and bidding with WebSocket streaming; 5-minute default auctions
+- 🔄 **RTB Engine** — Sub-second real-time matching and bidding with WebSocket streaming; 5-minute default auctions (configurable 60s–10min)
 - ✅ **Automated Compliance** — KYC/AML, TCPA, MiCA, jurisdiction checks with zero manual review
-- 🔒 **Privacy-Preserving** — ZK proofs + encrypted bids; buyers see non-PII previews before purchase, full PII only after
-- 💰 **Instant Settlement** — USDC escrow with automated release upon bid acceptance
-- 🌍 **10 Verticals, 20+ Countries** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial — across US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE
-- ⚙️ **Auto-Bid Engine** — 9-criteria matching (vertical, geo include/exclude, quality score gate, off-site, verified-only, reserve price, max bid, daily budget, duplicate prevention) — set rules once, bids fire automatically
+- 🔒 **Privacy-Preserving** — ZK proofs + encrypted bids; buyers see non-PII previews (per-vertical redaction via `piiProtection.ts`) before purchase, full PII only after
+- 💰 **Instant Settlement** — USDC escrow via `RTBEscrow.sol` with automated release upon bid acceptance (2.5% platform fee)
+- 🌍 **Dynamic Verticals, 20+ Countries** — 10 seeded verticals (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial) with AI-powered dynamic creation via `vertical-optimizer.service.ts`
+- ⚙️ **Auto-Bid Engine** — 7-criteria matching (vertical, geo include/exclude, quality score gate, off-site toggle, verified-only, max bid per lead, daily budget) — set rules once, bids fire automatically
 - 🔗 **CRM Webhooks** — HubSpot and Zapier integrations with format-specific payload transformers; push won leads to any CRM on `lead.sold` events
-- 🤖 **MCP Agent Server** — 8 JSON-RPC tools for programmatic bidding, auto-bid configuration, CRM webhook management, and lead pinging — with full LangChain autonomous bidding agent example
+- 🤖 **MCP Agent Server** — 9 JSON-RPC tools for programmatic bidding, vertical suggestions, auto-bid configuration, CRM webhook management, and lead pinging — with full LangChain autonomous bidding agent example
 
 ### Advanced
 
@@ -120,14 +125,14 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
 
-### Optional — NFT Layer
+### Optional — NFT Monetization Layer
 
-- 🎨 **Lead NFTs** — ERC-721 tokenized leads via `LeadNFTv2.sol` for on-chain provenance and portfolio management
+- 🎨 **Lead NFTs** — ERC-721 tokenized leads via `LeadNFTv2.sol` — minted during the verification pipeline, providing on-chain provenance, quality scores, and portfolio management
 - 🏷️ **Vertical NFTs** — `VerticalNFT.sol` with CRE uniqueness verification, ACE compliance gating, 2% ERC-2981 royalties, and hierarchical depth (0–3)
-- 🔨 **Vertical Auctions** — `VerticalAuction.sol` sealed-bid auctions for platform-minted vertical NFTs with Chainlink-timed bid windows and reserve pricing
+- 🔨 **Vertical Auctions** — `VerticalAuction.sol` sealed-bid auctions for platform-minted vertical NFTs with configurable bid windows (60s–7 days) and reserve pricing
 - 🏆 **Holder Perks** — NFT holders get 5–10s pre-ping window, 1.2× bid multiplier, +2000 RTB score bonus, and opt-in notifications
 
-> NFTs are a supplementary retention mechanism. The core value proposition — verified RTB with instant settlement — works without them.
+> NFTs are a supplementary monetization and retention layer. The core value proposition — verified RTB with instant settlement and non-PII previews — works without them.
 
 ---
 
@@ -140,7 +145,8 @@ Traditional lead marketplaces hold funds for 7-30 days. Lead Engine settles via 
 1. Lead verified by CRE → quality score published on-chain
 2. Sealed-bid auction runs (auto-bid or manual) — **5-minute default window**
 3. Winner pays via x402 → USDC released to seller instantly
-4. Seller reinvests in next campaign with zero float lag
+4. Lead minted as ERC-721 NFT for buyer provenance
+5. Seller reinvests in next campaign with zero float lag
 
 > **Result:** 10-50x faster capital turnover vs. traditional marketplaces.
 
@@ -148,9 +154,10 @@ Traditional lead marketplaces hold funds for 7-30 days. Lead Engine settles via 
 
 Buyers set rules once — the auto-bid engine fires 24/7 across 20+ markets:
 
-- **9-criteria matching**: vertical, geo include/exclude, quality gate (0-10,000), off-site, verified-only, reserve price, max bid, daily budget, duplicate prevention
+- **7-criteria matching**: vertical, geo include/exclude, quality gate (0-10,000), off-site, verified-only, max bid per lead, daily budget
 - **Budget caps**: Daily spend limits enforced automatically — no overspending
 - **Quality gates**: Only bid on leads above your threshold — cut waste
+- **Non-PII previews**: Review redacted lead summaries before committing — full PII unlocked on purchase
 - **CRM pipeline**: Won leads push directly to HubSpot/Zapier via webhooks
 
 > **Result:** Buyers see 30-60% lower cost-per-acquisition by eliminating manual review.
@@ -185,29 +192,6 @@ All markets enforce ACE compliance (auto-KYC, jurisdiction policies, reputation 
 
 ---
 
-## 🚀 Why Use Lead Engine?
-
-### Vertical × Geo Examples
-
-| Vertical | Geo | Scenario | Lead Engine Advantage |
-|----------|-----|----------|----------------------|
-| **Solar** | 🇩🇪 Germany | Lead for 12kW rooftop in Bavaria | DECO attests subsidy eligibility without revealing income; auto-bid fires for 2 buyers within 90ms; USDC settles instantly so the seller funds the next Google Ads campaign |
-| **Mortgage** | 🇺🇸 US (FL → NY) | $450K refinance lead | ACE blocks NY buyer (cross-border licensing required); FL-licensed buyer auto-bids $120 at quality gate 6,000+; commit-reveal hides bid from competitors |
-| **Insurance** | 🇬🇧 UK | Life insurance lead, age 35 | MiCA compliance auto-checked; ZK proof confirms credit tier without exposing PII; lead verified with CRE quality score |
-| **B2B SaaS** | 🇧🇷 Brazil | Enterprise CRM demo request | LATAM geo targeting pre-filters; auto-bid set to $85 with daily budget $2,000; CRM webhook pushes to HubSpot on purchase |
-| **Auto** | 🇯🇵 Japan | Used vehicle loan inquiry | APAC geo burst handled at 10K concurrent; quality score 7,200 passes gate; MCP agent places bid programmatically via JSON-RPC |
-| **Real Estate** | 🇰🇪 Kenya | Commercial property listing | Africa-tier KYC + geo; seller receives USDC in seconds, bypassing 30-day wire transfer delays; reinvests in Facebook Lead Ads same day |
-
-### Marketing Blurbs
-
-> **For Sellers:** "Sell a lead at 2pm. Have USDC in your wallet at 2:01pm. Fund your next Google Ads campaign before your competitor's check clears."
-
-> **For Buyers:** "Set your rules — vertical, geo, quality, budget — and go to sleep. Auto-bid captures high-quality leads 24/7 across 20+ markets. Average 40% lower CPA vs. manual bidding."
-
-> **For Enterprises:** "Plug in via MCP agent server or CRM webhook. AI agents search, bid, and export leads programmatically. No wallet popups, no manual review — just structured JSON-RPC at scale."
-
----
-
 ## 🏗️ Architecture
 
 ```mermaid
@@ -239,6 +223,7 @@ graph TB
         ESC[RTBEscrow]
         MKT[Marketplace]
         NFT[LeadNFTv2]
+        VNFT[VerticalNFT]
     end
 
     subgraph Services["Off-Chain Services"]
@@ -249,7 +234,7 @@ graph TB
     end
 
     subgraph Agent["MCP Agent Server (port 3002)"]
-        MCP[8 JSON-RPC Tools]
+        MCP[9 JSON-RPC Tools]
         LC[LangChain Agent]
     end
 
@@ -273,6 +258,7 @@ graph TB
     AC --> MKT
     ESC --> MKT
     NFT --> MKT
+    VNFT --> MKT
     MCP --> API
     LC --> MCP
 ```
@@ -285,9 +271,12 @@ graph TB
 |---------|---------|-------------|
 | `CREVerifier.sol` | Sepolia | Chainlink CRE Functions — on-chain lead verification + quality scoring |
 | `ACECompliance.sol` | Sepolia | KYC/AML, jurisdiction policies, reputation management |
-| `RTBEscrow.sol` | Sepolia | USDC escrow with platform fees (2.5%) + automated release |
-| `Marketplace.sol` | Sepolia | Central marketplace connecting compliance and escrow |
-| `LeadNFTv2.sol` | Sepolia | *(Optional)* ERC-721 lead tokenization with metadata + quality scores |
+| `RTBEscrow.sol` | Sepolia | USDC escrow with platform fees (2.5% / 250 bps) + automated release |
+| `Marketplace.sol` | Sepolia | Central marketplace connecting compliance and escrow; auction duration 1hr–7 days on-chain |
+| `LeadNFTv2.sol` | Sepolia | ERC-721 lead tokenization with metadata, quality scores, and trade history |
+| `VerticalNFT.sol` | Sepolia | *(Optional)* ERC-721 vertical ownership with CRE uniqueness + ACE compliance + 2% ERC-2981 royalties |
+| `VerticalAuction.sol` | Sepolia | *(Optional)* Sealed-bid auctions for vertical NFTs; 60s–7 day bid windows, reserve pricing |
+| `LeadNFT.sol` | Sepolia | Legacy lead NFT (superseded by `LeadNFTv2.sol`) |
 
 > **Note:** Contract addresses are set after deployment. See [§ Setup & Deployment](#-setup--deployment) below.
 
@@ -350,7 +339,7 @@ npm run dev
 
 ## 🧪 Testing
 
-> **957+ tests passing** across 4 suites — **100% pass rate** on all automated suites.
+> **1039+ tests passing** across 4 suites — **100% pass rate** on all automated suites.
 > Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
@@ -359,9 +348,9 @@ npm run dev
 |-------|------:|--------|-------|
 | **Backend Jest** | 816 | ✅ All passing | 32 suites — unit, e2e, security, compliance, env-guard, integration, priority bidding, UX polish, final integration |
 | **Hardhat Contracts** | 141 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced, VerticalAuction SLOAD optimization |
-| **Cypress E2E** | 107 | ✅ All passing | 5 specs — UI flows, multi-wallet, stress, copy, vertical-nft |
+| **Cypress E2E** | 82 | ✅ All passing | 3 specs — UI flows, copy assertions, vertical-nft |
 | **Artillery Load** | 22 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **1064+** | **✅ 100%** | |
+| **Total** | **1039+** | **✅ 100%** | |
 
 <details>
 <summary>Backend Jest (816 passing, 32 suites)</summary>
@@ -421,28 +410,26 @@ npm run dev
 </details>
 
 <details>
-<summary>Cypress E2E (107 passing, 5 specs)</summary>
+<summary>Cypress E2E (82 passing, 3 specs)</summary>
 
 | Spec | Tests | Coverage |
 |------|------:|----------|
-| `ui-flows.cy.ts` | 48 | Marketplace, seller, buyer, Offsite, fraud edges |
-| `multi-wallet.cy.ts` | 22 | Multi-wallet auctions, disconnect/reconnect, role switching |
-| `stress-ui.cy.ts` | 16 | UI stability, error states, rapid navigation, 504 handling |
-| `copy-assertions.cy.ts` | 15 | $200B+ copy, tooltips, dashboard subtitles |
-| `vertical-nft.cy.ts` | 6 | NFT vertical flows, minting, auction UI |
+| `ui-flows.cy.ts` | 52 | Marketplace, seller, buyer, Offsite, fraud edges, structured error handling |
+| `copy-assertions.cy.ts` | 18 | $200B+ copy, tooltips, dashboard subtitles, authenticated marketplace |
+| `vertical-nft.cy.ts` | 12 | NFT vertical flows, minting, auction UI, suggest modal |
 
 </details>
 
 <details>
-<summary>Artillery Load Tests (18 scenarios, 10K peak)</summary>
+<summary>Artillery Load Tests (22 scenarios, 10K peak)</summary>
 
 | Config | Scenarios | Peak | Purpose |
-|--------|-----------|------|---------   |
+|--------|-----------|------|---------|
 | `artillery-rtb.yaml` | 3 | 1,500/s | Baseline RTB (submit, browse, auction batch) |
 | `artillery-stress-10k.yaml` | 10 | 10,000/s | LATAM/APAC geo bursts, x402 failures, Chainlink latency |
 | `artillery-edge-cases.yaml` | 5 | 500/s | Reorg sim, Redis outage, webhook cascade, duplicate storms |
 
-> **Infra-dependent:** Artillery requires a running backend (`npm run dev:backend`). Thresholds: p99 < 2s, p95 < 1s, 90%+ 2xx under peak.
+> **Infra-dependent:** Artillery requires a running backend (`npm run dev:backend`). CI thresholds relaxed for advisory runs.
 
 </details>
 
@@ -480,6 +467,7 @@ npm run test:coverage      # With coverage report
 
 - **TCPA Consent** — Every lead requires verified consent timestamp before entering the RTB pipeline
 - **GDPR-Ready** — PII encrypted at rest with AES-256-GCM; buyer never sees PII until purchase confirmed
+- **Non-PII Previews** — Per-vertical redaction rules in `piiProtection.ts` ensure buyers only see safe fields (vertical, geo, quality score, source) before purchase
 - **Commit-Reveal Bidding** — Bid amounts encrypted with buyer-specific AAD; revealed only during auction resolution
 - **Cross-Border Matrix** — Real-time enforcement of state-specific licensing requirements per vertical
 - **Audit Trail** — All compliance checks logged with timestamps and stored in PostgreSQL + on-chain
@@ -492,24 +480,25 @@ npm run test:coverage      # With coverage report
 lead-engine-cre/
 ├── backend/               # Node.js/Express API
 │   ├── src/
-│   │   ├── services/      # CRE, ACE, x402, Privacy, ZK, Auto-Bid, NFT
-│   │   ├── routes/        # API + CRM webhooks + bidding + auto-bid
+│   │   ├── services/      # CRE, ACE, x402, Privacy, ZK, Auto-Bid, NFT, PII Protection
+│   │   ├── routes/        # API + CRM webhooks + bidding + auto-bid + demo panel
+│   │   ├── rtb/           # RTB engine + WebSocket streaming
 │   │   ├── middleware/     # Auth, rate-limiting, CORS
 │   │   └── lib/           # Prisma, cache, geo-registry, utils
 │   ├── tests/             # 816 tests (unit, e2e, security, compliance, auto-bid, CRM, UX polish)
-│   └── prisma/            # Schema + migrations
+│   └── prisma/            # Schema + migrations + seed scripts (leads + verticals)
 ├── frontend/              # React/Vite SPA
 │   ├── src/
 │   │   ├── components/    # UI (shadcn/ui + custom)
-│   │   ├── pages/         # Buyer/Seller dashboards, marketplace
-│   │   └── hooks/         # Wallet, WebSocket, API hooks
-│   └── cypress/           # 107 E2E tests (UI flows, stress, copy, multi-wallet, vertical-nft)
+│   │   ├── pages/         # Buyer/Seller dashboards, marketplace, seller submit
+│   │   └── hooks/         # Wallet, WebSocket, API, useVerticals
+│   └── cypress/           # 82 E2E tests (UI flows, copy assertions, vertical-nft)
 ├── contracts/             # Solidity/Hardhat
-│   ├── contracts/         # 6 contracts + interfaces + mocks
+│   ├── contracts/         # 8 contracts + interfaces + mocks
 │   └── test/              # 141 tests — settlement, reorg, Chainlink stubs, VerticalNFT
-├── mcp-server/            # MCP Agent Server (8 tools, LangChain agent)
+├── mcp-server/            # MCP Agent Server (9 tools, LangChain agent)
 ├── docs/                  # Deployment, demo script, pitch deck, submission
-├── tests/load/            # Artillery (18 scenarios, 10K peak)
+├── tests/load/            # Artillery (22 scenarios, 10K peak)
 ├── re-run-tests.sh        # Run all test suites with one command
 └── scripts/               # Security scan, contract deployment
 ```
@@ -520,14 +509,14 @@ lead-engine-cre/
 
 Lead Engine is designed for global scalability across diverse markets and high volume:
 
-- **10 Verticals** — Mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial
+- **Dynamic Verticals** — 10 seeded verticals + AI-powered creation via `vertical-optimizer.service.ts`; new verticals proposed, validated, and activated from user suggestions
 - **20+ Countries** — US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE — with state/province-level geo targeting
 - **Multi-Chain** — Deployed to Sepolia + Base Sepolia; production targets Base mainnet for low-cost, high-speed transactions
 - **Instant Settlement** — x402 USDC escrow settles in seconds; sellers reinvest in ad campaigns immediately
-- **Auto-Bid 24/7** — 9-criteria matching engine runs continuously; buyers bid automatically while they sleep
+- **Auto-Bid 24/7** — 7-criteria matching engine runs continuously; buyers bid automatically while they sleep
 - **LRU Caching** — In-memory cache for marketplace asks (30s TTL), quality scores, parameter matches, compliance checks, and KYC validity
 - **WebSocket Streaming** — Real-time bid updates and lead notifications via Socket.io
-- **Load Tested** — 23+ Artillery scenarios validate 10K peak concurrent users with LATAM/APAC geo bursts, x402 failure injection, budget drain, and Chainlink latency >5s
+- **Load Tested** — 22 Artillery scenarios validate 10K peak concurrent users with LATAM/APAC geo bursts, x402 failure injection, budget drain, and Chainlink latency >5s
 
 ---
 
@@ -542,7 +531,7 @@ The CI workflow runs automatically on push to `main`/`develop` and PRs to `main`
 ├── 🔍 lint           — ESLint on backend + frontend
 ├── 🧪 backend-tests  — Jest + PostgreSQL 16 service
 ├── ⛓️ hardhat-tests  — Hardhat compile + test
-├── 🌲 cypress-e2e    — 101 Cypress E2E tests
+├── 🌲 cypress-e2e    — 82 Cypress E2E tests
 └── 🚀 artillery-load — RTB baseline (advisory)
 ```
 
@@ -664,7 +653,7 @@ Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
 **Category:** Chainlink CRE + ACE
 **Theme:** Convergence — bridging traditional lead generation with decentralized trust infrastructure
 
-**What we built:** A decentralized lead marketplace serving the **$200B+ lead generation market** using **5 Chainlink services** as its trust layer: CRE for on-chain verification and quality scoring, ACE for automated compliance, DECO for privacy-preserving attestation, Data Streams for real-time bid floor pricing, and Confidential Compute for TEE-based lead scoring — enabling trustless, privacy-preserving real-time bidding with **instant x402 settlements** and **auto-bid automation** across 10 verticals and 20+ countries.
+**What we built:** A decentralized lead marketplace serving the **$200B+ lead generation market** using **5 Chainlink services** as its trust layer: CRE for on-chain verification and quality scoring, ACE for automated compliance, DECO for privacy-preserving attestation, Data Streams for real-time bid floor pricing, and Confidential Compute for TEE-based lead scoring — enabling trustless, privacy-preserving real-time bidding with **instant x402 settlements**, **non-PII buyer previews**, **ERC-721 lead tokenization**, and **auto-bid automation** across dynamic verticals and 20+ countries.
 
 **Chainlink Depth:**
 | Service | Status | Integration |
@@ -676,13 +665,25 @@ Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
 | **Confidential Compute** | 🔌 Stub-ready | `confidential.service.ts` — TEE lead scoring; activates when access granted |
 
 **Key differentiators:**
-1. First decentralized marketplace to bring **Chainlink-verified RTB** to the $200B lead gen market
-2. Privacy-preserving commit-reveal bidding with ZK fraud detection
+1. **First platform to tokenize leads** — ERC-721 via `LeadNFTv2.sol` for on-chain provenance, quality scores, and verifiable trade history
+2. Privacy-preserving commit-reveal bidding with ZK fraud detection and **non-PII buyer previews**
 3. Cross-border compliance engine with state-level enforcement across 20+ countries
-4. **Autonomous bidding** — 9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration
-5. **CRM pipeline** — HubSpot and Zapier webhook integrations for enterprise buyers
-6. Optional NFT layer for lead provenance and vertical ownership — supplementary, not core
-7. Designed for immediate post-hackathon production launch
+4. **Dynamic verticals** — AI-powered vertical suggestions with PII scrubbing, anti-hallucination validation, and auto-creation
+5. **Autonomous bidding** — 7-criteria auto-bid engine + MCP agent server with 9 tools + LangChain integration
+6. **CRM pipeline** — HubSpot and Zapier webhook integrations for enterprise buyers
+7. Optional NFT monetization layer for vertical ownership and holder perks — supplementary, not core
+
+---
+
+## 🗺️ v2 Roadmap
+
+| Feature | Description |
+|---------|-------------|
+| **Sponsored / Branded Verticals** | Enterprise sponsors claim branded vertical slots with custom landing pages and priority placement |
+| **Pay-Per-Call & Live Transfers** | Real-time phone lead routing with per-call billing and warm-transfer support |
+| **Secondary Lead Marketplace** | Buyers resell purchased leads (with provenance via lead NFTs) in a secondary market |
+| **Chainlink Data Provider Loop** | Feed aggregated, anonymized lead pricing data back to Chainlink as a verified data source |
+| **Enterprise White-Label API** | Full API + SDK for enterprises to embed Lead Engine's RTB, compliance, and settlement into their own platforms |
 
 ---
 

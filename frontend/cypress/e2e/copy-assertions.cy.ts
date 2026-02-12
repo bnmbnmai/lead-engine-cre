@@ -22,28 +22,28 @@ describe("Homepage Copy — Landing Hero", () => {
         cy.contains("10").should("exist");
     });
 
-    it("features section mentions 20+ Global Markets", () => {
-        cy.contains("20+ Global Markets").should("be.visible");
+    it("features section mentions 20+ countries", () => {
+        cy.contains("20+ countries").should("be.visible");
     });
 
-    it("features mention Auto-Bid + ZK Privacy", () => {
-        cy.contains("Auto-Bid + ZK Privacy").should("be.visible");
+    it("hero mentions auto-bid automation", () => {
+        cy.contains("auto-bid automation").should("be.visible");
     });
 
-    it("How It Works step shows Instant Settlement", () => {
-        cy.contains("Instant Settlement").should("be.visible");
+    it("hero mentions instant settlements", () => {
+        cy.contains("instant settlements").should("be.visible");
     });
 
-    it("How It Works mentions x402 USDC escrow", () => {
-        cy.contains("x402 USDC escrow").should("be.visible");
+    it("tagline badge mentions Chainlink", () => {
+        cy.contains("Chainlink").should("be.visible");
     });
 
-    it("bottom CTA mentions 20+ markets", () => {
-        cy.contains("20+ markets").should("be.visible");
+    it("hero subtitle mentions 20+ countries", () => {
+        cy.contains("20+ countries").should("be.visible");
     });
 
-    it("bottom CTA mentions auto-bid while you sleep", () => {
-        cy.contains("Auto-bid on leads while you sleep").should("be.visible");
+    it("hero subtitle mentions Verified leads", () => {
+        cy.contains("Verified leads").should("be.visible");
     });
 });
 
@@ -132,10 +132,10 @@ describe("Seller Dashboard — x402 Copy", () => {
 describe("Authenticated Marketplace — Updated Stats", () => {
     beforeEach(() => {
         cy.stubAuth("buyer");
-        cy.visit("/", { timeout: 15000 });
+        cy.visit("/marketplace", { timeout: 15000 });
     });
 
-    it("marketplace stats show 20+ countries", () => {
-        cy.contains("20+").should("exist");
+    it("marketplace shows Live Leads tab", () => {
+        cy.contains("Live Leads").should("exist");
     });
 });

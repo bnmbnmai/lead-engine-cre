@@ -17,6 +17,7 @@ import {
     mockBidAnalytics,
     mockSellerUser,
     mockBuyerUser,
+    mockAdminUser,
     mockChainlinkFeed,
     mockChainlinkLatencyFeed,
     mockPaymentReceipt,
@@ -27,7 +28,7 @@ import {
 interface MockApiOptions {
     latency?: number;
     empty?: boolean;
-    role?: 'seller' | 'buyer';
+    role?: 'seller' | 'buyer' | 'admin';
     /** Simulate Chainlink oracle 504 timeout */
     failChainlink?: boolean;
     /** Simulate >5s Chainlink latency (stale price) */
@@ -44,12 +45,13 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
 
     const stored = localStorage.getItem('le_auth_user');
     const role = options.role || (stored ? JSON.parse(stored).role : 'buyer');
-    const isSeller = role === 'seller';
+    const isSeller = role === 'seller' || role === 'admin';
+    const isAdmin = role === 'admin';
 
     // Auth
     cy.intercept('GET', `${API}/auth/me`, {
         statusCode: 200,
-        body: isSeller ? mockSellerUser : mockBuyerUser,
+        body: isAdmin ? mockAdminUser : isSeller ? mockSellerUser : mockBuyerUser,
         delay,
     }).as('getMe');
 
@@ -161,6 +163,8 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
         delay,
     }).as('createSellerProfile');
 
+
+
     // Lead Submit
     cy.intercept('POST', `${API}/leads*`, {
         statusCode: 201,
@@ -216,12 +220,49 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
         delay,
     }).as('postCRM');
 
-    // Catch-all
+    // Catch-all (register BEFORE specific overrides so they take priority)
+    // Cypress matches last-registered-first, so intercepts below override this.
     cy.intercept(`${API}/**`, {
         statusCode: 200,
         body: {},
         delay,
     });
+
+    // Verticals Hierarchy (registered AFTER catch-all for priority)
+    cy.intercept('GET', `${API}/verticals/hierarchy*`, {
+        statusCode: 200,
+        body: {
+            tree: [
+                { id: 'solar', slug: 'solar', name: 'Solar', depth: 0, sortOrder: 0, status: 'active', children: [] },
+                { id: 'mortgage', slug: 'mortgage', name: 'Mortgage', depth: 0, sortOrder: 1, status: 'active', children: [] },
+                { id: 'roofing', slug: 'roofing', name: 'Roofing', depth: 0, sortOrder: 2, status: 'active', children: [] },
+                { id: 'insurance', slug: 'insurance', name: 'Insurance', depth: 0, sortOrder: 3, status: 'active', children: [] },
+                { id: 'auto', slug: 'auto', name: 'Auto', depth: 0, sortOrder: 4, status: 'active', children: [] },
+                { id: 'legal', slug: 'legal', name: 'Legal', depth: 0, sortOrder: 5, status: 'active', children: [] },
+                { id: 'home_services', slug: 'home_services', name: 'Home Services', depth: 0, sortOrder: 6, status: 'active', children: [] },
+                { id: 'real_estate', slug: 'real_estate', name: 'Real Estate', depth: 0, sortOrder: 7, status: 'active', children: [] },
+                { id: 'financial', slug: 'financial', name: 'Financial', depth: 0, sortOrder: 8, status: 'active', children: [] },
+                { id: 'b2b_saas', slug: 'b2b_saas', name: 'B2B SaaS', depth: 0, sortOrder: 9, status: 'active', children: [] },
+            ],
+        },
+        delay,
+    }).as('getVerticals');
+
+    // Verticals Flat (registered AFTER catch-all for priority)
+    cy.intercept('GET', `${API}/verticals/flat*`, {
+        statusCode: 200,
+        body: {
+            verticals: [
+                { slug: 'solar', name: 'Solar' },
+                { slug: 'mortgage', name: 'Mortgage' },
+                { slug: 'roofing', name: 'Roofing' },
+                { slug: 'insurance', name: 'Insurance' },
+                { slug: 'auto', name: 'Auto' },
+            ],
+            total: 5,
+        },
+        delay,
+    }).as('getVerticalsFlat');
 });
 
 declare global {

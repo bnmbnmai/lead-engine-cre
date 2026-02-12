@@ -282,6 +282,16 @@ export const mockBuyerUser = {
     },
 };
 
+export const mockAdminUser = {
+    user: {
+        id: 'admin-001',
+        walletAddress: '0xAdmin1234567890abcdef',
+        role: 'ADMIN',
+        kycStatus: 'VERIFIED',
+        profile: { companyName: 'Lead Engine Admin', verticals: ['solar', 'mortgage', 'roofing', 'insurance', 'auto'] },
+    },
+};
+
 // ── Chainlink Oracle Price Feeds ────────────────────────────
 export const mockChainlinkFeed = {
     roundId: '110680464442257320877',
@@ -347,6 +357,13 @@ export const mockWallets = {
         chainName: 'Sepolia',
         balance: '900000000000000000',
         usdcBalance: '1500000000',
+    },
+    admin: {
+        address: '0xAd01n1234567890abcdef1234567890abcdef1234',
+        chainId: 11155111,
+        chainName: 'Sepolia',
+        balance: '5000000000000000000',
+        usdcBalance: '10000000000',
     },
 };
 
