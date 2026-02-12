@@ -1,5 +1,5 @@
 import { http } from 'wagmi';
-import { mainnet, sepolia, baseSepolia } from 'wagmi/chains';
+import { sepolia, baseSepolia } from 'wagmi/chains';
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 
 // ============================================
@@ -32,9 +32,8 @@ export const CONTRACT_ADDRESSES = {
 export const wagmiConfig = getDefaultConfig({
     appName: 'Lead Engine CRE',
     projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo',
-    chains: [sepolia, baseSepolia, mainnet],
+    chains: [sepolia, baseSepolia],
     transports: {
-        [mainnet.id]: http(import.meta.env.VITE_RPC_URL_MAINNET || 'https://cloudflare-eth.com'),
         [sepolia.id]: http(import.meta.env.VITE_RPC_URL_SEPOLIA),
         [baseSepolia.id]: http(import.meta.env.VITE_RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org'),
     },

@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const [authError, setAuthError] = useState<AuthError | null>(null);
     const autoLoginAttempted = useRef(false);
+    const loginInProgress = useRef(false);
 
     const { address, isConnected, status } = useAccount();
     const { signMessageAsync } = useSignMessage();
@@ -116,7 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             !user &&
             !isLoading &&
             status === 'connected' &&
-            !autoLoginAttempted.current
+            !autoLoginAttempted.current &&
+            wagmiReady &&
+            !loginInProgress.current
         ) {
             autoLoginAttempted.current = true;
             login().catch(() => {
@@ -124,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 autoLoginAttempted.current = false;
             });
         }
-    }, [isConnected, address, status, isLoading]);
+    }, [isConnected, address, status, isLoading, wagmiReady]);
 
     // Reset auto-login guard when wallet disconnects
     useEffect(() => {
@@ -177,7 +180,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const login = async () => {
+        if (loginInProgress.current) return;
+        loginInProgress.current = true;
+
         if (!address) {
+            loginInProgress.current = false;
             throw new Error('Wallet not connected');
         }
 
@@ -225,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 });
             }
         } finally {
+            loginInProgress.current = false;
             setIsLoading(false);
         }
     };
