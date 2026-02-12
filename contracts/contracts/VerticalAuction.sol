@@ -46,6 +46,11 @@ contract VerticalAuction is ReentrancyGuard {
     // Track pending withdrawals (pull pattern for losing bidders)
     mapping(address => uint256) public pendingWithdrawals;
 
+    // Gas optimization: cache holder status per auction to avoid repeated cross-contract calls
+    // auctionId => (bidder => isHolder)
+    mapping(uint256 => mapping(address => bool)) private holderCache;
+    mapping(uint256 => mapping(address => bool)) private holderCacheSet;
+
     // ─── Holder Priority Constants ────────────────
     /// @dev 1.2× multiplier expressed in basis points (1200 / 1000 = 1.2)
     uint256 public constant HOLDER_MULTIPLIER_BPS = 1200;
@@ -169,8 +174,15 @@ contract VerticalAuction is ReentrancyGuard {
         require(block.timestamp < a.endTime, "Auction: Ended");
         require(msg.sender != a.seller, "Auction: Seller cannot bid");
 
-        // Check holder status via cross-contract call
-        bool bidderIsHolder = IVerticalNFT(a.nftContract).isHolder(msg.sender, a.slug);
+        // Check holder status — use cache if available (saves ~2,100 gas per repeat bid)
+        bool bidderIsHolder;
+        if (holderCacheSet[auctionId][msg.sender]) {
+            bidderIsHolder = holderCache[auctionId][msg.sender];
+        } else {
+            bidderIsHolder = IVerticalNFT(a.nftContract).isHolder(msg.sender, a.slug);
+            holderCache[auctionId][msg.sender] = bidderIsHolder;
+            holderCacheSet[auctionId][msg.sender] = true;
+        }
 
         // Pre-ping gate: only holders can bid before prePingEnd
         if (block.timestamp < a.prePingEnd) {
@@ -294,5 +306,25 @@ contract VerticalAuction is ReentrancyGuard {
                !a.cancelled &&
                block.timestamp >= a.startTime &&
                block.timestamp < a.endTime;
+    }
+
+    /**
+     * @dev Batch check holder status for multiple addresses (gas-free view).
+     *      Useful for frontend pre-validation before placing bids.
+     */
+    function batchCheckHolders(
+        uint256 auctionId,
+        address[] calldata bidders
+    ) external view returns (bool[] memory results) {
+        Auction storage a = auctions[auctionId];
+        require(a.seller != address(0), "Auction: Does not exist");
+        results = new bool[](bidders.length);
+        for (uint256 i = 0; i < bidders.length; i++) {
+            if (holderCacheSet[auctionId][bidders[i]]) {
+                results[i] = holderCache[auctionId][bidders[i]];
+            } else {
+                results[i] = IVerticalNFT(a.nftContract).isHolder(bidders[i], a.slug);
+            }
+        }
     }
 }

@@ -19,11 +19,11 @@ export const generalLimiter = rateLimit({
     },
 });
 
-// RTB Bidding - 100 requests per second (high concurrency)
+// RTB Bidding - 10 per minute per user (aligned with LRU-based 5/min inner limit)
 export const rtbBiddingLimiter = rateLimit({
-    windowMs: 1000,
-    max: 100,
-    message: { error: 'Bid rate limit exceeded' },
+    windowMs: 60 * 1000,
+    max: 10,
+    message: { error: 'Bid rate limit exceeded — max 10 bids per minute' },
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
@@ -68,8 +68,16 @@ export const analyticsLimiter = rateLimit({
 });
 
 // ============================================
-// Dynamic Rate Limiting by User Tier
+// Tier Constants (exported for testing)
 // ============================================
+
+export const TIER_MULTIPLIERS = {
+    DEFAULT: 1,
+    HOLDER: 2,   // NFT vertical holder
+    PREMIUM: 3,  // Premium plan user (future)
+} as const;
+
+export const TIER_HARD_CEILING = 30; // Absolute max requests/min regardless of tier
 
 export function createTieredLimiter(baseLimitPerMinute: number) {
     return rateLimit({
@@ -78,10 +86,22 @@ export function createTieredLimiter(baseLimitPerMinute: number) {
             const authReq = req as AuthenticatedRequest;
             if (!authReq.user) return baseLimitPerMinute;
 
-            // TODO: Implement tier lookup from database
-            // For now, return base limit
-            // Premium users could have 5x the limit
-            return baseLimitPerMinute;
+            let multiplier: number = TIER_MULTIPLIERS.DEFAULT;
+
+            // Check holder status for tiered rate limit
+            try {
+                const walletAddress = (authReq.user as any).walletAddress;
+                if (walletAddress) {
+                    const { nftOwnershipCache } = require('../lib/cache');
+                    const cachedOwner = nftOwnershipCache.get(`nft-holder:${walletAddress.toLowerCase()}`);
+                    if (cachedOwner) multiplier = TIER_MULTIPLIERS.HOLDER;
+                }
+
+                // Future: check premium plan from DB
+                // if (isPremiumUser(authReq.user.id)) multiplier = TIER_MULTIPLIERS.PREMIUM;
+            } catch { /* fall through to base limit */ }
+
+            return Math.min(baseLimitPerMinute * multiplier, TIER_HARD_CEILING);
         },
         keyGenerator: (req: Request) => {
             const authReq = req as AuthenticatedRequest;
@@ -91,7 +111,9 @@ export function createTieredLimiter(baseLimitPerMinute: number) {
             res.status(429).json({
                 error: 'Rate limit exceeded',
                 retryAfter: 60,
+                maxPerMinute: TIER_HARD_CEILING,
             });
         },
     });
 }
+

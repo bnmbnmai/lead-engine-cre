@@ -13,6 +13,11 @@ import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notifica
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
+/** Per-user debounce map for notify-optin (prevents rapid toggling) */
+const NOTIFY_DEBOUNCE_MS = 10_000; // 10 seconds
+const notifyDebounceMap = new Map<string, number>();
+export { NOTIFY_DEBOUNCE_MS }; // Export for testing
+
 interface AuthenticatedSocket extends Socket {
     userId?: string;
     walletAddress?: string;
@@ -290,13 +295,31 @@ class RTBSocketServer {
                 }
             });
 
-            // Holder notification opt-in toggle
+            // Holder notification opt-in toggle (debounced — 10s cooldown per user)
             socket.on('holder:notify-optin', async (data: { optIn: boolean }) => {
                 try {
                     if (!socket.userId) {
                         socket.emit('error', { message: 'Not authenticated' });
                         return;
                     }
+
+                    // Debounce check — prevent rapid toggling
+                    const lastCall = notifyDebounceMap.get(socket.userId);
+                    const now = Date.now();
+                    if (lastCall && (now - lastCall) < NOTIFY_DEBOUNCE_MS) {
+                        const waitMs = NOTIFY_DEBOUNCE_MS - (now - lastCall);
+                        socket.emit('holder:notify-status', {
+                            success: false,
+                            error: `Please wait ${Math.ceil(waitMs / 1000)}s before toggling again`,
+                            debounced: true,
+                            retryAfterMs: waitMs,
+                            ariaLive: 'polite', // ARIA: screen reader friendly
+                            role: 'status',
+                        });
+                        return;
+                    }
+                    notifyDebounceMap.set(socket.userId, now);
+
                     const result = await setHolderNotifyOptIn(socket.userId, data.optIn);
                     socket.emit('holder:notify-status', result);
                 } catch (error) {
@@ -375,14 +398,18 @@ class RTBSocketServer {
 
     private async resolveAuction(leadId: string) {
         try {
-            // Find highest revealed bid
+            // Fallback ordering: effectiveBid DESC (nulls treated as amount)
+            // For pre-migration bids where effectiveBid is null, fall back to amount
             const winningBid = await prisma.bid.findFirst({
                 where: {
                     leadId,
                     status: 'REVEALED',
                     amount: { not: null },
                 },
-                orderBy: { effectiveBid: 'desc' },
+                orderBy: [
+                    { effectiveBid: { sort: 'desc', nulls: 'last' } },
+                    { amount: 'desc' },
+                ],
                 include: { buyer: true },
             });
 
@@ -452,7 +479,7 @@ class RTBSocketServer {
                 leadId,
                 winnerId: winningBid.buyerId,
                 winningAmount: Number(winningBid.amount), // Raw amount for settlement
-                effectiveBid: Number(winningBid.effectiveBid || winningBid.amount),
+                effectiveBid: Number(winningBid.effectiveBid ?? winningBid.amount),
             });
 
             console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);

@@ -101,9 +101,16 @@ model VerticalAuction {
   startTime     DateTime
   endTime       DateTime
   prePingEndsAt DateTime?  // End of holder-only pre-ping window
+  prePingNonce  String?    // Crypto nonce used to compute prePingEndsAt (audit trail)
   highBidder    String?
   highBid       Float    @default(0)
   rawBid        Float?   // Actual bid amount before multiplier
+
+  // Lease lifecycle (quarterly reset)
+  leaseEndDate     DateTime?    // Quarterly lease expiry
+  renewalDeadline  DateTime?    // Deadline for holder to renew (7-day grace)
+  leaseStatus      LeaseStatus  @default(ACTIVE)
+
   settled       Boolean  @default(false)
   cancelled     Boolean  @default(false)
   txHash        String?
@@ -114,6 +121,17 @@ model VerticalAuction {
 
   @@index([verticalSlug])
   @@index([settled, cancelled])
+  @@index([leaseStatus, leaseEndDate])
+  @@index([prePingEndsAt])              // Quarterly reset + pre-ping window queries
+  @@index([prePingNonce])               // Nonce audit lookups
+  @@index([endTime, settled])           // Active auction monitor
+}
+
+enum LeaseStatus {
+  ACTIVE
+  GRACE_PERIOD
+  EXPIRED
+  RENEWED
 }
 
 model Session {

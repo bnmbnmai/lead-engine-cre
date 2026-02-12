@@ -230,25 +230,27 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                 create: {
                     leadId,
                     buyerId: req.user!.id,
-                    amount: effectiveBid,
+                    amount,            // Raw bid amount
+                    effectiveBid,      // After multiplier (same as amount for non-holders)
                     status: 'REVEALED',
                     revealedAt: new Date(),
                 },
                 update: {
-                    amount: effectiveBid,
+                    amount,
+                    effectiveBid,
                     status: 'REVEALED',
                     revealedAt: new Date(),
                 },
             });
 
-            // Update auction room
+            // Update auction room — compare using effectiveBid (not raw amount)
             if (lead.auctionRoom) {
                 const currentHighest = lead.auctionRoom.highestBid ? Number(lead.auctionRoom.highestBid) : 0;
-                if (amount > currentHighest) {
+                if (effectiveBid > currentHighest) {
                     await prisma.auctionRoom.update({
                         where: { id: lead.auctionRoom.id },
                         data: {
-                            highestBid: amount,
+                            highestBid: effectiveBid,
                             highestBidder: req.user!.id,
                             bidCount: { increment: 1 },
                         },

@@ -1,8 +1,8 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-523%20passing-brightgreen)
-![Jest](https://img.shields.io/badge/Jest-269%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-577%20passing-brightgreen)
+![Jest](https://img.shields.io/badge/Jest-214%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-133%20passing-brightgreen)
 ![Cypress](https://img.shields.io/badge/Cypress%20E2E-107%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
@@ -78,21 +78,34 @@ Lead Engine uses a **platform-first minting model** to bootstrap the vertical NF
 2. **Auction Resale** — Platform-owned NFTs are sold via time-windowed sealed-bid auctions (`VerticalAuction.sol`), establishing fair market prices
 3. **Royalty Flywheel** — Each resale generates a 2% ERC-2981 royalty back to the platform, funding further vertical expansion
 
+
 ### Flywheel Effects
 
-| Phase | Action | Value Created |
-|-------|--------|---------------|
-| **Mint** | Platform mints vertical NFT | Vertical activated, leads enabled |
-| **Auction** | Sealed-bid auction to institutional buyers | Price discovery, demand signal |
-| **Operate** | NFT owner receives lead revenue for that vertical | Revenue generation |
-| **Resale** | Owner resells via `transferWithRoyalty` | 2% royalty → platform treasury |
-| **Reinvest** | Platform mints new verticals from royalty revenue | Ecosystem growth |
+```mermaid
+graph LR
+    A["🏗️ Platform Mints NFT"] --> B["🔨 Sealed-Bid Auction"]
+    B --> C["🏆 Buyer Wins NFT"]
+    C --> D["⚡ Holder Priority Perks<br/>Pre-Ping + 1.2× Multiplier"]
+    D --> E["💰 Lead Revenue<br/>(Holder earns from leads)"]
+    E --> F["🔄 Resale via Auction"]
+    F -->|"2% Royalty → Platform"| A
+    
+    style A fill:#f59e0b,stroke:#d97706,color:#000
+    style B fill:#6366f1,stroke:#4f46e5,color:#fff
+    style C fill:#10b981,stroke:#059669,color:#fff
+    style D fill:#f59e0b,stroke:#d97706,color:#000
+    style E fill:#10b981,stroke:#059669,color:#fff
+    style F fill:#6366f1,stroke:#4f46e5,color:#fff
+```
+
+> **ACE Compliance Gate**: All perks require passing the ACE compliance check (KYC valid, not blacklisted, jurisdiction allowed). Non-compliant holders can still bid but without multiplier or pre-ping advantages.
 
 ### Institutional Bulk Buys
 
 Large buyers can bid on multiple verticals simultaneously via the `VerticalAuction` contract or backend batch API. Compliance checks (ACE) run per-transaction, ensuring institutional buyers meet KYC/AML requirements across all acquired verticals.
 
 ---
+
 
 ## 🏆 NFT Holder Priority Bidding Perks
 
@@ -655,6 +668,21 @@ Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
 4. **Autonomous bidding** — 9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration
 5. **CRM pipeline** — HubSpot and Zapier webhook integrations for enterprise buyers
 6. Designed for immediate post-hackathon production launch
+
+---
+
+## ⚠️ Known Gaps & Mitigations
+
+| Gap | Risk | Mitigation | Status |
+|-----|------|------------|--------|
+| ACE compliance is **fail-open** | Non-compliant holder gets perks during ACE downtime | Logged + alert; manual review queue | 🟡 Acceptable |
+| Holder cache in contract **not invalidated on transfer** | Stale holder status until next bid | Cache is per-auction (short-lived); re-checked on new auction | 🟢 Low risk |
+| `batchCheckHolders` can be called with large arrays | Gas estimation spike on view calls | Frontend caps array to 50 addresses | 🟢 Mitigated |
+| Pre-ping nonce is stored as plaintext | Nonce is audit trail, not a secret | Nonce is `crypto.randomBytes(16)`, used for deterministic pre-ping only | 🟢 By design |
+| GDPR consent = `holderNotifyOptIn` field | Single boolean, no granular consent | V2 will add consent categories | 🟡 V2 |
+| Notification daily cap is per-process (in-memory) | Resets on server restart | Move to Redis counter in V2 | 🟡 V2 |
+| Hierarchy depth hard-capped at 5 | Deep nesting rejected at creation | `MAX_HIERARCHY_DEPTH` enforced in vertical optimizer | 🟢 Enforced |
+| Cross-border compliance is US-centric | Limited international coverage | `jurisdiction-policies.ts` extensible per country | 🟡 Extensible |
 
 ---
 

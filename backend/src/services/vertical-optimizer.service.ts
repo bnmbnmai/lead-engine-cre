@@ -23,7 +23,100 @@ import { activateVertical } from './vertical-nft.service';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const AUTO_CREATE_THRESHOLD = parseInt(process.env.VERTICAL_SUGGEST_THRESHOLD || '10');
+const AUTO_CREATE_THRESHOLD = parseInt(process.env.VERTICAL_SUGGEST_THRESHOLD || '20');
+const AUTO_CREATE_MIN_UNIQUE_USERS = 5; // Anti-spam: require at least 5 distinct users
+const JACCARD_DEDUP_THRESHOLD = 0.4; // Suggestion similarity threshold for dedup
+
+// ============================================
+// Trademark Blocklist (~200 major brands)
+// ============================================
+
+export const TRADEMARK_BLOCKLIST: ReadonlySet<string> = new Set([
+    // Tech
+    'apple', 'google', 'microsoft', 'amazon', 'meta', 'facebook', 'netflix', 'tesla',
+    'nvidia', 'intel', 'amd', 'qualcomm', 'cisco', 'oracle', 'ibm', 'samsung', 'sony',
+    'lg', 'huawei', 'xiaomi', 'oppo', 'vivo', 'oneplus', 'lenovo', 'dell', 'hp',
+    'adobe', 'salesforce', 'shopify', 'stripe', 'paypal', 'square', 'coinbase',
+    'robinhood', 'binance', 'opensea', 'discord', 'slack', 'zoom', 'twitch',
+    'spotify', 'tiktok', 'snapchat', 'twitter', 'pinterest', 'linkedin', 'reddit',
+    'uber', 'lyft', 'airbnb', 'doordash', 'instacart', 'grubhub',
+    // Automotive
+    'toyota', 'honda', 'ford', 'chevrolet', 'bmw', 'mercedes', 'audi', 'volkswagen',
+    'porsche', 'ferrari', 'lamborghini', 'maserati', 'bentley', 'rolls-royce',
+    'hyundai', 'kia', 'nissan', 'mazda', 'subaru', 'lexus', 'acura', 'infiniti',
+    'jeep', 'dodge', 'ram', 'chrysler', 'buick', 'cadillac', 'gmc', 'rivian', 'lucid',
+    // Energy & Solar
+    'sunrun', 'sunpower', 'vivint', 'enphase', 'solaredge', 'generac', 'siemens',
+    'schneider', 'abb', 'ge', 'general electric', 'shell', 'bp', 'exxon', 'chevron',
+    'totalenergies', 'enel', 'nextera',
+    // Real Estate / CRE
+    'zillow', 'redfin', 'realtor', 'compass', 'keller williams', 'coldwell banker',
+    'century 21', 're/max', 'sothebys', 'cbre', 'jll', 'cushman', 'colliers',
+    'marcus millichap', 'newmark', 'savills', 'berkshire hathaway',
+    // Finance / Insurance
+    'jpmorgan', 'goldman sachs', 'morgan stanley', 'wells fargo', 'bank of america',
+    'citibank', 'hsbc', 'barclays', 'ubs', 'credit suisse', 'deutsche bank',
+    'state farm', 'allstate', 'geico', 'progressive', 'liberty mutual', 'usaa',
+    'nationwide', 'farmers', 'aetna', 'cigna', 'unitedhealth', 'anthem', 'humana',
+    'quicken loans', 'rocket mortgage', 'loanDepot', 'better', 'sofi',
+    // Retail / Consumer
+    'walmart', 'target', 'costco', 'home depot', 'lowes', 'ikea', 'wayfair',
+    'nike', 'adidas', 'puma', 'reebok', 'under armour', 'lululemon', 'patagonia',
+    'coca-cola', 'pepsi', 'nestle', 'unilever', 'procter gamble',
+    'mcdonalds', 'starbucks', 'chipotle', 'subway', 'dominos', 'pizza hut',
+    // Telecom
+    'verizon', 'at&t', 'tmobile', 't-mobile', 'sprint', 'comcast', 'xfinity',
+    'spectrum', 'cox', 'centurylink', 'frontier', 'dish', 'directv',
+    // Home Services
+    'angi', 'angis list', 'thumbtack', 'taskrabbit', 'handy', 'porch',
+    'servpro', 'servicemaster', 'terminix', 'orkin', 'roto-rooter',
+    'stanley steemer', 'mr rooter', 'ace hardware',
+    // Cloud / SaaS
+    'aws', 'azure', 'gcp', 'cloudflare', 'datadog', 'splunk', 'snowflake',
+    'databricks', 'confluent', 'hashicorp', 'elastic', 'mongodb', 'redis',
+    // Crypto / Web3
+    'ethereum', 'bitcoin', 'solana', 'polygon', 'avalanche', 'chainlink',
+    'uniswap', 'aave', 'compound', 'makerdao', 'lido', 'metamask',
+]);
+
+// ============================================
+// Jaccard Similarity (suggestion dedup)
+// ============================================
+
+/**
+ * Compute Jaccard similarity between two strings using word-level bigrams.
+ * Returns 0.0 (no overlap) to 1.0 (identical).
+ */
+export function jaccardSimilarity(a: string, b: string): number {
+    const bigramsOf = (s: string): Set<string> => {
+        const words = s.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+        const grams = new Set<string>();
+        for (let i = 0; i < words.length - 1; i++) {
+            grams.add(`${words[i]} ${words[i + 1]}`);
+        }
+        // Also add unigrams for short strings
+        words.forEach(w => grams.add(w));
+        return grams;
+    };
+
+    const setA = bigramsOf(a);
+    const setB = bigramsOf(b);
+    if (setA.size === 0 && setB.size === 0) return 1.0;
+    if (setA.size === 0 || setB.size === 0) return 0.0;
+
+    let intersection = 0;
+    for (const gram of setA) {
+        if (setB.has(gram)) intersection++;
+    }
+    return intersection / (setA.size + setB.size - intersection);
+}
+
+/**
+ * Check if a suggested slug is too similar to any existing suggestion.
+ */
+export function isDuplicateSuggestion(slug: string, existingSlugs: string[]): boolean {
+    return existingSlugs.some(existing => jaccardSimilarity(slug, existing) > JACCARD_DEDUP_THRESHOLD);
+}
 
 const LLM_ENABLED = !!OPENAI_API_KEY;
 
@@ -59,6 +152,8 @@ const PII_PATTERNS = [
     /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
     // US phone numbers (various formats)
     /\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/g,
+    // International phone numbers (+CC followed by 7-12 digits)
+    /\+\d{1,3}[-.\s]?\d{7,12}\b/g,
     // SSN
     /\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g,
     // Credit card numbers (basic)
@@ -67,8 +162,20 @@ const PII_PATTERNS = [
     /\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Ln|Lane|Rd|Road|Ct|Court|Way|Pl|Place)\b/gi,
     // IP addresses
     /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
-    // Proper names after common prefixes (Mr., Mrs., Dr., etc.)
+    // Proper names after common Latin prefixes (Mr., Mrs., Dr., etc.)
     /\b(?:Mr|Mrs|Ms|Dr|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b/g,
+    // CJK names: 2–4 character sequences (Chinese/Japanese/Korean family+given)
+    /[\u4E00-\u9FFF\u3400-\u4DBF]{2,4}/g,
+    // Japanese honorifics + name: 〜さん, 〜様, 〜先生, etc.
+    /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]{1,6}(?:さん|様|先生|殿|氏)/g,
+    // Korean names: 2–4 Hangul syllable blocks (common name length)
+    /[\uAC00-\uD7AF]{2,4}/g,
+    // Devanagari names: 2–6 character sequences (Hindi, Sanskrit names)
+    /[\u0900-\u097F]{2,6}/g,
+    // Arabic names: 2–8 character sequences
+    /[\u0600-\u06FF]{2,8}/g,
+    // Unicode title prefixes: Herr, Frau, Señor/a, San/ta, 先生, etc.
+    /\b(?:Herr|Frau|Señor|Señora|Monsieur|Madame|San|Santa)\.?\s+\p{L}+(?:\s+\p{L}+)?/gu,
 ];
 
 export function scrubPII(text: string): string {
@@ -108,7 +215,7 @@ function extractKeywords(text: string): string[] {
         .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 }
 
-function jaccardSimilarity(a: string[], b: string[]): number {
+function tokenJaccard(a: string[], b: string[]): number {
     const setA = new Set(a);
     const setB = new Set(b);
     const intersection = [...setA].filter(x => setB.has(x));
@@ -161,7 +268,7 @@ async function ruleBased(
         return {
             slug: v.slug,
             name: v.name,
-            score: jaccardSimilarity(keywords, verticalTokens),
+            score: tokenJaccard(keywords, verticalTokens),
             aliases: v.aliases,
             parentId: v.parentId,
         };
@@ -360,6 +467,24 @@ async function findClosestParent(suggestedParent: string): Promise<string> {
 
 async function checkAndAutoCreate(suggestion: any): Promise<boolean> {
     if (suggestion.hitCount < AUTO_CREATE_THRESHOLD) return false;
+
+    // Anti-spam: require suggestions from at least N distinct users
+    const uniqueUserCount = await prisma.verticalSuggestion.groupBy({
+        by: ['sourceLeadId'],
+        where: { suggestedSlug: suggestion.suggestedSlug },
+    });
+    if (uniqueUserCount.length < AUTO_CREATE_MIN_UNIQUE_USERS) {
+        console.log(`[VERTICAL-OPTIMIZER] Skipping auto-create for "${suggestion.suggestedSlug}" — only ${uniqueUserCount.length}/${AUTO_CREATE_MIN_UNIQUE_USERS} unique sources`);
+        return false;
+    }
+
+    // Trademark blocklist check — prevent auto-creating branded verticals
+    const slugLower = suggestion.suggestedSlug.toLowerCase().replace(/[_-]/g, ' ');
+    if (TRADEMARK_BLOCKLIST.has(slugLower) ||
+        [...TRADEMARK_BLOCKLIST].some(brand => slugLower.includes(brand) || brand.includes(slugLower))) {
+        console.log(`[VERTICAL-OPTIMIZER] Blocked auto-create for "${suggestion.suggestedSlug}" — matches trademark blocklist`);
+        return false;
+    }
 
     // Check if already created in Vertical table
     const existing = await prisma.vertical.findUnique({ where: { slug: suggestion.suggestedSlug } });

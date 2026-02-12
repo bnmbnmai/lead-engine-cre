@@ -68,8 +68,8 @@ export const DEFAULT_PERKS: HolderPerks = {
 /**
  * Determine pre-ping and multiplier perks for a user on a given vertical.
  *
- * Checks NFT ownership via cached Prisma lookup.
- * Only ACTIVE verticals with a matching ownerAddress grant perks.
+ * Flow: NFT ownership check → ACE compliance gate → compute perks
+ * ACE gate ensures sanctioned/non-KYC holders don't get bidding advantages.
  */
 export async function applyHolderPerks(
     verticalSlug: string,
@@ -105,7 +105,26 @@ export async function applyHolderPerks(
         return DEFAULT_PERKS;
     }
 
-    // Holder confirmed — compute pre-ping (deterministic per slug for consistency)
+    // ── ACE Compliance Gate ──
+    // Holders must pass ACE compliance to receive perks.
+    // Non-compliant holders (expired KYC, blacklisted, jurisdiction-blocked)
+    // are downgraded to standard bidding — they can still bid, but without
+    // multiplier or pre-ping advantages.
+    try {
+        const { aceService } = require('./ace.service');
+        const verticalHash = require('ethers').ethers.id(verticalSlug);
+        const compliance = await aceService.canTransact(normalizedAddress, verticalSlug, verticalHash);
+        if (!compliance.allowed) {
+            console.log(`[HOLDER-PERKS] ACE denied perks for ${normalizedAddress} on ${verticalSlug}: ${compliance.reason}`);
+            return DEFAULT_PERKS;
+        }
+    } catch (error) {
+        // ACE service failure should not block all perks — log and allow
+        // (fail-open for availability, fail-closed would block legitimate holders)
+        console.warn('[HOLDER-PERKS] ACE check failed, allowing perks (fail-open):', error);
+    }
+
+    // Holder confirmed + ACE compliant — compute pre-ping
     const prePingSeconds = computePrePing(verticalSlug);
 
     return {
@@ -130,27 +149,37 @@ export function getEffectiveBid(rawBid: number, perks: HolderPerks): number {
     return perks.isHolder ? applyMultiplier(rawBid, perks.multiplier) : rawBid;
 }
 
-// ============================================
-// Pre-Ping Window
-// ============================================
+/** Grace period (ms) added to pre-ping window to tolerate network latency */
+export const PRE_PING_GRACE_MS = 1500;
 
 /**
  * Check if an auction is currently in the pre-ping window (holders-only bidding).
+ * Uses the DB-stored prePingEndsAt timestamp (set by createAuction) to avoid
+ * recomputation desync when nonces are involved.
  *
- * @param auctionStart - When the auction started
- * @param slug - Vertical slug (determines pre-ping duration)
- * @returns inWindow flag and remaining milliseconds
+ * @param prePingEndsAt - Stored pre-ping end time from VerticalAuction/AuctionRoom
+ * @returns inWindow flag and remaining milliseconds (including grace period)
  */
-export function isInPrePingWindow(auctionStart: Date, slug: string): PrePingStatus {
-    const prePingSeconds = computePrePing(slug);
-    const prePingEndMs = auctionStart.getTime() + prePingSeconds * 1000;
+export function isInPrePingWindow(prePingEndsAt: Date | null): PrePingStatus {
+    if (!prePingEndsAt) return { inWindow: false, remainingMs: 0 };
     const now = Date.now();
-    const remainingMs = Math.max(0, prePingEndMs - now);
+    const endWithGrace = prePingEndsAt.getTime() + PRE_PING_GRACE_MS;
+    const remainingMs = Math.max(0, endWithGrace - now);
 
     return {
-        inWindow: now < prePingEndMs,
+        inWindow: now < endWithGrace,
         remainingMs,
     };
+}
+
+/**
+ * @deprecated Use isInPrePingWindow(prePingEndsAt) with the DB-stored value.
+ * This wrapper recomputes from slug (no nonce) — only for backward compat in tests.
+ */
+export function isInPrePingWindowLegacy(auctionStart: Date, slug: string): PrePingStatus {
+    const prePingSeconds = computePrePing(slug);
+    const prePingEndsAt = new Date(auctionStart.getTime() + prePingSeconds * 1000);
+    return isInPrePingWindow(prePingEndsAt);
 }
 
 // ============================================
@@ -181,14 +210,18 @@ export function checkActivityThreshold(walletAddress: string): boolean {
 // ============================================
 
 /**
- * Compute a deterministic pre-ping window (5–10s) based on the vertical slug.
- * Uses a simple hash so the same vertical always gets the same window,
- * avoiding jitter across multiple calls.
+ * Compute a deterministic pre-ping window (5–10s) based on the vertical slug
+ * and an optional per-auction nonce. The nonce prevents trivial prediction
+ * of pre-ping windows across auctions for the same vertical.
+ *
+ * @param slug   Vertical slug for deterministic base
+ * @param nonce  Per-auction random component (e.g., auctionId or crypto random hex)
  */
-export function computePrePing(slug: string): number {
+export function computePrePing(slug: string, nonce: string = ''): number {
+    const input = `${slug}:${nonce}`;
     let hash = 0;
-    for (let i = 0; i < slug.length; i++) {
-        hash = ((hash << 5) - hash + slug.charCodeAt(i)) | 0;
+    for (let i = 0; i < input.length; i++) {
+        hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0;
     }
     return PRE_PING_MIN + (Math.abs(hash) % (PRE_PING_MAX - PRE_PING_MIN + 1));
 }

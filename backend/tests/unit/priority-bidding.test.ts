@@ -76,11 +76,13 @@ import {
     applyMultiplier,
     getEffectiveBid,
     isInPrePingWindow,
+    isInPrePingWindowLegacy,
     checkActivityThreshold,
     computePrePing,
     HOLDER_MULTIPLIER,
     PRE_PING_MIN,
     PRE_PING_MAX,
+    PRE_PING_GRACE_MS,
     SPAM_THRESHOLD_BIDS_PER_MINUTE,
     HOLDER_SCORE_BONUS,
     DEFAULT_PERKS,
@@ -132,25 +134,24 @@ describe('Holder Perks Application', () => {
     });
 
     test('isInPrePingWindow returns true when in window', () => {
-        const now = new Date();
-        // Auction just started
-        const result = isInPrePingWindow(now, 'solar');
+        // Pre-ping ends 10 seconds from now — we are in the window
+        const prePingEndsAt = new Date(Date.now() + 10_000);
+        const result = isInPrePingWindow(prePingEndsAt);
         expect(result.inWindow).toBe(true);
         expect(result.remainingMs).toBeGreaterThan(0);
     });
 
     test('isInPrePingWindow returns false when window expired', () => {
-        const pastDate = new Date(Date.now() - 60_000); // 60 seconds ago
-        const result = isInPrePingWindow(pastDate, 'solar');
+        const prePingEndsAt = new Date(Date.now() - 60_000); // 60s ago (well past grace)
+        const result = isInPrePingWindow(prePingEndsAt);
         expect(result.inWindow).toBe(false);
         expect(result.remainingMs).toBe(0);
     });
 
-    test('isInPrePingWindow boundary: exactly at pre-ping end', () => {
-        const prePingSeconds = computePrePing('solar');
-        const auctionStart = new Date(Date.now() - prePingSeconds * 1000 - 1);
-        const result = isInPrePingWindow(auctionStart, 'solar');
+    test('isInPrePingWindow returns false for null', () => {
+        const result = isInPrePingWindow(null);
         expect(result.inWindow).toBe(false);
+        expect(result.remainingMs).toBe(0);
     });
 
     test('getEffectiveBid applies multiplier for holder', () => {

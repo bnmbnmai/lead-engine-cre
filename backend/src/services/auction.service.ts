@@ -10,6 +10,7 @@
 
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
+import { invalidateNftOwnership } from '../lib/cache';
 import {
     applyHolderPerks,
     applyMultiplier,
@@ -102,6 +103,7 @@ export async function createAuction(
             const tx = await connectedContract.createAuction(
                 NFT_CONTRACT_ADDRESS,
                 vertical.nftTokenId,
+                ethers.id(slug), // bytes32 slug for on-chain holder verification
                 reserveWei,
                 durationSecs,
             );
@@ -120,6 +122,11 @@ export async function createAuction(
     const now = new Date();
     const endTime = new Date(now.getTime() + durationSecs * 1000);
 
+    // 4. Compute pre-ping window with per-auction nonce for unpredictability
+    const nonce = require('crypto').randomBytes(8).toString('hex');
+    const prePingSeconds = computePrePing(slug, nonce);
+    const prePingEndsAt = new Date(now.getTime() + prePingSeconds * 1000);
+
     try {
         const auctionRecord = await prisma.verticalAuction.create({
             data: {
@@ -129,6 +136,8 @@ export async function createAuction(
                 reservePrice,
                 startTime: now,
                 endTime,
+                prePingEndsAt,
+                prePingNonce: nonce, // Persist nonce for audit trail / recomputation
                 txHash: txHash || undefined,
             },
         });
@@ -326,6 +335,9 @@ export async function settleAuction(auctionDbId: string): Promise<SettleResult> 
                 },
             },
         });
+
+        // Invalidate NFT ownership cache — old owner loses perks immediately
+        invalidateNftOwnership(auction.verticalSlug);
 
         console.log(`[AUCTION] Settled: ${auction.verticalSlug} → ${auction.highBidder} for $${auction.highBid}`);
 

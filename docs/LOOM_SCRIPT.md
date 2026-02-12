@@ -1,177 +1,124 @@
-# Loom Demo Video Script — Lead Engine CRE
-
-> **Target: 4:30** | Record on [loom.com](https://www.loom.com) | Share unlisted link
-> **Pacing note:** Speak at ~140 wpm (slower than conversational). Pause 1–2s on screen transitions. Global audiences need time to read UI text — hold each screen 3–5s before narrating.
-
----
+# Lead Engine CRE — Loom Demo Script
 
 ## Pre-Recording Setup
 
-1. Open browser tabs:
-   - `https://lead-engine-cre.vercel.app` (frontend)
-   - `https://lead-engine-cre-api.onrender.com/api/swagger` (Swagger)
-   - `https://sepolia.etherscan.io/address/0xB93A1Ff499BdEaf74710F760Eb2B6bc5b62f8546` (LeadNFT)
-2. Connect MetaMask (Sepolia) with test wallet
-3. Terminal with `mcp-server` running on port 3002
-4. Second terminal ready for `npx cypress run --headless` (optional live demo)
+1. Open two browser tabs:
+   - **Tab 1**: `http://localhost:3000` (frontend)
+   - **Tab 2**: `http://localhost:3001/api/docs` (Swagger)
+2. Have MetaMask with two wallets:
+   - **Wallet A** (0xOwner) — holds the "mortgage" vertical NFT
+   - **Wallet B** (0xBuyer) — standard buyer, no NFTs
+3. Terminal visible for test results
 
 ---
 
-## Scene Breakdown (4:30)
+## Act 1: The Problem (30s)
 
-### 🎬 0:00–0:20 — Hook (20s)
+> "The $200B lead generation market runs on trust — but there's no way to verify lead quality, prevent fraud, or enforce compliance automatically. Lead Engine fixes this with Chainlink."
 
-> *"The $200 billion lead generation market runs on trust — but has none. Lead Engine CRE fixes that with Chainlink, creating the first decentralized real-time bidding platform for leads. Let me show you."*
-
-**Screen:** Homepage hero → hold 3s on "Decentralized Lead Intelligence" headline + stats bar.
-**Pacing:** Slow, confident. Let the hero speak for itself.
+- Show landing page hero
+- Point to the 10 verticals listed
 
 ---
 
-### 🎬 0:20–1:00 — Seller Flow × 10 Verticals (40s)
+## Act 2: Chainlink Integration (60s)
 
-> *"Start with the seller. A solar installer in Boise submits a lead. Watch the form — it adapts to each of our 10 verticals."*
+### CRE Functions (30s)
+> "CRE Functions run our lead verification on-chain — quality scoring, fraud detection, and geo-parameter matching."
 
-**Action:** Click "Become a Seller" → Select vertical dropdown → **quickly cycle through 3 verticals** (Solar → Mortgage → Insurance) to show field changes → Submit solar lead.
+- Navigate to a lead detail page
+- Show the quality score badge (0-10000)
+- Click "Verify on Chain" → show tx hash
 
-> *"Behind the scenes: Chainlink CRE scores the lead, ACE verifies compliance — TCPA for the US, GDPR for Europe — and the lead mints as an NFT on Base with a privacy-preserving hash. Three services, one click."*
+### ACE Compliance (30s)
+> "ACE handles all compliance automatically — KYC validation, jurisdiction enforcement, and cross-border restrictions."
 
-**Screen:** Show CRE quality badge → ACE check → NFT minted toast. Hold each for 2s.
-
-> *"Now watch our AI vertical optimizer — I'll describe a niche lead like 'EV charging station for commercial fleet.' GPT analyzes it, suggests a new sub-vertical under Auto, and because confidence hits 85%, it auto-activates: CRE verifies uniqueness, ACE checks compliance, and a VerticalNFT mints on-chain — all automatic."*
-
-**Screen:** Show the Suggest Vertical modal → AI response with confidence score → NFT badge appears.
-
----
-
-### 🎬 1:00–1:40 — Multi-Wallet Auction (40s)
-
-> *"Now the auction. I'll switch wallets to show the full buyer experience."*
-
-**Action:** Disconnect seller wallet → Connect buyer wallet (different MetaMask account) → Buyer Preferences page.
-
-> *"This buyer sets auto-bid rules: solar leads, Idaho, quality 70+, max $80. Our 9-criteria engine runs in under 200ms — budget, geo, vertical, time-of-day weighting, all checked. The sealed bid commits on-chain using commit-reveal."*
-
-**Screen:** Auto-bid config → bid fires → sealed commitment toast.
-**Key moment:** The wallet switch must be visible — judge should see two distinct addresses.
+- Show the compliance badge on the auction page
+- Switch to Swagger → hit `POST /api/compliance/check`
+- Show the response: `{ passed: true, checks: [...] }`
 
 ---
 
-### 🎬 1:40–2:10 — Settlement + Reinvestment Loop (30s)
+## Act 3: NFT Perk Flywheel (90s)
 
-> *"Bids reveal. Winner takes the lead. Now the x402 moment —"*
+### Step 1: AI Suggestion → Mint (20s)
+> "Our AI suggests new verticals. High-confidence suggestions auto-propose for admin review."
 
-**Action:** Show auction resolution → Escrow created → Released on Etherscan.
+- Navigate to Admin → Vertical Management
+- Show a PROPOSED vertical with confidence 0.92
+- Click "Mint NFT" → show tx confirmation
 
-> *"USDC settles in 4 seconds. Not 30 days. The seller reinvests that cash into their next Google Ads campaign before their competitor even knows the lead was sold. That's the reinvestment loop that traditional lead gen can't match."*
+### Step 2: Holder Perks (30s)
+> "NFT holders get priority bidding — a pre-ping window and 1.2× bid multiplier."
 
-**Screen:** Hold on Etherscan tx with EscrowCreated → EscrowReleased events (2s each).
+- Switch to **Wallet A** (holder)
+- Navigate to Mortgage vertical
+- **Show `HolderPerksBadge`** with priority badge and countdown
+- Hover multiplier → show tooltip: "Your $100 bid competes as $120"
+- Toggle notification switch ON → show ARIA polite feedback
 
----
+### Step 3: Auction Demo (30s)
+> "Watch what happens when a holder bids during the pre-ping window."
 
-### 🎬 2:10–2:40 — CRM + MCP Agent (30s)
+- Start a new auction (admin API)
+- **Wallet A** bids $80 during pre-ping → effective bid $96
+- Switch to **Wallet B** → try bidding during pre-ping → "Holders only" error
+- Pre-ping expires → **Wallet B** bids $95 → still loses (effective $95 < $96)
+- Show settlement: Wallet A wins, pays $80 (raw), not $96
 
-> *"Won leads push to HubSpot, Salesforce, or any webhook — one click. But for power users..."*
+### Step 4: Analytics (10s)
+> "Holders can track their advantage with the win-rate analytics chart."
 
-**Action:** Quick CRM push → switch to terminal.
-
-> *"...our MCP agent server exposes 8 tools. AI agents search leads, set auto-bid rules, and configure CRM webhooks — all via JSON-RPC. This is LangChain buying leads 24/7."*
-
-**Screen:** Terminal showing `search_leads` → `set_auto_bid_rules` → agent response.
-
----
-
-### 🎬 2:40–3:10 — Global Scale + Compliance (30s)
-
-> *"Lead Engine works across 20+ countries and all 10 verticals — solar, mortgage, insurance, roofing, HVAC, legal, auto, home services, health, and real estate."*
-
-**Action:** Show marketplace filters → cycle country dropdown (US → DE → BR → JP).
-
-> *"ACE handles TCPA, GDPR, MiCA, LGPD automatically. Cross-border trades get jurisdiction checks in real time — a New York mortgage can't sell to an unlicensed EU buyer."*
-
-**Screen:** Compliance block screen if applicable, or show compliance badge.
-
----
-
-### 🎬 3:10–3:40 — Testing & CI/CD (30s)
-
-> *"This isn't a prototype. We run 472 automated tests on every push."*
-
-**Action:** Show GitHub Actions badge in README → briefly flash test results.
-
-> *"282 Jest tests. 72 Hardhat contract tests — including VerticalNFT batch minting, hierarchy depth limits, royalty math. 113 Cypress E2E tests with full wallet mocking. 22 Artillery load test scenarios. Plus AI vertical integration tests that validate the full suggest → verify → mint → activate pipeline. All automated via GitHub Actions CI/CD."*
-
-**Screen:** Hold on README badges (2s) → Quick flash of CI actions tab.
-**Pacing tip:** This is a speed section — rattle off numbers with confidence.
+- Scroll to `HolderWinRateChart` showing 30-day trend
+- Point out the advantage percentage in the header
 
 ---
 
-### 🎬 3:40–4:05 — Chainlink Deep Dive (25s)
+## Act 4: Trust Infrastructure (45s)
 
-> *"Five Chainlink services power Lead Engine:"*
+### GDPR & Notifications (15s)
+> "All notifications are GDPR-compliant — users must opt in, and we batch to prevent fatigue."
 
-**Action:** Show architecture diagram from README.
+- Show the notification toggle with GDPR consent gate
+- Show Shield icon when consent is missing
 
-> *"CRE for quality scoring. ACE for automated compliance. DECO for off-chain attestations without revealing PII. Data Streams for real-time bid floors. And Confidential Compute stubs for TEE-based scoring. This is the deepest Chainlink integration in the hackathon."*
+### Spam Prevention (15s)
+> "Rate limiting is tiered — holders get 2× the rate limit, but hard-capped at 30/min."
 
-**Screen:** Architecture diagram — hold full 5s. Judges need to read it.
+- Show terminal: rapid bid sequence → blocked at threshold
+- Show rate limit headers in response
 
----
+### Gas Optimization (15s)
+> "We cache holder status on-chain to save ~2,100 gas per repeat bid, and offer batch holder checks for frontend pre-validation."
 
-### 🎬 4:05–4:30 — Close (25s)
-
-> *"Lead Engine CRE: decentralized, instant, compliant, autonomous. The $200 billion lead market deserves web3 infrastructure — and here it is."*
-
-**Screen:** Homepage with badges → GitHub repo.
-
-> *"Live demo at lead-engine-cre.vercel.app. GitHub link in the description. Thank you."*
-
-**End:** Hold on GitHub URL for 3s → fade.
+- Show contract code: `holderCache` mapping
+- Show `batchCheckHolders` function signature
 
 ---
 
-## Judge Appeal Checklist
+## Act 5: Test Results (30s)
 
-Use this to verify every judging criterion is visibly demonstrated in the video:
+> "214 Jest tests, 133 Hardhat tests, 107 Cypress E2E — all passing. Zero regressions."
 
-| Criterion | Demonstrated In | Timestamp |
-|-----------|----------------|-----------|
-| **Chainlink integration depth** | 5 services named + architecture diagram | 3:40–4:05 |
-| **Working product** | Live seller submit → buyer bid → settlement | 0:20–2:10 |
-| **Innovation / novelty** | Commit-reveal bidding, x402 instant settlement, MCP agent | 1:00–2:40 |
-| **Technical complexity** | Multi-wallet, 9-criteria auto-bid, CRE+ACE pipeline | 1:00–1:40 |
-| **Completeness** | 10 verticals, 20+ countries, CRM, webhooks | 0:20, 2:40 |
-| **Testing / quality** | 472 tests, CI/CD, load tests | 3:10–3:40 |
-| **UX / design** | Clean UI, vertical-adaptive forms, toast notifications | Throughout |
-| **Business viability** | $200B market, reinvestment loop, instant settlements | 0:00, 1:40 |
+- Run in terminal: `npx jest --verbose`
+- Show the green wall of 214 passing tests
+- Show test categories: lifecycle, stacking, ACE+GDPR, cross-border, cache
 
 ---
 
-## Backup Plan for Demo Failures
+## Act 6: Business Case (15s)
 
-| Failure | Recovery |
-|---------|----------|
-| Wallet won't connect | Pre-recorded wallet segment (15s clip) |
-| RPC timeout | All Chainlink stubs auto-fallback — demo continues seamlessly |
-| Contract call fails | Pre-captured Sepolia explorer tx |
-| Frontend blank | Demo via Swagger API (tab already open) |
-| Database down | `npm run db:seed` live (< 10s) |
-| MCP server crash | Pre-captured terminal logs |
-| Auto-bid misfire | Show evaluation endpoint directly |
-| Video pacing too fast | Practice run-through 2× before recording |
+> "The flywheel works: Mint → Perks → Revenue → Resale → Royalties → Reinvest. Every NFT sale grows the ecosystem, and Chainlink ensures the trust layer is bulletproof."
+
+- Show the Mermaid flywheel diagram in the README
+- End on the "Known Gaps" table — show transparency
 
 ---
 
-## Pacing Guide for Global Audiences
+## Total Runtime: ~4.5 minutes
 
-| Section | Words | WPM Target | Notes |
-|---------|-------|------------|-------|
-| Hook | ~35 | 130 | Slow, deliberate — set tone |
-| Seller flow | ~75 | 140 | Speed up during vertical cycling |
-| Multi-wallet | ~70 | 140 | Pause on wallet address change |
-| Settlement | ~60 | 135 | Slow on "4 seconds" emphasis |
-| CRM + MCP | ~55 | 150 | Fastest section — energy bump |
-| Global scale | ~55 | 140 | Steady, authoritative |
-| Testing | ~65 | 155 | Rattle off numbers confidently |
-| Chainlink deep | ~50 | 130 | Slow — let diagram speak |
-| Close | ~30 | 120 | Slowest — memorable ending |
+## Post-Recording Checklist
+- [ ] Verify all wallet interactions recorded clearly
+- [ ] Check audio levels on narration
+- [ ] Add captions for accessibility
+- [ ] Upload to Loom with "Lead Engine CRE — Chainlink Hackathon 2026" title

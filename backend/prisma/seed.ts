@@ -571,35 +571,39 @@ async function main() {
     console.log('');
 
     // 1. Users
-    console.log('→ Step 1/5: Users');
+    console.log('→ Step 1/8: Users');
     const allUsers = await seedUsers(BUYER_COUNT + SELLER_COUNT);
     const buyerUsers = allUsers.slice(0, BUYER_COUNT);
     const sellerUsers = allUsers.slice(BUYER_COUNT);
 
     // 2. Profiles
-    console.log('→ Step 2/5: Profiles');
+    console.log('→ Step 2/8: Profiles');
     await seedBuyerProfiles(buyerUsers);
     const sellers = await seedSellerProfiles(sellerUsers);
 
     // 3. Asks
-    console.log('→ Step 3/5: Asks');
+    console.log('→ Step 3/8: Asks');
     const asks = await seedAsks(sellers, ASK_COUNT);
 
     // 4. Leads
-    console.log('→ Step 4/5: Leads');
+    console.log('→ Step 4/8: Leads');
     const leads = await seedLeads(sellers, asks, LEAD_COUNT);
 
     // 5. Bids
-    console.log('→ Step 5/7: Bids');
+    console.log('→ Step 5/8: Bids');
     await seedBids(leads, buyerUsers, BID_COUNT);
 
     // 6. Transactions
-    console.log('→ Step 6/7: Transactions');
+    console.log('→ Step 6/8: Transactions');
     await seedTransactions(leads, buyerUsers);
 
     // 7. Analytics events
-    console.log('→ Step 7/7: Analytics Events');
+    console.log('→ Step 7/8: Analytics Events');
     await seedAnalyticsEvents(leads, buyerUsers);
+
+    // 8. Holder perk scenarios (P2 #6)
+    console.log('→ Step 8/8: Holder Perk Scenarios');
+    await seedHolderPerkScenarios(buyerUsers, leads);
 
     // Summary
     const counts = {
@@ -633,6 +637,85 @@ async function main() {
     console.log('     and email domain @mockdemo.test');
     console.log('  📌 Run `npm run db:clear-mock` to remove mock data only.');
     console.log('');
+}
+
+// ─── Step 8: Holder Perk Scenarios (P2 #6) ──────────────────
+async function seedHolderPerkScenarios(buyerUsers: any[], leads: any[]) {
+    const HOLDER_MULTIPLIER = 1.2;
+    const holderWallets = [
+        '0xMOCK_HOLDER_AAA1111111111111111111111111111111111111',
+        '0xMOCK_HOLDER_BBB2222222222222222222222222222222222222',
+        '0xMOCK_HOLDER_CCC3333333333333333333333333333333333333',
+    ];
+
+    // 1. Set 3 buyers as vertical owners
+    const holderVerticals = ['solar', 'mortgage', 'insurance'];
+    for (let i = 0; i < 3; i++) {
+        if (buyerUsers[i]) {
+            try {
+                await prisma.vertical.updateMany({
+                    where: { slug: holderVerticals[i] },
+                    data: { ownerAddress: holderWallets[i] },
+                });
+                console.log(`  Holder ${i + 1}: ${holderVerticals[i]} → ${holderWallets[i].slice(0, 20)}...`);
+            } catch { /* vertical may not exist yet */ }
+        }
+    }
+
+    // 2. Create 10 bids with pre-computed effectiveBid (holder multiplier applied)
+    const holderLeads = leads.slice(0, Math.min(10, leads.length));
+    for (let i = 0; i < holderLeads.length; i++) {
+        const rawBid = 50 + Math.random() * 200;
+        const effectiveBid = rawBid * HOLDER_MULTIPLIER;
+        try {
+            await prisma.bid.create({
+                data: {
+                    amount: parseFloat(rawBid.toFixed(2)),
+                    effectiveBid: parseFloat(effectiveBid.toFixed(2)),
+                    status: 'PENDING',
+                    lead: { connect: { id: holderLeads[i].id } },
+                    buyer: { connect: { id: buyerUsers[i % buyerUsers.length].id } },
+                },
+            });
+        } catch { /* skip if constraint violated */ }
+    }
+    console.log(`  Created 10 effectiveBid bids (${HOLDER_MULTIPLIER}x multiplier)`);
+
+    // 3. Create 5 legacy bids with effectiveBid: null (migration edge case)
+    const legacyLeads = leads.slice(10, Math.min(15, leads.length));
+    for (let i = 0; i < legacyLeads.length; i++) {
+        try {
+            await prisma.bid.create({
+                data: {
+                    amount: parseFloat((30 + Math.random() * 100).toFixed(2)),
+                    effectiveBid: undefined, // null — tests backfill script
+                    status: 'PENDING',
+                    lead: { connect: { id: legacyLeads[i].id } },
+                    buyer: { connect: { id: buyerUsers[(i + 3) % buyerUsers.length].id } },
+                },
+            });
+        } catch { /* skip if constraint violated */ }
+    }
+    console.log('  Created 5 legacy bids (effectiveBid: null)');
+
+    // 4. Create 100 granular vertical suggestions for spam threshold testing
+    const spamSlugs = Array.from({ length: 100 }, (_, i) => `spam-test-vertical-${String(i).padStart(3, '0')}`);
+    for (const slug of spamSlugs) {
+        try {
+            await prisma.verticalSuggestion.create({
+                data: {
+                    suggestedSlug: slug,
+                    suggestedName: `Spam Test ${slug}`,
+                    parentSlug: 'solar',
+                    confidence: 0.1 + Math.random() * 0.3,
+                    reason: 'seed:spam-threshold-test',
+                    sourceLeadId: leads[Math.floor(Math.random() * leads.length)]?.id || 'unknown',
+                    sourceText: `Automated spam test suggestion ${slug}`,
+                },
+            });
+        } catch { /* skip duplicates */ }
+    }
+    console.log('  Created 100 spam-test vertical suggestions');
 }
 
 main()

@@ -184,11 +184,19 @@ export const verticalHierarchyCache = new LRUCache<any>({
     ttlMs: 5 * 60_000,
 });
 
-/** Cache for NFT ownership lookups (2 min TTL) */
+/** Cache for NFT ownership lookups (60s TTL — short to limit stale perks on resale) */
 export const nftOwnershipCache = new LRUCache<string | null>({
     maxSize: 2000,
-    ttlMs: 2 * 60_000,
+    ttlMs: 60_000,
 });
+
+/**
+ * Invalidate NFT ownership cache for a vertical slug.
+ * Call after auction settle, cancel, or detected resale.
+ */
+export function invalidateNftOwnership(slug: string): void {
+    nftOwnershipCache.delete(`nft-owner:${slug}`);
+}
 
 /** Cache for bid activity counters — spam prevention (60s TTL = 1 minute window) */
 export const bidActivityCache = new LRUCache<number>({
