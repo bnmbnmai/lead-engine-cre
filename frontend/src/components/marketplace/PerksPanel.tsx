@@ -12,8 +12,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Bell, Zap, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shield, Zap, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -57,8 +57,8 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
     useEffect(() => {
         const fetchPerks = async () => {
             try {
-                const res = await api.get('/api/buyer/perks-overview');
-                setPerks(res.data);
+                const res = await api.apiFetch<PerksOverview>('/api/buyer/perks-overview');
+                setPerks(res.data ?? null);
             } catch (error) {
                 // Fallback: synthetic overview for demo
                 setPerks({
@@ -85,9 +85,9 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
         setUpdating(key);
         try {
             if (key === 'notifyOptedIn') {
-                await api.post('/api/buyer/notify-optin', { optIn: value });
+                await api.apiFetch('/api/buyer/notify-optin', { method: 'POST', body: JSON.stringify({ optIn: value }), headers: { 'Content-Type': 'application/json' } });
             } else if (key === 'gdprConsent') {
-                await api.post('/api/buyer/gdpr-consent', { consent: value });
+                await api.apiFetch('/api/buyer/gdpr-consent', { method: 'POST', body: JSON.stringify({ consent: value }), headers: { 'Content-Type': 'application/json' } });
             }
             setPerks(prev => prev ? { ...prev, [key]: value } : prev);
             toast({
