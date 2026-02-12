@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const autoLoginAttempted = useRef(false);
     const loginInProgress = useRef(false);
 
-    const { address, isConnected, status } = useAccount();
+    const { address, isConnected, status, chain } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { disconnect } = useDisconnect();
 
@@ -109,6 +109,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // When a wallet connects for the first time (no existing token),
     // automatically trigger SIWE sign-in so the user doesn't need a
     // separate "Sign In" button click.
+    // IMPORTANT: We wait for the chain to settle on a supported network
+    // before triggering. If the wallet is on mainnet, wagmi will switch
+    // chains first — we must NOT fire the sign request during that switch
+    // or MetaMask will warn about "pending transactions".
+    const SUPPORTED_CHAIN_IDS = [11155111, 84532]; // sepolia, baseSepolia
     useEffect(() => {
         if (
             isConnected &&
@@ -119,15 +124,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             status === 'connected' &&
             !autoLoginAttempted.current &&
             wagmiReady &&
-            !loginInProgress.current
+            !loginInProgress.current &&
+            chain &&
+            SUPPORTED_CHAIN_IDS.includes(chain.id)
         ) {
-            autoLoginAttempted.current = true;
-            login().catch(() => {
-                // Error already captured in authError state
-                autoLoginAttempted.current = false;
-            });
+            // Short delay to let any chain-switch UI resolve in MetaMask
+            const timer = setTimeout(() => {
+                if (!autoLoginAttempted.current && !loginInProgress.current) {
+                    autoLoginAttempted.current = true;
+                    login().catch(() => {
+                        autoLoginAttempted.current = false;
+                    });
+                }
+            }, 500);
+            return () => clearTimeout(timer);
         }
-    }, [isConnected, address, status, isLoading, wagmiReady]);
+    }, [isConnected, address, status, isLoading, wagmiReady, chain]);
 
     // Reset auto-login guard when wallet disconnects
     useEffect(() => {

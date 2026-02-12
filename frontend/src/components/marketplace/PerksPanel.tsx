@@ -57,7 +57,7 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
     useEffect(() => {
         const fetchPerks = async () => {
             try {
-                const res = await api.apiFetch<PerksOverview>('/api/buyer/perks-overview');
+                const res = await api.apiFetch<PerksOverview>('/api/v1/buyer/perks-overview');
                 setPerks(res.data ?? null);
             } catch (error) {
                 // Fallback: synthetic overview for demo
@@ -85,9 +85,9 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
         setUpdating(key);
         try {
             if (key === 'notifyOptedIn') {
-                await api.apiFetch('/api/buyer/notify-optin', { method: 'POST', body: JSON.stringify({ optIn: value }), headers: { 'Content-Type': 'application/json' } });
+                await api.apiFetch('/api/v1/buyer/notify-optin', { method: 'POST', body: JSON.stringify({ optIn: value }), headers: { 'Content-Type': 'application/json' } });
             } else if (key === 'gdprConsent') {
-                await api.apiFetch('/api/buyer/gdpr-consent', { method: 'POST', body: JSON.stringify({ consent: value }), headers: { 'Content-Type': 'application/json' } });
+                await api.apiFetch('/api/v1/buyer/gdpr-consent', { method: 'POST', body: JSON.stringify({ consent: value }), headers: { 'Content-Type': 'application/json' } });
             }
             setPerks(prev => prev ? { ...prev, [key]: value } : prev);
             toast({
