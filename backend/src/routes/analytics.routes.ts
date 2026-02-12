@@ -10,10 +10,18 @@ import { getMockOverview, getMockLeadAnalytics, getMockBidAnalytics } from '../s
 const router = Router();
 
 const IS_PROD = process.env.NODE_ENV === 'production';
-const USE_MOCK = process.env.USE_MOCK_DATA === 'true' && !IS_PROD;
+const USE_MOCK_DEFAULT = process.env.USE_MOCK_DATA === 'true' && !IS_PROD;
 
 if (process.env.USE_MOCK_DATA === 'true' && IS_PROD) {
     console.warn('[analytics] ⚠️  USE_MOCK_DATA=true ignored in production. Using real data from Prisma/Redis.');
+}
+
+/** Per-request data source: `?source=real|mock` overrides server default */
+function shouldUseMock(req: AuthenticatedRequest): boolean {
+    const src = (req.query.source as string || '').toLowerCase();
+    if (src === 'real') return false;
+    if (src === 'mock') return !IS_PROD;   // never allow mock in prod
+    return USE_MOCK_DEFAULT;
 }
 
 // ============================================
@@ -26,11 +34,11 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
         const role = req.user!.role;
 
         // ── Mock data shortcut ──
-        if (USE_MOCK) {
+        if (shouldUseMock(req)) {
             res.json(getMockOverview(role));
             return;
         }
-        const cacheKey = `overview:${role}:${userId}`;
+        const cacheKey = `overview:${role}:${userId}:${req.query.source || 'default'}`;
         const cached = analyticsOverviewCache.get(cacheKey);
         if (cached) {
             res.json(cached);
@@ -182,7 +190,7 @@ router.get('/leads', analyticsLimiter, authMiddleware, async (req: Authenticated
         }
 
         // ── Mock data shortcut ──
-        if (USE_MOCK) {
+        if (shouldUseMock(req)) {
             const { groupBy } = validation.data;
             res.json(getMockLeadAnalytics(groupBy || 'day'));
             return;
@@ -296,7 +304,7 @@ router.get('/leads', analyticsLimiter, authMiddleware, async (req: Authenticated
 router.get('/bids', analyticsLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         // ── Mock data shortcut ──
-        if (USE_MOCK) {
+        if (shouldUseMock(req)) {
             res.json(getMockBidAnalytics());
             return;
         }

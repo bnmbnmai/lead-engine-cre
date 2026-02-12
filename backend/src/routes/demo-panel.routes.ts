@@ -36,6 +36,20 @@ const PRICING: Record<string, { min: number; max: number }> = {
     real_estate: { min: 40, max: 150 }, auto: { min: 12, max: 40 }, legal: { min: 35, max: 120 }, financial: { min: 45, max: 180 },
 };
 
+// Non-PII demo form-field values (mirrors LeadSubmitForm VERTICAL_FIELDS)
+const VERTICAL_DEMO_PARAMS: Record<string, Record<string, string | boolean>> = {
+    solar: { roof_age: '8', monthly_bill: '185', ownership: 'own', panel_interest: 'purchase', shade_level: 'no_shade' },
+    mortgage: { loan_type: 'purchase', credit_range: 'good_700-749', property_type: 'single_family', purchase_price: '450000', down_payment_pct: '20' },
+    roofing: { roof_type: 'shingle', damage_type: 'storm', insurance_claim: true, roof_age: '15', square_footage: '2200' },
+    insurance: { coverage_type: 'home', current_provider: 'State Farm', policy_expiry: '30', num_drivers: '2' },
+    home_services: { service_type: 'hvac', urgency: 'this_week', property_type: 'residential' },
+    real_estate: { transaction_type: 'buying', property_type: 'single_family', price_range: '200k-500k', timeline: '1-3_months' },
+    auto: { vehicle_year: '2022', vehicle_make: 'Toyota', vehicle_model: 'Camry', mileage: '28000', coverage_type: 'full', current_insured: true },
+    b2b_saas: { company_size: '51-200', industry: 'technology', budget_range: '2000-10000', decision_timeline: '1-3_months', current_solution: 'Salesforce' },
+    legal: { case_type: 'personal_injury', urgency: 'this_week', has_representation: false, case_value: '75000' },
+    financial: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
+};
+
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick<T>(arr: T[]): T { return arr[rand(0, arr.length - 1)]; }
 
@@ -187,7 +201,7 @@ router.post('/seed', async (req: Request, res: Response) => {
             const now = new Date();
             const createdAt = new Date(now.getTime() - rand(0, 7) * 86400000);
             const auctionEnd = status === 'IN_AUCTION'
-                ? new Date(now.getTime() + rand(1, 72) * 3600000)
+                ? new Date(now.getTime() + LEAD_AUCTION_DURATION_SECS * 1000)
                 : new Date(createdAt.getTime() + 2 * 86400000);
 
             const lead = await prisma.lead.create({
@@ -259,49 +273,25 @@ router.post('/seed', async (req: Request, res: Response) => {
 // ============================================
 // POST /clear — remove all demo data
 // ============================================
-router.post('/clear', async (_req: Request, res: Response) => {
+router.post('/clear', async (req: Request, res: Response) => {
     try {
-        // Delete in dependency order: bids → leads → asks → profiles
-        const demoLeadIds = await prisma.lead.findMany({
-            where: { consentProof: DEMO_TAG },
-            select: { id: true },
-        });
-        const ids = demoLeadIds.map(l => l.id);
+        // Delete ALL data in dependency order — ensures old long-duration / orphan records are removed
+        const deletedBids = await prisma.bid.deleteMany({});
+        await prisma.auctionRoom.deleteMany({});
+        await prisma.transaction.deleteMany({});
+        const deletedLeads = await prisma.lead.deleteMany({});
+        const deletedAsks = await prisma.ask.deleteMany({});
 
-        // Delete bids on demo leads
-        const deletedBids = await prisma.bid.deleteMany({
-            where: { leadId: { in: ids } },
-        });
-
-        // Delete auction rooms
-        await prisma.auctionRoom.deleteMany({
-            where: { leadId: { in: ids } },
-        });
-
-        // Delete transactions
-        await prisma.transaction.deleteMany({
-            where: { leadId: { in: ids } },
-        });
-
-        // Delete demo leads
-        const deletedLeads = await prisma.lead.deleteMany({
-            where: { consentProof: DEMO_TAG },
-        });
-
-        // Delete demo asks — use sellerId from demo user for reliability
-        const demoSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: '0xDEMO_PANEL_USER' } } });
-        let deletedAsksCount = 0;
-        if (demoSeller) {
-            const deletedAsks = await prisma.ask.deleteMany({ where: { sellerId: demoSeller.id } });
-            deletedAsksCount = deletedAsks.count;
-        }
+        // Notify clients marketplace is empty
+        const io = req.app.get('io');
+        if (io) io.emit('marketplace:refreshAll');
 
         res.json({
             success: true,
             deleted: {
                 leads: deletedLeads.count,
                 bids: deletedBids.count,
-                asks: deletedAsksCount,
+                asks: deletedAsks.count,
             },
         });
     } catch (error) {
@@ -328,6 +318,9 @@ router.post('/lead', async (req: Request, res: Response) => {
             return;
         }
 
+        // Build non-PII form parameters from vertical schema
+        const params = VERTICAL_DEMO_PARAMS[vertical] || {};
+
         const lead = await prisma.lead.create({
             data: {
                 sellerId: seller.id,
@@ -340,7 +333,8 @@ router.post('/lead', async (req: Request, res: Response) => {
                 tcpaConsentAt: new Date(),
                 consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
-                auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), // configurable
+                auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                parameters: params as any,
             },
         });
 
@@ -355,14 +349,15 @@ router.post('/lead', async (req: Request, res: Response) => {
                     reservePrice: price,
                     geo: { country: 'US', state },
                     isVerified: true,
-                    auctionStartAt: new Date().toISOString(),
-                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString(),
+                    auctionStartAt: lead.auctionStartAt?.toISOString(),
+                    auctionEndAt: lead.auctionEndAt?.toISOString(),
+                    parameters: params,
                     _count: { bids: 0 },
                 },
             });
         }
 
-        res.json({ success: true, lead: { id: lead.id, vertical, state, price } });
+        res.json({ success: true, lead: { id: lead.id, vertical, state, price, parameters: params } });
     } catch (error) {
         console.error('Demo inject lead error:', error);
         res.status(500).json({ error: 'Failed to inject lead' });
@@ -497,6 +492,121 @@ router.post('/auction', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Demo auction error:', error);
         res.status(500).json({ error: 'Failed to start demo auction' });
+    }
+});
+
+// ============================================
+// POST /reset — clear ALL data + reseed fresh short auctions
+// ============================================
+router.post('/reset', async (req: Request, res: Response) => {
+    try {
+        // 1. Clear everything
+        await prisma.bid.deleteMany({});
+        await prisma.auctionRoom.deleteMany({});
+        await prisma.transaction.deleteMany({});
+        const cleared = await prisma.lead.deleteMany({});
+        await prisma.ask.deleteMany({});
+
+        // 2. Re-seed with short auctions (delegate to seed logic)
+        // Find or create demo user
+        let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
+        if (!demoUser) {
+            demoUser = await prisma.user.create({
+                data: {
+                    walletAddress: '0xDEMO_PANEL_USER',
+                    role: 'SELLER',
+                    sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
+                    buyerProfile: { create: { companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true } },
+                },
+                include: { sellerProfile: true, buyerProfile: true },
+            });
+        }
+
+        const seller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
+        if (!seller) {
+            res.status(500).json({ error: 'Failed to find/create seller profile' });
+            return;
+        }
+
+        // Create demo buyers
+        const buyerUserIds: string[] = [];
+        for (const buyer of DEMO_BUYERS) {
+            let buyerUser = await prisma.user.findFirst({ where: { walletAddress: buyer.wallet } });
+            if (!buyerUser) {
+                buyerUser = await prisma.user.create({
+                    data: { walletAddress: buyer.wallet, role: 'BUYER', buyerProfile: { create: { companyName: buyer.company, verticals: VERTICALS.slice(0, 5), acceptOffSite: true } } },
+                });
+            }
+            buyerUserIds.push(buyerUser.id);
+        }
+
+        // Create 5 asks
+        let askCount = 0;
+        for (let i = 0; i < 5; i++) {
+            const vertical = VERTICALS[i * 2];
+            await prisma.ask.create({
+                data: {
+                    sellerId: seller.id, vertical,
+                    geoTargets: { country: 'US', states: [pick(STATES), pick(STATES)] },
+                    reservePrice: rand(PRICING[vertical].min, PRICING[vertical].max),
+                    status: 'ACTIVE', parameters: { _demoTag: DEMO_TAG },
+                    auctionDuration: LEAD_AUCTION_DURATION_SECS, revealWindow: 900,
+                },
+            });
+            askCount++;
+        }
+
+        // Create 10 leads (all IN_AUCTION with 5-min durations)
+        let leadCount = 0;
+        const leadIds: string[] = [];
+        for (let i = 0; i < 10; i++) {
+            const vertical = VERTICALS[i % VERTICALS.length];
+            const state = pick(STATES);
+            const price = rand(PRICING[vertical].min, PRICING[vertical].max);
+            const params = VERTICAL_DEMO_PARAMS[vertical] || {};
+            const lead = await prisma.lead.create({
+                data: {
+                    sellerId: seller.id, vertical,
+                    geo: { country: 'US', state, city: CITIES[state] || 'Demo City', zip: `${rand(10000, 99999)}` },
+                    source: 'PLATFORM', status: 'IN_AUCTION', reservePrice: price,
+                    isVerified: true,
+                    tcpaConsentAt: new Date(), consentProof: DEMO_TAG,
+                    auctionStartAt: new Date(),
+                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                    parameters: params as any,
+                },
+            });
+            leadIds.push(lead.id);
+            leadCount++;
+        }
+
+        // Create bids
+        let bidCount = 0;
+        for (const leadId of leadIds) {
+            const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { reservePrice: true } });
+            if (!lead) continue;
+            const shuffled = [...buyerUserIds].sort(() => Math.random() - 0.5);
+            const numBidders = rand(1, Math.min(2, shuffled.length));
+            for (let b = 0; b < numBidders; b++) {
+                await prisma.bid.create({
+                    data: { leadId, buyerId: shuffled[b], amount: Number(lead.reservePrice || 20) + rand(5, 25), status: 'REVEALED', source: 'MANUAL' },
+                });
+                bidCount++;
+            }
+        }
+
+        // 3. Notify clients
+        const io = req.app.get('io');
+        if (io) io.emit('marketplace:refreshAll');
+
+        res.json({
+            success: true,
+            cleared: cleared.count,
+            reseeded: { leads: leadCount, bids: bidCount, asks: askCount },
+        });
+    } catch (error) {
+        console.error('Demo reset error:', error);
+        res.status(500).json({ error: 'Failed to reset demo state', details: String(error) });
     }
 });
 

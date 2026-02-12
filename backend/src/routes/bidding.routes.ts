@@ -269,6 +269,19 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                 },
             });
 
+            // Push real-time analytics update to dashboards
+            const io = req.app.get('io');
+            if (io) {
+                io.emit('analytics:update', {
+                    type: 'bid',
+                    leadId,
+                    buyerId: req.user!.id,
+                    amount,
+                    vertical: lead.vertical,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+
             res.status(201).json({
                 bid: {
                     id: bid.id,

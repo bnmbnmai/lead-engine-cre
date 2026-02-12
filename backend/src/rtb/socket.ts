@@ -555,6 +555,17 @@ class RTBSocketServer {
 
             console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);
 
+            // Push real-time analytics update to all connected dashboards
+            const resolvedLead = await prisma.lead.findUnique({ where: { id: leadId }, select: { vertical: true } });
+            this.io.emit('analytics:update', {
+                type: 'purchase',
+                leadId,
+                buyerId: winningBid.buyerId,
+                amount: Number(winningBid.amount),
+                vertical: resolvedLead?.vertical || 'unknown',
+                timestamp: new Date().toISOString(),
+            });
+
             // Log analytics
             await prisma.analyticsEvent.create({
                 data: {

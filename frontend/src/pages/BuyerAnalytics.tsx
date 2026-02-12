@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     TrendingUp, Gavel, DollarSign, Target, ArrowUpRight,
     ArrowDownRight, Download, Filter
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { socketClient } from '@/lib/socket';
 
 const IS_PROD = import.meta.env.PROD;
 
@@ -69,44 +70,64 @@ export function BuyerAnalytics() {
     const [overview, setOverview] = useState<any>(null);
     const [liveByVertical, setLiveByVertical] = useState<any[] | null>(null);
     const [apiError, setApiError] = useState(false);
+    const [fetchKey, setFetchKey] = useState(0);   // bump to re-fetch
 
     // Reactive mock toggle — reads localStorage every render so DemoPanel toggle takes effect
     const useMock = localStorage.getItem('VITE_USE_MOCK_DATA') === 'true';
 
-    const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
-    const bidHistory = useMemo(() => useMock ? generateBidHistory(days) : [], [days, useMock]);
+    // Real data toggle: default on in dev/demo, off in prod
+    const [useRealData, setUseRealData] = useState(
+        import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true'
+    );
 
-    useEffect(() => {
-        if (useMock) return; // skip API when mock mode enabled
-        const fetchData = async () => {
-            try {
-                const [overviewRes, bidsRes] = await Promise.all([
-                    api.getOverview(),
-                    api.getBidAnalytics(),
-                ]);
-                if (overviewRes.data?.stats) setOverview(overviewRes.data.stats);
-                if (bidsRes.data?.byVertical) {
-                    setLiveByVertical(bidsRes.data.byVertical.map((v: any, i: number) => ({
-                        vertical: v.vertical.charAt(0).toUpperCase() + v.vertical.slice(1).replace('_', ' '),
-                        total: v.total,
-                        won: v.won,
-                        avgAmount: Math.round(v.avgAmount),
-                        color: PIE_COLORS[i % PIE_COLORS.length],
-                    })));
-                }
-            } catch {
-                if (IS_PROD) {
-                    setApiError(true);
-                }
-                // Dev: silent fallback to seeded mock
+    const dataSource = useRealData ? 'real' as const : useMock ? 'mock' as const : undefined;
+    const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
+    const bidHistory = useMemo(() => (useMock && !useRealData) ? generateBidHistory(days) : [], [days, useMock, useRealData]);
+
+    const fetchData = useCallback(async () => {
+        if (useMock && !useRealData) return; // skip API when mock-only mode
+        try {
+            const [overviewRes, bidsRes] = await Promise.all([
+                api.getOverview(dataSource),
+                api.getBidAnalytics(dataSource),
+            ]);
+            if (overviewRes.data?.stats) setOverview(overviewRes.data.stats);
+            if (bidsRes.data?.byVertical) {
+                setLiveByVertical(bidsRes.data.byVertical.map((v: any, i: number) => ({
+                    vertical: v.vertical.charAt(0).toUpperCase() + v.vertical.slice(1).replace('_', ' '),
+                    total: v.total,
+                    won: v.won,
+                    avgAmount: Math.round(v.avgAmount),
+                    color: PIE_COLORS[i % PIE_COLORS.length],
+                })));
             }
-        };
-        fetchData();
-    }, [period]);
+        } catch {
+            if (IS_PROD) {
+                setApiError(true);
+            }
+            // Dev: silent fallback to seeded mock
+        }
+    }, [period, dataSource, useMock, useRealData]);
+
+    useEffect(() => { fetchData(); }, [fetchData, fetchKey]);
+
+    // Socket: real-time analytics updates from purchases/bids
+    useEffect(() => {
+        if (!useRealData) return;
+        socketClient.connect();
+        const unsub = socketClient.on('analytics:update', () => {
+            // Re-fetch analytics when a purchase or bid happens
+            setFetchKey(k => k + 1);
+        });
+        return () => { unsub(); };
+    }, [useRealData]);
 
     const verticalData = liveByVertical && liveByVertical.length > 0
         ? liveByVertical
-        : useMock ? FALLBACK_BY_VERTICAL : [];
+        : (useMock && !useRealData) ? FALLBACK_BY_VERTICAL : [];
+
+    // Empty state detection
+    const isEmptyRealData = useRealData && !overview && (!liveByVertical || liveByVertical.length === 0) && !useMock;
 
     const totalBidsAgg = bidHistory.reduce((sum, d) => sum + d.totalBids, 0);
     const wonBidsAgg = bidHistory.reduce((sum, d) => sum + d.wonBids, 0);
@@ -143,10 +164,26 @@ export function BuyerAnalytics() {
                         <p className="text-muted-foreground">Bid performance, spend insights, and winning patterns</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        {useMock && (
+                        {useRealData && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Data
+                            </span>
+                        )}
+                        {useMock && !useRealData && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                 Mock Data
                             </span>
+                        )}
+                        {!IS_PROD && (
+                            <button
+                                onClick={() => setUseRealData(p => !p)}
+                                className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${useRealData
+                                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
+                                    : 'bg-zinc-700/50 text-zinc-400 border-zinc-600 hover:bg-zinc-700'
+                                    }`}
+                            >
+                                {useRealData ? '◉ Real Data' : '○ Use Real Data'}
+                            </button>
                         )}
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-28">
@@ -171,6 +208,18 @@ export function BuyerAnalytics() {
                         <span className="font-medium">⚠ Analytics data unavailable.</span>
                         <span className="text-muted-foreground">The API returned an error. Showing empty state — no mock data in production.</span>
                     </div>
+                )}
+
+                {/* Empty state for real data mode */}
+                {isEmptyRealData && (
+                    <GlassCard className="p-8 text-center">
+                        <div className="text-4xl mb-3">📊</div>
+                        <h3 className="text-lg font-semibold mb-1">No purchases yet</h3>
+                        <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                            Place bids on leads in the marketplace to see real analytics here.
+                            Data updates automatically when a purchase completes.
+                        </p>
+                    </GlassCard>
                 )}
 
                 {/* Quick Stats */}

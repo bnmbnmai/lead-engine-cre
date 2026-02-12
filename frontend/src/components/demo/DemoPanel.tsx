@@ -24,6 +24,7 @@ import {
     Check,
     AlertCircle,
     Sparkles,
+    RefreshCw,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -120,6 +121,15 @@ export function DemoPanel() {
         });
     }
 
+    async function handleReset() {
+        await runAction('reset', async () => {
+            const { data, error } = await api.demoReset();
+            if (error) throw new Error(error.message || error.error);
+            const r = data?.reseeded;
+            return `🔄 Cleared ${data?.cleared} old records → reseeded ${r?.leads} leads, ${r?.bids} bids, ${r?.asks} asks`;
+        });
+    }
+
     async function handleInjectLead() {
         await runAction('inject', async () => {
             const { data, error } = await api.demoInjectLead();
@@ -148,13 +158,47 @@ export function DemoPanel() {
     }
 
     function handlePersonaSwitch(persona: 'buyer' | 'seller' | 'guest') {
+        // In dev/demo mode, inject a fully-formed demo profile so useAuth
+        // picks it up via the le_auth_user localStorage bypass.
+        const isDemoEnv = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
+
+        if (isDemoEnv) {
+            if (persona === 'seller') {
+                localStorage.setItem('le_auth_user', JSON.stringify({
+                    id: 'demo-seller',
+                    walletAddress: '0xDEMO_SELLER_KYC',
+                    role: 'SELLER',
+                    kycStatus: 'VERIFIED',
+                    profile: { companyName: 'Demo Seller Co', isVerified: true, reputationScore: 8500 },
+                }));
+                console.log('[DemoPanel] Demo KYC bypassed — seller persona set');
+            } else if (persona === 'buyer') {
+                localStorage.setItem('le_auth_user', JSON.stringify({
+                    id: 'demo-buyer',
+                    walletAddress: '0xDEMO_BUYER',
+                    role: 'BUYER',
+                    kycStatus: 'VERIFIED',
+                }));
+                console.log('[DemoPanel] Demo KYC bypassed — buyer persona set');
+            } else {
+                localStorage.removeItem('le_auth_user');
+                console.log('[DemoPanel] Guest persona — cleared auth');
+            }
+
+            // Force useAuth to re-read by dispatching a synthetic storage event
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'le_auth_user',
+                newValue: localStorage.getItem('le_auth_user'),
+            }));
+        }
+
         if (persona === 'buyer') navigate('/buyer');
         else if (persona === 'seller') navigate('/seller');
         else navigate('/');
 
         setActions(prev => ({
             ...prev,
-            persona: { state: 'success', message: `🎭 Switched to ${persona} view` },
+            persona: { state: 'success', message: `🎭 Switched to ${persona} view${isDemoEnv ? ' (KYC bypassed)' : ''}` },
         }));
         setTimeout(() => setActions(prev => ({ ...prev, persona: { state: 'idle' } })), 2000);
     }
@@ -319,6 +363,13 @@ export function DemoPanel() {
                                 label="Inject Single Lead"
                                 icon={Zap}
                                 onClick={handleInjectLead}
+                            />
+                            <ActionButton
+                                actionKey="reset"
+                                label="Reset to Clean Demo State"
+                                icon={RefreshCw}
+                                onClick={handleReset}
+                                variant="danger"
                             />
                         </Section>
 

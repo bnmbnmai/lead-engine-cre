@@ -160,12 +160,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, [user]);
 
-    // Cross-tab logout: detect when auth_token is removed in another tab
+    // Cross-tab logout + persona switcher: detect storage changes
     useEffect(() => {
         const onStorage = (e: StorageEvent) => {
             if (e.key === 'auth_token' && !e.newValue) {
                 setUser(null);
                 socketClient.disconnect();
+            }
+            // Persona switcher dispatches synthetic StorageEvent for le_auth_user
+            if (e.key === 'le_auth_user') {
+                if (e.newValue) {
+                    try {
+                        const parsed = JSON.parse(e.newValue);
+                        setUser({
+                            id: parsed.id || 'demo-user',
+                            walletAddress: parsed.walletAddress || '0x0',
+                            role: (parsed.role || 'buyer').toUpperCase() as User['role'],
+                            kycStatus: parsed.kycStatus,
+                            profile: parsed.profile,
+                        });
+                    } catch { /* ignore bad JSON */ }
+                } else {
+                    setUser(null);
+                }
             }
         };
         window.addEventListener('storage', onStorage);

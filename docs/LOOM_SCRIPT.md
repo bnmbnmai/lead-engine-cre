@@ -83,7 +83,34 @@
 
 ---
 
-## Act 4: Trust Infrastructure (45s)
+## Act 3.5: x402 Instant Settlement (30s)
+
+> "Traditional marketplaces hold seller funds for 7-30 days. With x402, USDC hits the seller's wallet in under 10 seconds."
+
+- After auction resolves (Act 3, Step 3), show terminal:
+  ```
+  ⚡ Phase 2.5: x402 Settlement (auction winner → seller)
+  💳 x402 Settlement: Auction #1 settlement
+     📊 Before — Buyer: 9,880.00 USDC | Seller: 0.00 USDC
+     ✅ x402 createEscrow → fundEscrow → releaseEscrow
+     📊 After  — Buyer: 9,830.00 USDC | Seller: 48.75 USDC
+     💰 Seller received: 48.75 USDC (after 2.5% platform fee)
+     ✅ x402 payment of 50 USDC sent from Buyer → Seller
+  ```
+- Point out: "Escrow create, fund, and release — three transactions, under 10 seconds total."
+- Show: `simulation-results.txt` with the full payment audit trail
+
+---
+
+## Act 4: Trust Infrastructure (60s)
+
+### Real-Time Analytics Toggle (20s)
+> "Analytics dashboards now pull live data from purchases. Toggle between mock and real with one click."
+
+- Navigate to Buyer Dashboard → Analytics
+- Click **◉ Real Data** toggle → green **Live Data** badge appears
+- Place a bid in another tab → chart auto-updates via WebSocket (`analytics:update`)
+- Toggle back to mock → show side-by-side comparison
 
 ### GDPR & Notifications (15s)
 > "All notifications are GDPR-compliant — users must opt in, and we batch to prevent fatigue. Daily cap of 50 notifications per user."
@@ -107,14 +134,23 @@
 
 ---
 
-## Act 5: Test Results (30s)
+## Act 5: Test Results & Simulation (45s)
 
-> "646 Jest tests, 133 Hardhat tests, 107 Cypress E2E — all passing. Zero regressions across 5 audit fix rounds."
+> "338 Vitest tests, all passing. Plus a multi-wallet simulation that exercises the full on-chain lifecycle."
 
-- Run in terminal: `npx jest tests/unit/ --verbose`
-- Show the green wall of 646 passing tests
-- Show P5 final integration suite: "50 tests covering E2E flows, perk stacking, bot simulation, migration robustness, nonce collision, cross-border GDPR, pre-ping grace periods"
-- Show test categories: lifecycle, stacking, ACE+GDPR, cross-border, cache, config, loose ends
+- Run in terminal: `npx vitest run`
+- Show the green wall of 338 passing tests
+- Then run: `cd contracts && npx hardhat run scripts/simulate-full-cycle.ts --network hardhat`
+- Show 8-wallet simulation output:
+  - Phase 1: KYC + minting
+  - Phase 2: Commit-reveal auction
+  - **Phase 2.5: x402 settlement** (highlight this)
+  - Phase 3: Buy-now purchase
+  - **Phase 3.5: x402 settlement** (highlight this)
+  - Phase 4-5: VerticalAuction + NFT resale
+  - Phase 6: RTBEscrow lifecycle
+- Show x402 Payment Summary at the end: "Total USDC moved: 100"
+- Point out: "All 8 phases run in under 5 seconds on local Hardhat"
 
 ---
 
@@ -129,7 +165,7 @@
 
 ---
 
-## Total Runtime: ~4.5 minutes
+## Total Runtime: ~5 minutes
 
 ## Post-Recording Checklist
 - [ ] Verify all wallet interactions recorded clearly

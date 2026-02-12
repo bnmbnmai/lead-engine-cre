@@ -162,12 +162,14 @@ export const api = {
         }),
 
     // Analytics
-    getOverview: () => apiFetch<any>('/api/v1/analytics/overview'),
+    getOverview: (source?: 'real' | 'mock') =>
+        apiFetch<any>(`/api/v1/analytics/overview${source ? `?source=${source}` : ''}`),
     getLeadAnalytics: (params?: Record<string, string>) => {
         const query = params ? `?${new URLSearchParams(params)}` : '';
         return apiFetch<any>(`/api/v1/analytics/leads${query}`);
     },
-    getBidAnalytics: () => apiFetch<any>('/api/v1/analytics/bids'),
+    getBidAnalytics: (source?: 'real' | 'mock') =>
+        apiFetch<any>(`/api/v1/analytics/bids${source ? `?source=${source}` : ''}`),
     getConversions: (params?: Record<string, string>) => {
         const query = params ? `?${new URLSearchParams(params)}` : '';
         return apiFetch<any>(`/api/v1/analytics/conversions${query}`);
@@ -233,6 +235,7 @@ export const api = {
     demoClear: () => apiFetch<{ success: boolean; deleted: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/clear', { method: 'POST' }),
     demoInjectLead: (vertical?: string) => apiFetch<{ success: boolean; lead: any }>('/api/v1/demo-panel/lead', { method: 'POST', body: JSON.stringify({ vertical }) }),
     demoStartAuction: (vertical?: string) => apiFetch<{ success: boolean; leadId: string }>('/api/v1/demo-panel/auction', { method: 'POST', body: JSON.stringify({ vertical }) }),
+    demoReset: () => apiFetch<{ success: boolean; cleared: number; reseeded: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/reset', { method: 'POST' }),
 
     // Vertical Auctions
     createVerticalAuction: (slug: string, reservePrice: number, durationSecs: number) =>

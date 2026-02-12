@@ -32,8 +32,38 @@ interface LeadCardProps {
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
     const isLive = lead.status === 'IN_AUCTION' || lead.status === 'REVEAL_PHASE';
-    const timeRemaining = lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null;
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
+
+    // Live countdown timer — ticks every second for in-auction leads
+    const [timeLeft, setTimeLeft] = useState<string | null>(
+        lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null
+    );
+    const [progress, setProgress] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!isLive || !lead.auctionEndAt) {
+            setTimeLeft(lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null);
+            setProgress(null);
+            return;
+        }
+
+        const tick = () => {
+            setTimeLeft(formatTimeRemaining(lead.auctionEndAt!));
+            if (lead.auctionStartAt) {
+                const start = new Date(lead.auctionStartAt).getTime();
+                const end = new Date(lead.auctionEndAt!).getTime();
+                const now = Date.now();
+                const total = end - start;
+                if (total > 0) {
+                    setProgress(Math.min(Math.round(((now - start) / total) * 100), 100));
+                }
+            }
+        };
+
+        tick(); // initial value
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [isLive, lead.auctionEndAt, lead.auctionStartAt]);
 
     // Animated bid counter — pulse on change
     const prevBidCount = useRef(bidCount);
@@ -48,18 +78,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
         }
         prevBidCount.current = bidCount;
     }, [bidCount]);
-
-    // Auction progress bar
-    const progress = (() => {
-        if (!isLive || !lead.auctionStartAt || !lead.auctionEndAt) return null;
-        const start = new Date(lead.auctionStartAt).getTime();
-        const end = new Date(lead.auctionEndAt).getTime();
-        const now = Date.now();
-        const total = end - start;
-        if (total <= 0) return null;
-        const elapsed = Math.min(now - start, total);
-        return Math.round((elapsed / total) * 100);
-    })();
 
     return (
         <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow-ready' : ''} active:scale-[0.98]`}>
@@ -112,10 +130,10 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                         <Users className="h-4 w-4" />
                         <span className="font-medium">{bidCount}</span> bids
                     </div>
-                    {timeRemaining && (
+                    {timeLeft && (
                         <div className="flex items-center gap-1 text-blue-500">
                             <Clock className="h-4 w-4" />
-                            {timeRemaining}
+                            {timeLeft}
                         </div>
                     )}
                 </div>

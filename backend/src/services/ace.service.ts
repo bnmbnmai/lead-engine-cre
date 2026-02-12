@@ -49,6 +49,12 @@ class ACEService {
     // ============================================
 
     async isKYCValid(walletAddress: string): Promise<boolean> {
+        // Demo mode bypass — skip KYC for dev/testing
+        if (process.env.DEMO_MODE === 'true') {
+            console.log(`[ACE] Demo KYC bypassed for ${walletAddress.slice(0, 10)}…`);
+            return true;
+        }
+
         // Check local cache first
         const cached = await prisma.complianceCheck.findFirst({
             where: {
@@ -104,6 +110,11 @@ class ACEService {
         vertical: string,
         geoHash: string
     ): Promise<{ allowed: boolean; reason?: string }> {
+        // Demo mode bypass — skip all compliance for dev/testing
+        if (process.env.DEMO_MODE === 'true') {
+            return { allowed: true };
+        }
+
         // Check blacklist first
         const isBlacklisted = await this.isBlacklisted(walletAddress);
         if (isBlacklisted) {
