@@ -127,6 +127,7 @@ export const api = {
         }),
 
     getLead: (id: string) => apiFetch<{ lead: any }>(`/api/v1/leads/${id}`),
+    getLeadPreview: (id: string) => apiFetch<{ preview: any }>(`/api/v1/leads/${id}/preview`),
 
     // Bids
     placeBid: (data: { leadId: string; amount?: number; commitment?: string }) =>

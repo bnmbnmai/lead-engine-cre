@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Shield, ShieldCheck, FileText, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { api } from '@/lib/api';
 
 // ── Types ──────────────────────────────
 
@@ -54,17 +55,13 @@ function useLeadPreview(leadId: string) {
         const fetchPreview = async () => {
             try {
                 setLoading(true);
-                const baseUrl = import.meta.env.VITE_API_URL || '';
-                const res = await fetch(`${baseUrl}/marketplace/leads/${leadId}/preview`, {
-                    credentials: 'include',
-                });
+                const { data: result, error: apiError } = await api.getLeadPreview(leadId);
 
-                if (!res.ok) {
-                    throw new Error(res.status === 404 ? 'Lead not found' : 'Failed to load preview');
+                if (apiError) {
+                    throw new Error(apiError.message || 'Failed to load preview');
                 }
 
-                const json = await res.json();
-                setData(json.preview);
+                setData(result?.preview || null);
                 setError(null);
             } catch (err: any) {
                 setError(err.message);
