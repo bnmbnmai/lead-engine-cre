@@ -521,8 +521,82 @@ router.get('/leads/:id/preview', authMiddleware, async (req: AuthenticatedReques
 });
 
 // ============================================
+// Browse Sellers (public directory)
+// ============================================
+
+router.get('/sellers', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const search = (req.query.search as string || '').trim();
+        const sortBy = (req.query.sortBy as string) || 'reputationScore';
+        const sortOrder = (req.query.sortOrder as string) === 'asc' ? 'asc' : 'desc';
+        const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+        const offset = parseInt(req.query.offset as string) || 0;
+
+        const where: any = {};
+        if (search && search.length >= 2) {
+            where.companyName = { contains: search, mode: 'insensitive' };
+        }
+
+        const orderBy: any = {};
+        if (['reputationScore', 'totalLeadsSold', 'createdAt'].includes(sortBy)) {
+            orderBy[sortBy] = sortOrder;
+        } else {
+            orderBy.reputationScore = 'desc';
+        }
+
+        const [sellers, total] = await Promise.all([
+            prisma.sellerProfile.findMany({
+                where,
+                orderBy,
+                take: limit,
+                skip: offset,
+                select: {
+                    id: true,
+                    companyName: true,
+                    verticals: true,
+                    reputationScore: true,
+                    totalLeadsSold: true,
+                    isVerified: true,
+                    kycStatus: true,
+                    createdAt: true,
+                    _count: {
+                        select: { leads: true, asks: true },
+                    },
+                },
+            }),
+            prisma.sellerProfile.count({ where }),
+        ]);
+
+        // Compute sold count + success rate for each seller
+        const enriched = await Promise.all(
+            sellers.map(async (s) => {
+                const [soldCount, totalCount] = await Promise.all([
+                    prisma.lead.count({ where: { sellerId: s.id, status: 'SOLD' } }),
+                    prisma.lead.count({ where: { sellerId: s.id } }),
+                ]);
+                return {
+                    ...s,
+                    leadsSold: soldCount,
+                    totalLeads: totalCount,
+                    successRate: totalCount > 0 ? Math.round((soldCount / totalCount) * 100) : 0,
+                };
+            })
+        );
+
+        res.json({
+            sellers: enriched,
+            pagination: { total, limit, offset, hasMore: offset + sellers.length < total },
+        });
+    } catch (error) {
+        console.error('List sellers error:', error);
+        res.status(500).json({ error: 'Failed to list sellers' });
+    }
+});
+
+// ============================================
 // Seller Search (autocomplete for buyer filters)
 // ============================================
+
 
 router.get('/sellers/search', async (req: AuthenticatedRequest, res: Response) => {
     try {

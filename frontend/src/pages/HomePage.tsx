@@ -4,6 +4,7 @@ import { Search, MapPin, X, Globe, Users, Star } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import NFTMarketplace from '@/components/marketplace/NFTMarketplace';
+import { BrowseSellers } from '@/components/marketplace/BrowseSellers';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { LeadCard } from '@/components/marketplace/LeadCard';
@@ -67,7 +68,7 @@ function getRegions(country: string) {
 // ============================================
 
 export function HomePage() {
-    const [view, setView] = useState<'asks' | 'leads' | 'nfts'>('leads');
+    const [view, setView] = useState<'asks' | 'leads' | 'nfts' | 'sellers'>('leads');
     const [vertical, setVertical] = useState('all');
     const [country, setCountry] = useState('ALL');
     const [region, setRegion] = useState('All');
@@ -309,6 +310,13 @@ export function HomePage() {
                                     >
                                         NFTs
                                     </button>
+                                    <button
+                                        onClick={() => setView('sellers')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'sellers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                            }`}
+                                    >
+                                        Sellers
+                                    </button>
                                 </div>
 
                                 {/* Search */}
@@ -457,6 +465,14 @@ export function HomePage() {
                                 <SkeletonCard key={i} />
                             ))}
                         </div>
+                    ) : view === 'sellers' ? (
+                        <BrowseSellers
+                            onViewLeads={(_sellerId, sellerDisplayName) => {
+                                setSellerName(sellerDisplayName);
+                                setSellerInput(sellerDisplayName);
+                                setView('leads');
+                            }}
+                        />
                     ) : view === 'nfts' ? (
                         <NFTMarketplace />
                     ) : view === 'asks' ? (

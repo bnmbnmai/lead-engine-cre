@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, ArrowLeftRight } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import ConnectButton from '@/components/wallet/ConnectButton';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import useAuth from '@/hooks/useAuth';
@@ -18,8 +18,7 @@ export function Navbar() {
         // Not inside DashboardLayout — no sidebar toggle
     }
 
-    const isOnSeller = location.pathname.startsWith('/seller');
-    const isOnBuyer = location.pathname.startsWith('/buyer');
+
 
     // Hide 'Marketplace' link on lander for unauth users (the lander IS the marketplace)
     const isOnLander = location.pathname === '/';
@@ -88,16 +87,7 @@ export function Navbar() {
                         );
                     })}
 
-                    {/* Quick role-switch */}
-                    {isAuthenticated && (isOnBuyer || isOnSeller) && (
-                        <Link
-                            to={isOnSeller ? '/buyer' : '/seller'}
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition px-3 py-1.5 rounded-lg bg-muted/50 hover:bg-muted"
-                        >
-                            <ArrowLeftRight className="h-3.5 w-3.5" />
-                            Switch to {isOnSeller ? 'Buyer' : 'Seller'}
-                        </Link>
-                    )}
+
                 </div>
 
                 {/* Right: Theme + Wallet */}

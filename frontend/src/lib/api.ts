@@ -130,6 +130,10 @@ export const api = {
     getLeadPreview: (id: string) => apiFetch<{ preview: any }>(`/api/v1/leads/${id}/preview`),
 
     // Sellers
+    listSellers: (params?: Record<string, string>) => {
+        const query = params ? '?' + new URLSearchParams(params).toString() : '';
+        return apiFetch<{ sellers: any[]; pagination: any }>(`/api/v1/sellers${query}`);
+    },
     searchSellers: (q: string) =>
         apiFetch<{ sellers: any[] }>(`/api/v1/sellers/search?q=${encodeURIComponent(q)}`),
 
