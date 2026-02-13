@@ -108,7 +108,7 @@
 
 - [ ] Project name: **Lead Engine CRE**
 - [ ] Category: **Chainlink CRE + ACE**
-- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 9 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 20+ countries, 1,370+ tests, 500+ testnet txs, Sentry monitoring, CI/CD pipeline
+- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 9 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 20+ countries, 1,288+ tests, 500+ testnet txs, Sentry monitoring, CI/CD pipeline
 - [ ] GitHub repo URL: `https://github.com/bnmbnmai/lead-engine-cre`
 - [ ] Demo video URL (Loom)
 - [ ] Live frontend URL: `https://lead-engine-cre.vercel.app`

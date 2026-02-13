@@ -139,11 +139,11 @@
 **Show:** Marketplace filters + test results
 **Actions:**
 1. Show 10 verticals × 20+ countries in dropdowns
-2. 1,151 Jest + 141 Hardhat + 82 Cypress = **1,370+ tests passing**
+2. 1,151 Jest + 141 Hardhat + 82 Cypress = **1,288+ tests passing**
 3. Artillery: 23+ scenarios, 10K concurrent users
 
 **Say:**
-> "10 verticals, 20 countries, 1,370+ tests passing, 10,000 concurrent users validated. This isn't a prototype — it's production-grade infrastructure."
+> "10 verticals, 20 countries, 1,288+ tests passing, 10,000 concurrent users validated. This isn't a prototype — it's production-grade infrastructure."
 
 ---
 

@@ -190,7 +190,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | **Innovation** | 5 Chainlink services + MCP agent server + CCIP-ready + x402 instant settlement |
 | **Technical depth** | 5 smart contracts, ZK proofs, commit-reveal, TEE scoring, 9-criteria auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
-| **Traction** | 500+ testnet txs, 1,370+ tests passing, 10K concurrent users |
+| **Traction** | 500+ testnet txs, 1,288+ tests passing, 10K concurrent users |
 | **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |
 
 ---

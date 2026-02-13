@@ -1,11 +1,11 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-1370%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1288%20passing-brightgreen)
 ![Jest](https://img.shields.io/badge/Jest-1147%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-141%20passing-brightgreen)
-![Cypress](https://img.shields.io/badge/Cypress%20E2E-82%20passing-brightgreen)
-![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
+![Cypress](https://img.shields.io/badge/Cypress%20E2E-82%20specs-yellow)
+![Artillery](https://img.shields.io/badge/load%20test-infra--dependent-lightgrey)
 ![Contracts](https://img.shields.io/badge/contracts-8%20deployed-orange)
 
 ### Decentralized Real-Time Bidding for the $200B+ Lead Marketplace
@@ -339,7 +339,7 @@ npm run dev
 
 ## 🧪 Testing
 
-> **1370+ tests passing** across 4 suites — **100% pass rate** on all automated suites.
+> **1,288+ tests verified** across Jest + Hardhat. Cypress and Artillery require live infra.
 > Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
@@ -348,9 +348,9 @@ npm run dev
 |-------|------:|--------|-------|
 | **Backend Jest** | 1,147 | ✅ All passing | 45 suites — unit, e2e, security, compliance, env-guard, integration, priority bidding, UX polish, final integration |
 | **Hardhat Contracts** | 141 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced, VerticalAuction SLOAD optimization |
-| **Cypress E2E** | 82 | ✅ All passing | 3 specs — UI flows, copy assertions, vertical-nft |
+| **Cypress E2E** | 82 | 🟡 Partial | 3 specs — requires running frontend + backend |
 | **Artillery Load** | 22 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **1,370+** | **✅ 100%** | |
+| **Total** | **1,288+** | **✅ Core passing** | |
 
 <details>
 <summary>Backend Jest (1,147 passing, 45 suites)</summary>
