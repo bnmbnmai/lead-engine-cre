@@ -15,6 +15,7 @@ import { VerticalCreateSchema, VerticalUpdateSchema, VerticalQuerySchema } from 
 import * as verticalService from '../services/vertical.service';
 import { suggestVertical, listSuggestions } from '../services/vertical-optimizer.service';
 import { prisma } from '../lib/prisma';
+import { verticalHierarchyCache } from '../lib/cache';
 import * as verticalNFTService from '../services/vertical-nft.service';
 import * as auctionService from '../services/auction.service';
 import { z } from 'zod';
@@ -289,10 +290,23 @@ router.patch('/suggestions/:id/status', authMiddleware, async (req: Authenticate
             return;
         }
 
+        // Update suggestion status
         const updated = await prisma.verticalSuggestion.update({
             where: { id },
             data: { status: status as any },
         });
+
+        // Also update the corresponding Vertical entry (created on approve)
+        const vertical = await prisma.vertical.findUnique({ where: { slug: suggestion.suggestedSlug } });
+        if (vertical) {
+            await prisma.vertical.update({
+                where: { id: vertical.id },
+                data: { status: status as any },
+            });
+        }
+
+        // Invalidate hierarchy cache so changes reflect immediately
+        verticalHierarchyCache.clear();
 
         const actionMap: Record<string, string> = { ACTIVE: 'reactivated', DEPRECATED: 'paused', REJECTED: 'deleted' };
         res.json({

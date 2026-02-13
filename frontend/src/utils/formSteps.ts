@@ -31,14 +31,16 @@ export function autoGroupSteps(fields: FormField[]): FormStep[] {
 
     const steps: FormStep[] = [];
 
-    if (contact.length > 0) {
-        steps.push({ id: genId(), label: 'Contact Info', fieldIds: contact });
+    // Non-PII steps first
+    if (other.length > 0) {
+        steps.push({ id: genId(), label: 'Details', fieldIds: other });
     }
     if (location.length > 0) {
         steps.push({ id: genId(), label: 'Location', fieldIds: location });
     }
-    if (other.length > 0) {
-        steps.push({ id: genId(), label: 'Details', fieldIds: other });
+    // Contact Info (PII) always last — best practice for lead gen conversion
+    if (contact.length > 0) {
+        steps.push({ id: genId(), label: 'Contact Info', fieldIds: contact });
     }
 
     // If grouping resulted in only one step, merge everything
