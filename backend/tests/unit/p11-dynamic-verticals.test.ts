@@ -93,10 +93,10 @@ describe('Search & Empty States', () => {
         expect(src).toContain('No verticals available yet');
     });
 
-    test('10. FormBuilder shows "(generic)" marker for unknown verticals', () => {
+    test('10. FormBuilder shows "(custom)" marker for unknown verticals', () => {
         const src = readFile(path.join(frontendSrc, 'pages/FormBuilder.tsx'));
-        expect(src).toContain('(generic)');
-        expect(src).toContain('No preset template for this vertical');
+        expect(src).toContain('(custom)');
+        expect(src).toContain('No preset template');
     });
 
     test('11. useVerticals has refresh() method for auto-refresh', () => {

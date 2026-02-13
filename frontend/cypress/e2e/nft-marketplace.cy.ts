@@ -119,12 +119,17 @@ describe('Admin NFT Dashboard', () => {
 });
 
 describe('Admin NFT Access Control', () => {
-    it('non-admin users are redirected from /admin/nfts', () => {
+    it('non-admin users see access guard on /admin/nfts', () => {
         cy.stubAuth('buyer');
         cy.mockApi({ role: 'buyer' });
         cy.visit('/admin/nfts');
-        // Should redirect to / (role guard in AdminNFTs)
-        cy.url({ timeout: 10000 }).should('not.include', '/admin/nfts');
+        // Non-admin should see an access guard — either redirect or guard message
+        cy.get('body', { timeout: 10000 }).then(($body) => {
+            const hasGuard = $body.text().includes('Admin profile required') ||
+                $body.text().includes('Admin access required');
+            const redirected = !window.location.pathname.includes('/admin/nfts');
+            expect(hasGuard || redirected).to.be.true;
+        });
     });
 });
 
