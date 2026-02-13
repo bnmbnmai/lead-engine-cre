@@ -136,6 +136,22 @@ Lead Engine doesn't just **consume** Chainlink services — it **contributes bac
 
 ---
 
+## 🔐 Trust & Provenance Layer – Why This Actually Works in the Real World
+
+### 1. Lead Quality & Fraud Protection
+
+Buyers no longer have to take sellers' word for it. Every lead carries a **Chainlink CRE + ZK fraud-proof quality score (0–10,000)** that cryptographically proves the lead was not botted, stuffed, or generated from junk data. Sellers are protected by immutable on-chain evidence.
+
+### 2. Transparency & Instant Settlement
+
+Instant, on-chain settlement via **x402** and **LeadNFT provenance** give both sides perfect auditability. Payment is atomic (no 30–90 day net terms, no chargebacks). Ownership history and the original quality proof travel with the NFT forever.
+
+### 3. USDC Escrow → Instant Release
+
+x402 enables **USDC escrow → instant release** on auction win or Buy-It-Now purchase. Platform fee is taken automatically; seller receives funds in seconds instead of weeks.
+
+---
+
 ## ⚡ Features
 
 ### Core — Real-Time Lead Bidding + On-Chain Tokenization
