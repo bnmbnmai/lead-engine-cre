@@ -5,6 +5,7 @@ import {
     Sparkles, Gem, AlertTriangle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import api from '@/lib/api';
@@ -118,199 +119,201 @@ export default function AdminVerticals() {
     ];
 
     return (
-        <div className="min-h-screen bg-background p-6 max-w-7xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Gem className="h-6 w-6 text-primary" />
-                        Vertical Suggestions
-                    </h1>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        Review and manage community-submitted vertical proposals
-                    </p>
+        <DashboardLayout>
+            <div className="max-w-7xl mx-auto space-y-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <Gem className="h-6 w-6 text-primary" />
+                            Vertical Suggestions
+                        </h1>
+                        <p className="text-muted-foreground text-sm mt-1">
+                            Review and manage community-submitted vertical proposals
+                        </p>
+                    </div>
                 </div>
-            </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2">
-                {tabs.map((t) => (
-                    <Button
-                        key={t.key}
-                        variant={tab === t.key ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => { setTab(t.key); }}
-                        className="flex items-center gap-1.5"
-                    >
-                        {t.icon}
-                        {t.label}
-                    </Button>
-                ))}
-            </div>
+                {/* Tabs */}
+                <div className="flex gap-2">
+                    {tabs.map((t) => (
+                        <Button
+                            key={t.key}
+                            variant={tab === t.key ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => { setTab(t.key); }}
+                            className="flex items-center gap-1.5"
+                        >
+                            {t.icon}
+                            {t.label}
+                        </Button>
+                    ))}
+                </div>
 
-            {/* Search */}
-            <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search by name or slug..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9"
-                    id="suggestion-search"
-                />
-            </div>
+                {/* Search */}
+                <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by name or slug..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9"
+                        id="suggestion-search"
+                    />
+                </div>
 
-            {/* Table */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">
-                        {tab === 'PROPOSED' ? 'Pending Review' : tab === 'ACTIVE' ? 'Approved Verticals' : 'Rejected Proposals'}
-                        <span className="text-muted-foreground font-normal ml-2 text-sm">({pagination.total})</span>
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="flex justify-center py-12">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : suggestions.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            No {tab.toLowerCase()} suggestions found.
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b text-muted-foreground">
-                                        <th className="text-left py-2 px-3 font-medium">Name</th>
-                                        <th className="text-left py-2 px-3 font-medium">Slug</th>
-                                        <th className="text-left py-2 px-3 font-medium">Parent</th>
-                                        <th className="text-right py-2 px-3 font-medium">Confidence</th>
-                                        <th className="text-right py-2 px-3 font-medium">Hits</th>
-                                        <th className="text-left py-2 px-3 font-medium">Source</th>
-                                        {tab === 'PROPOSED' && <th className="text-right py-2 px-3 font-medium">Actions</th>}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {suggestions.map((s) => (
-                                        <tr key={s.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                                            <td className="py-2.5 px-3 font-medium">{s.suggestedName}</td>
-                                            <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs">{s.suggestedSlug}</td>
-                                            <td className="py-2.5 px-3 text-muted-foreground">{s.parentSlug || '—'}</td>
-                                            <td className="py-2.5 px-3 text-right tabular-nums">
-                                                <span className={s.confidence >= 0.7 ? 'text-emerald-500' : s.confidence >= 0.4 ? 'text-amber-500' : 'text-red-400'}>
-                                                    {(s.confidence * 100).toFixed(0)}%
-                                                </span>
-                                            </td>
-                                            <td className="py-2.5 px-3 text-right tabular-nums">{s.hitCount}</td>
-                                            <td className="py-2.5 px-3">
-                                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{s.source}</span>
-                                            </td>
-                                            {tab === 'PROPOSED' && (
-                                                <td className="py-2.5 px-3 text-right">
-                                                    <div className="flex items-center gap-1.5 justify-end">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                                                            disabled={actionLoading === s.id}
-                                                            onClick={() => handleApprove(s.id, false)}
-                                                        >
-                                                            {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                                                            Approve
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                                                            disabled={actionLoading === s.id}
-                                                            onClick={() => handleApprove(s.id, true)}
-                                                            title="Approve and mint as NFT"
-                                                        >
-                                                            <Gem className="h-3 w-3" />
-                                                            + NFT
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
-                                                            disabled={actionLoading === s.id}
-                                                            onClick={() => setShowRejectDialog(s.id)}
-                                                        >
-                                                            <X className="h-3 w-3" />
-                                                            Reject
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            )}
+                {/* Table */}
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-lg">
+                            {tab === 'PROPOSED' ? 'Pending Review' : tab === 'ACTIVE' ? 'Approved Verticals' : 'Rejected Proposals'}
+                            <span className="text-muted-foreground font-normal ml-2 text-sm">({pagination.total})</span>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? (
+                            <div className="flex justify-center py-12">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : suggestions.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">
+                                No {tab.toLowerCase()} suggestions found.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b text-muted-foreground">
+                                            <th className="text-left py-2 px-3 font-medium">Name</th>
+                                            <th className="text-left py-2 px-3 font-medium">Slug</th>
+                                            <th className="text-left py-2 px-3 font-medium">Parent</th>
+                                            <th className="text-right py-2 px-3 font-medium">Confidence</th>
+                                            <th className="text-right py-2 px-3 font-medium">Hits</th>
+                                            <th className="text-left py-2 px-3 font-medium">Source</th>
+                                            {tab === 'PROPOSED' && <th className="text-right py-2 px-3 font-medium">Actions</th>}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* Pagination */}
-                    {pagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                            <span className="text-xs text-muted-foreground">
-                                Page {pagination.page} of {pagination.totalPages}
-                            </span>
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={pagination.page <= 1}
-                                    onClick={() => fetchSuggestions(pagination.page - 1)}
-                                >
-                                    <ChevronLeft className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={pagination.page >= pagination.totalPages}
-                                    onClick={() => fetchSuggestions(pagination.page + 1)}
-                                >
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
+                                    </thead>
+                                    <tbody>
+                                        {suggestions.map((s) => (
+                                            <tr key={s.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                                                <td className="py-2.5 px-3 font-medium">{s.suggestedName}</td>
+                                                <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs">{s.suggestedSlug}</td>
+                                                <td className="py-2.5 px-3 text-muted-foreground">{s.parentSlug || '—'}</td>
+                                                <td className="py-2.5 px-3 text-right tabular-nums">
+                                                    <span className={s.confidence >= 0.7 ? 'text-emerald-500' : s.confidence >= 0.4 ? 'text-amber-500' : 'text-red-400'}>
+                                                        {(s.confidence * 100).toFixed(0)}%
+                                                    </span>
+                                                </td>
+                                                <td className="py-2.5 px-3 text-right tabular-nums">{s.hitCount}</td>
+                                                <td className="py-2.5 px-3">
+                                                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{s.source}</span>
+                                                </td>
+                                                {tab === 'PROPOSED' && (
+                                                    <td className="py-2.5 px-3 text-right">
+                                                        <div className="flex items-center gap-1.5 justify-end">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => handleApprove(s.id, false)}
+                                                            >
+                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                                                Approve
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => handleApprove(s.id, true)}
+                                                                title="Approve and mint as NFT"
+                                                            >
+                                                                <Gem className="h-3 w-3" />
+                                                                + NFT
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => setShowRejectDialog(s.id)}
+                                                            >
+                                                                <X className="h-3 w-3" />
+                                                                Reject
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                        )}
 
-            {/* Reject Dialog */}
-            {showRejectDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <Card className="w-full max-w-md">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                                Reject Suggestion
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <Input
-                                placeholder="Reason for rejection (optional)"
-                                value={rejectReason}
-                                onChange={(e) => setRejectReason(e.target.value)}
-                                id="reject-reason"
-                            />
-                            <div className="flex gap-2 justify-end">
-                                <Button variant="outline" onClick={() => { setShowRejectDialog(null); setRejectReason(''); }}>
-                                    Cancel
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    disabled={actionLoading === showRejectDialog}
-                                    onClick={() => handleReject(showRejectDialog)}
-                                >
-                                    {actionLoading === showRejectDialog ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reject'}
-                                </Button>
+                        {/* Pagination */}
+                        {pagination.totalPages > 1 && (
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                                <span className="text-xs text-muted-foreground">
+                                    Page {pagination.page} of {pagination.totalPages}
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={pagination.page <= 1}
+                                        onClick={() => fetchSuggestions(pagination.page - 1)}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={pagination.page >= pagination.totalPages}
+                                        onClick={() => fetchSuggestions(pagination.page + 1)}
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
-        </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Reject Dialog */}
+                {showRejectDialog && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                        <Card className="w-full max-w-md">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                                    Reject Suggestion
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <Input
+                                    placeholder="Reason for rejection (optional)"
+                                    value={rejectReason}
+                                    onChange={(e) => setRejectReason(e.target.value)}
+                                    id="reject-reason"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                    <Button variant="outline" onClick={() => { setShowRejectDialog(null); setRejectReason(''); }}>
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        disabled={actionLoading === showRejectDialog}
+                                        onClick={() => handleReject(showRejectDialog)}
+                                    >
+                                        {actionLoading === showRejectDialog ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reject'}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </div>
+        </DashboardLayout>
     );
 }
