@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Zap, ArrowRight, Wallet } from 'lucide-react';
+import { MapPin, Clock, Zap, Eye, Wallet } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -105,8 +105,8 @@ export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/
                 {isAuthenticated ? (
                     <Button asChild className="w-full group-hover:scale-[1.02] transition-transform">
                         <Link to={`${basePath}/${ask.id}`}>
-                            View Ask
-                            <ArrowRight className="h-4 w-4 ml-2" />
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
                         </Link>
                     </Button>
                 ) : (

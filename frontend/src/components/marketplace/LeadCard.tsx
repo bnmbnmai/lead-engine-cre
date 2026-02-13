@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Shield, Zap, Users, Wallet, Star } from 'lucide-react';
+import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -182,45 +182,41 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                     </div>
 
                     {showBidButton && isLive && (
-                        isAuthenticated ? (
-                            <Button asChild size="sm" variant="gradient">
-                                <Link to={`/auction/${lead.id}`}>
-                                    Place Bid
+                        <div className="flex items-center gap-2">
+                            <Button asChild size="sm" variant="outline">
+                                <Link to={`/lead/${lead.id}`}>
+                                    <Eye className="h-3.5 w-3.5 mr-1" />
+                                    Details
                                 </Link>
                             </Button>
-                        ) : (
-                            <Button
-                                size="sm"
-                                variant="glass"
-                                onClick={openConnectModal}
-                                aria-label="Connect wallet to place a bid"
-                                className="gap-1.5"
-                            >
-                                <Wallet className="h-3.5 w-3.5" />
-                                Connect to Bid
-                            </Button>
-                        )
+                            {isAuthenticated ? (
+                                <Button asChild size="sm" variant="gradient">
+                                    <Link to={`/auction/${lead.id}`}>
+                                        Place Bid
+                                    </Link>
+                                </Button>
+                            ) : (
+                                <Button
+                                    size="sm"
+                                    variant="glass"
+                                    onClick={openConnectModal}
+                                    aria-label="Connect wallet to place a bid"
+                                    className="gap-1.5"
+                                >
+                                    <Wallet className="h-3.5 w-3.5" />
+                                    Connect to Bid
+                                </Button>
+                            )}
+                        </div>
                     )}
 
                     {showBidButton && !isLive && (
-                        isAuthenticated ? (
-                            <Button asChild size="sm" variant="outline">
-                                <Link to={`/lead/${lead.id}`}>
-                                    View Details
-                                </Link>
-                            </Button>
-                        ) : (
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={openConnectModal}
-                                aria-label="Connect wallet to view lead details"
-                                className="gap-1.5"
-                            >
-                                <Wallet className="h-3.5 w-3.5" />
-                                Connect to View
-                            </Button>
-                        )
+                        <Button asChild size="sm" variant="outline">
+                            <Link to={`/lead/${lead.id}`}>
+                                <Eye className="h-3.5 w-3.5 mr-1" />
+                                View Details
+                            </Link>
+                        </Button>
                     )}
                 </div>
             </CardContent>
