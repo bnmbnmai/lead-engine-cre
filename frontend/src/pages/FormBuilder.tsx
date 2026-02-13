@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
     Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
@@ -257,9 +257,9 @@ function autoGroupSteps(fields: FormField[]): FormStep[] {
 // ============================================
 
 export function FormBuilder() {
-    const [vertical, setVertical] = useState('roofing');
-    const [fields, setFields] = useState<FormField[]>([...VERTICAL_PRESETS.roofing]);
-    const [steps, setSteps] = useState<FormStep[]>(() => autoGroupSteps(VERTICAL_PRESETS.roofing));
+    const [vertical, setVertical] = useState('');
+    const [fields, setFields] = useState<FormField[]>([]);
+    const [steps, setSteps] = useState<FormStep[]>([]);
     const [previewMode, setPreviewMode] = useState<'preview' | 'json' | 'export'>('preview');
     const [previewStep, setPreviewStep] = useState(0);
     const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -276,13 +276,17 @@ export function FormBuilder() {
     const [showConfetti, setShowConfetti] = useState(false);
 
     // Dynamic verticals from API
-    const { flatList: apiVerticals, search: searchVerticals } = useVerticals();
+    const { flatList: apiVerticals, search: searchVerticals, loading: verticalsLoading } = useVerticals();
     const filteredVerticals = verticalSearch ? searchVerticals(verticalSearch) : apiVerticals;
-    // Merge: show API verticals (top-level only) and ensure preset keys are included
-    const allVerticalSlugs = [...new Set([
-        ...Object.keys(VERTICAL_PRESETS),
-        ...filteredVerticals.filter(v => v.depth === 0).map(v => v.value),
-    ])];
+    const displayVerticals = filteredVerticals.filter(v => v.depth === 0);
+
+    // Auto-select first vertical on initial load
+    useEffect(() => {
+        if (!vertical && apiVerticals.length > 0) {
+            const first = apiVerticals.find(v => v.depth === 0);
+            if (first) loadPreset(first.value);
+        }
+    }, [apiVerticals]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const loadPreset = (v: string) => {
         setVertical(v);
@@ -424,38 +428,56 @@ export function FormBuilder() {
                 <div className="mb-6 space-y-3">
                     <div className="flex items-center gap-4">
                         <label className="text-sm font-medium">Vertical Template:</label>
-                        {allVerticalSlugs.length > 10 && (
-                            <div className="relative flex-1 max-w-xs">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                <input
-                                    type="text"
-                                    placeholder="Search verticals..."
-                                    value={verticalSearch}
-                                    onChange={(e) => setVerticalSearch(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                />
-                            </div>
-                        )}
+                        <div className="relative flex-1 max-w-xs">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <input
+                                type="text"
+                                placeholder="Search verticals..."
+                                value={verticalSearch}
+                                onChange={(e) => setVerticalSearch(e.target.value)}
+                                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                        </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap max-h-40 overflow-y-auto">
-                        {allVerticalSlugs.map((v) => (
+                    {verticalsLoading ? (
+                        <div className="flex items-center gap-2 py-4">
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            <span className="text-sm text-muted-foreground">Loading verticals…</span>
+                        </div>
+                    ) : displayVerticals.length === 0 ? (
+                        <div className="text-center py-4 space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                                {verticalSearch ? 'No verticals match your search.' : 'No verticals available.'}
+                            </p>
                             <button
-                                key={v}
-                                onClick={() => loadPreset(v)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all flex items-center gap-1.5 ${vertical === v
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                    }`}
+                                onClick={() => window.open('/verticals/suggest', '_blank')}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                             >
-                                <span>{VERTICAL_EMOJI[v] || ''}</span>
-                                {v.replace(/_/g, ' ')}
-                                {!VERTICAL_PRESETS[v] && (
-                                    <span className="text-[10px] opacity-60">(generic)</span>
-                                )}
+                                <Sparkles className="h-3.5 w-3.5" />
+                                Suggest New Vertical
                             </button>
-                        ))}
-                    </div>
-                    {!VERTICAL_PRESETS[vertical] && (
+                        </div>
+                    ) : (
+                        <div className="flex gap-2 flex-wrap max-h-40 overflow-y-auto">
+                            {displayVerticals.map((v) => (
+                                <button
+                                    key={v.value}
+                                    onClick={() => loadPreset(v.value)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all flex items-center gap-1.5 ${vertical === v.value
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
+                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                        }`}
+                                >
+                                    <span>{VERTICAL_EMOJI[v.value] || ''}</span>
+                                    {v.label}
+                                    {!VERTICAL_PRESETS[v.value] && (
+                                        <span className="text-[10px] opacity-60">(generic)</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {vertical && !VERTICAL_PRESETS[vertical] && (
                         <p className="text-xs text-muted-foreground italic">
                             No preset template for this vertical — using generic contact fields. Customise below.
                         </p>

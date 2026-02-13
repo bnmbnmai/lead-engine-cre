@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, ExternalLink } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -30,6 +30,38 @@ export function BuyerDashboard() {
     const [sellerSuggestions, setSellerSuggestions] = useState<any[]>([]);
     const [showSellerDropdown, setShowSellerDropdown] = useState(false);
     const sellerDropdownRef = useRef<HTMLDivElement>(null);
+    const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
+    const [csvExporting, setCsvExporting] = useState(false);
+
+    const handleCrmPushSingle = (leadId: string) => {
+        setCrmPushed((prev) => new Set(prev).add(leadId));
+        // In production, this would POST to /api/v1/crm/push with the lead ID
+    };
+
+    const handleExportPurchasedCSV = () => {
+        if (filteredPurchased.length === 0) return;
+        setCsvExporting(true);
+        const headers = ['Lead ID', 'Vertical', 'State', 'City', 'Amount Paid', 'Status', 'NFT Token ID', 'Purchased Date'];
+        const rows = filteredPurchased.map((b: any) => [
+            b.lead?.id || '',
+            b.lead?.vertical || '',
+            b.lead?.geo?.state || '',
+            b.lead?.geo?.city || '',
+            b.amount || '',
+            b.status || '',
+            b.lead?.nftTokenId || '',
+            b.updatedAt ? new Date(b.updatedAt).toISOString() : new Date(b.createdAt).toISOString(),
+        ].join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `purchased-leads-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setTimeout(() => setCsvExporting(false), 1500);
+    };
 
     // Seller autocomplete
     useEffect(() => {
@@ -345,17 +377,39 @@ export function BuyerDashboard() {
                 </div>
 
                 {/* Purchased Leads */}
-                {filteredPurchased.length > 0 && (
-                    <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-semibold flex items-center gap-2">
-                                <CheckCircle className="h-5 w-5 text-emerald-500" />
-                                Purchased Leads
-                            </h2>
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-emerald-500" />
+                            Purchased Leads
+                        </h2>
+                        <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
                                 {filteredPurchased.length} won
                             </Badge>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleExportPurchasedCSV}
+                                disabled={filteredPurchased.length === 0 || csvExporting}
+                                className="gap-1.5"
+                            >
+                                {csvExporting ? (
+                                    <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Exported!</>
+                                ) : (
+                                    <><Download className="h-3.5 w-3.5" /> Export CSV</>
+                                )}
+                            </Button>
                         </div>
+                    </div>
+                    {filteredPurchased.length === 0 ? (
+                        <Card className="p-8 text-center">
+                            <p className="text-muted-foreground">No purchased leads yet. Win auctions to see them here.</p>
+                            <Button variant="outline" className="mt-4" asChild>
+                                <Link to="/">Browse Marketplace</Link>
+                            </Button>
+                        </Card>
+                    ) : (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {filteredPurchased.map((bid) => (
                                 <Card key={bid.id} className="border-emerald-500/20">
@@ -372,6 +426,17 @@ export function BuyerDashboard() {
                                                 Won
                                             </Badge>
                                         </div>
+                                        {bid.lead?.nftTokenId && (
+                                            <div className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 text-xs font-medium">
+                                                <ExternalLink className="h-3 w-3" />
+                                                NFT #{bid.lead.nftTokenId.slice(0, 8)}…
+                                                {bid.lead.nftContractAddr && (
+                                                    <span className="text-[10px] text-muted-foreground ml-auto">
+                                                        {bid.lead.nftContractAddr.slice(0, 6)}…{bid.lead.nftContractAddr.slice(-4)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                         <div className="flex items-center justify-between pt-3 border-t border-border">
                                             <div>
                                                 <span className="text-xs text-muted-foreground">Amount Paid</span>
@@ -384,19 +449,34 @@ export function BuyerDashboard() {
                                                 </div>
                                             </div>
                                         </div>
-                                        {bid.lead?.id && (
-                                            <Button variant="outline" size="sm" className="w-full mt-3" asChild>
-                                                <Link to={`/leads/${bid.lead.id}`}>
-                                                    View Details <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
-                                                </Link>
+                                        <div className="flex gap-2 mt-3">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleCrmPushSingle(bid.lead?.id || bid.id)}
+                                                disabled={crmPushed.has(bid.lead?.id || bid.id)}
+                                                className="flex-1 gap-1"
+                                            >
+                                                {crmPushed.has(bid.lead?.id || bid.id) ? (
+                                                    <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Pushed</>
+                                                ) : (
+                                                    <><Send className="h-3.5 w-3.5" /> Push to CRM</>
+                                                )}
                                             </Button>
-                                        )}
+                                            {bid.lead?.id && (
+                                                <Button variant="outline" size="sm" className="flex-1" asChild>
+                                                    <Link to={`/leads/${bid.lead.id}`}>
+                                                        View Details <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
+                                                    </Link>
+                                                </Button>
+                                            )}
+                                        </div>
                                     </CardContent>
                                 </Card>
                             ))}
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </DashboardLayout>
     );

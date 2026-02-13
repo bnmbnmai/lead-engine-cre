@@ -27,7 +27,7 @@ const devOnly = (_req: Request, res: Response, next: NextFunction) => {
 router.use(devOnly);
 
 const DEMO_TAG = 'DEMO_PANEL';  // Tag for identifying demo data
-const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
+const FALLBACK_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 const STATES = ['CA', 'TX', 'FL', 'NY', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI'];
 const CITIES: Record<string, string> = { CA: 'Los Angeles', TX: 'Houston', FL: 'Miami', NY: 'New York', IL: 'Chicago', PA: 'Philadelphia', OH: 'Columbus', GA: 'Atlanta', NC: 'Charlotte', MI: 'Detroit' };
 
@@ -90,6 +90,24 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 router.post('/seed', async (req: Request, res: Response) => {
     try {
+        // Fetch verticals dynamically from DB, fall back to hard-coded list
+        let VERTICALS = FALLBACK_VERTICALS;
+        try {
+            const dbVerticals = await (prisma as any).vertical?.findMany?.({
+                where: { status: 'ACTIVE', depth: 0 },
+                select: { slug: true },
+                orderBy: { sortOrder: 'asc' },
+            });
+            if (dbVerticals && dbVerticals.length > 0) {
+                VERTICALS = dbVerticals.map((v: any) => v.slug);
+                console.log(`[DEMO] Using ${VERTICALS.length} dynamic verticals from DB`);
+            } else {
+                console.log(`[DEMO] No DB verticals found, using ${FALLBACK_VERTICALS.length} fallback verticals`);
+            }
+        } catch {
+            console.log(`[DEMO] Vertical table not available, using fallback verticals`);
+        }
+
         // Auto-clear existing demo data (makes seed idempotent)
         // Must delete in FK dependency order: Transaction uses RESTRICT on leadId
         const existing = await prisma.lead.count({ where: { consentProof: DEMO_TAG } });
@@ -98,6 +116,7 @@ router.post('/seed', async (req: Request, res: Response) => {
             await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
             await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
             await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+
             await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
             await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
             clearAllCaches();
@@ -316,7 +335,7 @@ router.post('/clear', async (req: Request, res: Response) => {
 // ============================================
 router.post('/lead', async (req: Request, res: Response) => {
     try {
-        const vertical = req.body?.vertical || pick(VERTICALS);
+        const vertical = req.body?.vertical || pick(FALLBACK_VERTICALS);
         const state = pick(STATES);
         const price = rand(PRICING[vertical]?.min || 10, PRICING[vertical]?.max || 50);
 
@@ -380,7 +399,7 @@ router.post('/lead', async (req: Request, res: Response) => {
 // ============================================
 router.post('/auction', async (req: Request, res: Response) => {
     try {
-        const vertical = req.body?.vertical || pick(VERTICALS);
+        const vertical = req.body?.vertical || pick(FALLBACK_VERTICALS);
         const state = pick(STATES);
         const reservePrice = rand(PRICING[vertical]?.min || 10, PRICING[vertical]?.max || 50);
 
@@ -529,8 +548,8 @@ router.post('/reset', async (req: Request, res: Response) => {
                 data: {
                     walletAddress: '0xDEMO_PANEL_USER',
                     role: 'SELLER',
-                    sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
-                    buyerProfile: { create: { companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true } },
+                    sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
+                    buyerProfile: { create: { companyName: 'Demo Buyer Corp.', verticals: FALLBACK_VERTICALS, acceptOffSite: true } },
                 },
                 include: { sellerProfile: true, buyerProfile: true },
             });
@@ -541,14 +560,14 @@ router.post('/reset', async (req: Request, res: Response) => {
         if (!seller) {
             console.log('[DEMO] Recreating missing seller profile for demo user');
             seller = await prisma.sellerProfile.create({
-                data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+                data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
             });
         }
         const existingBuyerP = await prisma.buyerProfile.findFirst({ where: { userId: demoUser.id } });
         if (!existingBuyerP) {
             console.log('[DEMO] Recreating missing buyer profile for demo user');
             await prisma.buyerProfile.create({
-                data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true },
+                data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: FALLBACK_VERTICALS, acceptOffSite: true },
             });
         }
 
@@ -558,7 +577,7 @@ router.post('/reset', async (req: Request, res: Response) => {
             let buyerUser = await prisma.user.findFirst({ where: { walletAddress: buyer.wallet } });
             if (!buyerUser) {
                 buyerUser = await prisma.user.create({
-                    data: { walletAddress: buyer.wallet, role: 'BUYER', buyerProfile: { create: { companyName: buyer.company, verticals: VERTICALS.slice(0, 5), acceptOffSite: true } } },
+                    data: { walletAddress: buyer.wallet, role: 'BUYER', buyerProfile: { create: { companyName: buyer.company, verticals: FALLBACK_VERTICALS.slice(0, 5), acceptOffSite: true } } },
                 });
             }
             buyerUserIds.push(buyerUser.id);
@@ -567,7 +586,7 @@ router.post('/reset', async (req: Request, res: Response) => {
         // Create 5 asks
         let askCount = 0;
         for (let i = 0; i < 5; i++) {
-            const vertical = VERTICALS[i * 2];
+            const vertical = FALLBACK_VERTICALS[i * 2];
             await prisma.ask.create({
                 data: {
                     sellerId: seller.id, vertical,
@@ -584,7 +603,7 @@ router.post('/reset', async (req: Request, res: Response) => {
         let leadCount = 0;
         const leadIds: string[] = [];
         for (let i = 0; i < 10; i++) {
-            const vertical = VERTICALS[i % VERTICALS.length];
+            const vertical = FALLBACK_VERTICALS[i % FALLBACK_VERTICALS.length];
             const state = pick(STATES);
             const price = rand(PRICING[vertical].min, PRICING[vertical].max);
             const params = VERTICAL_DEMO_PARAMS[vertical] || {};
