@@ -78,7 +78,7 @@ class SocketClient {
         });
 
         this.socket.on('connect_error', (error) => {
-            console.error('Socket connection error:', error.message);
+            console.warn('Socket connection error:', error.message);
         });
 
         // Re-emit events to listeners

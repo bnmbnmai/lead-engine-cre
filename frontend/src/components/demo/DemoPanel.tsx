@@ -7,6 +7,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { setAuthToken } from '@/lib/api';
+import socketClient from '@/lib/socket';
 import {
     FlaskConical,
     X,
@@ -157,40 +159,52 @@ export function DemoPanel() {
         setTimeout(() => setActions(prev => ({ ...prev, mock: { state: 'idle' } })), 2000);
     }
 
-    function handlePersonaSwitch(persona: 'buyer' | 'seller' | 'guest') {
-        // In dev/demo mode, inject a fully-formed demo profile so useAuth
-        // picks it up via the le_auth_user localStorage bypass.
+    async function handlePersonaSwitch(persona: 'buyer' | 'seller' | 'guest') {
+        // In dev/demo mode, obtain a real JWT from the demo-login endpoint
         const isDemoEnv = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-        if (isDemoEnv) {
-            if (persona === 'seller') {
-                localStorage.setItem('le_auth_user', JSON.stringify({
-                    id: 'demo-seller',
-                    walletAddress: '0xDEMO_SELLER_KYC',
-                    role: 'SELLER',
-                    kycStatus: 'VERIFIED',
-                    profile: { companyName: 'Demo Seller Co', isVerified: true, reputationScore: 8500 },
-                }));
-                console.log('[DemoPanel] Demo KYC bypassed — seller persona set');
-            } else if (persona === 'buyer') {
-                localStorage.setItem('le_auth_user', JSON.stringify({
-                    id: 'demo-buyer',
-                    walletAddress: '0xDEMO_BUYER',
-                    role: 'BUYER',
-                    kycStatus: 'VERIFIED',
-                }));
-                console.log('[DemoPanel] Demo KYC bypassed — buyer persona set');
-            } else {
-                localStorage.removeItem('le_auth_user');
-                console.log('[DemoPanel] Guest persona — cleared auth');
+        if (isDemoEnv && persona !== 'guest') {
+            try {
+                const role = persona === 'buyer' ? 'BUYER' : 'SELLER';
+                const resp = await fetch(`${apiBase}/api/v1/demo/demo-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role }),
+                });
+                const data = await resp.json();
+                if (data.token) {
+                    setAuthToken(data.token);
+                    localStorage.setItem('le_auth_user', JSON.stringify(data.user));
+                    // Reconnect socket with new token
+                    socketClient.disconnect();
+                    socketClient.connect();
+                    console.log(`[DemoPanel] Demo login success — ${role} persona set with real JWT`);
+                } else {
+                    console.warn('[DemoPanel] Demo login failed:', data.error);
+                    // Fall back to localStorage-only persona
+                    localStorage.setItem('le_auth_user', JSON.stringify({
+                        id: `demo-${persona}`,
+                        walletAddress: persona === 'buyer' ? '0xDEMO_BUYER' : '0xDEMO_SELLER_KYC',
+                        role,
+                        kycStatus: 'VERIFIED',
+                    }));
+                }
+            } catch (err) {
+                console.warn('[DemoPanel] Demo login request failed:', err);
             }
-
-            // Force useAuth to re-read by dispatching a synthetic storage event
-            window.dispatchEvent(new StorageEvent('storage', {
-                key: 'le_auth_user',
-                newValue: localStorage.getItem('le_auth_user'),
-            }));
+        } else if (persona === 'guest') {
+            setAuthToken(null);
+            localStorage.removeItem('le_auth_user');
+            socketClient.disconnect();
+            console.log('[DemoPanel] Guest persona — cleared auth');
         }
+
+        // Force useAuth to re-read by dispatching a synthetic storage event
+        window.dispatchEvent(new StorageEvent('storage', {
+            key: 'le_auth_user',
+            newValue: localStorage.getItem('le_auth_user'),
+        }));
 
         if (persona === 'buyer') navigate('/buyer');
         else if (persona === 'seller') navigate('/seller');

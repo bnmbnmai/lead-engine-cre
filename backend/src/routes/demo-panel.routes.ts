@@ -9,6 +9,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
+import { generateToken } from '../middleware/auth';
 
 const router = Router();
 
@@ -27,6 +28,52 @@ const devOnly = (_req: Request, res: Response, next: NextFunction) => {
 router.use(devOnly);
 
 const DEMO_TAG = 'DEMO_PANEL';  // Tag for identifying demo data
+
+// ============================================
+// Demo Login — returns a real JWT for demo personas
+// ============================================
+
+router.post('/demo-login', async (req: Request, res: Response) => {
+    try {
+        const { role } = req.body as { role?: string };
+        const isBuyer = role === 'BUYER';
+        const walletAddress = isBuyer ? '0xDEMO_BUYER' : '0xDEMO_PANEL_USER';
+        const targetRole = isBuyer ? 'BUYER' : 'SELLER';
+
+        // Find or create the demo user
+        let user = await prisma.user.findFirst({ where: { walletAddress } });
+        if (!user) {
+            user = await prisma.user.create({
+                data: {
+                    walletAddress,
+                    role: targetRole,
+                },
+            });
+        }
+
+        // Generate real JWT
+        const token = generateToken({ userId: user.id, walletAddress, role: targetRole });
+
+        // Create or refresh session so authMiddleware finds it
+        await prisma.session.upsert({
+            where: { token },
+            update: { expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), lastActiveAt: new Date() },
+            create: {
+                userId: user.id,
+                token,
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                lastActiveAt: new Date(),
+            },
+        });
+
+        console.log(`[DEMO] Demo login: ${targetRole} token issued for ${walletAddress}`);
+        res.json({ token, user: { id: user.id, walletAddress, role: targetRole } });
+    } catch (err: any) {
+        console.error('[DEMO] Demo login error:', err);
+        res.status(500).json({ error: 'Demo login failed', details: err.message });
+    }
+});
+
 const FALLBACK_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 const STATES = ['CA', 'TX', 'FL', 'NY', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI'];
 const CITIES: Record<string, string> = { CA: 'Los Angeles', TX: 'Houston', FL: 'Miami', NY: 'New York', IL: 'Chicago', PA: 'Philadelphia', OH: 'Columbus', GA: 'Atlanta', NC: 'Charlotte', MI: 'Detroit' };
