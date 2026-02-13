@@ -1,10 +1,12 @@
 import { Router, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { authMiddleware, optionalAuthMiddleware, apiKeyMiddleware, AuthenticatedRequest, requireSeller } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, apiKeyMiddleware, AuthenticatedRequest, requireSeller, requireBuyer } from '../middleware/auth';
 import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } from '../utils/validation';
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
+import { x402Service } from '../services/x402.service';
 import { marketplaceAsksCache } from '../lib/cache';
 import { redactLeadForPreview } from '../services/piiProtection';
 
@@ -372,9 +374,16 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
         }
 
+        // Buy It Now shorthand: override status to UNSOLD + only unexpired
+        const buyNow = req.query.buyNow === 'true';
+        if (buyNow) {
+            where.status = 'UNSOLD';
+            where.expiresAt = { gt: new Date() };
+        }
+
         // Apply user-supplied query filters
         if (vertical) where.vertical = vertical;
-        if (status) where.status = status;
+        if (status && !buyNow) where.status = status;  // buyNow overrides status
         if (state) where.geo = { path: ['state'], equals: state };
         if (country) where.geo = { ...where.geo, path: ['country'], equals: country };
         if (search) {
@@ -409,8 +418,10 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
                     source: true,
                     status: true,
                     reservePrice: true,
+                    buyNowPrice: true,
                     isVerified: true,
                     auctionEndAt: true,
+                    expiresAt: true,
                     createdAt: true,
                     _count: { select: { bids: true } },
                     seller: {
@@ -517,6 +528,183 @@ router.get('/leads/:id/preview', authMiddleware, async (req: AuthenticatedReques
     } catch (error) {
         console.error('Lead preview error:', error);
         res.status(500).json({ error: 'Failed to get lead preview' });
+    }
+});
+
+// ============================================
+// Buy It Now (Purchase UNSOLD Lead)
+// ============================================
+
+router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        // Use serializable isolation to prevent double-buy race conditions
+        const result = await prisma.$transaction(async (tx) => {
+            const lead = await tx.lead.findUnique({
+                where: { id: req.params.id },
+                include: {
+                    seller: {
+                        select: { id: true, userId: true, companyName: true },
+                    },
+                },
+            });
+
+            if (!lead) throw { status: 404, message: 'Lead not found' };
+            if (lead.status !== 'UNSOLD') throw { status: 409, message: 'Lead is no longer available for Buy It Now' };
+            if (!lead.buyNowPrice) throw { status: 400, message: 'Lead does not have a Buy It Now price' };
+            if (lead.expiresAt && lead.expiresAt < new Date()) throw { status: 410, message: 'Buy It Now listing has expired' };
+
+            const buyNowAmount = Number(lead.buyNowPrice);
+            const platformFee = buyNowAmount * 0.025; // 2.5%
+
+            // Mark as SOLD
+            const updatedLead = await tx.lead.update({
+                where: { id: lead.id },
+                data: {
+                    status: 'SOLD',
+                    winningBid: lead.buyNowPrice,
+                    soldAt: new Date(),
+                },
+            });
+
+            // Create transaction record
+            const transaction = await tx.transaction.create({
+                data: {
+                    leadId: lead.id,
+                    buyerId: req.user!.id,
+                    amount: lead.buyNowPrice,
+                    platformFee,
+                    status: 'PENDING',
+                },
+            });
+
+            // Log analytics
+            await tx.analyticsEvent.create({
+                data: {
+                    eventType: 'lead_buy_now_purchased',
+                    entityType: 'lead',
+                    entityId: lead.id,
+                    userId: req.user!.id,
+                    metadata: {
+                        buyNowPrice: buyNowAmount,
+                        platformFee,
+                        sellerId: lead.seller.id,
+                        vertical: lead.vertical,
+                    },
+                },
+            });
+
+            return { lead: updatedLead, transaction, seller: lead.seller };
+        }, {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+
+        // After transaction commits — initiate escrow (outside tx to avoid long locks)
+        let escrow = null;
+        try {
+            const sellerUser = await prisma.user.findUnique({ where: { id: result.seller.userId } });
+            if (sellerUser?.walletAddress && req.user?.walletAddress) {
+                escrow = await x402Service.createPayment(
+                    sellerUser.walletAddress,
+                    req.user.walletAddress,
+                    Number(result.transaction.amount),
+                    parseInt(result.lead.nftTokenId || '0'),
+                    result.transaction.id,
+                );
+            }
+        } catch (escrowErr) {
+            console.error('Buy It Now escrow error (non-fatal):', escrowErr);
+        }
+
+        // Emit real-time events
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('lead:buy-now-sold', {
+                leadId: result.lead.id,
+                buyerId: req.user!.id,
+                amount: Number(result.transaction.amount),
+                vertical: result.lead.vertical,
+                timestamp: new Date().toISOString(),
+            });
+
+            io.emit('analytics:update', {
+                type: 'buy-now',
+                leadId: result.lead.id,
+                buyerId: req.user!.id,
+                amount: Number(result.transaction.amount),
+                vertical: result.lead.vertical,
+                timestamp: new Date().toISOString(),
+            });
+        }
+
+        res.json({
+            lead: {
+                id: result.lead.id,
+                vertical: result.lead.vertical,
+                status: result.lead.status,
+                buyNowPrice: Number(result.lead.buyNowPrice),
+            },
+            transaction: {
+                id: result.transaction.id,
+                amount: Number(result.transaction.amount),
+                platformFee: Number(result.transaction.platformFee),
+                status: result.transaction.status,
+            },
+            escrow: escrow ? {
+                escrowId: escrow.escrowId,
+                txHash: escrow.txHash,
+            } : null,
+        });
+    } catch (error: any) {
+        if (error.status) {
+            res.status(error.status).json({ error: error.message });
+            return;
+        }
+        console.error('Buy It Now error:', error);
+        res.status(500).json({ error: 'Failed to process Buy It Now purchase' });
+    }
+});
+
+// ============================================
+// Requalify Lead (Stub — Twilio SMS Preview)
+// ============================================
+
+router.post('/leads/:id/requalify', authMiddleware, requireSeller, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const lead = await prisma.lead.findUnique({
+            where: { id: req.params.id },
+            include: { seller: true },
+        });
+
+        if (!lead) {
+            res.status(404).json({ error: 'Lead not found' });
+            return;
+        }
+
+        if (lead.status !== 'UNSOLD') {
+            res.status(400).json({ error: 'Only UNSOLD leads can be requalified' });
+            return;
+        }
+
+        // Verify the requesting seller owns this lead
+        const seller = await prisma.sellerProfile.findFirst({
+            where: { user: { id: req.user!.id } },
+        });
+
+        if (!seller || seller.id !== lead.sellerId) {
+            res.status(403).json({ error: 'You can only requalify your own leads' });
+            return;
+        }
+
+        // Stub: return a mock Twilio SMS preview
+        res.json({
+            preview: `SMS to lead: Hi, are you still looking for ${lead.vertical.replace(/[_.]/g, ' ')} service? Reply YES to reconnect with a verified provider.`,
+            estimatedDelivery: '2-5 seconds',
+            status: 'preview',
+            note: 'Twilio integration coming soon. This is a preview of the SMS that would be sent.',
+        });
+    } catch (error) {
+        console.error('Requalify error:', error);
+        res.status(500).json({ error: 'Failed to requalify lead' });
     }
 });
 

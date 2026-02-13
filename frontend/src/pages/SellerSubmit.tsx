@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Globe, Layout, Copy, Check, ExternalLink, Wallet, UserPlus, Building2, CheckCircle, Shield } from 'lucide-react';
 import { ErrorDetail, parseApiError } from '@/components/ui/ErrorDetail';
@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useAuth from '@/hooks/useAuth';
-import { useVerticals } from '@/hooks/useVerticals';
-import { VERTICAL_PRESETS } from '@/pages/FormBuilder';
+import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
+import { VerticalBreadcrumb } from '@/components/ui/VerticalBreadcrumb';
 import api, { API_BASE_URL } from '@/lib/api';
 
 type SourceTab = 'PLATFORM' | 'API' | 'OFFSITE';
@@ -88,11 +88,8 @@ export function SellerSubmit() {
     const [landerVertical, setLanderVertical] = useState<string | null>(null);
     const [copiedLanderUrl, setCopiedLanderUrl] = useState(false);
     const [copiedLanderIframe, setCopiedLanderIframe] = useState(false);
-    const allVerticals = useMemo(() => Object.keys(VERTICAL_PRESETS), []);
     const landerUrl = landerVertical ? `${window.location.origin}/f/${landerVertical}-${user?.id || 'preview'}` : '';
     const landerIframe = landerUrl ? `<iframe src="${landerUrl}" width="100%" height="700" frameborder="0" style="border-radius:12px;max-width:480px;"></iframe>` : '';
-
-    const { flatList: verticals, loading: verticalsLoading } = useVerticals();
 
     // Check for seller profile
     useEffect(() => {
@@ -205,32 +202,30 @@ export function SellerSubmit() {
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Lead Verticals</label>
                                 <p className="text-xs text-muted-foreground">Select the verticals you plan to sell leads in</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {verticalsLoading ? (
-                                        <div className="flex gap-2">
-                                            {[1, 2, 3, 4].map((i) => (
-                                                <div key={i} className="animate-pulse h-8 w-20 bg-muted rounded-lg" />
-                                            ))}
-                                        </div>
-                                    ) : verticals.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground">No verticals available</p>
-                                    ) : (
-                                        verticals.map((v) => (
+                                <NestedVerticalSelect
+                                    value=""
+                                    onValueChange={(slug) => {
+                                        setWizardVerticals((prev) =>
+                                            prev.includes(slug) ? prev.filter((x) => x !== slug) : [...prev, slug]
+                                        );
+                                    }}
+                                    placeholder="Add a vertical"
+                                />
+                                {wizardVerticals.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {wizardVerticals.map((v) => (
                                             <button
-                                                key={v.value}
-                                                onClick={() => setWizardVerticals((prev) =>
-                                                    prev.includes(v.value) ? prev.filter((x) => x !== v.value) : [...prev, v.value]
-                                                )}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${wizardVerticals.includes(v.value)
-                                                    ? 'bg-primary text-primary-foreground border-primary'
-                                                    : 'bg-muted/50 text-muted-foreground border-border hover:border-primary/50'
-                                                    }`}
+                                                key={v}
+                                                type="button"
+                                                onClick={() => setWizardVerticals((prev) => prev.filter((x) => x !== v))}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
                                             >
-                                                {v.label}
+                                                <VerticalBreadcrumb slug={v} size="sm" />
+                                                <span className="ml-0.5">×</span>
                                             </button>
-                                        ))
-                                    )}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* KYC CTA */}
@@ -504,20 +499,11 @@ export function SellerSubmit() {
                             {/* Vertical Selector */}
                             <div>
                                 <label className="text-sm font-medium mb-2 block">Select Vertical</label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                                    {allVerticals.map((v) => (
-                                        <button
-                                            key={v}
-                                            onClick={() => setLanderVertical(v)}
-                                            className={`px-3 py-2 rounded-lg text-sm font-medium text-left transition-all capitalize ${landerVertical === v
-                                                ? 'bg-primary/10 ring-1 ring-primary/30 text-primary'
-                                                : 'bg-muted/30 hover:bg-muted/60 text-foreground'
-                                                }`}
-                                        >
-                                            {v.replace(/_/g, ' ')}
-                                        </button>
-                                    ))}
-                                </div>
+                                <NestedVerticalSelect
+                                    value={landerVertical || ''}
+                                    onValueChange={(v) => setLanderVertical(v)}
+                                    placeholder="Choose a vertical for your lander"
+                                />
                             </div>
 
                             {/* Generated URL & Embed — only when a vertical is selected */}

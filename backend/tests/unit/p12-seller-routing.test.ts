@@ -78,10 +78,10 @@ describe('Profile', () => {
         expect(src).toContain('Complete your seller profile');
     });
 
-    test('7. SellerSubmit uses useVerticals instead of hard-coded list', () => {
+    test('7. SellerSubmit uses NestedVerticalSelect instead of hard-coded list', () => {
         const src = readFile(path.join(frontendSrc, 'pages/SellerSubmit.tsx'));
-        expect(src).toContain("import { useVerticals } from '@/hooks/useVerticals'");
-        expect(src).toContain('useVerticals()');
+        expect(src).toContain("import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect'");
+        expect(src).toContain('NestedVerticalSelect');
         // Should NOT have old hard-coded array
         expect(src).not.toMatch(/const VERTICALS\s*=\s*\[/);
     });

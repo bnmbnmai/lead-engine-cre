@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, MapPin, Clock, ArrowUpRight, Plus, Download, CheckCircle, Send } from 'lucide-react';
+import { FileText, MapPin, Clock, ArrowUpRight, Plus, Download, CheckCircle, Send, Tag, Loader2, MessageSquare } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip } from '@/components/ui/Tooltip';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
 
 export function SellerLeads() {
     const [leads, setLeads] = useState<any[]>([]);
@@ -16,6 +18,7 @@ export function SellerLeads() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
     const [crmExporting, setCrmExporting] = useState(false);
+    const [requalifying, setRequalifying] = useState<Set<string>>(new Set());
 
     const handleCrmExportAll = () => {
         if (leads.length === 0) return;
@@ -45,6 +48,30 @@ export function SellerLeads() {
     const handleCrmPushSingle = (leadId: string) => {
         setCrmPushed((prev) => new Set(prev).add(leadId));
         // In production, this would POST to /api/v1/crm/push with the lead ID
+    };
+
+    const handleRequalify = async (leadId: string) => {
+        setRequalifying((prev) => new Set(prev).add(leadId));
+        try {
+            const { data, error } = await api.requalifyLead(leadId);
+            if (error) {
+                toast({ type: 'error', title: 'Requalify Failed', description: error.error || 'Unknown error' });
+            } else {
+                toast({
+                    type: 'success',
+                    title: 'SMS Preview',
+                    description: data?.preview || 'Requalify request sent',
+                });
+            }
+        } catch {
+            toast({ type: 'error', title: 'Network Error', description: 'Failed to requalify lead' });
+        } finally {
+            setRequalifying((prev) => {
+                const next = new Set(prev);
+                next.delete(leadId);
+                return next;
+            });
+        }
     };
 
     useEffect(() => {
@@ -85,6 +112,7 @@ export function SellerLeads() {
                                 <SelectItem value="PENDING">Pending</SelectItem>
                                 <SelectItem value="IN_AUCTION">In Auction</SelectItem>
                                 <SelectItem value="SOLD">Sold</SelectItem>
+                                <SelectItem value="UNSOLD">Unsold (Buy Now)</SelectItem>
                                 <SelectItem value="EXPIRED">Expired</SelectItem>
                             </SelectContent>
                         </Select>
@@ -163,15 +191,40 @@ export function SellerLeads() {
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
-                                                    <span className="font-semibold">{formatCurrency(lead.reservePrice)}</span>
+                                                    <div>
+                                                        <span className="font-semibold">{formatCurrency(lead.reservePrice)}</span>
+                                                        {lead.status === 'UNSOLD' && lead.buyNowPrice && (
+                                                            <div className="flex items-center gap-1 mt-0.5">
+                                                                <Tag className="h-3 w-3 text-green-500" />
+                                                                <span className="text-xs text-green-500 font-medium">
+                                                                    BIN: {formatCurrency(lead.buyNowPrice)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-4">
                                                     <span className="text-muted-foreground">{lead._count?.bids || 0}</span>
                                                 </td>
                                                 <td className="p-4">
-                                                    <Badge className={getStatusColor(lead.status)}>
-                                                        {lead.status.replace('_', ' ')}
-                                                    </Badge>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Badge className={getStatusColor(lead.status)}>
+                                                            {lead.status.replace('_', ' ')}
+                                                        </Badge>
+                                                        {lead.status === 'UNSOLD' && lead.expiresAt && (
+                                                            <Tooltip content={`Expires: ${new Date(lead.expiresAt).toLocaleString()}`}>
+                                                                <span className="text-xs text-amber-500 cursor-help">
+                                                                    {(() => {
+                                                                        const diff = new Date(lead.expiresAt).getTime() - Date.now();
+                                                                        if (diff <= 0) return 'Expired';
+                                                                        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                                                                        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                                                        return `${days}d ${hours}h left`;
+                                                                    })()}
+                                                                </span>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -181,6 +234,22 @@ export function SellerLeads() {
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center justify-end gap-1">
+                                                        {lead.status === 'UNSOLD' && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleRequalify(lead.id)}
+                                                                disabled={requalifying.has(lead.id)}
+                                                                className="gap-1 text-amber-500 hover:text-amber-400"
+                                                                title="Send requalification SMS to lead"
+                                                            >
+                                                                {requalifying.has(lead.id) ? (
+                                                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending…</>
+                                                                ) : (
+                                                                    <><MessageSquare className="h-3.5 w-3.5" /> Requalify</>
+                                                                )}
+                                                            </Button>
+                                                        )}
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"

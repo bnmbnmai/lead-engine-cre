@@ -11,6 +11,7 @@
 
 import { PrismaClient, Prisma, UserRole } from '@prisma/client';
 import { faker } from '@faker-js/faker';
+import { seedVerticals, SEED_DATA } from './seed-verticals';
 
 const prisma = new PrismaClient();
 
@@ -23,7 +24,11 @@ if (process.env.TEST_MODE !== 'true') {
 
 // ─── Constants ──────────────────────────────
 
-const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'] as const;
+// Build VERTICALS from seed-verticals hierarchy (roots + all children)
+const VERTICALS: string[] = SEED_DATA.flatMap((v) => [
+    v.slug,
+    ...(v.children?.map((c) => c.slug) ?? []),
+]);
 
 const LEAD_STATUSES = ['PENDING_AUCTION', 'IN_AUCTION', 'REVEAL_PHASE', 'SOLD', 'EXPIRED'] as const;
 const LEAD_SOURCES = ['PLATFORM', 'API', 'OFFSITE'] as const;
@@ -199,7 +204,10 @@ const GEO_CONFIGS: GeoConfig[] = [
 // ─── Vertical-Specific Parameters ───────────
 
 function generateVerticalParams(vertical: string): Record<string, unknown> {
-    switch (vertical) {
+    // For child slugs like 'solar.residential', use the root prefix for params
+    const root = vertical.includes('.') ? vertical.split('.')[0] : vertical;
+
+    switch (root) {
         case 'solar':
             return {
                 roof_age: faker.number.int({ min: 1, max: 30 }).toString(),
@@ -265,6 +273,7 @@ function generateVerticalParams(vertical: string): Record<string, unknown> {
                 urgency: faker.helpers.arrayElement(['immediate', 'this_week', 'this_month']),
                 has_attorney: faker.datatype.boolean(),
             };
+        case 'financial_services':
         case 'financial':
             return {
                 service: faker.helpers.arrayElement(['tax_prep', 'bookkeeping', 'financial_planning', 'debt_relief', 'credit_repair']),
@@ -318,7 +327,7 @@ async function seedBuyerProfiles(buyerUsers: { id: string }[]) {
     console.log(`  Creating ${buyerUsers.length} buyer profiles...`);
 
     for (const user of buyerUsers) {
-        const selectedVerticals = faker.helpers.arrayElements(VERTICALS as unknown as string[], { min: 1, max: 4 });
+        const selectedVerticals = faker.helpers.arrayElements(VERTICALS, { min: 1, max: 4 });
         const geoConfig = faker.helpers.arrayElement(GEO_CONFIGS);
         const selectedStates = faker.helpers.arrayElements(geoConfig.states, { min: 1, max: 4 });
 
@@ -348,7 +357,7 @@ async function seedSellerProfiles(sellerUsers: { id: string }[]) {
     const sellers = [];
 
     for (const user of sellerUsers) {
-        const selectedVerticals = faker.helpers.arrayElements(VERTICALS as unknown as string[], { min: 1, max: 3 });
+        const selectedVerticals = faker.helpers.arrayElements(VERTICALS, { min: 1, max: 3 });
 
         const seller = await prisma.sellerProfile.create({
             data: {
@@ -376,7 +385,7 @@ async function seedAsks(sellers: { id: string; verticals: string[] }[], count: n
 
     for (let i = 0; i < count; i++) {
         const seller = faker.helpers.arrayElement(sellers);
-        const vertical = faker.helpers.arrayElement(seller.verticals.length > 0 ? seller.verticals : [faker.helpers.arrayElement(VERTICALS as unknown as string[])]);
+        const vertical = faker.helpers.arrayElement(seller.verticals.length > 0 ? seller.verticals : [faker.helpers.arrayElement(VERTICALS)]);
         const geoConfig = faker.helpers.arrayElement(GEO_CONFIGS);
         const selectedStates = faker.helpers.arrayElements(geoConfig.states, { min: 1, max: 5 });
 
@@ -409,7 +418,7 @@ async function seedLeads(sellers: { id: string; verticals: string[] }[], asks: {
 
     for (let i = 0; i < count; i++) {
         const seller = faker.helpers.arrayElement(sellers);
-        const vertical = faker.helpers.arrayElement(seller.verticals.length > 0 ? seller.verticals : [faker.helpers.arrayElement(VERTICALS as unknown as string[])]);
+        const vertical = faker.helpers.arrayElement(seller.verticals.length > 0 ? seller.verticals : [faker.helpers.arrayElement(VERTICALS)]);
         const geo = randomGeo();
         const status = faker.helpers.arrayElement(LEAD_STATUSES);
 
@@ -561,19 +570,24 @@ async function main() {
     const BID_COUNT = 120;
 
     console.log('📊 Seeding plan:');
+    console.log(`  • ${VERTICALS.length} verticals (10 roots + ${VERTICALS.length - 10} children)`);
     console.log(`  • ${BUYER_COUNT} buyers + profiles`);
     console.log(`  • ${SELLER_COUNT} sellers + profiles`);
     console.log(`  • ${ASK_COUNT} asks (across ${GEO_CONFIGS.length} countries)`);
-    console.log(`  • ${LEAD_COUNT} leads (10 verticals × global geos)`);
+    console.log(`  • ${LEAD_COUNT} leads (${VERTICALS.length} verticals × global geos)`);
     console.log(`  • ${BID_COUNT} bids (on auction leads)`);
     console.log(`  • Transactions for all SOLD leads`);
     console.log(`  • ~160 analytics events`);
     console.log('');
 
     // Dynamic step tracking — auto-adjusts when new stages are added
-    const TOTAL_STEPS = 9;
+    const TOTAL_STEPS = 10;
     let currentStep = 0;
     const step = (label: string) => console.log(`→ Step ${++currentStep}/${TOTAL_STEPS}: ${label}`);
+
+    // 0. Verticals (hierarchical tree)
+    step('Verticals');
+    await seedVerticals();
 
     // 1. Users
     step('Users');
@@ -624,6 +638,7 @@ async function main() {
         bids: await prisma.bid.count(),
         transactions: await prisma.transaction.count(),
         analyticsEvents: await prisma.analyticsEvent.count(),
+        verticals: await prisma.vertical.count(),
     };
 
     console.log('');

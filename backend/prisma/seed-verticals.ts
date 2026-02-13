@@ -35,8 +35,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['solar_energy', 'solar_panels'],
         attributes: { icon: 'sun', avgBudget: '>10K' },
         children: [
-            { slug: 'solar.residential', name: 'Residential Solar', description: 'Home solar installations' },
-            { slug: 'solar.commercial', name: 'Commercial Solar', description: 'Business and industrial solar' },
+            { slug: 'solar.residential', name: 'Residential Solar', description: 'Home solar installations', aliases: ['home_solar'] },
+            { slug: 'solar.commercial', name: 'Commercial Solar', description: 'Business and industrial solar', aliases: ['commercial_panels'] },
+            { slug: 'solar.battery_storage', name: 'Battery Storage', description: 'Solar battery and energy storage systems', aliases: ['solar_battery', 'powerwall'] },
+            { slug: 'solar.community', name: 'Community Solar', description: 'Shared solar farm and community programs', aliases: ['solar_garden', 'shared_solar'] },
         ],
     },
     {
@@ -48,8 +50,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['home_loan', 'home_mortgage'],
         attributes: { icon: 'home', compliance: ['TCPA', 'RESPA'] },
         children: [
-            { slug: 'mortgage.purchase', name: 'Purchase', description: 'Home purchase mortgage' },
+            { slug: 'mortgage.purchase', name: 'Purchase', description: 'Home purchase mortgage', aliases: ['home_purchase'] },
             { slug: 'mortgage.refinance', name: 'Refinance', description: 'Mortgage refinancing', aliases: ['refi'] },
+            { slug: 'mortgage.heloc', name: 'HELOC', description: 'Home equity line of credit', aliases: ['home_equity', 'equity_line'] },
+            { slug: 'mortgage.reverse', name: 'Reverse Mortgage', description: 'Reverse mortgage for seniors 62+', aliases: ['hecm', 'reverse_mortgage'] },
         ],
     },
     {
@@ -60,8 +64,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['roof_repair', 'roof_replacement'],
         attributes: { icon: 'hard-hat' },
         children: [
-            { slug: 'roofing.repair', name: 'Roof Repair', description: 'Roof damage repair and patching' },
-            { slug: 'roofing.replacement', name: 'Roof Replacement', description: 'Full roof replacement and installation' },
+            { slug: 'roofing.repair', name: 'Roof Repair', description: 'Roof damage repair and patching', aliases: ['roof_patch', 'leak_repair'] },
+            { slug: 'roofing.replacement', name: 'Roof Replacement', description: 'Full roof replacement and installation', aliases: ['reroof', 'new_roof'] },
+            { slug: 'roofing.inspection', name: 'Roof Inspection', description: 'Professional roof inspection and assessment', aliases: ['roof_assessment', 'roof_check'] },
+            { slug: 'roofing.gutter', name: 'Gutters & Drainage', description: 'Gutter installation, repair, and drainage systems', aliases: ['gutter_install', 'downspout'] },
         ],
     },
     {
@@ -74,8 +80,9 @@ const SEED_DATA: SeedVertical[] = [
         attributes: { icon: 'shield' },
         children: [
             { slug: 'insurance.auto', name: 'Auto Insurance', description: 'Vehicle insurance leads', aliases: ['car_insurance'] },
-            { slug: 'insurance.home', name: 'Home Insurance', description: 'Homeowners insurance leads' },
-            { slug: 'insurance.life', name: 'Life Insurance', description: 'Life insurance leads' },
+            { slug: 'insurance.home', name: 'Home Insurance', description: 'Homeowners insurance leads', aliases: ['homeowners_insurance'] },
+            { slug: 'insurance.life', name: 'Life Insurance', description: 'Life insurance leads', aliases: ['life_ins'] },
+            { slug: 'insurance.health', name: 'Health Insurance', description: 'Health and medical insurance leads', aliases: ['medical_insurance', 'health_plan'] },
         ],
     },
     {
@@ -86,10 +93,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['home_improvement', 'home_repair'],
         attributes: { icon: 'wrench' },
         children: [
-            { slug: 'home_services.plumbing', name: 'Plumbing', description: 'Plumbing repair and installation', aliases: ['plumber'] },
-            { slug: 'home_services.electrical', name: 'Electrical', description: 'Electrical work and repairs', aliases: ['electrician'] },
-            { slug: 'home_services.hvac', name: 'HVAC', description: 'Heating, ventilation, and air conditioning', aliases: ['heating_cooling'] },
-            { slug: 'home_services.landscaping', name: 'Landscaping', description: 'Lawn care and landscaping services' },
+            { slug: 'home_services.plumbing', name: 'Plumbing', description: 'Plumbing repair and installation', aliases: ['plumber', 'pipe_repair'] },
+            { slug: 'home_services.electrical', name: 'Electrical', description: 'Electrical work and repairs', aliases: ['electrician', 'wiring'] },
+            { slug: 'home_services.hvac', name: 'HVAC', description: 'Heating, ventilation, and air conditioning', aliases: ['heating_cooling', 'ac_repair'] },
+            { slug: 'home_services.landscaping', name: 'Landscaping', description: 'Lawn care and landscaping services', aliases: ['lawn_care', 'yard_work'] },
         ],
     },
     {
@@ -99,8 +106,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['saas', 'enterprise_software'],
         attributes: { icon: 'server' },
         children: [
-            { slug: 'b2b_saas.crm', name: 'CRM Software', description: 'Customer relationship management tools' },
-            { slug: 'b2b_saas.analytics', name: 'Analytics Platforms', description: 'Business intelligence and data analytics' },
+            { slug: 'b2b_saas.crm', name: 'CRM Software', description: 'Customer relationship management tools', aliases: ['salesforce_alt', 'crm'] },
+            { slug: 'b2b_saas.analytics', name: 'Analytics Platforms', description: 'Business intelligence and data analytics', aliases: ['bi_tools', 'data_analytics'] },
+            { slug: 'b2b_saas.marketing_automation', name: 'Marketing Automation', description: 'Email marketing and campaign automation tools', aliases: ['email_marketing', 'martech'] },
+            { slug: 'b2b_saas.hr_tech', name: 'HR Technology', description: 'Human resources and talent management platforms', aliases: ['hris', 'hr_software'] },
         ],
     },
     {
@@ -111,8 +120,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['property', 'realty'],
         attributes: { icon: 'building' },
         children: [
-            { slug: 'real_estate.residential', name: 'Residential', description: 'Home buying and selling leads' },
-            { slug: 'real_estate.commercial', name: 'Commercial', description: 'Commercial property leads' },
+            { slug: 'real_estate.residential', name: 'Residential', description: 'Home buying and selling leads', aliases: ['home_buying', 'home_selling'] },
+            { slug: 'real_estate.commercial', name: 'Commercial', description: 'Commercial property leads', aliases: ['commercial_property', 'office_space'] },
+            { slug: 'real_estate.rental', name: 'Rental & Property Mgmt', description: 'Rental property and property management leads', aliases: ['rental', 'property_management'] },
+            { slug: 'real_estate.land', name: 'Vacant Land', description: 'Land sales and development leads', aliases: ['land_sale', 'lot_sale'] },
         ],
     },
     {
@@ -123,8 +134,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['automotive', 'car_sales'],
         attributes: { icon: 'car' },
         children: [
-            { slug: 'auto.sales', name: 'Auto Sales', description: 'New and used car sales leads' },
-            { slug: 'auto.warranty', name: 'Auto Warranty', description: 'Extended vehicle warranty leads' },
+            { slug: 'auto.sales', name: 'Auto Sales', description: 'New and used car sales leads', aliases: ['car_dealer', 'vehicle_sales'] },
+            { slug: 'auto.warranty', name: 'Auto Warranty', description: 'Extended vehicle warranty leads', aliases: ['extended_warranty', 'vehicle_protection'] },
+            { slug: 'auto.repair', name: 'Auto Repair', description: 'Auto repair and maintenance service leads', aliases: ['car_repair', 'mechanic'] },
+            { slug: 'auto.insurance', name: 'Auto Insurance', description: 'Vehicle insurance comparison and quotes', aliases: ['car_insurance_quote'] },
         ],
     },
     {
@@ -136,9 +149,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['attorney', 'lawyer'],
         attributes: { icon: 'gavel', compliance: ['TCPA', 'ABA'] },
         children: [
-            { slug: 'legal.personal_injury', name: 'Personal Injury', description: 'PI attorney and claim leads', aliases: ['pi_lawyer'] },
-            { slug: 'legal.family', name: 'Family Law', description: 'Divorce, custody, and family legal services' },
-            { slug: 'legal.immigration', name: 'Immigration', description: 'Visa and immigration legal services', restrictedGeos: ['CN', 'RU', 'IR'] },
+            { slug: 'legal.personal_injury', name: 'Personal Injury', description: 'PI attorney and claim leads', aliases: ['pi_lawyer', 'accident_lawyer'] },
+            { slug: 'legal.family', name: 'Family Law', description: 'Divorce, custody, and family legal services', aliases: ['divorce_lawyer', 'custody'] },
+            { slug: 'legal.immigration', name: 'Immigration', description: 'Visa and immigration legal services', aliases: ['visa_lawyer', 'immigration_attorney'], restrictedGeos: ['CN', 'RU', 'IR'] },
+            { slug: 'legal.criminal_defense', name: 'Criminal Defense', description: 'Criminal defense attorney leads', aliases: ['criminal_lawyer', 'defense_attorney'] },
         ],
     },
     {
@@ -150,9 +164,10 @@ const SEED_DATA: SeedVertical[] = [
         aliases: ['finance', 'financial'],
         attributes: { icon: 'dollar-sign', compliance: ['TCPA', 'FCRA'] },
         children: [
-            { slug: 'financial_services.debt_consolidation', name: 'Debt Consolidation', description: 'Debt consolidation and settlement', aliases: ['debt_relief'] },
-            { slug: 'financial_services.banking', name: 'Banking', description: 'Banking products and services' },
-            { slug: 'financial_services.credit_repair', name: 'Credit Repair', description: 'Credit score improvement services', aliases: ['credit_fix'] },
+            { slug: 'financial_services.debt_consolidation', name: 'Debt Consolidation', description: 'Debt consolidation and settlement', aliases: ['debt_relief', 'debt_settlement'] },
+            { slug: 'financial_services.banking', name: 'Banking', description: 'Banking products and services', aliases: ['bank_account', 'savings'] },
+            { slug: 'financial_services.credit_repair', name: 'Credit Repair', description: 'Credit score improvement services', aliases: ['credit_fix', 'credit_restoration'] },
+            { slug: 'financial_services.tax_prep', name: 'Tax Preparation', description: 'Tax filing and preparation services', aliases: ['tax_filing', 'cpa', 'tax_services'] },
         ],
     },
 ];
@@ -300,13 +315,16 @@ async function seedVerticals() {
     console.log(`\n🎉 Done! Created: ${created}, Skipped: ${skipped}`);
 }
 
-seedVerticals()
-    .catch((err) => {
-        console.error('❌ Seed failed:', err);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+// Run standalone when executed directly
+if (require.main === module) {
+    seedVerticals()
+        .catch((err) => {
+            console.error('❌ Seed failed:', err);
+            process.exit(1);
+        })
+        .finally(async () => {
+            await prisma.$disconnect();
+        });
+}
 
-export { generateDynamicVerticals, SEED_DATA, DYNAMIC_INDUSTRIES, DYNAMIC_SPECIALIZATIONS };
+export { generateDynamicVerticals, seedVerticals, SEED_DATA, DYNAMIC_INDUSTRIES, DYNAMIC_SPECIALIZATIONS };

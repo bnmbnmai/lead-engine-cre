@@ -349,6 +349,7 @@ model Lead {
   
   // Pricing
   reservePrice    Decimal?    @db.Decimal(10, 2)
+  buyNowPrice     Decimal?    @db.Decimal(10, 2)  // Set when lead becomes UNSOLD (reserve * 1.2)
   winningBid      Decimal?    @db.Decimal(10, 2)
   
   // NFT tokenization
@@ -377,6 +378,7 @@ model Lead {
   @@index([vertical, status])
   @@index([sellerId])
   @@index([status, createdAt])
+  @@index([status, expiresAt])    // Buy It Now marketplace queries
   @@index([askId])
   @@index([createdAt])          // conversion analytics time-range
 }
@@ -392,6 +394,7 @@ enum LeadStatus {
   IN_AUCTION
   REVEAL_PHASE
   SOLD
+  UNSOLD          // Auction ended with no winner → available for Buy It Now
   EXPIRED
   CANCELLED
   DISPUTED

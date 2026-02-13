@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Plus, AlertTriangle, Search, Sparkles } from 'lucide-react';
+import { Save, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
@@ -12,6 +12,7 @@ import { PreferenceSetCard, type PreferenceSetData } from './PreferenceSetCard';
 import { ConflictModal } from '@/components/preferences/ConflictModal';
 import api from '@/lib/api';
 import { useVerticals } from '@/hooks/useVerticals';
+import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 
 // ============================================
 // Defaults
@@ -52,14 +53,11 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showVerticalPicker, setShowVerticalPicker] = useState(false);
-    const [verticalSearch, setVerticalSearch] = useState('');
     const [conflictModalOpen, setConflictModalOpen] = useState(false);
     const [serverSets, setServerSets] = useState<PreferenceSetData[]>([]);
 
     // Dynamic verticals from API
-    const { flatList: availableVerticals, labelMap: verticalLabels, loading: verticalsLoading, search: searchVerticals } = useVerticals();
-    const filteredVerticals = verticalSearch ? searchVerticals(verticalSearch) : availableVerticals;
+    const { labelMap: verticalLabels } = useVerticals();
 
     // Load existing preference sets
     useEffect(() => {
@@ -81,8 +79,6 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
 
     const addSet = (vertical: string) => {
         setSets((prev) => [...prev, createDefaultSet(vertical, verticalLabels[vertical] || vertical, prev.length)]);
-        setShowVerticalPicker(false);
-        setVerticalSearch('');
     };
 
     const updateSet = (index: number, updated: PreferenceSetData) => {
@@ -214,45 +210,15 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                             <p className="text-muted-foreground text-sm">
                                 No preference sets yet. Add your first vertical to get started.
                             </p>
-                            {verticalsLoading ? (
-                                <div className="flex justify-center py-4">
-                                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                </div>
-                            ) : availableVerticals.length === 0 ? (
-                                <div className="space-y-2">
-                                    <p className="text-xs text-muted-foreground">No verticals available yet.</p>
-                                    <Button variant="outline" size="sm" onClick={() => window.open('/verticals/suggest', '_blank')}>
-                                        <Sparkles className="h-3.5 w-3.5 mr-1" />
-                                        Suggest New Vertical
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <div className="relative max-w-xs mx-auto mb-2">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search verticals..."
-                                            value={verticalSearch}
-                                            onChange={(e) => setVerticalSearch(e.target.value)}
-                                            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                        />
-                                    </div>
-                                    <div className="flex flex-wrap justify-center gap-2">
-                                        {filteredVerticals.filter(v => v.depth === 0).map((v) => (
-                                            <Button
-                                                key={v.value}
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => addSet(v.value)}
-                                            >
-                                                <Plus className="h-3.5 w-3.5 mr-1" />
-                                                {v.label}
-                                            </Button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            <div className="max-w-xs mx-auto">
+                                <NestedVerticalSelect
+                                    value=""
+                                    onValueChange={(slug) => addSet(slug)}
+                                    placeholder="Choose a vertical"
+                                    showSuggest
+                                    onSuggestClick={() => window.open('/verticals/suggest', '_blank')}
+                                />
+                            </div>
                         </div>
                     ) : (
                         <Accordion defaultOpen={sets.length === 1 ? [sets[0].id || '0'] : []}>
@@ -303,56 +269,14 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
             {/* Add Preference Set */}
             {sets.length > 0 && (
                 <div className="relative">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setShowVerticalPicker((v) => !v)}
-                        className="w-full border-dashed"
-                    >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Preference Set
-                    </Button>
-
-                    {showVerticalPicker && (
-                        <div className="absolute top-full left-0 right-0 mt-2 p-3 rounded-xl bg-popover border border-border shadow-lg z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200">
-                            <p className="text-xs font-medium text-muted-foreground mb-2">
-                                Select a vertical:
-                            </p>
-                            {availableVerticals.length > 10 && (
-                                <div className="relative mb-2">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search verticals..."
-                                        value={verticalSearch}
-                                        onChange={(e) => setVerticalSearch(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                    />
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 max-h-60 overflow-y-auto">
-                                {filteredVerticals.filter(v => v.depth === 0).map((v) => (
-                                    <button
-                                        key={v.value}
-                                        type="button"
-                                        onClick={() => addSet(v.value)}
-                                        className="px-3 py-2 rounded-lg text-xs font-medium bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
-                                    >
-                                        {v.label}
-                                    </button>
-                                ))}
-                            </div>
-                            {filteredVerticals.length === 0 && (
-                                <div className="text-center py-3 space-y-2">
-                                    <p className="text-xs text-muted-foreground">No matching verticals found.</p>
-                                    <Button variant="ghost" size="sm" onClick={() => window.open('/verticals/suggest', '_blank')}>
-                                        <Sparkles className="h-3 w-3 mr-1" />
-                                        Suggest New
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Add another vertical:</p>
+                    <NestedVerticalSelect
+                        value=""
+                        onValueChange={(slug) => addSet(slug)}
+                        placeholder="Choose a vertical"
+                        showSuggest
+                        onSuggestClick={() => window.open('/verticals/suggest', '_blank')}
+                    />
                 </div>
             )}
 

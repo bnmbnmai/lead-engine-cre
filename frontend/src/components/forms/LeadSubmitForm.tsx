@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import api from '@/lib/api';
-import { useVerticals } from '@/hooks/useVerticals';
 
 
 
@@ -153,7 +153,6 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [tcpaConsent, setTcpaConsent] = useState(false);
     const [customParams, setCustomParams] = useState<Record<string, unknown>>({});
     const [selectedCountry, setSelectedCountry] = useState('US');
-    const { flatList: dynamicVerticals } = useVerticals();
     // Ad tracking state
     const [showAdTracking, setShowAdTracking] = useState(false);
     const [showMoreUtm, setShowMoreUtm] = useState(false);
@@ -174,7 +173,9 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     });
 
     const selectedVertical = watch('vertical');
-    const verticalFields = selectedVertical ? (VERTICAL_FIELDS[selectedVertical] || []) : [];
+    // Extract root slug for VERTICAL_FIELDS lookup (e.g. "solar.battery_storage" → "solar")
+    const verticalRoot = selectedVertical?.split('.')[0] || '';
+    const verticalFields = verticalRoot ? (VERTICAL_FIELDS[verticalRoot] || []) : [];
 
     // Auto-read UTM params from URL on mount
     useEffect(() => {
@@ -266,28 +267,21 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                             name="vertical"
                             control={control}
                             render={({ field }) => (
-                                <Select onValueChange={(v) => { field.onChange(v); setCustomParams({}); }} value={field.value}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select vertical" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {dynamicVerticals.filter(v => v.depth === 0).map((v) => (
-                                            <SelectItem key={v.value} value={v.value}>
-                                                {v.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <NestedVerticalSelect
+                                    value={field.value}
+                                    onValueChange={(v) => { field.onChange(v); setCustomParams({}); }}
+                                    placeholder="Select vertical"
+                                    error={errors.vertical?.message}
+                                />
                             )}
                         />
-                        {errors.vertical && <p className="text-xs text-destructive mt-1">{errors.vertical.message}</p>}
                     </div>
 
                     {/* Vertical-Specific Custom Fields */}
                     {verticalFields.length > 0 && (
                         <div className="space-y-4 p-4 rounded-xl border border-border bg-muted/20">
                             <h4 className="text-sm font-semibold text-foreground capitalize">
-                                {selectedVertical?.replace('_', ' ')} Details
+                                {verticalRoot?.replace('_', ' ')} Details
                             </h4>
                             <div className="grid grid-cols-2 gap-4">
                                 {verticalFields.map((field) => (

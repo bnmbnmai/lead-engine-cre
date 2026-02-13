@@ -104,6 +104,36 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 | **Data Streams** | Stub-ready bid floor pricing from real-time market data — activates when Chainlink access granted |
 | **Confidential Compute** | Stub-ready TEE-based lead scoring in secure enclaves — activates when Chainlink access granted |
 
+### Data Producer — Contributing Back to the Chainlink Ecosystem
+
+Lead Engine doesn't just **consume** Chainlink services — it **contributes back** by publishing verified, anonymized platform metrics as a custom on-chain data feed. Other dApps can read Lead Engine's market health (average quality scores, settlement volume, auction fill rates) directly from the chain, creating a new public good for the real estate lead industry.
+
+> Built following the official Chainlink [custom-data-feed template](https://github.com/smartcontractkit/cre-templates/tree/main/starter-templates/custom-data-feed) — CRE cron trigger → HTTP fetch → ABI-encode → chain write.
+
+| Metric | On-Chain Getter | Use Case for Consumers |
+|--------|----------------|----------------------|
+| **Average Quality Score** (0–10000) | `latestQualityScore()` | DeFi protocols use as credibility signal |
+| **Total Volume Settled** (USDC cents) | `latestVolumeSettled()` | TVL proof for institutional credit scoring |
+| **Leads Tokenized** (count) | `latestLeadsTokenized()` | Market size indicator for analytics |
+| **Auction Fill Rate** (basis points) | `latestFillRate()` | Demand signal for dynamic pricing models |
+
+**Files:** [`data-feed.stub.ts`](backend/src/lib/chainlink/data-feed.stub.ts) (backend push logic) · [`CustomLeadFeed.sol`](contracts/contracts/CustomLeadFeed.sol) (on-chain consumer)
+
+**Privacy:** Only aggregated metrics — **never PII, never individual lead data**. Values are rounded to prevent fingerprinting.
+
+**Planned full CRE workflow (post-hackathon):** CRE cron fires daily at 00:00 UTC → fetches `/api/metrics` → ABI-encodes 4 uint256 values → calls `CustomLeadFeed.updateMetrics()` on Base. Staleness detection (`maxStalenessSeconds`) lets consumers verify freshness. Gas: ~40K per call (< $0.01/day on Base).
+
+### ⚠️ Confidential Compute — Latest from Chainlink (Feb 2026)
+
+> [!NOTE]
+> Per Chainlink Discord (Feb 13, 2026): The **Feb 17 demo** covers **private value movement** — deposit → private transfers → withdrawal with ACE compliance checks. Full **Confidential Compute with arbitrary logic (CCC)** comes in a later phase.
+
+**What this means for Lead Engine:**
+- Our **Confidential Compute stubs** (`confidential.service.ts` + `lib/chainlink/confidential.stub.ts`) are designed to evolve with both phases:
+  - **Phase 1 (Feb 17 demo):** Private USDC settlement flows align with our x402 escrow path — deposit → private transfer → withdrawal with ACE compliance already maps to our `RTBEscrow.sol` lifecycle.
+  - **Phase 2 (CCC — arbitrary logic):** Our `sealBid()`/`revealBid()` and `sealLeadData()`/`unsealLeadData()` stubs target this phase — TEE-based arbitrary compute for private auctions and PII concealment.
+- We are **not over-promising** CCC support today. Our stubs are clearly marked `isStub: true` and the README documents the exact upgrade path.
+
 ---
 
 ## ⚡ Features
@@ -484,7 +514,7 @@ lead-engine-cre/
 │   │   ├── routes/        # API + CRM webhooks + bidding + auto-bid + demo panel
 │   │   ├── rtb/           # RTB engine + WebSocket streaming
 │   │   ├── middleware/     # Auth, rate-limiting, CORS
-│   │   └── lib/           # Prisma, cache, geo-registry, utils
+│   │   └── lib/           # Prisma, cache, geo-registry, chainlink stubs
 │   ├── tests/             # 1,147 tests (unit, e2e, security, compliance, auto-bid, CRM, UX polish)
 │   └── prisma/            # Schema + migrations + seed scripts (leads + verticals)
 ├── frontend/              # React/Vite SPA
@@ -660,9 +690,10 @@ Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
 |---------|--------|-------------|
 | **CRE (Functions)** | ✅ Live | `CREVerifier.sol` — on-chain parameter matching, quality scoring, geo-validation |
 | **ACE (Compliance)** | ✅ Live | `ACECompliance.sol` — KYC, jurisdiction matrix, reputation system |
-| **DECO** | 🔌 Stub-ready | `deco.service.ts` — attestation + fallback; activates when access granted |
+| **DECO** | 🔌 Stub-ready | `deco.service.ts` (attestation) + `lib/chainlink/deco.stub.ts` (zkTLS KYC); activates when access granted |
 | **Data Streams** | 🔌 Stub-ready | `datastreams.service.ts` — bid floor pricing; activates when access granted |
-| **Confidential Compute** | 🔌 Stub-ready | `confidential.service.ts` — TEE lead scoring; activates when access granted |
+| **Confidential Compute** | 🔌 Stub-ready | `confidential.service.ts` (scoring) + `lib/chainlink/confidential.stub.ts` (private bids & lead data); activates when access granted |
+| **Data Producer** | 🔌 Stub-ready | `CustomLeadFeed.sol` + `data-feed.stub.ts` — publishes anonymized metrics back to CRE as a custom data feed |
 
 **Key differentiators:**
 1. **First platform to tokenize leads** — every purchased lead becomes an ERC-721 NFT via `LeadNFTv2.sol` with on-chain provenance, quality scores, resale, and royalties. **This is core, not optional.**
@@ -672,6 +703,76 @@ Set `API_BASE_URL`, `API_KEY`, `MCP_PORT` in `mcp-server/.env`.
 5. **Autonomous bidding** — 7-criteria auto-bid engine + MCP agent server with 9 tools + LangChain integration
 6. **CRM pipeline** — HubSpot and Zapier webhook integrations for enterprise buyers
 7. Optional **vertical NFT** monetization layer for vertical ownership and holder perks — supplementary, not core
+
+---
+
+## 🔐 Privacy & Compliance Roadmap (DECO + Confidential Compute)
+
+Lead Engine ships with **production-patterned stubs** for Chainlink's next-generation privacy services. These stubs are fully typed, tested under the same patterns as live services (`isStub: true`, simulated latency, deterministic results), and designed as **drop-in replacements** when mainnet access is granted.
+
+### DECO zkTLS — KYC Verification
+
+> **File:** [`deco.stub.ts`](backend/src/lib/chainlink/deco.stub.ts)
+
+Uses DECO's zkTLS protocol to verify KYC identity claims directly from issuer websites **without revealing PII to the platform**.
+
+| Method | Purpose |
+|--------|---------|
+| `verifyIdentity()` | Generic zkTLS KYC — proves an identity claim from any issuer URL |
+| `verifyNMLSLicense()` | Mortgage-vertical: proves valid NMLS broker license for a given state |
+| `screenSanctions()` | OFAC/SDN sanctions screening without exposing personal data |
+| `batchVerify()` | Run multiple checks in parallel (license + sanctions + business reg) |
+
+**How it works:**
+1. Seller/buyer provides an issuer URL (e.g., NMLS, state portal, Treasury OFAC)
+2. DECO opens a TLS session with the issuer and extracts the relevant field
+3. A ZK proof proves the identity claim is valid
+4. Platform receives `verified: boolean` + attestation proof — **never raw PII**
+
+> [!IMPORTANT]
+> Ready for mainnet integration when Chainlink DECO access is granted. Swap stub methods for real DECO SDK calls — interfaces are drop-in.
+
+---
+
+### Confidential Compute — Private Bids & Private Lead Data
+
+> **File:** [`confidential.stub.ts`](backend/src/lib/chainlink/confidential.stub.ts)
+
+Uses TEE (Trusted Execution Environment) enclaves for privacy-preserving auctions and lead data handling.
+
+#### Private Bids
+
+| Method | Purpose |
+|--------|---------|
+| `sealBid()` | Encrypt bid inside TEE → returns envelope + commitment hash for on-chain commit-reveal |
+| `revealBid()` | Decrypt and verify bid in TEE → proves the revealed amount matches the original commitment |
+
+**Flow:** Buyer submits `sealBid(wallet, leadId, amount)` → gets `commitment` for on-chain → auction ends → `revealBid()` decrypts inside TEE → commitment validated → winner determined. **Bid amounts are never visible outside the enclave until reveal.**
+
+#### Private Lead Data
+
+| Method | Purpose |
+|--------|---------|
+| `sealLeadData()` | Encrypt full PII inside TEE → returns sealed payload + non-PII preview for marketplace |
+| `unsealLeadData()` | Decrypt PII after payment confirmation → verifies integrity via content hash |
+
+**Flow:** Seller submits lead → `sealLeadData()` encrypts PII, derives non-PII preview inside TEE → buyers see only `{ vertical, geo, qualityScore, source }` → buyer wins auction → x402 escrow confirms payment → `unsealLeadData(paymentTxId)` releases full PII. **Raw PII never leaves the enclave until payment is confirmed.**
+
+> [!IMPORTANT]
+> Ready for mainnet integration when Chainlink Confidential Compute access is granted. Swap stub methods for real CC SDK calls — interfaces are drop-in.
+
+---
+
+### Integration Status
+
+| Stub | File | Methods | Mainnet Path |
+|------|------|---------|-------------|
+| **DECO zkTLS KYC** | `lib/chainlink/deco.stub.ts` | 4 | Replace `simulateLatency()` + `deterministicBool()` with real DECO SDK calls |
+| **Confidential Compute Privacy** | `lib/chainlink/confidential.stub.ts` | 4 | Replace `mockSeal()`/`mockUnseal()` with TEE-sealed key operations |
+| **DECO Attestation** *(existing)* | `services/deco.service.ts` | 3 | General web data attestation (solar subsidies, compliance docs) |
+| **Confidential Scoring** *(existing)* | `services/confidential.service.ts` | 3 | TEE-based lead scoring + preference matching |
+
+> All stubs coexist. The `lib/chainlink/` stubs are domain-specific (KYC, privacy); the `services/` stubs are general-purpose (attestation, scoring).
 
 ---
 

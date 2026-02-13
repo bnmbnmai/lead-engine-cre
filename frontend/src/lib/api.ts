@@ -296,6 +296,22 @@ export const api = {
 
     getActiveAuctions: () =>
         apiFetch<{ auctions: any[] }>('/api/v1/verticals/auctions'),
+
+    // Buy It Now
+    listBuyNowLeads: (params?: Record<string, string>) =>
+        apiFetch<{ leads: any[]; pagination: any }>(
+            `/api/v1/leads?buyNow=true${params ? '&' + new URLSearchParams(params).toString() : ''}`,
+        ),
+
+    buyNow: (leadId: string) =>
+        apiFetch<{ lead: any; transaction: any; escrow: any }>(
+            `/api/v1/leads/${leadId}/buy-now`, { method: 'POST' },
+        ),
+
+    requalifyLead: (leadId: string) =>
+        apiFetch<{ preview: string; estimatedDelivery: string; status: string; note: string }>(
+            `/api/v1/leads/${leadId}/requalify`, { method: 'POST' },
+        ),
 };
 
 export default api;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { BrowseSellers } from '@/components/marketplace/BrowseSellers';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { LeadCard } from '@/components/marketplace/LeadCard';
+import { BuyNowCard } from '@/components/marketplace/BuyNowCard';
 import { VerticalSelector } from '@/components/marketplace/VerticalSelector';
 import { SuggestVerticalModal } from '@/components/marketplace/SuggestVerticalModal';
 
@@ -68,7 +69,7 @@ function getRegions(country: string) {
 // ============================================
 
 export function HomePage() {
-    const [view, setView] = useState<'asks' | 'leads' | 'nfts' | 'sellers'>('leads');
+    const [view, setView] = useState<'asks' | 'leads' | 'buyNow' | 'nfts' | 'sellers'>('leads');
     const [vertical, setVertical] = useState('all');
     const [country, setCountry] = useState('ALL');
     const [region, setRegion] = useState('All');
@@ -76,6 +77,7 @@ export function HomePage() {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [asks, setAsks] = useState<any[]>([]);
     const [leads, setLeads] = useState<any[]>([]);
+    const [buyNowLeads, setBuyNowLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
@@ -134,6 +136,9 @@ export function HomePage() {
                 if (view === 'asks') {
                     const { data } = await api.listAsks(params);
                     setAsks(data?.asks || []);
+                } else if (view === 'buyNow') {
+                    const { data } = await api.listBuyNowLeads(params);
+                    setBuyNowLeads(data?.leads || []);
                 } else {
                     const { data } = await api.listLeads(params);
                     setLeads(data?.leads || []);
@@ -161,6 +166,9 @@ export function HomePage() {
                 if (view === 'asks') {
                     const { data } = await api.listAsks(params);
                     setAsks(data?.asks || []);
+                } else if (view === 'buyNow') {
+                    const { data } = await api.listBuyNowLeads(params);
+                    setBuyNowLeads(data?.leads || []);
                 } else {
                     const { data } = await api.listLeads(params);
                     setLeads(data?.leads || []);
@@ -218,6 +226,21 @@ export function HomePage() {
                         title: 'New Vertical Available',
                         description: `"${data.name}" has been added to the marketplace.`,
                     });
+                }
+            },
+            'marketplace:new-bin': (data: any) => {
+                if (view === 'buyNow' && data?.leadId) {
+                    refetchData();
+                    toast({
+                        type: 'info',
+                        title: 'New Buy It Now Lead',
+                        description: `A ${data.vertical || ''} lead is now available for instant purchase.`,
+                    });
+                }
+            },
+            'lead:buy-now-sold': (data: any) => {
+                if (data?.leadId) {
+                    setBuyNowLeads((prev) => prev.filter((l) => l.id !== data.leadId));
                 }
             },
         },
@@ -294,6 +317,14 @@ export function HomePage() {
                                             }`}
                                     >
                                         Live Leads
+                                    </button>
+                                    <button
+                                        onClick={() => setView('buyNow')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'buyNow' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                            }`}
+                                    >
+                                        <Tag className="h-3.5 w-3.5" />
+                                        Buy Now
                                     </button>
                                     <button
                                         onClick={() => setView('asks')}
@@ -486,6 +517,25 @@ export function HomePage() {
                                 />
                             ) : (
                                 asks.map((ask) => <AskCard key={ask.id} ask={ask} isAuthenticated={isAuthenticated} />)
+                            )}
+                        </div>
+                    ) : view === 'buyNow' ? (
+                        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                            {buyNowLeads.length === 0 ? (
+                                <EmptyState
+                                    icon={Tag}
+                                    title="No Buy It Now leads available"
+                                    description="Buy It Now leads appear when auctions end without a winner. Check back soon."
+                                    action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
+                                />
+                            ) : (
+                                buyNowLeads.map((lead) => (
+                                    <BuyNowCard
+                                        key={lead.id}
+                                        lead={lead}
+                                        onPurchased={(id) => setBuyNowLeads((prev) => prev.filter((l) => l.id !== id))}
+                                    />
+                                ))
                             )}
                         </div>
                     ) : (

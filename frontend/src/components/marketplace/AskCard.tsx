@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
+import { VerticalBreadcrumb } from '@/components/ui/VerticalBreadcrumb';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 
 interface Ask {
@@ -44,7 +45,7 @@ export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div>
-                        <h3 className="font-semibold text-lg capitalize">{ask.vertical}</h3>
+                        <h3 className="font-semibold text-lg"><VerticalBreadcrumb slug={ask.vertical} /></h3>
                         {ask.seller && (
                             <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                                 by {ask.seller.companyName}

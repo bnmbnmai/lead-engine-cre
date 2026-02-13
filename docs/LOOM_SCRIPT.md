@@ -154,6 +154,16 @@
 
 ---
 
+## Act 5.5: Data Producer — We Give Back to Chainlink (15s)
+
+> "Most dApps just consume Chainlink data. We also publish back. Our CustomLeadFeed contract pushes anonymized platform metrics — average quality scores, settlement volume, leads tokenized — as a custom on-chain data feed that any dApp can consume."
+
+- Show `CustomLeadFeed.sol` in editor — highlight `latestAnswer()` getter
+- Show `data-feed.stub.ts` — highlight the CRE cron workflow comment
+- Point out: "Built on the official custom-data-feed template. Daily push, 40K gas, zero PII."
+
+---
+
 ## Act 6: Business Case (15s)
 
 > "The flywheel works: Mint → Perks → Revenue → Resale → Royalties → Reinvest. Every NFT sale grows the ecosystem, and Chainlink ensures the trust layer is bulletproof."

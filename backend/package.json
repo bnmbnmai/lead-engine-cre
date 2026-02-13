@@ -22,6 +22,7 @@
         "db:studio": "prisma studio",
         "db:seed": "cross-env TEST_MODE=true ts-node prisma/seed.ts",
         "db:clear-mock": "cross-env TEST_MODE=true ts-node prisma/clear.ts",
+        "db:migrate-verticals": "cross-env TEST_MODE=true ts-node prisma/migrate-verticals.ts",
         "demo:seed": "tsx scripts/seed-demo-leads.ts",
         "demo:clear": "tsx scripts/seed-demo-leads.ts clear"
     },

@@ -146,6 +146,23 @@ export function useVerticals(options?: { autoRefresh?: boolean }) {
         return map;
     }, [flatList]);
 
+    // Breadcrumb map: slug → [label chain]
+    // e.g. "legal.family" → ["Legal", "Family"], "solar" → ["Solar"]
+    const breadcrumbMap = useMemo<Record<string, string[]>>(() => {
+        const map: Record<string, string[]> = {};
+        function walk(nodes: VerticalNode[], chain: string[]) {
+            for (const node of nodes) {
+                const crumbs = [...chain, node.name];
+                map[node.slug] = crumbs;
+                if (node.children?.length) {
+                    walk(node.children, crumbs);
+                }
+            }
+        }
+        walk(verticals, []);
+        return map;
+    }, [verticals]);
+
     // Client-side search
     const search = useCallback(
         (query: string): FlatVertical[] => {
@@ -164,6 +181,7 @@ export function useVerticals(options?: { autoRefresh?: boolean }) {
         verticals,
         flatList,
         labelMap,
+        breadcrumbMap,
         loading,
         error,
         search,

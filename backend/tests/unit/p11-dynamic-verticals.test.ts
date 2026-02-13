@@ -80,17 +80,21 @@ describe('Search & Empty States', () => {
         expect(src).toContain('export function useVerticals');
     });
 
-    test('8. PreferencesForm renders search input for verticals', () => {
-        const src = readFile(path.join(frontendSrc, 'components/forms/PreferencesForm.tsx'));
-        expect(src).toContain('Search verticals');
-        expect(src).toContain('verticalSearch');
-        expect(src).toContain('searchVerticals');
+    test('8. Vertical search is provided via NestedVerticalSelect', () => {
+        // Search was moved into the NestedVerticalSelect component
+        const selectSrc = readFile(path.join(frontendSrc, 'components/ui/NestedVerticalSelect.tsx'));
+        expect(selectSrc).toContain('Search verticals');
+        expect(selectSrc).toContain('search');
+        // PreferencesForm delegates to NestedVerticalSelect
+        const formSrc = readFile(path.join(frontendSrc, 'components/forms/PreferencesForm.tsx'));
+        expect(formSrc).toContain('NestedVerticalSelect');
     });
 
     test('9. Empty state shows "Suggest New" CTA', () => {
-        const src = readFile(path.join(frontendSrc, 'components/forms/PreferencesForm.tsx'));
-        expect(src).toContain('Suggest New Vertical');
-        expect(src).toContain('No verticals available yet');
+        // Empty state moved into NestedVerticalSelect component
+        const src = readFile(path.join(frontendSrc, 'components/ui/NestedVerticalSelect.tsx'));
+        expect(src).toContain('Suggest');
+        expect(src).toContain('No verticals');
     });
 
     test('10. FormBuilder shows "(custom)" marker for unknown verticals', () => {

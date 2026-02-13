@@ -36,10 +36,14 @@
 ## Chainlink Service Stubs
 
 - [ ] DECO stub: `backend/src/services/deco.service.ts` — attestation + fallback
+- [ ] DECO zkTLS KYC stub: `backend/src/lib/chainlink/deco.stub.ts` — verifyIdentity, verifyNMLSLicense, screenSanctions
 - [ ] Data Streams stub: `backend/src/services/datastreams.service.ts` — bid floor pricing
 - [ ] Confidential Compute stub: `backend/src/services/confidential.service.ts` — TEE scoring
+- [ ] Confidential Privacy stub: `backend/src/lib/chainlink/confidential.stub.ts` — sealBid/revealBid, sealLeadData/unsealLeadData
+- [ ] Data Producer stub: `backend/src/lib/chainlink/data-feed.stub.ts` + `contracts/contracts/CustomLeadFeed.sol`
 - [ ] All stubs return `isStub: true` for UI badging
 - [ ] Bid floor endpoint: `GET /api/v1/bids/bid-floor`
+- [ ] README documents CC Discord intel (Feb 13): Phase 1 private value movement, Phase 2 CCC arbitrary logic
 
 ## MCP Agent Server
 

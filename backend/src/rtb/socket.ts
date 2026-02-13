@@ -457,6 +457,32 @@ class RTBSocketServer {
                 for (const room of endingReveal) {
                     await this.resolveAuction(room.leadId);
                 }
+
+                // ── Buy It Now expiry sweep ──
+                // Transition stale UNSOLD leads past their expiresAt to EXPIRED
+                const expiredBinLeads = await prisma.lead.findMany({
+                    where: {
+                        status: 'UNSOLD',
+                        expiresAt: { lte: now },
+                    },
+                    select: { id: true },
+                });
+
+                if (expiredBinLeads.length > 0) {
+                    await prisma.lead.updateMany({
+                        where: {
+                            id: { in: expiredBinLeads.map((l) => l.id) },
+                            status: 'UNSOLD',
+                        },
+                        data: { status: 'EXPIRED' },
+                    });
+
+                    for (const lead of expiredBinLeads) {
+                        this.io.emit('lead:bin-expired', { leadId: lead.id });
+                    }
+
+                    console.log(`Expired ${expiredBinLeads.length} stale Buy It Now leads`);
+                }
             } catch (error) {
                 console.error('Auction monitor error:', error);
             }
@@ -467,8 +493,76 @@ class RTBSocketServer {
     // Auction Resolution
     // ============================================
 
+    /**
+     * Convert a lead with no winner to Buy It Now (UNSOLD).
+     * Sets buyNowPrice = reservePrice × 1.2 and a 7-day expiry window.
+     */
+    private async convertToUnsold(leadId: string, lead: any) {
+        const reservePrice = lead.reservePrice ? Number(lead.reservePrice) : null;
+        const binPrice = reservePrice ? reservePrice * 1.2 : null;
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+        await prisma.$transaction([
+            prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    status: 'UNSOLD',
+                    buyNowPrice: binPrice,
+                    expiresAt,
+                },
+            }),
+            prisma.auctionRoom.updateMany({
+                where: { leadId },
+                data: { phase: 'CANCELLED' },
+            }),
+            // Expire any remaining pending bids
+            prisma.bid.updateMany({
+                where: { leadId, status: { in: ['PENDING', 'REVEALED'] } },
+                data: { status: 'EXPIRED', processedAt: new Date() },
+            }),
+        ]);
+
+        // Notify auction room + global marketplace listeners
+        this.io.to(`auction_${leadId}`).emit('lead:unsold', {
+            leadId,
+            buyNowPrice: binPrice,
+            expiresAt: expiresAt.toISOString(),
+        });
+
+        // Broadcast to marketplace for real-time BIN tab updates
+        this.io.emit('marketplace:new-bin', {
+            leadId,
+            vertical: lead.vertical,
+            buyNowPrice: binPrice,
+            expiresAt: expiresAt.toISOString(),
+        });
+
+        // Log analytics
+        await prisma.analyticsEvent.create({
+            data: {
+                eventType: 'lead_unsold_bin_created',
+                entityType: 'lead',
+                entityId: leadId,
+                metadata: { buyNowPrice: binPrice, reservePrice },
+            },
+        });
+
+        console.log(`Auction ${leadId} → UNSOLD (Buy It Now: $${binPrice?.toFixed(2) ?? 'N/A'})`);
+    }
+
     private async resolveAuction(leadId: string) {
         try {
+            // Fetch the lead with reserve price for below-reserve check
+            const lead = await prisma.lead.findUnique({
+                where: { id: leadId },
+                select: { id: true, vertical: true, reservePrice: true },
+            });
+
+            if (!lead) {
+                console.error(`resolveAuction: lead ${leadId} not found`);
+                return;
+            }
+
             // Fallback ordering: effectiveBid DESC (nulls treated as amount)
             // For pre-migration bids where effectiveBid is null, fall back to amount
             const winningBid = await prisma.bid.findFirst({
@@ -484,20 +578,17 @@ class RTBSocketServer {
                 include: { buyer: true },
             });
 
+            // No valid bids → convert to Buy It Now
             if (!winningBid) {
-                // No valid bids - expire the lead
-                await prisma.$transaction([
-                    prisma.lead.update({
-                        where: { id: leadId },
-                        data: { status: 'EXPIRED' },
-                    }),
-                    prisma.auctionRoom.updateMany({
-                        where: { leadId },
-                        data: { phase: 'CANCELLED' },
-                    }),
-                ]);
+                await this.convertToUnsold(leadId, lead);
+                return;
+            }
 
-                this.io.to(`auction_${leadId}`).emit('auction:expired', { leadId });
+            // Highest bid is below reserve → also convert to Buy It Now
+            const reservePrice = lead.reservePrice ? Number(lead.reservePrice) : 0;
+            if (reservePrice > 0 && Number(winningBid.amount) < reservePrice) {
+                console.log(`Auction ${leadId}: highest bid $${Number(winningBid.amount).toFixed(2)} < reserve $${reservePrice.toFixed(2)} → UNSOLD`);
+                await this.convertToUnsold(leadId, lead);
                 return;
             }
 
@@ -556,13 +647,12 @@ class RTBSocketServer {
             console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);
 
             // Push real-time analytics update to all connected dashboards
-            const resolvedLead = await prisma.lead.findUnique({ where: { id: leadId }, select: { vertical: true } });
             this.io.emit('analytics:update', {
                 type: 'purchase',
                 leadId,
                 buyerId: winningBid.buyerId,
                 amount: Number(winningBid.amount),
-                vertical: resolvedLead?.vertical || 'unknown',
+                vertical: lead.vertical || 'unknown',
                 timestamp: new Date().toISOString(),
             });
 
