@@ -16,7 +16,7 @@
 - [ ] Security compliance sim: 29/29 passing
 - [ ] Auto-bid engine: 18/18 passing
 - [ ] CRM webhooks: 10/10 passing (rate limit + circuit breaker)
-- [ ] Cypress E2E: 53+ UI tests
+- [ ] Cypress E2E: 82 UI tests
 - [ ] On-chain E2E: settlement (6), reorg (4), Chainlink stubs (5)
 - [ ] Artillery load test: 23+ scenarios, 10K peak concurrent users
 - [ ] Mock data seeded: 200+ entries (`cd backend && npm run db:seed`)
@@ -44,7 +44,7 @@
 ## MCP Agent Server
 
 - [ ] `mcp-server/` builds and runs on port 3002
-- [ ] 8 tools: search_leads, place_bid, get_bid_floor, export_leads, get_preferences, set_auto_bid_rules, configure_crm_webhook, ping_lead
+- [ ] 9 tools: search_leads, place_bid, get_bid_floor, export_leads, get_preferences, set_auto_bid_rules, configure_crm_webhook, ping_lead, get_lead_status
 - [ ] `SKILL.md` with LangChain autonomous bidding agent, signless abstraction, CCIP notes
 - [ ] Agent logger writes to `mcp-server/logs/`
 - [ ] Error codes documented: RATE_LIMITED, BID_TOO_LOW, AUTH_FAILED, etc.
@@ -108,7 +108,7 @@
 
 - [ ] Project name: **Lead Engine CRE**
 - [ ] Category: **Chainlink CRE + ACE**
-- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 8 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 20+ countries, 166+ tests, 500+ testnet txs, Sentry monitoring, CI/CD pipeline
+- [ ] Description: Decentralized RTB platform for the global lead marketplace with on-chain verification (CRE + ACE + DECO + Data Streams + Confidential Compute), privacy-preserving auctions, autonomous bidding (9-criteria auto-bid engine + MCP agent server with 9 tools + LangChain integration), CRM pipeline (HubSpot + Zapier webhooks), and cross-border compliance — 10 verticals, 20+ countries, 1,370+ tests, 500+ testnet txs, Sentry monitoring, CI/CD pipeline
 - [ ] GitHub repo URL: `https://github.com/bnmbnmai/lead-engine-cre`
 - [ ] Demo video URL (Loom)
 - [ ] Live frontend URL: `https://lead-engine-cre.vercel.app`

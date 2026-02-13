@@ -81,7 +81,7 @@
 
 **Show:** Terminal with MCP server + curl/agent calls
 **Actions:**
-1. Show MCP server running on port 3002 → list 8 tools
+1. Show MCP server running on port 3002 → list 9 tools
 2. Agent call: `search_leads` → returns 3 solar leads in CA
 3. Agent call: `set_auto_bid_rules` → configure solar CA auto-bid at $120, min score 8000
 4. Agent call: `configure_crm_webhook` → register Zapier webhook
@@ -89,7 +89,7 @@
 6. Show agent log → structured JSONL entry with latency
 
 **Say:**
-> "For large buyers, we built an MCP agent server — 8 tools for full automation. AI agents can search leads, set auto-bid rules, register CRM webhooks, and ping leads for evaluation. This is the LangChain integration that makes Lead Engine a platform, not just an app."
+> "For large buyers, we built an MCP agent server — 9 tools for full automation. AI agents can search leads, set auto-bid rules, register CRM webhooks, and ping leads for evaluation. This is the LangChain integration that makes Lead Engine a platform, not just an app."
 
 ---
 
@@ -139,12 +139,11 @@
 **Show:** Marketplace filters + test results
 **Actions:**
 1. Show 10 verticals × 20+ countries in dropdowns
-2. Security sim: 29/29 passing
+2. 1,151 Jest + 141 Hardhat + 82 Cypress = **1,370+ tests passing**
 3. Artillery: 23+ scenarios, 10K concurrent users
-4. 53+ Cypress UI tests, 200+ mock data entries
 
 **Say:**
-> "10 verticals, 20 countries, 29 security tests, 10,000 concurrent users validated. This isn't a prototype — it's production-grade infrastructure."
+> "10 verticals, 20 countries, 1,370+ tests passing, 10,000 concurrent users validated. This isn't a prototype — it's production-grade infrastructure."
 
 ---
 

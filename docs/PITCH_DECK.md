@@ -48,7 +48,7 @@ Chainlink Hackathon 2026 — Convergence
 
 ```
 ┌──────────── Frontend (Vercel) ─────────────┐
-│  React + wagmi + Tailwind · WalletConnect  │
+│  React + wagmi + vanilla CSS · WalletConnect │
 └────────────────┬───────────────────────────┘
                  │
 ┌────────────────▼───────────────────────────┐
@@ -60,7 +60,7 @@ Chainlink Hackathon 2026 — Convergence
 ┌───▼──────────┐  ┌─────▼───────────┐  ┌▼──────────────┐
 │  Chainlink   │  │  Smart Contracts│  │  MCP Server   │
 │  CRE + ACE   │  │  CREVerifier    │  │  :3002        │
-│  DECO        │  │  ACECompliance  │  │  8 Agent Tools│
+│  DECO        │  │  ACECompliance  │  │  9 Agent Tools│
 │  Data Streams│  │  LeadNFTv2      │  │  CCIP-ready   │
 │  Confid Comp │  │  RTBEscrow      │  │  JSON-RPC     │
 └──────────────┘  │  Marketplace    │  └───────────────┘
@@ -136,10 +136,10 @@ Chainlink Hackathon 2026 — Convergence
 | Security Sim | 29/29 tests passing (7 categories incl. off-site fraud, cross-border ACE) |
 | Load Test | 23+ scenarios, 10K peak concurrent users (Artillery) |
 | Testnet Sim | 500+ on-chain txs (mints, bids, escrows) via 10 HD wallets |
-| Cypress E2E | 53+ UI tests (seller, buyer, stress, copy assertions) |
+| Cypress E2E | 82 UI tests (seller, buyer, stress, copy assertions) |
 | Smart Contracts | 5 (Sepolia + Base Sepolia) |
 | Mock Data | 200+ seeded entries across all verticals/geos |
-| MCP Agent Tools | 8 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping) |
+| MCP Agent Tools | 9 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status) |
 
 ---
 
@@ -190,7 +190,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | **Innovation** | 5 Chainlink services + MCP agent server + CCIP-ready + x402 instant settlement |
 | **Technical depth** | 5 smart contracts, ZK proofs, commit-reveal, TEE scoring, 9-criteria auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
-| **Traction** | 500+ testnet txs, 29 security tests, 10K concurrent users |
+| **Traction** | 500+ testnet txs, 1,370+ tests passing, 10K concurrent users |
 | **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |
 
 ---
