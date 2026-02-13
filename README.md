@@ -27,7 +27,7 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 |---------|--------------------|-------------|
 | **Speed** | Manual review, batch sales | **5-minute RTB auctions** with sub-second matching |
 | **Trust** | No verification, rampant fraud | **Chainlink CRE** quality scoring (0–10,000) + ZK fraud proofs |
-| **Privacy** | Buyers see all PII before purchase | **Non-PII previews** — per-vertical redaction; full PII only after purchase |
+| **Privacy** | Buyers often receive full PII with no provenance, quality guarantees, or on-chain audit trail | **Non-PII previews** — per-vertical redaction; full PII only after purchase |
 | **Settlement** | 7–30 day payouts | **Instant USDC** via x402 escrow — sellers reinvest same day |
 | **Compliance** | Manual KYC review | **Chainlink ACE** auto-KYC, jurisdiction matrix, MiCA (zero manual) |
 | **Automation** | No buyer tools | **7-criteria auto-bid** fires 24/7 across 20+ markets |
@@ -98,7 +98,7 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 
 | Integration | Description |
 |------------|-------------|
-| **x402 Payments** | USDC micropayment settlement via `RTBEscrow.sol` with escrow → release → refund lifecycle |
+| **x402 Payments** | USDC micropayment settlement via `RTBEscrow.sol` with escrow → release → refund lifecycle. Includes **Buy It Now** flow for unsold auction leads (7-day expiry, instant purchase with platform fee) |
 | **Privacy Suite** | AES-256-GCM encrypt/decrypt for bids, PII, and token metadata. Commit-reveal bidding with `solidityPackedKeccak256` commitments |
 | **DECO** | Stub-ready attestation service for privacy-preserving lead data proofs — activates when Chainlink access granted |
 | **Data Streams** | Stub-ready bid floor pricing from real-time market data — activates when Chainlink access granted |
@@ -106,7 +106,7 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 
 ### Data Producer — Contributing Back to the Chainlink Ecosystem
 
-Lead Engine doesn't just **consume** Chainlink services — it **contributes back** by publishing verified, anonymized platform metrics as a custom on-chain data feed. Other dApps can read Lead Engine's market health (average quality scores, settlement volume, auction fill rates) directly from the chain, creating a new public good for the real estate lead industry.
+Lead Engine doesn't just **consume** Chainlink services — it **contributes back** by publishing verified, anonymized platform metrics as a custom on-chain data feed. Other dApps can read Lead Engine's market health (average quality scores, settlement volume, auction fill rates) directly from the chain, creating a new public good for the **$200B performance marketing / lead generation industry** across all verticals — solar, mortgage, insurance, legal, home services, auto, B2B SaaS, and beyond.
 
 > Built following the official Chainlink [custom-data-feed template](https://github.com/smartcontractkit/cre-templates/tree/main/starter-templates/custom-data-feed) — CRE cron trigger → HTTP fetch → ABI-encode → chain write.
 
@@ -145,6 +145,7 @@ Lead Engine doesn't just **consume** Chainlink services — it **contributes bac
 - ✅ **Automated Compliance** — KYC/AML, TCPA, MiCA, jurisdiction checks with zero manual review
 - 🔒 **Privacy-Preserving** — ZK proofs + encrypted bids; buyers see non-PII previews (per-vertical redaction via `piiProtection.ts`) before purchase, full PII only after
 - 💰 **Instant Settlement** — USDC escrow via `RTBEscrow.sol` with automated release upon bid acceptance (2.5% platform fee)
+- 🛒 **Buy It Now** — Marketplace for unsold auction leads (7-day expiry, instant x402 purchase with platform fee)
 - 🌍 **Dynamic Verticals, 20+ Countries** — 10 seeded verticals (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial) with AI-powered dynamic creation via `vertical-optimizer.service.ts`
 - ⚙️ **Auto-Bid Engine** — 7-criteria matching (vertical, geo include/exclude, quality score gate, off-site toggle, verified-only, max bid per lead, daily budget) — set rules once, bids fire automatically
 - 🔗 **CRM Webhooks** — HubSpot and Zapier integrations with format-specific payload transformers; push won leads to any CRM on `lead.sold` events

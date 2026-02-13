@@ -319,19 +319,19 @@ export function HomePage() {
                                         Live Leads
                                     </button>
                                     <button
+                                        onClick={() => setView('asks')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                            }`}
+                                    >
+                                        Browse Asks
+                                    </button>
+                                    <button
                                         onClick={() => setView('buyNow')}
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'buyNow' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
                                         <Tag className="h-3.5 w-3.5" />
                                         Buy Now
-                                    </button>
-                                    <button
-                                        onClick={() => setView('asks')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
-                                            }`}
-                                    >
-                                        Browse Asks
                                     </button>
                                     <button
                                         onClick={() => setView('nfts')}

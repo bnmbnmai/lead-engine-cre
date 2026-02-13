@@ -1,0 +1,344 @@
+{
+  "executedAt": "2026-02-13T21:26:37.705Z",
+  "totalChanges": 42,
+  "changes": [
+    {
+      "table": "BuyerProfile",
+      "rowId": "cmlibkks7000211qvmx2cltgx",
+      "column": "verticals",
+      "oldValue": [
+        "solar",
+        "mortgage",
+        "roofing",
+        "insurance",
+        "home_services",
+        "b2b_saas",
+        "real_estate",
+        "auto",
+        "legal",
+        "financial"
+      ],
+      "newValue": [
+        "solar",
+        "mortgage",
+        "roofing",
+        "insurance",
+        "home_services",
+        "b2b_saas",
+        "real_estate",
+        "auto",
+        "legal",
+        "financial_services"
+      ]
+    },
+    {
+      "table": "SellerProfile",
+      "rowId": "cmlibkks7000111qv1tsnzsdi",
+      "column": "verticals",
+      "oldValue": [
+        "solar",
+        "mortgage",
+        "roofing",
+        "insurance",
+        "home_services",
+        "b2b_saas",
+        "real_estate",
+        "auto",
+        "legal",
+        "financial"
+      ],
+      "newValue": [
+        "solar",
+        "mortgage",
+        "roofing",
+        "insurance",
+        "home_services",
+        "b2b_saas",
+        "real_estate",
+        "auto",
+        "legal",
+        "financial_services"
+      ]
+    },
+    {
+      "table": "Vertical",
+      "rowId": "solar.residential",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "solar.residential"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "solar.commercial",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "solar.commercial"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "solar.battery_storage",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "solar.battery_storage"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "solar.community",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "solar.community"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "mortgage.purchase",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "mortgage.purchase"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "mortgage.refinance",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "mortgage.refinance"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "mortgage.heloc",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "mortgage.heloc"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "mortgage.reverse",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "mortgage.reverse"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "roofing.repair",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "roofing.repair"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "roofing.replacement",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "roofing.replacement"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "roofing.inspection",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "roofing.inspection"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "roofing.gutter",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "roofing.gutter"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "insurance.auto",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "insurance.auto"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "insurance.home",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "insurance.home"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "insurance.life",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "insurance.life"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "insurance.health",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "insurance.health"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "home_services.plumbing",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "home_services.plumbing"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "home_services.electrical",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "home_services.electrical"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "home_services.hvac",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "home_services.hvac"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "home_services.landscaping",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "home_services.landscaping"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "b2b_saas.crm",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "b2b_saas.crm"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "b2b_saas.analytics",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "b2b_saas.analytics"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "b2b_saas.marketing_automation",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "b2b_saas.marketing_automation"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "b2b_saas.hr_tech",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "b2b_saas.hr_tech"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "real_estate.residential",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "real_estate.residential"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "real_estate.commercial",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "real_estate.commercial"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "real_estate.rental",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "real_estate.rental"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "real_estate.land",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "real_estate.land"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "auto.sales",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "auto.sales"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "auto.warranty",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "auto.warranty"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "auto.repair",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "auto.repair"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "auto.insurance",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "auto.insurance"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "legal.personal_injury",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "legal.personal_injury"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "legal.family",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "legal.family"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "legal.immigration",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "legal.immigration"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "legal.criminal_defense",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "legal.criminal_defense"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "financial_services.debt_consolidation",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "financial_services.debt_consolidation"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "financial_services.banking",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "financial_services.banking"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "financial_services.credit_repair",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "financial_services.credit_repair"
+    },
+    {
+      "table": "Vertical",
+      "rowId": "financial_services.tax_prep",
+      "column": "(created)",
+      "oldValue": "",
+      "newValue": "financial_services.tax_prep"
+    }
+  ]
+}
