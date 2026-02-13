@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
     Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
@@ -14,12 +15,13 @@ import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { LanderExport } from '@/components/forms/LanderExport';
 import { getContrastText, meetsWcagAA } from '@/lib/contrast';
 import { useVerticals } from '@/hooks/useVerticals';
+import useAuth from '@/hooks/useAuth';
 
 // ============================================
 // Types
 // ============================================
 
-interface FormField {
+export interface FormField {
     id: string;
     key: string;
     label: string;
@@ -29,13 +31,13 @@ interface FormField {
     options?: string[];
 }
 
-interface FormStep {
+export interface FormStep {
     id: string;
     label: string;
     fieldIds: string[];
 }
 
-interface GamificationConfig {
+export interface GamificationConfig {
     showProgress: boolean;
     showNudges: boolean;
     confetti: boolean;
@@ -45,13 +47,13 @@ interface GamificationConfig {
 // Color Schemes
 // ============================================
 
-interface FormColorScheme {
+export interface FormColorScheme {
     name: string;
     swatch: string; // CSS color for the swatch button
     vars: Record<string, string>;
 }
 
-const COLOR_SCHEMES: FormColorScheme[] = [
+export const COLOR_SCHEMES: FormColorScheme[] = [
     {
         name: 'Dark',
         swatch: '#1a1a2e',
@@ -88,7 +90,7 @@ const COLOR_SCHEMES: FormColorScheme[] = [
 // Vertical Presets
 // ============================================
 
-const VERTICAL_PRESETS: Record<string, FormField[]> = {
+export const VERTICAL_PRESETS: Record<string, FormField[]> = {
     roofing: [
         { id: '1', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
         { id: '2', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'john@example.com' },
@@ -186,7 +188,7 @@ const VERTICAL_PRESETS: Record<string, FormField[]> = {
 };
 
 // Generic fallback template for verticals without a specific preset
-const GENERIC_TEMPLATE: FormField[] = [
+export const GENERIC_TEMPLATE: FormField[] = [
     { id: '1', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Your Name' },
     { id: '2', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
     { id: '3', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 000-0000' },
@@ -203,7 +205,7 @@ const genId = () => String(fieldCounter++);
 const CONTACT_KEYS = new Set(['full_name', 'email', 'phone', 'name', 'first_name', 'last_name']);
 const LOCATION_KEYS = new Set(['zip', 'zipcode', 'zip_code', 'state', 'city', 'address', 'region']);
 
-function autoGroupSteps(fields: FormField[]): FormStep[] {
+export function autoGroupSteps(fields: FormField[]): FormStep[] {
     const contact: string[] = [];
     const location: string[] = [];
     const details: string[] = [];
@@ -257,6 +259,10 @@ function autoGroupSteps(fields: FormField[]): FormStep[] {
 // ============================================
 
 export function FormBuilder() {
+    const { user } = useAuth();
+    // Admin-only guard — sellers use /seller/templates instead
+    if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
+
     const [vertical, setVertical] = useState('');
     const [fields, setFields] = useState<FormField[]>([]);
     const [steps, setSteps] = useState<FormStep[]>([]);

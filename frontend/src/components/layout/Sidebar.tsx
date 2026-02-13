@@ -46,7 +46,7 @@ const sellerItems: SidebarItem[] = [
     { href: '/seller/asks', label: 'My Asks', icon: <Tag className="h-5 w-5" /> },
     { href: '/seller/leads', label: 'My Sold Leads', icon: <FileText className="h-5 w-5" /> },
     { href: '/seller/submit', label: 'Submit Lead', icon: <Send className="h-5 w-5" /> },
-    { href: '/seller/form-builder', label: 'Form Builder', icon: <Blocks className="h-5 w-5" /> },
+    { href: '/seller/templates', label: 'Templates', icon: <Blocks className="h-5 w-5" /> },
     { href: '/seller/analytics', label: 'Analytics', icon: <TrendingUp className="h-5 w-5" /> },
     { href: '/seller/conversions', label: 'Ad Conversions', icon: <Megaphone className="h-5 w-5" /> },
 ];
@@ -54,6 +54,7 @@ const sellerItems: SidebarItem[] = [
 const adminItems: SidebarItem[] = [
     { href: '/admin/nfts', label: 'NFT Admin', icon: <Gem className="h-5 w-5" /> },
     { href: '/admin/verticals', label: 'Verticals', icon: <Layers className="h-5 w-5" /> },
+    { href: '/admin/form-builder', label: 'Form Builder', icon: <Blocks className="h-5 w-5" /> },
 ];
 
 function getContextItems(pathname: string) {

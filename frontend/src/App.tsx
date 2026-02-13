@@ -22,6 +22,7 @@ import SellerAsks from '@/pages/SellerAsks';
 import SellerSubmit from '@/pages/SellerSubmit';
 import CreateAsk from '@/pages/CreateAsk';
 import FormBuilder from '@/pages/FormBuilder';
+import SellerTemplates from '@/pages/SellerTemplates';
 import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import AdminNFTs from '@/pages/AdminNFTs';
@@ -92,12 +93,13 @@ function App() {
                                 <Route path="/seller/asks/:askId" element={<ProtectedRoute role="SELLER"><SellerAsks /></ProtectedRoute>} />
                                 <Route path="/seller/asks/new" element={<ProtectedRoute role="SELLER"><CreateAsk /></ProtectedRoute>} />
                                 <Route path="/seller/submit" element={<ProtectedRoute role="SELLER"><SellerSubmit /></ProtectedRoute>} />
-                                <Route path="/seller/form-builder" element={<ProtectedRoute role="SELLER"><FormBuilder /></ProtectedRoute>} />
+                                <Route path="/seller/templates" element={<ProtectedRoute role="SELLER"><SellerTemplates /></ProtectedRoute>} />
                                 <Route path="/seller/analytics" element={<ProtectedRoute role="SELLER"><SellerAnalytics /></ProtectedRoute>} />
 
                                 {/* Admin Routes (auth required, role checked inside) */}
                                 <Route path="/admin/nfts" element={<ProtectedRoute><AdminNFTs /></ProtectedRoute>} />
                                 <Route path="/admin/verticals" element={<ProtectedRoute><AdminVerticals /></ProtectedRoute>} />
+                                <Route path="/admin/form-builder" element={<ProtectedRoute><FormBuilder /></ProtectedRoute>} />
 
                                 {/* Seller: Ad Conversions */}
                                 <Route path="/seller/conversions" element={<ProtectedRoute role="SELLER"><AdConversions /></ProtectedRoute>} />
