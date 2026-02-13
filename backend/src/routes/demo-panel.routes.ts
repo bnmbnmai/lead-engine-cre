@@ -34,7 +34,7 @@ const CITIES: Record<string, string> = { CA: 'Los Angeles', TX: 'Houston', FL: '
 const PRICING: Record<string, { min: number; max: number }> = {
     solar: { min: 25, max: 75 }, mortgage: { min: 30, max: 100 }, roofing: { min: 20, max: 60 },
     insurance: { min: 15, max: 50 }, home_services: { min: 10, max: 30 }, b2b_saas: { min: 50, max: 200 },
-    real_estate: { min: 40, max: 150 }, auto: { min: 12, max: 40 }, legal: { min: 35, max: 120 }, financial: { min: 45, max: 180 },
+    real_estate: { min: 40, max: 150 }, auto: { min: 12, max: 40 }, legal: { min: 35, max: 120 }, financial_services: { min: 45, max: 180 },
 };
 
 // Non-PII demo form-field values (mirrors LeadSubmitForm VERTICAL_FIELDS)
@@ -48,7 +48,7 @@ const VERTICAL_DEMO_PARAMS: Record<string, Record<string, string | boolean>> = {
     auto: { vehicle_year: '2022', vehicle_make: 'Toyota', vehicle_model: 'Camry', mileage: '28000', coverage_type: 'full', current_insured: true },
     b2b_saas: { company_size: '51-200', industry: 'technology', budget_range: '2000-10000', decision_timeline: '1-3_months', current_solution: 'Salesforce' },
     legal: { case_type: 'personal_injury', urgency: 'this_week', has_representation: false, case_value: '75000' },
-    financial: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
+    financial_services: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
 };
 
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -91,10 +91,13 @@ router.get('/status', async (_req: Request, res: Response) => {
 router.post('/seed', async (req: Request, res: Response) => {
     try {
         // Auto-clear existing demo data (makes seed idempotent)
+        // Must delete in FK dependency order: Transaction uses RESTRICT on leadId
         const existing = await prisma.lead.count({ where: { consentProof: DEMO_TAG } });
         if (existing > 0) {
             console.log(`[DEMO] Auto-clearing ${existing} existing demo leads before re-seed`);
             await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+            await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+            await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
             await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
             await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
             clearAllCaches();
