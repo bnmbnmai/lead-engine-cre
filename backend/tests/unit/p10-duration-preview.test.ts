@@ -94,7 +94,7 @@ describe('Lead Preview', () => {
     test('redactLeadForPreview skips PII fields', () => {
         const src = readBackend('services/piiProtection.ts');
         expect(src).toContain('redactLeadForPreview');
-        expect(src).toContain("classification === 'pii'");
+        expect(src).toContain('PII_PARAMETER_KEYS');
         expect(src).toContain('continue');
     });
 

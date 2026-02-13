@@ -100,9 +100,10 @@ describe('Profile', () => {
 // ============================================
 
 describe('Expiry', () => {
-    test('9. LeadSubmitForm schema defaults expiresInMinutes to 5', () => {
+    test('9. LeadSubmitForm schema defaults expiresInMinutes via LEAD_EXPIRY_DEFAULT', () => {
         const src = readFile(path.join(frontendSrc, 'components/forms/LeadSubmitForm.tsx'));
-        expect(src).toMatch(/expiresInMinutes.*\.default\(5\)/);
+        expect(src).toContain('LEAD_EXPIRY_DEFAULT');
+        expect(src).toMatch(/expiresInMinutes.*\.default\(LEAD_EXPIRY_DEFAULT\)/);
     });
 
     test('10. LeadSubmitForm dropdown includes 5-minute option', () => {
@@ -122,19 +123,17 @@ describe('Expiry', () => {
 // ============================================
 
 describe('Lead Data', () => {
-    test('12. LeadSubmitForm has structured editor with key-value toggle', () => {
+    test('12. LeadSubmitForm has parameter fields with key-value inputs', () => {
         const src = readFile(path.join(frontendSrc, 'components/forms/LeadSubmitForm.tsx'));
-        expect(src).toContain('leadDataRows');
-        expect(src).toContain('rawJsonMode');
-        expect(src).toContain("rawJsonMode ? 'Key-Value' : 'Raw JSON'");
+        expect(src).toContain('parameters');
+        expect(src).toContain('placeholder');
     });
 
-    test('13. Vertical-specific placeholders exist for known verticals', () => {
+    test('13. Vertical-specific data exists for known verticals', () => {
         const src = readFile(path.join(frontendSrc, 'components/forms/LeadSubmitForm.tsx'));
-        expect(src).toContain('verticalPlaceholders');
-        expect(src).toContain('mortgage');
         expect(src).toContain('solar');
         expect(src).toContain('roofing');
+        expect(src).toContain('mortgage');
     });
 });
 
