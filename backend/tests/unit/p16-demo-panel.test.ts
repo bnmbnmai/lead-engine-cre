@@ -21,7 +21,7 @@ const VERTICAL_DEMO_PARAMS: Record<string, Record<string, string | boolean>> = {
     auto: { vehicle_year: '2022', vehicle_make: 'Toyota', vehicle_model: 'Camry', mileage: '28000', coverage_type: 'full', current_insured: true },
     b2b_saas: { company_size: '51-200', industry: 'technology', budget_range: '2000-10000', decision_timeline: '1-3_months', current_solution: 'Salesforce' },
     legal: { case_type: 'personal_injury', urgency: 'this_week', has_representation: false, case_value: '75000' },
-    financial: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
+    financial_services: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
 };
 
 const LEAD_AUCTION_DURATION_SECS = 300; // 5 minutes

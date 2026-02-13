@@ -98,10 +98,10 @@ describe('Lead Preview', () => {
         expect(src).toContain('continue');
     });
 
-    test('LeadPreview fetches from VITE_API_URL', () => {
+    test('LeadPreview fetches via api.getLeadPreview', () => {
         const src = readFrontend('components/bidding/LeadPreview.tsx');
-        expect(src).toContain('VITE_API_URL');
-        expect(src).toContain('/marketplace/leads/${leadId}/preview');
+        expect(src).toContain('api.getLeadPreview');
+        expect(src).toContain('leadId');
         expect(src).not.toContain('/api/marketplace');
     });
 
