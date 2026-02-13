@@ -168,7 +168,7 @@ export function DemoPanel() {
         if (isDemoEnv && persona !== 'guest') {
             try {
                 const role = persona === 'buyer' ? 'BUYER' : 'SELLER';
-                const resp = await fetch(`${apiBase}/api/v1/demo/demo-login`, {
+                const resp = await fetch(`${apiBase}/api/v1/demo-panel/demo-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ role }),
@@ -222,7 +222,7 @@ export function DemoPanel() {
         const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         setActions(prev => ({ ...prev, adminLogin: { state: 'loading' } }));
         try {
-            const resp = await fetch(`${apiBase}/api/v1/demo/demo-admin-login`, {
+            const resp = await fetch(`${apiBase}/api/v1/demo-panel/demo-admin-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: 'admin', password: 'admin' }),
@@ -502,8 +502,8 @@ export function DemoPanel() {
                                 onClick={handleDemoAdminLogin}
                                 disabled={actions.adminLogin?.state === 'loading'}
                                 className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${currentPersona === 'admin'
-                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                        : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-amber-500/20'
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                    : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-amber-500/20'
                                     }`}
                             >
                                 {actions.adminLogin?.state === 'loading' ? (
