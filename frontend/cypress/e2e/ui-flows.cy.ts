@@ -332,12 +332,14 @@ describe('Multi-Set Preferences', () => {
 
     it('shows empty state with quick-add vertical buttons', () => {
         cy.contains('No preference sets yet').should('be.visible');
-        // Verticals come from the mocked hierarchy API
+        // Verticals come from the mocked hierarchy API via NestedVerticalSelect dropdown
+        cy.get('[data-testid="nested-vertical-select"]').should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).should('be.visible');
         cy.contains('Mortgage').should('be.visible');
     });
 
     it('adds a preference set and renders accordion', () => {
+        cy.get('[data-testid="nested-vertical-select"]').should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).click();
         // Accordion shows the vertical name in the trigger
         cy.contains(/Solar|solar/i).should('be.visible');
@@ -346,20 +348,25 @@ describe('Multi-Set Preferences', () => {
 
     it('"Add Preference Set" opens vertical picker', () => {
         // Add initial set
+        cy.get('[data-testid="nested-vertical-select"]').should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).click();
-        // Open picker for second set
-        cy.contains('Add Preference Set').click();
-        // Picker should show remaining verticals
+        // After adding a set, a second dropdown appears for adding another vertical
+        cy.contains('Add another vertical').should('be.visible');
+        // Open the second dropdown to verify it has other verticals
+        cy.get('[data-testid="nested-vertical-select"]').last().click();
         cy.contains('Mortgage').should('be.visible');
     });
 
     it('shows overlap warning for duplicate verticals', () => {
-        // Add two Solar sets
+        // Add Solar via dropdown
+        cy.get('[data-testid="nested-vertical-select"]').should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).click();
-        cy.contains('Add Preference Set').click();
-        // Try adding Solar again — should show warning or already be disabled
+        // After adding Solar, a second dropdown appears for adding another vertical
+        cy.contains('Add another vertical').should('be.visible');
+        // Try adding Solar again via the second dropdown
+        cy.get('[data-testid="nested-vertical-select"]').last().click();
         cy.get('body').then(($body) => {
-            const solarBtns = $body.find('button:contains("Solar")');
+            const solarBtns = $body.find('button:contains("Solar"), [role="option"]:contains("Solar")');
             if (solarBtns.length > 0) {
                 cy.wrap(solarBtns.last()).click();
                 cy.contains(/Overlap|duplicate|already/i).should('exist');
@@ -368,12 +375,14 @@ describe('Multi-Set Preferences', () => {
     });
 
     it('shows auto-bid tooltip about programmatic buyers', () => {
+        cy.get('[data-testid="nested-vertical-select"]').should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).click();
         // The auto-bid section should be present
         cy.contains(/Auto-Bid|auto-bid|Auto-bid|Budget|budget/i).should('exist');
     });
 
     it('save button shows set count', () => {
+        cy.get('[data-testid="nested-vertical-select"]').should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).click();
         // Save button should show count
         cy.contains(/Save.*1/i).should('be.visible');
@@ -436,7 +445,8 @@ describe('Structured Error Handling', () => {
         cy.visit('/seller/submit');
         // Fill in company name
         cy.get('input').first().type('Test Corp');
-        // Wait for vertical buttons to render, then click Solar
+        // Wait for vertical dropdown to render, then open it and click Solar
+        cy.get('[data-testid="nested-vertical-select"]', { timeout: 10000 }).should('be.visible').click();
         cy.contains('Solar', { timeout: 10000 }).click();
         // Submit — the button should now be enabled (company name + vertical selected)
         cy.get('button').contains(/Create|Submit|Save/i).click();

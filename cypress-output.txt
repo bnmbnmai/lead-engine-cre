@@ -1,0 +1,210 @@
+﻿
+node.exe : 
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [] 
+   , RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+DevTools listening on ws://127.0.0.1:62198/devtools/brows
+er/8669d149-b47e-47c0-b8ca-ae455ec7c10b
+Warning: The allowCypressEnv configuration option is enabled. This allows any browser code to read values from Cypress.env(). This is insecure and will be removed in a future major version.
+
+1. Replace Cypress.env() calls with cy.env() (for sensitive values) or Cypress.expose() (for public configuration)
+2. Set allowCypressEnv: false in your Cypress configuration to disable Cypress.env()
+
+Learn more: https://on.cypress.io/cypress-env-migration
+
+
+====================================================================================================
+
+  (Run Starting)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Cypress:        15.10.0                                                                        Γöé
+  Γöé Browser:        Chrome 144 (headless)                                                          Γöé
+  Γöé Node Version:   v22.14.0 (C:\Program Files\nodejs\node.exe)                                    Γöé
+  Γöé Specs:          1 found (ui-flows.cy.ts)                                                       Γöé
+  Γöé Searched:       C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\e2e\ui-flows.cy.ts    Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                                                                                                    
+  Running:  ui-flows.cy.ts                                                                  (1 of 1)
+
+
+  Marketplace & Geo Filters
+    ΓêÜ loads the marketplace homepage (2297ms)
+    ΓêÜ displays country selector (1200ms)
+    ΓêÜ filters leads by US states (813ms)
+    ΓêÜ switches country to Australia and shows AU regions (456ms)
+    ΓêÜ handles empty results gracefully (946ms)
+
+  Seller Flows
+    ΓêÜ loads the seller dashboard (562ms)
+    ΓêÜ shows quick-action cards on dashboard (466ms)
+    ΓêÜ navigates to submit lead page with source tabs (966ms)
+    ΓêÜ switches to API tab and shows curl examples (853ms)
+    ΓêÜ API tab shows vertical parameter references (893ms)
+    ΓêÜ switches to Offsite tab and shows lander info (1107ms)
+    ΓêÜ platform form shows vertical-specific fields for roofing (942ms)
+    ΓêÜ navigates to analytics page with charts (794ms)
+    ΓêÜ exports analytics CSV (945ms)
+    ΓêÜ navigates to leads page with CRM export (927ms)
+
+  Buyer Flows
+    ΓêÜ loads buyer dashboard with stats (611ms)
+    ΓêÜ navigates to bids page (482ms)
+    ΓêÜ navigates to preferences with geo filters (403ms)
+
+  Create Ask Flow
+    ΓêÜ shows authentication gate for unauthenticated users (971ms)
+    ΓêÜ displays ask creation form with geo targeting (466ms)
+
+  Edge Cases & Empty States
+    ΓêÜ handles unauthenticated sidebar correctly (334ms)
+    ΓêÜ marketplace works with no data (367ms)
+    ΓêÜ seller leads empty state shows CTA (424ms)
+
+  Off-Site Toggle & Fraud Edge Cases
+    ΓêÜ ask creation form shows acceptOffSite toggle (528ms)
+    ΓêÜ submit page shows source selector with OFFSITE option (504ms)
+    ΓêÜ TCPA consent is required for lead submission (480ms)
+    ΓêÜ no raw stack traces on error pages (382ms)
+
+  Hybrid Buyer/Seller Flow
+    ΓêÜ seller dashboard links to marketplace (476ms)
+    ΓêÜ buyer dashboard links to marketplace (491ms)
+    ΓêÜ buyer preferences page shows geo and vertical filters (477ms)
+
+  Auth Guards
+    ΓêÜ blocks /buyer/preferences without auth ΓÇö shows sign-in prompt (596ms)
+    ΓêÜ blocks /buyer without auth (560ms)
+    ΓêÜ blocks /seller without auth (572ms)
+    ΓêÜ blocks /seller/submit without auth (584ms)
+    ΓêÜ shows "Why sign in?" security tooltip (617ms)
+    ΓêÜ allows authenticated buyer to access /buyer/preferences (333ms)
+    ΓêÜ allows authenticated seller to access /seller (354ms)
+    ΓêÜ "Back to Marketplace" link navigates home (709ms)
+
+  Multi-Set Preferences
+    1) shows empty state with quick-add vertical buttons
+    2) adds a preference set and renders accordion
+    3) "Add Preference Set" opens vertical picker
+    4) shows overlap warning for duplicate verticals
+    5) shows auto-bid tooltip about programmatic buyers
+    6) save button shows set count
+
+  Structured Error Handling
+    ΓêÜ seller submit page shows profile wizard when no profile exists (486ms)
+    7) seller submit shows error detail when profile creation fails
+
+  Seller Analytics Charts
+    ΓêÜ renders charts and table sections (791ms)
+    ΓêÜ has working period selector (787ms)
+    ΓêÜ exports analytics CSV (607ms)
+
+  Buyer Analytics Charts
+    ΓêÜ renders buyer analytics page with chart sections (551ms)
+    ΓêÜ displays stats cards (451ms)
+    ΓêÜ exports buyer analytics CSV (579ms)
+
+
+  45 passing (2m)
+  7 failing
+
+  1) Multi-Set Preferences
+       shows empty state with quick-add vertical buttons:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:336:49)
+
+  2) Multi-Set Preferences
+       adds a preference set and renders accordion:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:341:11)
+
+  3) Multi-Set Preferences
+       "Add Preference Set" opens vertical picker:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:349:11)
+
+  4) Multi-Set Preferences
+       shows overlap warning for duplicate verticals:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:358:11)
+
+  5) Multi-Set Preferences
+       shows auto-bid tooltip about programmatic buyers:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:371:11)
+
+  6) Multi-Set Preferences
+       save button shows set count:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:377:11)
+
+  7) Structured Error Handling
+       seller submit shows error detail when profile creation fails:
+     AssertionError: Timed out retrying after 10000ms: Expected to find content: 'Solar' but never did.
+      at Context.eval (webpack://frontend/./cypress/e2e/ui-flows.cy.ts:440:11)
+
+
+
+
+  (Results)
+
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé Tests:        52                                                                               Γöé
+  Γöé Passing:      45                                                                               Γöé
+  Γöé Failing:      7                                                                                Γöé
+  Γöé Pending:      0                                                                                Γöé
+  Γöé Skipped:      0                                                                                Γöé
+  Γöé Screenshots:  7                                                                                Γöé
+  Γöé Video:        true                                                                             Γöé
+  Γöé Duration:     1 minute, 46 seconds                                                             Γöé
+  Γöé Spec Ran:     ui-flows.cy.ts                                                                   Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+
+  (Screenshots)
+
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Multi-Set Preferences -- shows empty state with quick-add vertical buttons (               
+     failed).png                                                                                    
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Multi-Set Preferences -- adds a preference set and renders accordion (failed               
+     ).png                                                                                          
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Multi-Set Preferences -- Add Preference Set opens vertical picker (failed).p               
+     ng                                                                                             
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Multi-Set Preferences -- shows overlap warning for duplicate verticals (fail               
+     ed).png                                                                                        
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Multi-Set Preferences -- shows auto-bid tooltip about programmatic buyers (f               
+     ailed).png                                                                                     
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Multi-Set Preferences -- save button shows set count (failed).png                          
+  -  C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\screenshots\ui-flows.cy     (1258x622)
+     .ts\Structured Error Handling -- seller submit shows error detail when profile c               
+     reation fails (failed).png                                                                     
+
+
+  (Video)
+
+  -  Video output: C:\Users\Bruce\Projects\Lead Engine CRE\frontend\cypress\videos\ui-flows.cy.ts.mp4
+
+
+====================================================================================================
+
+  (Run Finished)
+
+
+       Spec                                              Tests  Passing  Failing  Pending  Skipped  
+  ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+  Γöé ├ù  ui-flows.cy.ts                           01:46       52       45        7        -        - Γöé
+  ΓööΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+    ├ù  1 of 1 failed (100%)                     01:46       52       45        7        -        -  
+
