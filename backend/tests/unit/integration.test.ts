@@ -597,14 +597,3 @@ describe('Config Centralization Validation', () => {
         expect(PERKS_CONFIG.holder.nonceBytes).toBe(16);
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('Integration Test Count', () => {
-    test('total integration tests >= 55', () => {
-        // 8 + 10 + 6 + 8 + 8 + 7 + 4 + 4 = 55
-        expect(true).toBe(true);
-    });
-});

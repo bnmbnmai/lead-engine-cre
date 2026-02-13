@@ -15,7 +15,7 @@ let _sentry: any = null;
 export async function initSentry(): Promise<void> {
     const dsn = import.meta.env.VITE_SENTRY_DSN;
     if (!dsn) {
-        console.log('[Sentry] No VITE_SENTRY_DSN — monitoring disabled');
+        if (import.meta.env.DEV) console.log('[Sentry] No VITE_SENTRY_DSN — monitoring disabled');
         return;
     }
 
@@ -56,10 +56,10 @@ export async function initSentry(): Promise<void> {
             },
         });
         _sentry = Sentry;
-        console.log('[Sentry] Browser monitoring initialized');
+        if (import.meta.env.DEV) console.log('[Sentry] Browser monitoring initialized');
     } catch {
         // @sentry/react not installed — graceful degradation
-        console.log('[Sentry] @sentry/react not installed — monitoring disabled');
+        if (import.meta.env.DEV) console.log('[Sentry] @sentry/react not installed — monitoring disabled');
     }
 }
 

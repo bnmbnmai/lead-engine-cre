@@ -216,14 +216,3 @@ describe('Frontend Accessibility', () => {
         expect(badgeContent).toContain('aria-live="polite"');
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P4 Polish Test Count', () => {
-    test('minimum 18 tests in this file', () => {
-        // 5 + 4 + 3 + 3 + 3 = 18
-        expect(true).toBe(true);
-    });
-});

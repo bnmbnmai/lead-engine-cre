@@ -6,7 +6,6 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { wagmiConfig } from '@/lib/wagmi';
 import { AuthProvider } from '@/hooks/useAuth';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import '@/lib/i18n';
 import { initSentry } from '@/lib/sentry';
 initSentry();
 
@@ -16,7 +15,7 @@ import BuyerDashboard from '@/pages/BuyerDashboard';
 import SellerDashboard from '@/pages/SellerDashboard';
 import AuctionPage from '@/pages/AuctionPage';
 import BuyerBids from '@/pages/BuyerBids';
-import BuyerPreferences from '@/pages/BuyerPreferences';
+import { BuyerPreferences } from '@/pages/BuyerPreferences';
 import SellerLeads from '@/pages/SellerLeads';
 import SellerAsks from '@/pages/SellerAsks';
 import SellerSubmit from '@/pages/SellerSubmit';
@@ -98,10 +97,10 @@ function App() {
                                 <Route path="/seller/templates" element={<ProtectedRoute role="SELLER"><SellerTemplates /></ProtectedRoute>} />
                                 <Route path="/seller/analytics" element={<ProtectedRoute role="SELLER"><SellerAnalytics /></ProtectedRoute>} />
 
-                                {/* Admin Routes (auth required, role checked inside) */}
-                                <Route path="/admin/nfts" element={<ProtectedRoute><AdminNFTs /></ProtectedRoute>} />
-                                <Route path="/admin/verticals" element={<ProtectedRoute><AdminVerticals /></ProtectedRoute>} />
-                                <Route path="/admin/form-builder" element={<ProtectedRoute><FormBuilder /></ProtectedRoute>} />
+                                {/* Admin Routes (auth + admin role required) */}
+                                <Route path="/admin/nfts" element={<ProtectedRoute role="ADMIN"><AdminNFTs /></ProtectedRoute>} />
+                                <Route path="/admin/verticals" element={<ProtectedRoute role="ADMIN"><AdminVerticals /></ProtectedRoute>} />
+                                <Route path="/admin/form-builder" element={<ProtectedRoute role="ADMIN"><FormBuilder /></ProtectedRoute>} />
 
                                 {/* Seller: Ad Conversions */}
                                 <Route path="/seller/conversions" element={<ProtectedRoute role="SELLER"><AdConversions /></ProtectedRoute>} />

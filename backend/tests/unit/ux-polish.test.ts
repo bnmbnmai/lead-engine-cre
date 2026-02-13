@@ -333,14 +333,3 @@ describe('Prisma Index Coverage', () => {
         expect(schemaContent).toContain('@@index([leadId, effectiveBid(sort: Desc)])');
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('UX Polish Test Count', () => {
-    test('minimum 27 tests in this file', () => {
-        // 6 + 3 + 4 + 3 + 3 + 3 + 3 + 2 = 27
-        expect(true).toBe(true);
-    });
-});

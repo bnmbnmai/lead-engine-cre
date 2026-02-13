@@ -288,14 +288,3 @@ describe('Chainlink Keepers stub', () => {
         expect(calldata.performUpkeepSelector).toBe('0x4585e33b');
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P1 Fix Test Count', () => {
-    test('minimum 17 tests in this file', () => {
-        // 6 + 2 + 4 + 5 + 1 = 18 (exceeds 17)
-        expect(true).toBe(true);
-    });
-});

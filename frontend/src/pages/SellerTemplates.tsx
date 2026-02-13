@@ -21,7 +21,7 @@ import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { getContrastText, meetsWcagAA, contrastRatio } from '@/lib/contrast';
 import useAuth from '@/hooks/useAuth';
 import { toast } from '@/hooks/useToast';
-import { api } from '@/lib/api';
+import api from '@/lib/api';
 import {
     FormField, FormStep,
     GamificationConfig, FormColorScheme,

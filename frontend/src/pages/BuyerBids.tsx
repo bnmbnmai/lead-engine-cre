@@ -9,6 +9,7 @@ import { SkeletonTable } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
+import { formatSealedBid } from '@/utils/sealedBid';
 
 export function BuyerBids() {
     const [bids, setBids] = useState<any[]>([]);
@@ -104,14 +105,10 @@ export function BuyerBids() {
                                                 <td className="p-4">
                                                     <span className="font-semibold">
                                                         {bid.amount ? formatCurrency(bid.amount) : (() => {
-                                                            try {
-                                                                const stored = localStorage.getItem(`bid_salt_${bid.commitment}`);
-                                                                if (stored) {
-                                                                    const { amount } = JSON.parse(stored);
-                                                                    return <span title="Sealed bid (not yet revealed)">🔒 {formatCurrency(amount)}</span>;
-                                                                }
-                                                            } catch { }
-                                                            return <span className="text-muted-foreground">Sealed</span>;
+                                                            const sealed = formatSealedBid(bid.commitment);
+                                                            return sealed.isRevealed
+                                                                ? <span title="Sealed bid (not yet revealed)">{sealed.display}</span>
+                                                                : <span className="text-muted-foreground">Sealed</span>;
                                                         })()}
                                                     </span>
                                                 </td>

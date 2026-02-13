@@ -460,14 +460,3 @@ describe('P2 Cache + IP Enhancements', () => {
         expect(normalizeIp('172.16.0.1')).toBe('172.16.0.1');
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P2 Extended Test Count', () => {
-    test('minimum 37 tests in this file', () => {
-        // 5 + 5 + 4 + 6 + 5 + 3 + 4 + 5 = 37
-        expect(true).toBe(true);
-    });
-});

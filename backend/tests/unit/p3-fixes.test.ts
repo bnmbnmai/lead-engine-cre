@@ -313,14 +313,3 @@ describe('#18 Backfill Migration', () => {
         expect(batches).toBe(3);
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P3 Fix Test Count', () => {
-    test('minimum 27 tests in this file', () => {
-        // 7 + 3 + 9 + 8 = 27
-        expect(true).toBe(true);
-    });
-});

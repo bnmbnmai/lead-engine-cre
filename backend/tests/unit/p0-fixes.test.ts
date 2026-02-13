@@ -256,14 +256,3 @@ describe('Bid activity threshold regression', () => {
         expect(checkActivityThreshold(`0x${Date.now().toString(16)}bbb`)).toBe(false);
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P0 Fix Test Count', () => {
-    test('minimum 25 tests exist', () => {
-        // Count: 6 + 5 + 3 + 3 + 3 + 2 + 1 = 23 (+ 2 implicit = 25)
-        expect(true).toBe(true);
-    });
-});

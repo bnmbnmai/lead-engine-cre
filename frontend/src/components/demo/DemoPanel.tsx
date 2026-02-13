@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setAuthToken } from '@/lib/api';
+import { setAuthToken, API_BASE_URL } from '@/lib/api';
 import socketClient from '@/lib/socket';
 import useAuth from '@/hooks/useAuth';
 import {
@@ -176,7 +176,7 @@ export function DemoPanel() {
     async function handlePersonaSwitch(persona: 'buyer' | 'seller' | 'guest') {
         // In dev/demo mode, obtain a real JWT from the demo-login endpoint
         const isDemoEnv = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiBase = API_BASE_URL;
 
         if (isDemoEnv && persona !== 'guest') {
             try {
@@ -193,9 +193,9 @@ export function DemoPanel() {
                     // Reconnect socket with new token
                     socketClient.disconnect();
                     socketClient.connect();
-                    console.log(`[DemoPanel] Demo login success — ${role} persona set with real JWT`);
+                    if (import.meta.env.DEV) console.log(`[DemoPanel] Demo login success — ${role} persona set with real JWT`);
                 } else {
-                    console.warn('[DemoPanel] Demo login failed:', data.error);
+                    if (import.meta.env.DEV) console.warn('[DemoPanel] Demo login failed:', data.error);
                     // Fall back to localStorage-only persona
                     localStorage.setItem('le_auth_user', JSON.stringify({
                         id: `demo-${persona}`,
@@ -205,13 +205,13 @@ export function DemoPanel() {
                     }));
                 }
             } catch (err) {
-                console.warn('[DemoPanel] Demo login request failed:', err);
+                if (import.meta.env.DEV) console.warn('[DemoPanel] Demo login request failed:', err);
             }
         } else if (persona === 'guest') {
             setAuthToken(null);
             localStorage.removeItem('le_auth_user');
             socketClient.disconnect();
-            console.log('[DemoPanel] Guest persona — cleared auth');
+            if (import.meta.env.DEV) console.log('[DemoPanel] Guest persona — cleared auth');
         }
 
         // Force useAuth to re-read by dispatching a synthetic storage event
@@ -232,7 +232,7 @@ export function DemoPanel() {
     }
 
     async function handleDemoAdminLogin() {
-        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiBase = API_BASE_URL;
         setActions(prev => ({ ...prev, adminLogin: { state: 'loading' } }));
         try {
             const resp = await fetch(`${apiBase}/api/v1/demo-panel/demo-admin-login`, {
@@ -258,7 +258,7 @@ export function DemoPanel() {
                 ...prev,
                 adminLogin: { state: 'success', message: '🔐 Logged in as Demo Admin' },
             }));
-            console.log('[DemoPanel] Demo admin login success — ADMIN persona set with real JWT');
+            if (import.meta.env.DEV) console.log('[DemoPanel] Demo admin login success — ADMIN persona set with real JWT');
             navigate('/admin/form-builder');
             setTimeout(() => setActions(prev => ({ ...prev, adminLogin: { state: 'idle' } })), 3000);
         } catch (err: any) {

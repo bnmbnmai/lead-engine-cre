@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MessageSquarePlus, X, Send, Bug, Lightbulb, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { API_BASE_URL } from '@/lib/api';
 
 type FeedbackType = 'bug' | 'feature' | 'other';
 
@@ -22,14 +23,13 @@ export function FeedbackButton() {
         setSending(true);
         try {
             // Post to feedback endpoint (or log if unavailable)
-            const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-            await fetch(`${API_BASE}/api/feedback`, {
+            await fetch(`${API_BASE_URL}/api/feedback`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type, message }),
             }).catch(() => {
                 // Endpoint may not exist — log locally
-                console.log('[Feedback]', { type, message });
+                if (import.meta.env.DEV) console.log('[Feedback]', { type, message });
             });
             setSent(true);
             setTimeout(() => {
@@ -76,8 +76,8 @@ export function FeedbackButton() {
                                         key={opt.value}
                                         onClick={() => setType(opt.value)}
                                         className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition ${type === opt.value
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'bg-muted text-muted-foreground hover:text-foreground'
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-muted text-muted-foreground hover:text-foreground'
                                             }`}
                                     >
                                         {opt.icon}

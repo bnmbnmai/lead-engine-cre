@@ -432,14 +432,3 @@ describe('#12 Seeder Step Labels', () => {
         expect(stepCalls.length).toBe(parseInt(totalMatch![1]));
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P3 Test Count', () => {
-    test('minimum 32 tests in this file', () => {
-        // 9 + 8 + 10 + 5 = 32
-        expect(true).toBe(true);
-    });
-});

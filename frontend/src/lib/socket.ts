@@ -70,15 +70,15 @@ class SocketClient {
         });
 
         this.socket.on('connect', () => {
-            console.log('Socket connected:', this.socket?.id);
+            if (import.meta.env.DEV) console.log('Socket connected:', this.socket?.id);
         });
 
         this.socket.on('disconnect', (reason) => {
-            console.log('Socket disconnected:', reason);
+            if (import.meta.env.DEV) console.log('Socket disconnected:', reason);
         });
 
         this.socket.on('connect_error', (error) => {
-            console.warn('Socket connection error:', error.message);
+            if (import.meta.env.DEV) console.warn('Socket connection error:', error.message);
         });
 
         // Re-emit events to listeners

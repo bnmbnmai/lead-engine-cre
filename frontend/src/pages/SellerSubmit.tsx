@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import useAuth from '@/hooks/useAuth';
 import { useVerticals } from '@/hooks/useVerticals';
 import { VERTICAL_PRESETS } from '@/pages/FormBuilder';
-import api from '@/lib/api';
+import api, { API_BASE_URL } from '@/lib/api';
 
 type SourceTab = 'PLATFORM' | 'API' | 'OFFSITE';
 
@@ -20,7 +20,7 @@ const TABS: { key: SourceTab; label: string; icon: React.ElementType; desc: stri
     { key: 'OFFSITE', label: 'Hosted Lander', icon: Layout, desc: 'Customizable landing pages per vertical' },
 ];
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = API_BASE_URL;
 
 function CurlExample({ vertical = 'roofing', state = 'FL', country = 'US', zip = '33101', params = {} as Record<string, unknown> }: {
     vertical?: string; state?: string; country?: string; zip?: string; params?: Record<string, unknown>;
@@ -119,7 +119,6 @@ export function SellerSubmit() {
         setWizardSubmitting(true);
         setProfileError(null);
         try {
-            const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
             const token = localStorage.getItem('auth_token');
             const resp = await fetch(`${API_BASE_URL}/api/v1/seller/profile`, {
                 method: 'POST',

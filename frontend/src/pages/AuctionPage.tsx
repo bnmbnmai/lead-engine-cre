@@ -32,7 +32,7 @@ export function AuctionPage() {
             });
         },
         onResolved: (event) => {
-            console.log('Auction resolved:', event);
+            if (import.meta.env.DEV) console.log('Auction resolved:', event);
             fetchLead();
         },
     });

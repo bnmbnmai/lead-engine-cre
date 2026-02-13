@@ -434,14 +434,3 @@ describe('Priority Notifications', () => {
         expect(result.queued).toBe(false);
     });
 });
-
-// ============================================
-// Summary
-// ============================================
-
-describe('P2 Fix Test Count', () => {
-    test('minimum 35 tests in this file', () => {
-        // 3 + 4 + 4 + 5 + 3 + 6 + 2 + 4 + 1 + 3 = 35
-        expect(true).toBe(true);
-    });
-});

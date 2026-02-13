@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Download, Upload, ChevronDown, FileText, FileJson, Loader2, Check, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/api';
 
 interface CRMExportButtonProps {
     leadIds?: string[];
@@ -8,7 +9,7 @@ interface CRMExportButtonProps {
 
 type ExportFormat = 'csv' | 'json' | 'push';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = API_BASE_URL;
 
 function getAuthToken(): string | null {
     return localStorage.getItem('auth_token');

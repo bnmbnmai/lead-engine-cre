@@ -53,6 +53,3 @@ export function BuyerPreferences() {
         </DashboardLayout>
     );
 }
-
-export default BuyerPreferences;
-

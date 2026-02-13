@@ -607,15 +607,3 @@ describe('ACE Compliance Edge Cases', () => {
         // This verifies the function is callable multiple times
     });
 });
-
-// ============================================
-// Summary export for test count verification
-// ============================================
-
-describe('Test Count Verification', () => {
-    test('minimum 50 tests exist in this file', () => {
-        // This is a meta-test to verify our test count
-        // Count: 10 + 8 + 5 + 6 + 5 + 4 + 6 + 6 + 1 = 51
-        expect(true).toBe(true);
-    });
-});
