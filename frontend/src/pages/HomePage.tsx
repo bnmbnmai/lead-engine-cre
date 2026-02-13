@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -301,7 +301,57 @@ export function HomePage() {
                     </section>
                 )}
 
+                {/* Why Lead Engine — Trust Bar */}
+                <section>
+                    <div className="grid md:grid-cols-3 gap-5">
+                        {/* Card 1: Lead Quality */}
+                        <div className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.03]">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
+                                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                                </div>
+                                <h3 className="font-semibold text-sm text-foreground">Verified Lead Quality</h3>
+                            </div>
+                            <p className="text-sm leading-relaxed text-muted-foreground">
+                                Buyers no longer have to take sellers&rsquo; word for it. Every lead carries a
+                                Chainlink CRE + ZK fraud-proof quality score (0&ndash;10,000) that cryptographically
+                                proves the lead was not botted, stuffed, or generated from junk data. Sellers are
+                                protected by immutable on-chain evidence.
+                            </p>
+                        </div>
 
+                        {/* Card 2: Transparency */}
+                        <div className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 transition hover:border-blue-500/30 hover:bg-blue-500/[0.03]">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
+                                    <Eye className="h-5 w-5 text-blue-400" />
+                                </div>
+                                <h3 className="font-semibold text-sm text-foreground">Full Transparency</h3>
+                            </div>
+                            <p className="text-sm leading-relaxed text-muted-foreground">
+                                Instant, on-chain settlement via x402 and LeadNFT provenance give both sides
+                                perfect auditability. Payment is atomic (no 30&ndash;90 day net terms, no
+                                chargebacks). Ownership history and the original quality proof travel with the
+                                NFT forever.
+                            </p>
+                        </div>
+
+                        {/* Card 3: Instant Settlement */}
+                        <div className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 transition hover:border-amber-500/30 hover:bg-amber-500/[0.03]">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10">
+                                    <Zap className="h-5 w-5 text-amber-400" />
+                                </div>
+                                <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
+                            </div>
+                            <p className="text-sm leading-relaxed text-muted-foreground">
+                                x402 enables USDC escrow &rarr; instant release on auction win or Buy-It-Now
+                                purchase. Platform fee is taken automatically; seller receives funds in seconds
+                                instead of weeks.
+                            </p>
+                        </div>
+                    </div>
+                </section>
 
                 {/* Filters */}
                 <section>
