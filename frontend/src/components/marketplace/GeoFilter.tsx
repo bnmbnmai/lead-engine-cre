@@ -413,8 +413,8 @@ export function GeoFilter({
             {/* Region Picker Modal */}
             {isOpen && (
                 <>
-                    <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-2xl mx-auto glass rounded-2xl p-6 z-50 max-h-[80vh] overflow-hidden flex flex-col">
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={() => setIsOpen(false)} />
+                    <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-2xl mx-auto bg-popover/95 backdrop-blur-xl border border-border shadow-2xl rounded-2xl p-6 z-50 max-h-[80vh] overflow-hidden flex flex-col">
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h3 className="text-lg font-semibold">
@@ -464,9 +464,9 @@ export function GeoFilter({
                                             'px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1',
                                             isSelected
                                                 ? mode === 'include'
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : 'bg-red-500 text-white'
-                                                : 'bg-white/5 hover:bg-white/10'
+                                                    ? 'bg-primary text-primary-foreground shadow-md'
+                                                    : 'bg-red-500 text-white shadow-md'
+                                                : 'bg-muted/60 text-foreground hover:bg-muted border border-border/50'
                                         )}
                                         title={region.name}
                                     >

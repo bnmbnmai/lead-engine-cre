@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
 import api from '@/lib/api';
 import { useVerticals } from '@/hooks/useVerticals';
@@ -119,24 +120,74 @@ export function AskForm({ onSuccess }: AskFormProps) {
                                 <Controller
                                     name="vertical"
                                     control={control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a vertical" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {verticalsLoading ? (
-                                                    <SelectItem value="_loading" disabled>Loading verticals…</SelectItem>
-                                                ) : (
-                                                    dynamicVerticals.filter(v => v.depth === 0).map((v) => (
-                                                        <SelectItem key={v.value} value={v.value}>
-                                                            {v.label}
-                                                        </SelectItem>
-                                                    ))
+                                    render={({ field }) => {
+                                        const [vSearch, setVSearch] = useState('');
+                                        const [vOpen, setVOpen] = useState(false);
+                                        const allVerticals = dynamicVerticals.filter(v => v.depth === 0);
+                                        const filtered = vSearch
+                                            ? allVerticals.filter(v =>
+                                                v.label.toLowerCase().includes(vSearch.toLowerCase()) ||
+                                                v.value.toLowerCase().includes(vSearch.toLowerCase())
+                                            )
+                                            : allVerticals;
+                                        const selectedLabel = allVerticals.find(v => v.value === field.value)?.label;
+
+                                        return (
+                                            <div className="relative">
+                                                <div
+                                                    className="flex items-center w-full rounded-xl border border-input bg-background px-4 py-2.5 cursor-pointer hover:border-primary/50 transition-colors"
+                                                    onClick={() => setVOpen(!vOpen)}
+                                                >
+                                                    <input
+                                                        type="text"
+                                                        className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+                                                        placeholder="Search verticals…"
+                                                        value={vOpen ? vSearch : (selectedLabel || '')}
+                                                        onChange={(e) => {
+                                                            setVSearch(e.target.value);
+                                                            if (!vOpen) setVOpen(true);
+                                                        }}
+                                                        onFocus={() => { setVOpen(true); setVSearch(''); }}
+                                                    />
+                                                    <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${vOpen ? 'rotate-90' : ''}`} />
+                                                </div>
+
+                                                {vOpen && (
+                                                    <>
+                                                        <div className="fixed inset-0 z-30" onClick={() => setVOpen(false)} />
+                                                        <div className="absolute z-40 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-xl border border-border bg-popover shadow-xl">
+                                                            {verticalsLoading ? (
+                                                                <div className="px-4 py-3 text-sm text-muted-foreground">Loading verticals…</div>
+                                                            ) : filtered.length === 0 ? (
+                                                                <div className="px-4 py-3 text-sm text-muted-foreground">No verticals match "{vSearch}"</div>
+                                                            ) : (
+                                                                filtered.map((v) => (
+                                                                    <button
+                                                                        key={v.value}
+                                                                        type="button"
+                                                                        className={cn(
+                                                                            'w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center justify-between',
+                                                                            field.value === v.value
+                                                                                ? 'bg-primary/10 text-primary font-medium'
+                                                                                : 'hover:bg-muted/50'
+                                                                        )}
+                                                                        onClick={() => {
+                                                                            field.onChange(v.value);
+                                                                            setVSearch('');
+                                                                            setVOpen(false);
+                                                                        }}
+                                                                    >
+                                                                        {v.label}
+                                                                        {field.value === v.value && <Check className="h-4 w-4 text-primary" />}
+                                                                    </button>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </>
                                                 )}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
+                                            </div>
+                                        );
+                                    }}
                                 />
                                 {errors.vertical && <p className="text-xs text-destructive mt-1">{errors.vertical.message}</p>}
                             </div>
