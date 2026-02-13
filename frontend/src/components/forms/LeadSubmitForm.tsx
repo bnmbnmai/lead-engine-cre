@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
+import { useVerticals } from '@/hooks/useVerticals';
 
-const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'];
+
 
 const US_STATES = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'];
 const CA_PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'];
@@ -146,6 +147,7 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [tcpaConsent, setTcpaConsent] = useState(false);
     const [customParams, setCustomParams] = useState<Record<string, unknown>>({});
     const [selectedCountry, setSelectedCountry] = useState('US');
+    const { flatList: dynamicVerticals } = useVerticals();
     // Ad tracking state
     const [showAdTracking, setShowAdTracking] = useState(false);
     const [showMoreUtm, setShowMoreUtm] = useState(false);
@@ -277,9 +279,9 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                                         <SelectValue placeholder="Select vertical" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {VERTICALS.map((v) => (
-                                            <SelectItem key={v} value={v} className="capitalize">
-                                                {v.replace('_', ' ')}
+                                        {dynamicVerticals.filter(v => v.depth === 0).map((v) => (
+                                            <SelectItem key={v.value} value={v.value}>
+                                                {v.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

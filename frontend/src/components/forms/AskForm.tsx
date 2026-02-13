@@ -10,8 +10,9 @@ import { LabeledSwitch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
 import api from '@/lib/api';
+import { useVerticals } from '@/hooks/useVerticals';
 
-const VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial'];
+
 
 const askSchema = z.object({
     vertical: z.string().min(1, 'Select a vertical'),
@@ -38,6 +39,7 @@ export function AskForm({ onSuccess }: AskFormProps) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { flatList: dynamicVerticals, loading: verticalsLoading } = useVerticals();
 
     const { register, handleSubmit, control, formState: { errors } } = useForm<AskFormData>({
         resolver: zodResolver(askSchema),
@@ -123,11 +125,15 @@ export function AskForm({ onSuccess }: AskFormProps) {
                                                 <SelectValue placeholder="Select a vertical" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {VERTICALS.map((v) => (
-                                                    <SelectItem key={v} value={v} className="capitalize">
-                                                        {v.replace('_', ' ')}
-                                                    </SelectItem>
-                                                ))}
+                                                {verticalsLoading ? (
+                                                    <SelectItem value="_loading" disabled>Loading verticals…</SelectItem>
+                                                ) : (
+                                                    dynamicVerticals.filter(v => v.depth === 0).map((v) => (
+                                                        <SelectItem key={v.value} value={v.value}>
+                                                            {v.label}
+                                                        </SelectItem>
+                                                    ))
+                                                )}
                                             </SelectContent>
                                         </Select>
                                     )}

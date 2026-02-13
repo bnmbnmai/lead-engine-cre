@@ -84,7 +84,7 @@ const REFRESH_INTERVAL_MS = 60_000; // 60s auto-refresh
 export function useVerticals(options?: { autoRefresh?: boolean }) {
     const { autoRefresh = true } = options ?? {};
 
-    const [verticals, setVerticals] = useState<VerticalNode[]>([]);
+    const [verticals, setVerticals] = useState<VerticalNode[]>(FALLBACK_TREE);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const prevCountRef = useRef(0);
