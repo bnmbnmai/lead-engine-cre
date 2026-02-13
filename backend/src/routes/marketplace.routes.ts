@@ -161,7 +161,7 @@ router.post('/asks', authMiddleware, requireSeller, async (req: AuthenticatedReq
 // Get Ask Details
 // ============================================
 
-router.get('/asks/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/asks/:id', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const ask = await prisma.ask.findUnique({
             where: { id: req.params.id },

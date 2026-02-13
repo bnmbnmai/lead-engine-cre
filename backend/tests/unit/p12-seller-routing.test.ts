@@ -37,9 +37,10 @@ describe('Routing', () => {
         expect(src).not.toContain("'/marketplace/ask/${ask.id}'");
     });
 
-    test('3. SellerDashboard passes basePath to AskCard', () => {
+    test('3. SellerDashboard links asks to AskDetailPage', () => {
         const src = readFile(path.join(frontendSrc, 'pages/SellerDashboard.tsx'));
-        expect(src).toContain('basePath="/seller/asks"');
+        // Inline ask cards link to /marketplace/ask/:id (the shared AskDetailPage)
+        expect(src).toContain('/marketplace/ask/${ask.id}');
     });
 
     test('4. App.tsx contains /seller/asks/:askId route', () => {
@@ -47,7 +48,7 @@ describe('Routing', () => {
         expect(src).toContain('/seller/asks/:askId');
     });
 
-    test('5. All SellerDashboard links use /seller/* paths', () => {
+    test('5. All SellerDashboard links use /seller/* paths (except ask detail)', () => {
         const src = readFile(path.join(frontendSrc, 'pages/SellerDashboard.tsx'));
         // Dashboard link destinations
         expect(src).toContain('to="/seller/submit"');
@@ -55,11 +56,11 @@ describe('Routing', () => {
         expect(src).toContain('to="/seller/leads"');
         // Analytics uses href prop in Quick Actions array, not direct `to=`
         expect(src).toContain("'/seller/analytics'");
-        // Should NOT have links pointing outside seller namespace (bare /leads, /asks, /marketplace)
+        // Links should be /seller/* or /marketplace/ask/* (shared ask detail page)
         const linkMatches = src.match(/to="([^"]+)"/g) || [];
         const nonSellerLinks = linkMatches.filter(l => {
             const dest = l.match(/to="([^"]+)"/)?.[1] || '';
-            return dest.startsWith('/') && !dest.startsWith('/seller') && dest !== '/';
+            return dest.startsWith('/') && !dest.startsWith('/seller') && !dest.startsWith('/marketplace/ask') && dest !== '/';
         });
         expect(nonSellerLinks).toEqual([]);
     });

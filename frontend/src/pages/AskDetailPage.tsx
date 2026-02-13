@@ -56,7 +56,7 @@ export function AskDetailPage() {
                     <h1 className="text-2xl font-bold mb-2">Ask Not Found</h1>
                     <p className="text-muted-foreground mb-6">{error || 'This ask may have been removed or expired.'}</p>
                     <Button asChild>
-                        <Link to="/?view=asks">
+                        <Link to="/marketplace?view=asks">
                             <ArrowLeft className="h-4 w-4 mr-2" />
                             Back to Marketplace
                         </Link>
@@ -75,7 +75,7 @@ export function AskDetailPage() {
             <div className="max-w-4xl mx-auto space-y-6">
                 {/* Back Navigation */}
                 <Button variant="ghost" size="sm" asChild>
-                    <Link to="/">
+                    <Link to="/marketplace?view=asks">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Marketplace
                     </Link>
@@ -241,7 +241,7 @@ export function AskDetailPage() {
                                                 </Link>
                                             </Button>
                                             <Button variant="outline" className="w-full" asChild>
-                                                <Link to="/">
+                                                <Link to="/marketplace?view=asks">
                                                     Browse More Asks
                                                 </Link>
                                             </Button>

@@ -541,13 +541,34 @@ router.post('/lead', async (req: Request, res: Response) => {
         const state = pick(STATES);
         const price = rand(PRICING[vertical]?.min || 10, PRICING[vertical]?.max || 50);
 
-        const seller = await prisma.sellerProfile.findFirst({
+        let seller = await prisma.sellerProfile.findFirst({
             where: { user: { walletAddress: '0xDEMO_PANEL_USER' } },
         });
 
         if (!seller) {
-            res.status(400).json({ error: 'Demo data not seeded. Seed marketplace first.' });
-            return;
+            // Auto-create demo seller so inject works without prior seed
+            let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
+            if (!demoUser) {
+                demoUser = await prisma.user.create({
+                    data: {
+                        walletAddress: '0xDEMO_PANEL_USER',
+                        role: 'SELLER',
+                        sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
+                    },
+                    include: { sellerProfile: true },
+                });
+            } else {
+                await prisma.sellerProfile.create({
+                    data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+                });
+            }
+            seller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: '0xDEMO_PANEL_USER' } } });
+            if (!seller) {
+                res.status(500).json({ error: 'Failed to auto-create demo seller profile' });
+                return;
+            }
+            // Also seed verticals so hierarchy API works
+            await seedVerticals();
         }
 
         // Build non-PII form parameters from vertical schema (randomized)
@@ -732,7 +753,7 @@ router.post('/auction', async (req: Request, res: Response) => {
 // ============================================
 router.post('/reset', async (req: Request, res: Response) => {
     try {
-        // 1. Clear everything
+        // 1. Clear everything (FK dependency order)
         await prisma.bid.deleteMany({});
         await prisma.auctionRoom.deleteMany({});
         await prisma.transaction.deleteMany({});
@@ -742,115 +763,17 @@ router.post('/reset', async (req: Request, res: Response) => {
         // Flush all in-memory LRU caches so stale data doesn't persist
         clearAllCaches();
 
-        // 2. Re-seed with short auctions (delegate to seed logic)
-        // Seed Vertical table records first
+        // Keep verticals seeded so hierarchy API stays functional
         await seedVerticals();
 
-        // Find or create demo user
-        let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
-        if (!demoUser) {
-            demoUser = await prisma.user.create({
-                data: {
-                    walletAddress: '0xDEMO_PANEL_USER',
-                    role: 'SELLER',
-                    sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
-                    buyerProfile: { create: { companyName: 'Demo Buyer Corp.', verticals: FALLBACK_VERTICALS, acceptOffSite: true } },
-                },
-                include: { sellerProfile: true, buyerProfile: true },
-            });
-        }
-
-        // Ensure profiles exist (may have been cascade-deleted by a previous partial reset)
-        let seller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
-        if (!seller) {
-            console.log('[DEMO] Recreating missing seller profile for demo user');
-            seller = await prisma.sellerProfile.create({
-                data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
-            });
-        }
-        const existingBuyerP = await prisma.buyerProfile.findFirst({ where: { userId: demoUser.id } });
-        if (!existingBuyerP) {
-            console.log('[DEMO] Recreating missing buyer profile for demo user');
-            await prisma.buyerProfile.create({
-                data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: FALLBACK_VERTICALS, acceptOffSite: true },
-            });
-        }
-
-        // Create demo buyers
-        const buyerUserIds: string[] = [];
-        for (const buyer of DEMO_BUYERS) {
-            let buyerUser = await prisma.user.findFirst({ where: { walletAddress: buyer.wallet } });
-            if (!buyerUser) {
-                buyerUser = await prisma.user.create({
-                    data: { walletAddress: buyer.wallet, role: 'BUYER', buyerProfile: { create: { companyName: buyer.company, verticals: FALLBACK_VERTICALS.slice(0, 5), acceptOffSite: true } } },
-                });
-            }
-            buyerUserIds.push(buyerUser.id);
-        }
-
-        // Create 5 asks
-        let askCount = 0;
-        for (let i = 0; i < 5; i++) {
-            const vertical = FALLBACK_VERTICALS[i * 2];
-            await prisma.ask.create({
-                data: {
-                    sellerId: seller.id, vertical,
-                    geoTargets: { country: 'US', states: [pick(STATES), pick(STATES)] },
-                    reservePrice: rand(PRICING[vertical].min, PRICING[vertical].max),
-                    status: 'ACTIVE', parameters: { _demoTag: DEMO_TAG },
-                    auctionDuration: LEAD_AUCTION_DURATION_SECS, revealWindow: 900,
-                },
-            });
-            askCount++;
-        }
-
-        // Create 10 leads (all IN_AUCTION with 5-min durations)
-        let leadCount = 0;
-        const leadIds: string[] = [];
-        for (let i = 0; i < 10; i++) {
-            const vertical = FALLBACK_VERTICALS[i % FALLBACK_VERTICALS.length];
-            const state = pick(STATES);
-            const price = rand(PRICING[vertical].min, PRICING[vertical].max);
-            const params = buildVerticalDemoParams(vertical);
-            const lead = await prisma.lead.create({
-                data: {
-                    sellerId: seller.id, vertical,
-                    geo: { country: 'US', state, city: CITIES[state] || 'Demo City', zip: `${rand(10000, 99999)}` },
-                    source: 'PLATFORM', status: 'IN_AUCTION', reservePrice: price,
-                    isVerified: true,
-                    tcpaConsentAt: new Date(), consentProof: DEMO_TAG,
-                    auctionStartAt: new Date(),
-                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
-                    parameters: params as any,
-                },
-            });
-            leadIds.push(lead.id);
-            leadCount++;
-        }
-
-        // Create bids
-        let bidCount = 0;
-        for (const leadId of leadIds) {
-            const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { reservePrice: true } });
-            if (!lead) continue;
-            const shuffled = [...buyerUserIds].sort(() => Math.random() - 0.5);
-            const numBidders = rand(1, Math.min(2, shuffled.length));
-            for (let b = 0; b < numBidders; b++) {
-                await prisma.bid.create({
-                    data: { leadId, buyerId: shuffled[b], amount: Number(lead.reservePrice || 20) + rand(5, 25), status: 'REVEALED', source: 'MANUAL' },
-                });
-                bidCount++;
-            }
-        }
-
-        // 3. Notify clients
+        // 2. Notify clients to refresh (dashboards will now be empty)
         const io = req.app.get('io');
         if (io) io.emit('marketplace:refreshAll');
 
         res.json({
             success: true,
             cleared: cleared.count,
-            reseeded: { leads: leadCount, bids: bidCount, asks: askCount },
+            message: 'All marketplace data cleared. Both dashboards are now empty. Use Seed or Inject to add data.',
         });
     } catch (error) {
         console.error('Demo reset error:', error);

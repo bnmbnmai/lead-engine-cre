@@ -6,9 +6,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { setAuthToken } from '@/lib/api';
 import socketClient from '@/lib/socket';
+import useAuth from '@/hooks/useAuth';
 import {
     FlaskConical,
     X,
@@ -61,7 +62,7 @@ export function DemoPanel() {
     const [expandedSection, setExpandedSection] = useState<string | null>('marketplace');
 
     const navigate = useNavigate();
-    const location = useLocation();
+    const { user } = useAuth();
 
     // Fetch demo status on open
     const refreshStatus = useCallback(async () => {
@@ -128,8 +129,7 @@ export function DemoPanel() {
         await runAction('reset', async () => {
             const { data, error } = await api.demoReset();
             if (error) throw new Error(error.message || error.error);
-            const r = data?.reseeded;
-            return `🔄 Cleared ${data?.cleared} old records → reseeded ${r?.leads} leads, ${r?.bids} bids, ${r?.asks} asks`;
+            return `🔄 Cleared ${data?.cleared} records — dashboards are now empty`;
         });
     }
 
@@ -339,11 +339,13 @@ export function DemoPanel() {
     // Render
     // ============================================
 
-    const currentPersona = location.pathname.startsWith('/buyer')
+    // Derive persona from actual session role (NOT from pathname)
+    const sessionRole = user?.role;
+    const currentPersona = sessionRole === 'BUYER'
         ? 'buyer'
-        : location.pathname.startsWith('/seller')
+        : sessionRole === 'SELLER'
             ? 'seller'
-            : location.pathname.startsWith('/admin')
+            : sessionRole === 'ADMIN'
                 ? 'admin'
                 : 'guest';
 
@@ -472,13 +474,28 @@ export function DemoPanel() {
                             </p>
                         </Section>
 
-                        {/* Section 4: Persona Switcher */}
-                        <Section id="persona" title="Persona Switcher">
+                        {/* Persona Switcher — always visible, not in accordion */}
+                        <div className="border-t border-border pt-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Persona Switcher</span>
+                                <span className={`flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${currentPersona === 'buyer' ? 'bg-blue-500/15 text-blue-400'
+                                    : currentPersona === 'seller' ? 'bg-emerald-500/15 text-emerald-400'
+                                        : currentPersona === 'admin' ? 'bg-amber-500/15 text-amber-400'
+                                            : 'bg-muted/40 text-muted-foreground'
+                                    }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${currentPersona === 'buyer' ? 'bg-blue-400'
+                                        : currentPersona === 'seller' ? 'bg-emerald-400'
+                                            : currentPersona === 'admin' ? 'bg-amber-400'
+                                                : 'bg-muted-foreground'
+                                        }`} />
+                                    Active: {currentPersona.charAt(0).toUpperCase() + currentPersona.slice(1)}
+                                </span>
+                            </div>
                             <div className="grid grid-cols-3 gap-2">
                                 {[
-                                    { key: 'buyer' as const, label: 'Buyer', icon: UserCheck, path: '/buyer' },
-                                    { key: 'seller' as const, label: 'Seller', icon: User, path: '/seller' },
-                                    { key: 'guest' as const, label: 'Guest', icon: LogOut, path: '/' },
+                                    { key: 'buyer' as const, label: 'Buyer', icon: UserCheck },
+                                    { key: 'seller' as const, label: 'Seller', icon: User },
+                                    { key: 'guest' as const, label: 'Guest', icon: LogOut },
                                 ].map(({ key, label, icon: Icon }) => (
                                     <button
                                         key={key}
@@ -493,10 +510,13 @@ export function DemoPanel() {
                                     </button>
                                 ))}
                             </div>
+                            <p className="text-[10px] text-muted-foreground mt-2 pl-1">
+                                Header nav buttons only navigate — this is the only way to change the active role + KYC bypass.
+                            </p>
                             {actions.persona?.message && (
-                                <p className="text-[11px] text-muted-foreground pl-1">{actions.persona.message}</p>
+                                <p className="text-[11px] text-muted-foreground pl-1 mt-1">{actions.persona.message}</p>
                             )}
-                        </Section>
+                        </div>
 
                         {/* Section 4b: Demo Admin Login */}
                         <Section id="admin" title="Admin Access">
