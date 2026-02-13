@@ -16,6 +16,7 @@ interface Ask {
     reservePrice: number;
     buyNowPrice?: number;
     acceptOffSite: boolean;
+    auctionDuration?: number;
     status: string;
     seller?: {
         companyName: string;
@@ -72,6 +73,17 @@ export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/
 
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="h-4 w-4" />
+                        <span>
+                            Lightning Auction • {ask.auctionDuration && ask.auctionDuration < 60
+                                ? `${ask.auctionDuration}s`
+                                : ask.auctionDuration && ask.auctionDuration >= 60
+                                    ? `${Math.round(ask.auctionDuration / 60)}m`
+                                    : '60s'}
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Zap className="h-4 w-4" />
                         <span>{ask._count?.leads || 0} active leads</span>
                     </div>
                 </div>

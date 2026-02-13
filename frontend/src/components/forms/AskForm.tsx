@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
 import api from '@/lib/api';
@@ -23,7 +22,7 @@ const askSchema = z.object({
     reservePrice: z.number().positive('Reserve price required'),
     buyNowPrice: z.number().positive().optional(),
     acceptOffSite: z.boolean().default(true),
-    auctionDuration: z.number().min(300).max(86400).default(3600),
+    auctionDuration: z.number().min(30).max(300).default(60),
     revealWindow: z.number().min(60).max(3600).default(900),
     expiresInDays: z.number().min(1).max(90).default(30),
     parameters: z.record(z.unknown()).optional(),
@@ -45,7 +44,7 @@ export function AskForm({ onSuccess }: AskFormProps) {
         defaultValues: {
             geoTargets: { country: 'US', states: [] },
             acceptOffSite: true,
-            auctionDuration: 3600,
+            auctionDuration: 60,
             revealWindow: 900,
             expiresInDays: 30,
         },
@@ -200,24 +199,42 @@ export function AskForm({ onSuccess }: AskFormProps) {
                             />
 
                             <div>
-                                <label className="text-sm font-medium mb-2 block">Auction Duration</label>
+                                <label className="text-sm font-medium mb-2 block">Lightning Auction</label>
+                                <p className="text-xs text-muted-foreground mb-3">
+                                    Choose how long buyers have to bid on your leads
+                                </p>
                                 <Controller
                                     name="auctionDuration"
                                     control={control}
                                     render={({ field }) => (
-                                        <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="1800">30 minutes</SelectItem>
-                                                <SelectItem value="3600">1 hour</SelectItem>
-                                                <SelectItem value="7200">2 hours</SelectItem>
-                                                <SelectItem value="14400">4 hours</SelectItem>
-                                                <SelectItem value="43200">12 hours</SelectItem>
-                                                <SelectItem value="86400">24 hours</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {([
+                                                { value: 30, label: 'Hot', icon: '⚡', desc: 'Urgent / high-volume', sub: '30 seconds' },
+                                                { value: 60, label: 'Standard', icon: '🎯', desc: 'Real-time ping-post', sub: '60 seconds' },
+                                                { value: 300, label: 'Extended', icon: '🔍', desc: 'Max price discovery', sub: '5 minutes' },
+                                            ] as const).map((preset) => (
+                                                <button
+                                                    key={preset.value}
+                                                    type="button"
+                                                    onClick={() => field.onChange(preset.value)}
+                                                    className={`relative flex flex-col items-center p-4 rounded-xl border-2 text-center transition-all duration-200 cursor-pointer
+                                                        ${field.value === preset.value
+                                                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-sm'
+                                                            : 'border-border hover:border-primary/40 hover:bg-accent/50'
+                                                        }`}
+                                                >
+                                                    <span className="text-2xl mb-1.5">{preset.icon}</span>
+                                                    <span className="font-semibold text-sm">{preset.label}</span>
+                                                    <span className="text-xs font-medium text-primary mt-0.5">{preset.sub}</span>
+                                                    <span className="text-[10px] text-muted-foreground mt-1 leading-tight">{preset.desc}</span>
+                                                    {field.value === preset.value && (
+                                                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                                            <Check className="h-3 w-3 text-primary-foreground" />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     )}
                                 />
                             </div>

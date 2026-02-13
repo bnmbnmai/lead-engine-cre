@@ -301,7 +301,7 @@ model Ask {
   acceptOffSite   Boolean   @default(true)
   
   // Auction settings
-  auctionDuration Int       @default(3600)  // seconds
+  auctionDuration Int       @default(60)    // seconds — Lightning Auction default (standard)
   revealWindow    Int       @default(900)   // seconds
   
   // Timestamps

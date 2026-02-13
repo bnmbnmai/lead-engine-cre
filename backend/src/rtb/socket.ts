@@ -534,6 +534,7 @@ class RTBSocketServer {
             leadId,
             vertical: lead.vertical,
             buyNowPrice: binPrice,
+            auctionDuration: lead.ask?.auctionDuration ?? 60,
             expiresAt: expiresAt.toISOString(),
         });
 

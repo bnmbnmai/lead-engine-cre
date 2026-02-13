@@ -19,6 +19,7 @@ interface Lead {
     isVerified: boolean;
     auctionEndAt?: string;
     auctionStartAt?: string;
+    auctionDuration?: number;
     _count?: { bids: number };
     auctionRoom?: { bidCount?: number; highestBid?: number };
     seller?: {
@@ -139,6 +140,14 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                     {lead.source === 'API' && (
                         <div className="flex items-center gap-1 text-purple-500">
                             <span className="font-mono text-xs">API</span>
+                        </div>
+                    )}
+                    {lead.auctionDuration && (
+                        <div className="flex items-center gap-1 text-amber-500">
+                            <Zap className="h-3.5 w-3.5" />
+                            <span className="text-xs font-medium">
+                                Lightning • {lead.auctionDuration < 60 ? `${lead.auctionDuration}s` : `${Math.round(lead.auctionDuration / 60)}m`}
+                            </span>
                         </div>
                     )}
                     <div
