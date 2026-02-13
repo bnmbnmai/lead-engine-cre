@@ -220,6 +220,12 @@ export const api = {
             body: JSON.stringify({ reason }),
         }),
 
+    updateSuggestionStatus: (id: string, status: 'ACTIVE' | 'DEPRECATED' | 'REJECTED') =>
+        apiFetch<{ message: string; suggestion: any }>(`/api/v1/verticals/suggestions/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        }),
+
     activateVertical: (slug: string) =>
         apiFetch<{ activated: boolean; tokenId: number; txHash: string; slug: string }>(
             `/api/v1/verticals/${slug}/activate`, { method: 'PUT' }

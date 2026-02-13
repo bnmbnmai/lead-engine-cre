@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
     Search, Check, X, Loader2, ChevronLeft, ChevronRight,
-    Sparkles, Gem, AlertTriangle,
+    Sparkles, Gem, AlertTriangle, Pause, Play, Trash2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -36,7 +36,7 @@ interface Pagination {
     totalPages: number;
 }
 
-type TabStatus = 'PROPOSED' | 'ACTIVE' | 'REJECTED';
+type TabStatus = 'PROPOSED' | 'ACTIVE' | 'DEPRECATED' | 'REJECTED';
 
 // ============================================
 // Admin Verticals Page
@@ -112,9 +112,25 @@ export default function AdminVerticals() {
         }
     };
 
+    const handleUpdateStatus = async (id: string, status: 'ACTIVE' | 'DEPRECATED' | 'REJECTED') => {
+        setActionLoading(id);
+        try {
+            const res = await api.updateSuggestionStatus(id, status);
+            if (res.data) {
+                toast({ title: res.data.message, type: 'success' });
+                fetchSuggestions(pagination.page);
+            } else {
+                toast({ title: res.error?.error || 'Failed', type: 'error' });
+            }
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const tabs: { key: TabStatus; label: string; icon: React.ReactNode }[] = [
         { key: 'PROPOSED', label: 'Pending', icon: <Sparkles className="h-4 w-4" /> },
         { key: 'ACTIVE', label: 'Approved', icon: <Check className="h-4 w-4" /> },
+        { key: 'DEPRECATED', label: 'Paused', icon: <Pause className="h-4 w-4" /> },
         { key: 'REJECTED', label: 'Rejected', icon: <X className="h-4 w-4" /> },
     ];
 
@@ -190,6 +206,7 @@ export default function AdminVerticals() {
                                             <th className="text-right py-2 px-3 font-medium">Hits</th>
                                             <th className="text-left py-2 px-3 font-medium">Source</th>
                                             {tab === 'PROPOSED' && <th className="text-right py-2 px-3 font-medium">Actions</th>}
+                                            {(tab === 'ACTIVE' || tab === 'DEPRECATED') && <th className="text-right py-2 px-3 font-medium">Manage</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -240,6 +257,62 @@ export default function AdminVerticals() {
                                                             >
                                                                 <X className="h-3 w-3" />
                                                                 Reject
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                                {tab === 'ACTIVE' && (
+                                                    <td className="py-2.5 px-3 text-right">
+                                                        <div className="flex items-center gap-1.5 justify-end">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-amber-600 border-amber-600/30 hover:bg-amber-50 dark:hover:bg-amber-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => handleUpdateStatus(s.id, 'DEPRECATED')}
+                                                                title="Pause — hides from marketplace but keeps data"
+                                                            >
+                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pause className="h-3 w-3" />}
+                                                                Pause
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => handleUpdateStatus(s.id, 'REJECTED')}
+                                                                title="Delete — removes this vertical"
+                                                            >
+                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                                                Delete
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                                {tab === 'DEPRECATED' && (
+                                                    <td className="py-2.5 px-3 text-right">
+                                                        <div className="flex items-center gap-1.5 justify-end">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => handleUpdateStatus(s.id, 'ACTIVE')}
+                                                                title="Reactivate this vertical"
+                                                            >
+                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                                                                Reactivate
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
+                                                                disabled={actionLoading === s.id}
+                                                                onClick={() => handleUpdateStatus(s.id, 'REJECTED')}
+                                                                title="Permanently delete this vertical"
+                                                            >
+                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                                                Delete
                                                             </Button>
                                                         </div>
                                                     </td>

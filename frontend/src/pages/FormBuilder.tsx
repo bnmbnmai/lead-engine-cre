@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
@@ -47,6 +47,7 @@ export function FormBuilder() {
     const [previewMode, setPreviewMode] = useState<'preview' | 'json' | 'export'>('preview');
     const [previewStep, setPreviewStep] = useState(0);
     const [dragIdx, setDragIdx] = useState<number | null>(null);
+    const dragSource = useRef<{ stepIdx: number; fieldIdx: number } | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [verticalSearch, setVerticalSearch] = useState('');
@@ -135,7 +136,15 @@ export function FormBuilder() {
     };
 
     const addStep = () => {
-        setSteps((prev) => [...prev, { id: genId(), label: `Step ${prev.length + 1}`, fieldIds: [] }]);
+        setSteps((prev) => {
+            const newStep = { id: genId(), label: `Step ${prev.length + 1}`, fieldIds: [] as string[] };
+            // Insert before Contact Info (PII should always be the last step)
+            const lastIsContact = prev.length > 0 && prev[prev.length - 1].label.toLowerCase().includes('contact');
+            if (lastIsContact) {
+                return [...prev.slice(0, -1), newStep, prev[prev.length - 1]];
+            }
+            return [...prev, newStep];
+        });
     };
 
     const removeStep = (stepId: string) => {
@@ -176,24 +185,33 @@ export function FormBuilder() {
     };
 
     // ─── Drag-and-Drop ───────────────────────
-    const handleDragStart = useCallback((idx: number) => {
-        setDragIdx(idx);
+    const handleDragStart = useCallback((stepIdx: number, fieldIdx: number) => {
+        setDragIdx(stepIdx * 1000 + fieldIdx); // encode both indices for highlight
+        dragSource.current = { stepIdx, fieldIdx };
     }, []);
 
-    const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    const handleDragOver = useCallback((e: React.DragEvent, targetStepIdx: number, targetFieldIdx: number) => {
         e.preventDefault();
-        if (dragIdx === null || dragIdx === idx) return;
-        setFields((prev) => {
-            const next = [...prev];
-            const [moved] = next.splice(dragIdx, 1);
-            next.splice(idx, 0, moved);
+        const src = dragSource.current;
+        if (!src) return;
+        if (src.stepIdx === targetStepIdx && src.fieldIdx === targetFieldIdx) return;
+
+        setSteps((prev) => {
+            const next = prev.map((s) => ({ ...s, fieldIds: [...s.fieldIds] }));
+            // Remove from source step
+            const [movedId] = next[src.stepIdx].fieldIds.splice(src.fieldIdx, 1);
+            // Insert into target step
+            next[targetStepIdx].fieldIds.splice(targetFieldIdx, 0, movedId);
             return next;
         });
-        setDragIdx(idx);
-    }, [dragIdx]);
+        // Update source to new position
+        dragSource.current = { stepIdx: targetStepIdx, fieldIdx: targetFieldIdx };
+        setDragIdx(targetStepIdx * 1000 + targetFieldIdx);
+    }, []);
 
     const handleDragEnd = useCallback(() => {
         setDragIdx(null);
+        dragSource.current = null;
     }, []);
 
     // ─── Export ──────────────────────────────
@@ -317,7 +335,7 @@ export function FormBuilder() {
                                     <span>{VERTICAL_EMOJI[v.value] || ''}</span>
                                     {v.label}
                                     {!VERTICAL_PRESETS[v.value] && (
-                                        <span className="text-[10px] opacity-60">(generic)</span>
+                                        <span className="text-[10px] opacity-60" title="No preset template — click to customise fields">(custom)</span>
                                     )}
                                 </button>
                             ))}
@@ -391,19 +409,18 @@ export function FormBuilder() {
 
                                 {/* Fields in step */}
                                 <div className="space-y-1 pl-8">
-                                    {step.fieldIds.map((fid) => {
+                                    {step.fieldIds.map((fid, fi) => {
                                         const field = fields.find((f) => f.id === fid);
                                         if (!field) return null;
-                                        const globalIdx = fields.findIndex((f) => f.id === fid);
 
                                         return (
                                             <div
                                                 key={field.id}
                                                 draggable
-                                                onDragStart={() => handleDragStart(globalIdx)}
-                                                onDragOver={(e) => handleDragOver(e, globalIdx)}
+                                                onDragStart={() => handleDragStart(si, fi)}
+                                                onDragOver={(e) => handleDragOver(e, si, fi)}
                                                 onDragEnd={handleDragEnd}
-                                                className={`group flex items-start gap-2 p-2.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${dragIdx === globalIdx
+                                                className={`group flex items-start gap-2 p-2.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing ${dragIdx === si * 1000 + fi
                                                     ? 'border-primary bg-primary/5 shadow-sm'
                                                     : 'border-border/50 bg-background hover:border-primary/30'
                                                     } ${editingId === field.id ? 'ring-1 ring-primary' : ''}`}

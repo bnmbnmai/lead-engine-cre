@@ -264,6 +264,48 @@ router.put('/suggestions/:id/reject', authMiddleware, async (req: AuthenticatedR
 });
 
 // ============================================
+// PATCH /suggestions/:id/status — Update vertical status (pause/reactivate/delete)
+// ============================================
+
+router.patch('/suggestions/:id/status', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        const { id } = req.params;
+        const { status } = req.body as { status?: string };
+
+        const ALLOWED_STATUSES = ['ACTIVE', 'DEPRECATED', 'REJECTED'] as const;
+        if (!status || !ALLOWED_STATUSES.includes(status as any)) {
+            res.status(400).json({ error: `Invalid status. Must be one of: ${ALLOWED_STATUSES.join(', ')}` });
+            return;
+        }
+
+        const suggestion = await prisma.verticalSuggestion.findUnique({ where: { id } });
+        if (!suggestion) {
+            res.status(404).json({ error: 'Suggestion not found' });
+            return;
+        }
+
+        const updated = await prisma.verticalSuggestion.update({
+            where: { id },
+            data: { status: status as any },
+        });
+
+        const actionMap: Record<string, string> = { ACTIVE: 'reactivated', DEPRECATED: 'paused', REJECTED: 'deleted' };
+        res.json({
+            message: `Vertical '${updated.suggestedName}' ${actionMap[status] || 'updated'}`,
+            suggestion: updated,
+        });
+    } catch (error) {
+        console.error('Update suggestion status error:', error);
+        res.status(500).json({ error: 'Failed to update suggestion status' });
+    }
+});
+
+// ============================================
 // GET /:slug/form-config — Get saved form builder config for a vertical
 // ============================================
 
