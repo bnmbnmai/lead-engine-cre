@@ -127,23 +127,65 @@ router.post('/demo-admin-login', async (req: Request, res: Response) => {
     }
 });
 
+// ── Hierarchical verticals: parent.child slugs ──
+const HIERARCHICAL_VERTICALS = [
+    { parent: 'solar', child: 'solar.residential', name: 'Residential Solar' },
+    { parent: 'solar', child: 'solar.commercial', name: 'Commercial Solar' },
+    { parent: 'mortgage', child: 'mortgage.refinance', name: 'Mortgage Refinance' },
+    { parent: 'mortgage', child: 'mortgage.purchase', name: 'Mortgage Purchase' },
+    { parent: 'legal', child: 'legal.personal_injury', name: 'Personal Injury' },
+    { parent: 'legal', child: 'legal.family_law', name: 'Family Law' },
+    { parent: 'home_services', child: 'home_services.plumbing', name: 'Plumbing' },
+    { parent: 'home_services', child: 'home_services.hvac', name: 'HVAC' },
+    { parent: 'insurance', child: 'insurance.auto', name: 'Auto Insurance' },
+    { parent: 'insurance', child: 'insurance.homeowners', name: 'Homeowners Insurance' },
+    { parent: 'roofing', child: 'roofing.replacement', name: 'Roof Replacement' },
+    { parent: 'real_estate', child: 'real_estate.commercial', name: 'Commercial Real Estate' },
+    { parent: 'financial_services', child: 'financial_services.wealth', name: 'Wealth Management' },
+    { parent: 'b2b_saas', child: 'b2b_saas.crm', name: 'CRM Software' },
+];
+
+// Flat list of child slugs for picking
+const DEMO_VERTICALS = HIERARCHICAL_VERTICALS.map(v => v.child);
+
+// Keep old parents for fallback
 const FALLBACK_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
-const STATES = ['CA', 'TX', 'FL', 'NY', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI'];
-const CITIES: Record<string, string> = { CA: 'Los Angeles', TX: 'Houston', FL: 'Miami', NY: 'New York', IL: 'Chicago', PA: 'Philadelphia', OH: 'Columbus', GA: 'Atlanta', NC: 'Charlotte', MI: 'Detroit' };
+
+// ── Multi-country geos ──
+interface GeoInfo { country: string; state: string; city: string }
+const GEOS: GeoInfo[] = [
+    { country: 'US', state: 'CA', city: 'Los Angeles' },
+    { country: 'US', state: 'TX', city: 'Houston' },
+    { country: 'US', state: 'FL', city: 'Miami' },
+    { country: 'US', state: 'NY', city: 'New York' },
+    { country: 'US', state: 'IL', city: 'Chicago' },
+    { country: 'GB', state: 'London', city: 'London' },
+    { country: 'GB', state: 'Manchester', city: 'Manchester' },
+    { country: 'AU', state: 'NSW', city: 'Sydney' },
+    { country: 'AU', state: 'VIC', city: 'Melbourne' },
+];
 
 const PRICING: Record<string, { min: number; max: number }> = {
-    solar: { min: 25, max: 75 }, mortgage: { min: 30, max: 100 }, roofing: { min: 20, max: 60 },
-    insurance: { min: 15, max: 50 }, home_services: { min: 10, max: 30 }, b2b_saas: { min: 50, max: 200 },
-    real_estate: { min: 40, max: 150 }, auto: { min: 12, max: 40 }, legal: { min: 35, max: 120 }, financial_services: { min: 45, max: 180 },
+    solar: { min: 25, max: 75 }, 'solar.residential': { min: 25, max: 75 }, 'solar.commercial': { min: 40, max: 120 },
+    mortgage: { min: 30, max: 100 }, 'mortgage.refinance': { min: 30, max: 100 }, 'mortgage.purchase': { min: 35, max: 110 },
+    roofing: { min: 20, max: 60 }, 'roofing.replacement': { min: 25, max: 75 },
+    insurance: { min: 15, max: 50 }, 'insurance.auto': { min: 12, max: 40 }, 'insurance.homeowners': { min: 18, max: 55 },
+    home_services: { min: 10, max: 30 }, 'home_services.plumbing': { min: 12, max: 35 }, 'home_services.hvac': { min: 15, max: 45 },
+    real_estate: { min: 40, max: 150 }, 'real_estate.commercial': { min: 60, max: 200 },
+    legal: { min: 35, max: 120 }, 'legal.personal_injury': { min: 50, max: 180 }, 'legal.family_law': { min: 30, max: 100 },
+    financial_services: { min: 45, max: 180 }, 'financial_services.wealth': { min: 60, max: 220 },
+    b2b_saas: { min: 50, max: 200 }, 'b2b_saas.crm': { min: 50, max: 200 },
+    auto: { min: 12, max: 40 },
 };
 
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick<T>(arr: T[]): T { return arr[rand(0, arr.length - 1)]; }
+function priceFor(v: string) { return PRICING[v] || PRICING[v.split('.')[0]] || { min: 15, max: 60 }; }
 
-// Non-PII demo form-field values — keys MUST match VERTICAL_PREVIEW_CONFIG.safeKeys (camelCase)
-// Returns randomized values so each injection looks unique
+// Non-PII demo form-field values — uses parent slug to match existing field schemas
 function buildVerticalDemoParams(vertical: string): Record<string, string | boolean> {
-    switch (vertical) {
+    const root = vertical.split('.')[0];
+    switch (root) {
         case 'solar':
             return {
                 roofType: pick(['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO']),
@@ -160,7 +202,7 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
                 propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Multi-Family']),
                 homeValue: `$${rand(200, 900) * 1000}`,
                 loanAmount: `$${rand(150, 750) * 1000}`,
-                loanType: pick(['Purchase', 'Refinance', 'Cash-Out Refinance', 'HELOC']),
+                loanType: vertical.includes('refinance') ? pick(['Refinance', 'Cash-Out Refinance']) : pick(['Purchase', 'FHA Purchase']),
                 creditScore: pick(['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)']),
                 purchaseTimeline: pick(['Immediately', '1-3 months', '3-6 months', '6+ months']),
                 occupancy: pick(['Primary Residence', 'Second Home', 'Investment Property']),
@@ -180,7 +222,7 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
         case 'insurance':
             return {
                 propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Rental Property']),
-                coverageType: pick(['Homeowners', 'Renters', 'Umbrella', 'Bundled']),
+                coverageType: vertical.includes('auto') ? pick(['Full Coverage', 'Liability Only', 'Comprehensive']) : pick(['Homeowners', 'Renters', 'Umbrella', 'Bundled']),
                 currentCarrier: pick(['State Farm', 'Allstate', 'Progressive', 'GEICO', 'None']),
                 homeAge: `${rand(1, 50)} years`,
                 sqft: `${rand(900, 5000)}`,
@@ -189,7 +231,7 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
         case 'home_services':
             return {
                 propertyType: pick(['Single Family', 'Condo', 'Townhouse']),
-                serviceType: pick(['Plumbing', 'Electrical', 'HVAC', 'Landscaping', 'Painting', 'Cleaning']),
+                serviceType: vertical.includes('plumbing') ? 'Plumbing' : vertical.includes('hvac') ? 'HVAC' : pick(['Plumbing', 'Electrical', 'HVAC', 'Landscaping', 'Painting']),
                 projectScope: pick(['Minor Repair', 'Major Repair', 'Full Installation', 'Maintenance']),
                 urgency: pick(['Emergency', 'This week', '1-2 weeks', 'Flexible']),
                 timeline: pick(['ASAP', '1-2 weeks', '1 month', 'Flexible']),
@@ -198,7 +240,7 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
             };
         case 'real_estate':
             return {
-                propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Multi-Family', 'Land']),
+                propertyType: vertical.includes('commercial') ? pick(['Office', 'Retail', 'Industrial', 'Multi-Family']) : pick(['Single Family', 'Condo', 'Townhouse', 'Land']),
                 transactionType: pick(['Buying', 'Selling', 'Both', 'Investing']),
                 priceRange: `$${rand(150, 500) * 1000}-$${rand(500, 1200) * 1000}`,
                 bedrooms: pick(['1-2', '3', '4', '5+']),
@@ -229,7 +271,7 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
             };
         case 'legal':
             return {
-                caseType: pick(['Personal Injury', 'Family Law', 'Criminal Defense', 'Business Law', 'Estate Planning', 'Immigration']),
+                caseType: vertical.includes('personal_injury') ? 'Personal Injury' : vertical.includes('family_law') ? 'Family Law' : pick(['Personal Injury', 'Family Law', 'Criminal Defense', 'Estate Planning']),
                 urgency: pick(['Emergency', 'This week', '1-2 weeks', 'Flexible']),
                 priorRepresentation: pick(['Yes', 'No']),
                 caseTimeline: pick(['Ongoing', 'New case', 'Appeal', 'Consultation only']),
@@ -237,7 +279,7 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
             };
         case 'financial_services':
             return {
-                serviceType: pick(['Wealth Management', 'Tax Planning', 'Retirement Planning', 'Business Consulting', 'Debt Management']),
+                serviceType: vertical.includes('wealth') ? 'Wealth Management' : pick(['Tax Planning', 'Retirement Planning', 'Business Consulting', 'Debt Management']),
                 investmentRange: pick(['<$50K', '$50K-$250K', '$250K-$1M', '$1M+']),
                 riskTolerance: pick(['Conservative', 'Moderate', 'Aggressive']),
                 timeline: pick(['Immediately', '1-3 months', '6+ months', 'Long-term planning']),
@@ -260,24 +302,19 @@ const DEMO_BUYERS = [
 ];
 
 // ============================================
-// Seed Vertical table records (CRITICAL — hierarchy API returns empty without these)
+// Seed Vertical table records — parents + hierarchical children
 // ============================================
 
 const VERTICAL_DISPLAY_NAMES: Record<string, string> = {
-    solar: 'Solar',
-    mortgage: 'Mortgage',
-    roofing: 'Roofing',
-    insurance: 'Insurance',
-    home_services: 'Home Services',
-    b2b_saas: 'B2B SaaS',
-    real_estate: 'Real Estate',
-    auto: 'Auto',
-    legal: 'Legal',
-    financial_services: 'Financial Services',
+    solar: 'Solar', mortgage: 'Mortgage', roofing: 'Roofing', insurance: 'Insurance',
+    home_services: 'Home Services', b2b_saas: 'B2B SaaS', real_estate: 'Real Estate',
+    auto: 'Auto', legal: 'Legal', financial_services: 'Financial Services',
 };
 
 async function seedVerticals(): Promise<number> {
     let seeded = 0;
+
+    // 1. Seed parent (depth 0) verticals
     for (let i = 0; i < FALLBACK_VERTICALS.length; i++) {
         const slug = FALLBACK_VERTICALS[i];
         const name = VERTICAL_DISPLAY_NAMES[slug] || slug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -285,21 +322,35 @@ async function seedVerticals(): Promise<number> {
             where: { slug },
             update: { status: 'ACTIVE', sortOrder: i },
             create: {
-                slug,
-                name,
-                depth: 0,
-                sortOrder: i,
-                status: 'ACTIVE',
-                aliases: [],
-                restrictedGeos: [],
+                slug, name, depth: 0, sortOrder: i, status: 'ACTIVE',
+                aliases: [], restrictedGeos: [],
                 requiresTcpa: ['mortgage', 'insurance', 'solar'].includes(slug),
                 requiresKyc: ['financial_services', 'legal'].includes(slug),
             },
         });
         seeded++;
     }
+
+    // 2. Seed child (depth 1) verticals
+    for (let i = 0; i < HIERARCHICAL_VERTICALS.length; i++) {
+        const { parent, child, name } = HIERARCHICAL_VERTICALS[i];
+        const parentRecord = await prisma.vertical.findUnique({ where: { slug: parent } });
+        await prisma.vertical.upsert({
+            where: { slug: child },
+            update: { status: 'ACTIVE', sortOrder: i },
+            create: {
+                slug: child, name, depth: 1, sortOrder: i, status: 'ACTIVE',
+                parentId: parentRecord?.id || undefined,
+                aliases: [], restrictedGeos: [],
+                requiresTcpa: ['mortgage', 'insurance', 'solar'].includes(parent),
+                requiresKyc: ['financial_services', 'legal'].includes(parent),
+            },
+        });
+        seeded++;
+    }
+
     clearAllCaches();
-    console.log(`[DEMO] Seeded ${seeded} verticals into Vertical table`);
+    console.log(`[DEMO] Seeded ${seeded} verticals (parents + children) into Vertical table`);
     return seeded;
 }
 
@@ -440,13 +491,14 @@ router.post('/seed', async (req: Request, res: Response) => {
         let askCount = 0;
         for (let i = 0; i < 5; i++) {
             const vertical = VERTICALS[i * 2];
-            const states = [pick(STATES), pick(STATES)];
+            const askGeo = pick(GEOS);
+            const askGeo2 = pick(GEOS);
             await prisma.ask.create({
                 data: {
                     sellerId: seller.id,
                     vertical,
-                    geoTargets: { country: 'US', states },
-                    reservePrice: rand(PRICING[vertical].min, PRICING[vertical].max),
+                    geoTargets: { country: askGeo.country, states: [askGeo.state, askGeo2.state] as string[] },
+                    reservePrice: rand(priceFor(vertical).min, priceFor(vertical).max),
                     status: 'ACTIVE',
                     parameters: { _demoTag: DEMO_TAG },
                     auctionDuration: LEAD_AUCTION_DURATION_SECS,
@@ -456,33 +508,39 @@ router.post('/seed', async (req: Request, res: Response) => {
             askCount++;
         }
 
-        // Create 20 leads across all verticals
+        // Create 10 leads using hierarchical verticals — mix of IN_AUCTION + UNSOLD
         let leadCount = 0;
         const leadIds: string[] = [];
 
-        for (let i = 0; i < 20; i++) {
-            const vertical = VERTICALS[i % VERTICALS.length];
-            const state = pick(STATES);
-            const price = rand(PRICING[vertical].min, PRICING[vertical].max);
+        for (let i = 0; i < 10; i++) {
+            const vertical = DEMO_VERTICALS[i % DEMO_VERTICALS.length];
+            const geo = pick(GEOS);
+            const pr = priceFor(vertical);
+            const price = rand(pr.min, pr.max);
 
-            // Status distribution: 70% IN_AUCTION, 20% SOLD, 10% EXPIRED
+            // Status distribution: 60% IN_AUCTION, 30% UNSOLD (Buy Now), 10% SOLD
             const r = Math.random();
-            const status = r < 0.7 ? 'IN_AUCTION' : r < 0.9 ? 'SOLD' : 'EXPIRED';
+            const status = r < 0.6 ? 'IN_AUCTION' : r < 0.9 ? 'UNSOLD' : 'SOLD';
 
             const now = new Date();
-            const createdAt = new Date(now.getTime() - rand(0, 7) * 86400000);
+            const createdAt = new Date(now.getTime() - rand(0, 3) * 86400000);
             const auctionEnd = status === 'IN_AUCTION'
                 ? new Date(now.getTime() + LEAD_AUCTION_DURATION_SECS * 1000)
                 : new Date(createdAt.getTime() + 2 * 86400000);
+
+            // Build non-PII parameters
+            const params = buildVerticalDemoParams(vertical);
 
             const lead = await prisma.lead.create({
                 data: {
                     sellerId: seller.id,
                     vertical,
-                    geo: { country: 'US', state, city: CITIES[state] || 'Demo City', zip: `${rand(10000, 99999)}` },
+                    geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
                     source: 'PLATFORM',
                     status: status as any,
                     reservePrice: price,
+                    buyNowPrice: status === 'UNSOLD' ? Math.round(price * 1.2) : undefined,
+                    expiresAt: status === 'UNSOLD' ? new Date(now.getTime() + 7 * 86400000) : undefined,
                     winningBid: status === 'SOLD' ? price * 1.2 : undefined,
                     isVerified: true,
                     tcpaConsentAt: createdAt,
@@ -491,6 +549,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     auctionStartAt: createdAt,
                     auctionEndAt: auctionEnd,
                     soldAt: status === 'SOLD' ? new Date(createdAt.getTime() + rand(1, 3) * 86400000) : undefined,
+                    parameters: params as any,
                 },
             });
 
@@ -580,9 +639,10 @@ router.post('/clear', async (req: Request, res: Response) => {
 // ============================================
 router.post('/lead', async (req: Request, res: Response) => {
     try {
-        const vertical = req.body?.vertical || pick(FALLBACK_VERTICALS);
-        const state = pick(STATES);
-        const price = rand(PRICING[vertical]?.min || 10, PRICING[vertical]?.max || 50);
+        const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
+        const geo = pick(GEOS);
+        const pr = priceFor(vertical);
+        const price = rand(pr.min, pr.max);
 
         let seller = await prisma.sellerProfile.findFirst({
             where: { user: { walletAddress: '0xDEMO_PANEL_USER' } },
@@ -621,7 +681,7 @@ router.post('/lead', async (req: Request, res: Response) => {
             data: {
                 sellerId: seller.id,
                 vertical,
-                geo: { country: 'US', state, city: CITIES[state] || 'Demo City', zip: `${rand(10000, 99999)}` },
+                geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
                 source: 'PLATFORM',
                 status: 'IN_AUCTION',
                 reservePrice: price,
@@ -643,7 +703,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                     vertical,
                     status: 'IN_AUCTION',
                     reservePrice: price,
-                    geo: { country: 'US', state },
+                    geo: { country: geo.country, state: geo.state },
                     isVerified: true,
                     sellerId: seller.id,
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
@@ -654,7 +714,7 @@ router.post('/lead', async (req: Request, res: Response) => {
             });
         }
 
-        res.json({ success: true, lead: { id: lead.id, vertical, state, price, parameters: params } });
+        res.json({ success: true, lead: { id: lead.id, vertical, geo: { country: geo.country, state: geo.state }, price, parameters: params } });
     } catch (error) {
         console.error('Demo inject lead error:', error);
         res.status(500).json({ error: 'Failed to inject lead' });
@@ -666,9 +726,10 @@ router.post('/lead', async (req: Request, res: Response) => {
 // ============================================
 router.post('/auction', async (req: Request, res: Response) => {
     try {
-        const vertical = req.body?.vertical || pick(FALLBACK_VERTICALS);
-        const state = pick(STATES);
-        const reservePrice = rand(PRICING[vertical]?.min || 10, PRICING[vertical]?.max || 50);
+        const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
+        const geo = pick(GEOS);
+        const pr = priceFor(vertical);
+        const reservePrice = rand(pr.min, pr.max);
 
         const seller = await prisma.sellerProfile.findFirst({
             where: { user: { walletAddress: '0xDEMO_PANEL_USER' } },
@@ -698,7 +759,7 @@ router.post('/auction', async (req: Request, res: Response) => {
             data: {
                 sellerId: seller.id,
                 vertical,
-                geo: { country: 'US', state, city: CITIES[state] || 'Demo City', zip: `${rand(10000, 99999)}` },
+                geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
                 source: 'PLATFORM',
                 status: 'IN_AUCTION',
                 reservePrice,
@@ -731,7 +792,7 @@ router.post('/auction', async (req: Request, res: Response) => {
                     vertical,
                     status: 'IN_AUCTION',
                     reservePrice,
-                    geo: { country: 'US', state },
+                    geo: { country: geo.country, state: geo.state },
                     isVerified: true,
                     auctionStartAt: new Date().toISOString(),
                     auctionEndAt: new Date(Date.now() + 120000).toISOString(),
