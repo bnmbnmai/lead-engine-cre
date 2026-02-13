@@ -111,33 +111,50 @@ export async function getPerksOverview(
     const [holderStatus, notifyOptedIn, winStats] = await Promise.all([
         // 1. Check if user is holder of any active vertical
         (async () => {
-            if (!walletAddress) return { isHolder: false, multiplier: 1.0, prePingSeconds: 0 };
-            const normalizedAddress = walletAddress.toLowerCase();
-            const vertical = await prisma.vertical.findFirst({
-                where: {
-                    ownerAddress: { equals: normalizedAddress, mode: 'insensitive' as const },
-                    status: 'ACTIVE',
-                },
-                select: { slug: true },
-            });
-            if (!vertical) return { isHolder: false, multiplier: 1.0, prePingSeconds: 0 };
-            return {
-                isHolder: true,
-                multiplier: HOLDER_MULTIPLIER,
-                prePingSeconds: computePrePing(vertical.slug),
-            };
+            try {
+                if (!walletAddress) return { isHolder: false, multiplier: 1.0, prePingSeconds: 0 };
+                const normalizedAddress = walletAddress.toLowerCase();
+                const vertical = await prisma.vertical.findFirst({
+                    where: {
+                        ownerAddress: { equals: normalizedAddress, mode: 'insensitive' as const },
+                        status: 'ACTIVE',
+                    },
+                    select: { slug: true },
+                });
+                if (!vertical) return { isHolder: false, multiplier: 1.0, prePingSeconds: 0 };
+                return {
+                    isHolder: true,
+                    multiplier: HOLDER_MULTIPLIER,
+                    prePingSeconds: computePrePing(vertical.slug),
+                };
+            } catch (err) {
+                console.error('[PERKS] holder check failed:', err);
+                return { isHolder: false, multiplier: 1.0, prePingSeconds: 0 };
+            }
         })(),
 
         // 2. Notification opt-in
-        getHolderNotifyOptIn(userId) as Promise<boolean>,
+        (async () => {
+            try {
+                return await getHolderNotifyOptIn(userId) as boolean;
+            } catch (err) {
+                console.error('[PERKS] notify opt-in check failed:', err);
+                return false;
+            }
+        })(),
 
         // 3. Win stats
         (async () => {
-            const [totalBids, wonBids] = await Promise.all([
-                prisma.bid.count({ where: { buyerId: userId } }),
-                prisma.bid.count({ where: { buyerId: userId, status: 'WON' as any } }),
-            ]);
-            return { totalBids, wonBids, winRate: totalBids > 0 ? Math.round((wonBids / totalBids) * 100) : 0 };
+            try {
+                const [totalBids, wonBids] = await Promise.all([
+                    prisma.bid.count({ where: { buyerId: userId } }),
+                    prisma.bid.count({ where: { buyerId: userId, status: 'WON' as any } }),
+                ]);
+                return { totalBids, wonBids, winRate: totalBids > 0 ? Math.round((wonBids / totalBids) * 100) : 0 };
+            } catch (err) {
+                console.error('[PERKS] win stats failed:', err);
+                return { totalBids: 0, wonBids: 0, winRate: 0 };
+            }
         })(),
     ]);
 
