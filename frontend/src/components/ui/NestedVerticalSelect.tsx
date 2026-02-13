@@ -205,9 +205,8 @@ export function NestedVerticalSelect({
             {/* Dropdown Panel */}
             {isOpen && (
                 <div
-                    className="absolute z-50 mt-1 w-full min-w-[280px] rounded-xl border border-border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
+                    className="absolute z-50 mt-1 w-full min-w-[280px] rounded-xl border border-border bg-white dark:bg-zinc-900 text-foreground shadow-xl ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95"
                     role="listbox"
-                    style={{ backgroundColor: 'var(--popover)', opacity: 1 }}
                 >
                     {/* Search Input */}
                     <div className="p-2 border-b border-border">
