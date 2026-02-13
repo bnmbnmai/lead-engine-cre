@@ -1,8 +1,8 @@
 # Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-1039%20passing-brightgreen)
-![Jest](https://img.shields.io/badge/Jest-816%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1370%20passing-brightgreen)
+![Jest](https://img.shields.io/badge/Jest-1147%20passing-brightgreen)
 ![Hardhat](https://img.shields.io/badge/Hardhat-141%20passing-brightgreen)
 ![Cypress](https://img.shields.io/badge/Cypress%20E2E-82%20passing-brightgreen)
 ![Artillery](https://img.shields.io/badge/load%20test-10K%20peak-blue)
@@ -339,21 +339,21 @@ npm run dev
 
 ## 🧪 Testing
 
-> **1039+ tests passing** across 4 suites — **100% pass rate** on all automated suites.
+> **1370+ tests passing** across 4 suites — **100% pass rate** on all automated suites.
 > Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
 
 | Suite | Tests | Status | Notes |
 |-------|------:|--------|-------|
-| **Backend Jest** | 816 | ✅ All passing | 32 suites — unit, e2e, security, compliance, env-guard, integration, priority bidding, UX polish, final integration |
+| **Backend Jest** | 1,147 | ✅ All passing | 45 suites — unit, e2e, security, compliance, env-guard, integration, priority bidding, UX polish, final integration |
 | **Hardhat Contracts** | 141 | ✅ All passing | 8 suites — settlement, reorg, Chainlink stubs, VerticalNFT advanced, VerticalAuction SLOAD optimization |
 | **Cypress E2E** | 82 | ✅ All passing | 3 specs — UI flows, copy assertions, vertical-nft |
 | **Artillery Load** | 22 scenarios | ⚙️ Infra-dependent | Requires running backend at localhost:3001 |
-| **Total** | **1039+** | **✅ 100%** | |
+| **Total** | **1,370+** | **✅ 100%** | |
 
 <details>
-<summary>Backend Jest (816 passing, 32 suites)</summary>
+<summary>Backend Jest (1,147 passing, 45 suites)</summary>
 
 | Suite | Tests | Coverage |
 |-------|------:|----------|
@@ -485,7 +485,7 @@ lead-engine-cre/
 │   │   ├── rtb/           # RTB engine + WebSocket streaming
 │   │   ├── middleware/     # Auth, rate-limiting, CORS
 │   │   └── lib/           # Prisma, cache, geo-registry, utils
-│   ├── tests/             # 816 tests (unit, e2e, security, compliance, auto-bid, CRM, UX polish)
+│   ├── tests/             # 1,147 tests (unit, e2e, security, compliance, auto-bid, CRM, UX polish)
 │   └── prisma/            # Schema + migrations + seed scripts (leads + verticals)
 ├── frontend/              # React/Vite SPA
 │   ├── src/
