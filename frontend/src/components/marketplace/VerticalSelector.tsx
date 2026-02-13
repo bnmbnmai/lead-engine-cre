@@ -167,7 +167,7 @@ export function VerticalSelector({
 
             {/* Dropdown Panel */}
             {isOpen && (
-                <div className="absolute z-50 mt-1 w-[280px] sm:w-[320px] rounded-lg border border-border bg-card shadow-lg animate-in fade-in-0 zoom-in-95">
+                <div className="absolute z-50 mt-1 w-[280px] sm:w-[320px] rounded-lg border border-border bg-background shadow-lg animate-in fade-in-0 zoom-in-95" style={{ backgroundColor: 'var(--background)', opacity: 1 }}>
                     {/* Search Input */}
                     <div className="p-2 border-b border-border">
                         <div className="relative">
