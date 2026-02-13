@@ -27,6 +27,7 @@ import {
     AlertCircle,
     Sparkles,
     RefreshCw,
+    Shield,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -217,6 +218,45 @@ export function DemoPanel() {
         setTimeout(() => setActions(prev => ({ ...prev, persona: { state: 'idle' } })), 2000);
     }
 
+    async function handleDemoAdminLogin() {
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        setActions(prev => ({ ...prev, adminLogin: { state: 'loading' } }));
+        try {
+            const resp = await fetch(`${apiBase}/api/v1/demo/demo-admin-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: 'admin', password: 'admin' }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'Login failed');
+
+            setAuthToken(data.token);
+            localStorage.setItem('le_auth_user', JSON.stringify(data.user));
+            socketClient.disconnect();
+            socketClient.connect();
+
+            // Dispatch storage event so useAuth re-reads immediately
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'le_auth_user',
+                newValue: JSON.stringify(data.user),
+            }));
+
+            setActions(prev => ({
+                ...prev,
+                adminLogin: { state: 'success', message: '🔐 Logged in as Demo Admin' },
+            }));
+            console.log('[DemoPanel] Demo admin login success — ADMIN persona set with real JWT');
+            navigate('/admin/form-builder');
+            setTimeout(() => setActions(prev => ({ ...prev, adminLogin: { state: 'idle' } })), 3000);
+        } catch (err: any) {
+            setActions(prev => ({
+                ...prev,
+                adminLogin: { state: 'error', message: err?.message || 'Admin login failed' },
+            }));
+            setTimeout(() => setActions(prev => ({ ...prev, adminLogin: { state: 'idle' } })), 4000);
+        }
+    }
+
     // ============================================
     // Action button component
     // ============================================
@@ -301,7 +341,9 @@ export function DemoPanel() {
         ? 'buyer'
         : location.pathname.startsWith('/seller')
             ? 'seller'
-            : 'guest';
+            : location.pathname.startsWith('/admin')
+                ? 'admin'
+                : 'guest';
 
     return (
         <>
@@ -452,6 +494,32 @@ export function DemoPanel() {
                             {actions.persona?.message && (
                                 <p className="text-[11px] text-muted-foreground pl-1">{actions.persona.message}</p>
                             )}
+                        </Section>
+
+                        {/* Section 4b: Demo Admin Login */}
+                        <Section id="admin" title="Admin Access">
+                            <button
+                                onClick={handleDemoAdminLogin}
+                                disabled={actions.adminLogin?.state === 'loading'}
+                                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${currentPersona === 'admin'
+                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                        : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg hover:shadow-amber-500/20'
+                                    }`}
+                            >
+                                {actions.adminLogin?.state === 'loading' ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Shield className="h-4 w-4" />
+                                )}
+                                {currentPersona === 'admin' ? 'Logged in as Admin' : 'Login as Demo Admin'}
+                            </button>
+                            {actions.adminLogin?.message && (
+                                <p className={`text-[11px] pl-1 ${actions.adminLogin.state === 'error' ? 'text-red-400' : 'text-muted-foreground'
+                                    }`}>{actions.adminLogin.message}</p>
+                            )}
+                            <p className="text-[10px] text-muted-foreground pl-1">
+                                Uses demo credentials (admin/admin). Only available in demo mode.
+                            </p>
                         </Section>
 
                         {/* Section 5: Guided Tour */}

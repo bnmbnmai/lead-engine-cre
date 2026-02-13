@@ -74,6 +74,59 @@ router.post('/demo-login', async (req: Request, res: Response) => {
     }
 });
 
+// ============================================
+// Demo Admin Login — username/password for admin panel access
+// Only works when DEMO_MODE=true (already gated by devOnly middleware above)
+// ============================================
+
+router.post('/demo-admin-login', async (req: Request, res: Response) => {
+    try {
+        const { username, password } = req.body as { username?: string; password?: string };
+
+        if (username !== 'admin' || password !== 'admin') {
+            res.status(401).json({ error: 'Invalid credentials' });
+            return;
+        }
+
+        const walletAddress = '0xDEMO_ADMIN';
+
+        // Find or create the demo admin user
+        let user = await prisma.user.findFirst({ where: { walletAddress } });
+        if (!user) {
+            user = await prisma.user.create({
+                data: { walletAddress, role: 'ADMIN' },
+            });
+        } else if (user.role !== 'ADMIN') {
+            // Ensure role is ADMIN (may have been changed)
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: { role: 'ADMIN' },
+            });
+        }
+
+        // Generate real JWT
+        const token = generateToken({ userId: user.id, walletAddress, role: 'ADMIN' });
+
+        // Create or refresh session so authMiddleware finds it
+        await prisma.session.upsert({
+            where: { token },
+            update: { expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), lastActiveAt: new Date() },
+            create: {
+                userId: user.id,
+                token,
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                lastActiveAt: new Date(),
+            },
+        });
+
+        console.log('[DEMO] Demo admin login used');
+        res.json({ token, user: { id: user.id, walletAddress, role: 'ADMIN' } });
+    } catch (err: any) {
+        console.error('[DEMO] Demo admin login error:', err);
+        res.status(500).json({ error: 'Demo admin login failed', details: err.message });
+    }
+});
+
 const FALLBACK_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
 const STATES = ['CA', 'TX', 'FL', 'NY', 'IL', 'PA', 'OH', 'GA', 'NC', 'MI'];
 const CITIES: Record<string, string> = { CA: 'Los Angeles', TX: 'Houston', FL: 'Miami', NY: 'New York', IL: 'Chicago', PA: 'Philadelphia', OH: 'Columbus', GA: 'Atlanta', NC: 'Charlotte', MI: 'Detroit' };
