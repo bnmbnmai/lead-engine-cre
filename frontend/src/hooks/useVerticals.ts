@@ -55,6 +55,28 @@ function flattenTree(nodes: VerticalNode[], parentSlug?: string): FlatVertical[]
     return result;
 }
 
+// ── Fallback verticals (shown when API returns empty or errors) ──
+
+const FALLBACK_VERTICAL_SLUGS = [
+    'solar', 'mortgage', 'roofing', 'insurance', 'home_services',
+    'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services',
+];
+
+const FALLBACK_TREE: VerticalNode[] = FALLBACK_VERTICAL_SLUGS.map((slug, i) => ({
+    id: slug,
+    slug,
+    name: slug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    description: null,
+    depth: 0,
+    sortOrder: i,
+    status: 'ACTIVE',
+    requiresTcpa: false,
+    requiresKyc: false,
+    restrictedGeos: [],
+    aliases: [],
+    children: [],
+}));
+
 // ── Hook ──────────────────────────────
 
 const REFRESH_INTERVAL_MS = 60_000; // 60s auto-refresh
@@ -71,21 +93,30 @@ export function useVerticals(options?: { autoRefresh?: boolean }) {
         try {
             const { data, error: apiErr } = await api.getVerticalHierarchy();
             if (apiErr) {
+                console.warn('[useVerticals] API error, using fallback verticals:', apiErr.error);
+                setVerticals(FALLBACK_TREE);
                 setError(apiErr.error || 'Failed to fetch verticals');
                 return;
             }
             const tree = data?.tree ?? [];
-            setVerticals(tree);
+            if (tree.length === 0) {
+                console.warn('[useVerticals] API returned empty tree, using fallback verticals');
+                setVerticals(FALLBACK_TREE);
+            } else {
+                setVerticals(tree);
+            }
             setError(null);
 
             // Detect new verticals since last fetch
-            const newCount = flattenTree(tree).length;
+            const newCount = flattenTree(tree.length > 0 ? tree : FALLBACK_TREE).length;
             if (prevCountRef.current > 0 && newCount > prevCountRef.current) {
                 const delta = newCount - prevCountRef.current;
                 console.info(`[useVerticals] ${delta} new vertical(s) available`);
             }
             prevCountRef.current = newCount;
         } catch (err: any) {
+            console.warn('[useVerticals] Network error, using fallback verticals:', err.message);
+            setVerticals(FALLBACK_TREE);
             setError(err.message || 'Network error');
         } finally {
             setLoading(false);

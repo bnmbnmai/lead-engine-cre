@@ -62,6 +62,50 @@ const DEMO_BUYERS = [
 ];
 
 // ============================================
+// Seed Vertical table records (CRITICAL — hierarchy API returns empty without these)
+// ============================================
+
+const VERTICAL_DISPLAY_NAMES: Record<string, string> = {
+    solar: 'Solar',
+    mortgage: 'Mortgage',
+    roofing: 'Roofing',
+    insurance: 'Insurance',
+    home_services: 'Home Services',
+    b2b_saas: 'B2B SaaS',
+    real_estate: 'Real Estate',
+    auto: 'Auto',
+    legal: 'Legal',
+    financial_services: 'Financial Services',
+};
+
+async function seedVerticals(): Promise<number> {
+    let seeded = 0;
+    for (let i = 0; i < FALLBACK_VERTICALS.length; i++) {
+        const slug = FALLBACK_VERTICALS[i];
+        const name = VERTICAL_DISPLAY_NAMES[slug] || slug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        await prisma.vertical.upsert({
+            where: { slug },
+            update: { status: 'ACTIVE', sortOrder: i },
+            create: {
+                slug,
+                name,
+                depth: 0,
+                sortOrder: i,
+                status: 'ACTIVE',
+                aliases: [],
+                restrictedGeos: [],
+                requiresTcpa: ['mortgage', 'insurance', 'solar'].includes(slug),
+                requiresKyc: ['financial_services', 'legal'].includes(slug),
+            },
+        });
+        seeded++;
+    }
+    clearAllCaches();
+    console.log(`[DEMO] Seeded ${seeded} verticals into Vertical table`);
+    return seeded;
+}
+
+// ============================================
 // GET /status — current demo data counts
 // ============================================
 router.get('/status', async (_req: Request, res: Response) => {
@@ -90,6 +134,9 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 router.post('/seed', async (req: Request, res: Response) => {
     try {
+        // Seed Vertical table records first (ensures hierarchy API returns data)
+        await seedVerticals();
+
         // Fetch verticals dynamically from DB, fall back to hard-coded list
         let VERTICALS = FALLBACK_VERTICALS;
         try {
@@ -541,6 +588,9 @@ router.post('/reset', async (req: Request, res: Response) => {
         clearAllCaches();
 
         // 2. Re-seed with short auctions (delegate to seed logic)
+        // Seed Vertical table records first
+        await seedVerticals();
+
         // Find or create demo user
         let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
         if (!demoUser) {
