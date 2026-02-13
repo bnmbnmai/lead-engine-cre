@@ -63,6 +63,7 @@ model Vertical {
 
   // Metadata
   attributes  Json?          // { compliance: ["TCPA"], budget: ">10K", icon: "wrench" }
+  formConfig  Json?          // Admin form builder config: { fields, steps, gamification }
   aliases     String[]       // ["plumber", "pipe_repair"] for overlap/search
   status      VerticalStatus @default(PROPOSED)
 

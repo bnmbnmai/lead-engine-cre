@@ -189,18 +189,61 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
         case 'home_services':
             return {
                 propertyType: pick(['Single Family', 'Condo', 'Townhouse']),
+                serviceType: pick(['Plumbing', 'Electrical', 'HVAC', 'Landscaping', 'Painting', 'Cleaning']),
+                projectScope: pick(['Minor Repair', 'Major Repair', 'Full Installation', 'Maintenance']),
+                urgency: pick(['Emergency', 'This week', '1-2 weeks', 'Flexible']),
+                timeline: pick(['ASAP', '1-2 weeks', '1 month', 'Flexible']),
+                sqft: `${rand(800, 5000)}`,
+                budget: `$${rand(500, 15000)}`,
             };
         case 'real_estate':
             return {
                 propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Multi-Family', 'Land']),
+                transactionType: pick(['Buying', 'Selling', 'Both', 'Investing']),
+                priceRange: `$${rand(150, 500) * 1000}-$${rand(500, 1200) * 1000}`,
+                bedrooms: pick(['1-2', '3', '4', '5+']),
+                sqft: `${rand(800, 5000)}`,
+                timeline: pick(['Immediately', '1-3 months', '3-6 months', '6+ months']),
+                preApproved: pick(['Yes', 'No', 'In progress']),
+                financing: pick(['Conventional', 'FHA', 'VA', 'Cash', 'Other']),
             };
         case 'auto':
             return {
                 coverageType: pick(['Full Coverage', 'Liability Only', 'Comprehensive']),
+                vehicleType: pick(['Sedan', 'SUV', 'Truck', 'Sports Car', 'Minivan']),
+                vehicleYear: `${rand(2015, 2025)}`,
+                currentCarrier: pick(['State Farm', 'Allstate', 'Progressive', 'GEICO', 'None']),
+                drivingRecord: pick(['Clean', '1 ticket', '1 accident', 'Multiple incidents']),
+                annualMileage: `${rand(5, 25) * 1000}`,
+                multiCar: pick(['Yes', 'No']),
             };
         case 'b2b_saas':
+            return {
+                companySize: pick(['1-10', '11-50', '51-200', '201-500', '500+']),
+                industry: pick(['Technology', 'Healthcare', 'Finance', 'Retail', 'Manufacturing']),
+                currentSolution: pick(['None', 'Spreadsheets', 'Competitor SaaS', 'In-house tool']),
+                budget: pick(['<$1K/mo', '$1K-$5K/mo', '$5K-$10K/mo', '$10K+/mo']),
+                decisionTimeline: pick(['Immediately', '1-3 months', '3-6 months', 'Evaluating']),
+                painPoints: pick(['Scalability', 'Cost', 'Integration', 'Ease of use', 'Support']),
+                usersNeeded: pick(['1-5', '6-20', '21-50', '50+']),
+            };
         case 'legal':
+            return {
+                caseType: pick(['Personal Injury', 'Family Law', 'Criminal Defense', 'Business Law', 'Estate Planning', 'Immigration']),
+                urgency: pick(['Emergency', 'This week', '1-2 weeks', 'Flexible']),
+                priorRepresentation: pick(['Yes', 'No']),
+                caseTimeline: pick(['Ongoing', 'New case', 'Appeal', 'Consultation only']),
+                consultationType: pick(['In-person', 'Virtual', 'Phone', 'No preference']),
+            };
         case 'financial_services':
+            return {
+                serviceType: pick(['Wealth Management', 'Tax Planning', 'Retirement Planning', 'Business Consulting', 'Debt Management']),
+                investmentRange: pick(['<$50K', '$50K-$250K', '$250K-$1M', '$1M+']),
+                riskTolerance: pick(['Conservative', 'Moderate', 'Aggressive']),
+                timeline: pick(['Immediately', '1-3 months', '6+ months', 'Long-term planning']),
+                currentAdvisor: pick(['Yes', 'No', 'Looking to switch']),
+                accountType: pick(['Individual', 'Joint', 'Business', 'Trust']),
+            };
         default:
             return {};
     }
@@ -602,6 +645,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                     reservePrice: price,
                     geo: { country: 'US', state },
                     isVerified: true,
+                    sellerId: seller.id,
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: params,

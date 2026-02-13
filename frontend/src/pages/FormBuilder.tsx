@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
     Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
-    Search,
+    Search, Save, CheckCircle,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,8 @@ import { LanderExport } from '@/components/forms/LanderExport';
 import { getContrastText, meetsWcagAA } from '@/lib/contrast';
 import { useVerticals } from '@/hooks/useVerticals';
 import useAuth from '@/hooks/useAuth';
+import { api } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 // ============================================
 // Types
@@ -280,6 +282,9 @@ export function FormBuilder() {
     const [colorScheme, setColorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
     const [submitted, setSubmitted] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
+    const [hasAdminConfig, setHasAdminConfig] = useState(false);
 
     // Dynamic verticals from API
     const { flatList: apiVerticals, search: searchVerticals, loading: verticalsLoading } = useVerticals();
@@ -294,8 +299,33 @@ export function FormBuilder() {
         }
     }, [apiVerticals]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const loadPreset = (v: string) => {
+    const loadPreset = async (v: string) => {
         setVertical(v);
+        setIsSaved(false);
+        setHasAdminConfig(false);
+
+        // Try to load saved admin config from API
+        try {
+            const res = await api.getFormConfig(v);
+            if (res.data?.formConfig) {
+                const config = res.data.formConfig;
+                setFields(config.fields || []);
+                setSteps(config.steps || []);
+                if (config.gamification) {
+                    setGamification(config.gamification);
+                }
+                setHasAdminConfig(true);
+                setIsSaved(true);
+                setEditingId(null);
+                setPreviewStep(0);
+                setVerticalSearch('');
+                return;
+            }
+        } catch {
+            // No saved config — fall through to preset
+        }
+
+        // Fall back to hardcoded preset
         const presetFields = [...(VERTICAL_PRESETS[v] || GENERIC_TEMPLATE)];
         setFields(presetFields);
         setSteps(autoGroupSteps(presetFields));
@@ -407,6 +437,28 @@ export function FormBuilder() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const saveConfig = async () => {
+        if (!vertical || isSaving) return;
+        setIsSaving(true);
+        try {
+            const res = await api.saveFormConfig(vertical, {
+                fields,
+                steps,
+                gamification,
+            });
+            if (res.error) {
+                throw new Error(res.error.error || 'Failed to save form config');
+            }
+            setIsSaved(true);
+            setHasAdminConfig(true);
+            toast({ type: 'success', title: 'Config Saved', description: `Form config saved for ${vertical}. Sellers will now see this form.` });
+        } catch (err: any) {
+            toast({ type: 'error', title: 'Save Failed', description: err?.response?.data?.error || 'Failed to save form config' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // ─── Preview helpers ─────────────────────
     const currentStepFields = steps[previewStep]
         ? steps[previewStep].fieldIds.map((fid) => fields.find((f) => f.id === fid)).filter(Boolean) as FormField[]
@@ -417,17 +469,29 @@ export function FormBuilder() {
     return (
         <DashboardLayout>
             <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        {emoji} Form Builder
-                        <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                            Multi-Step Wizard
-                        </span>
-                    </h1>
-                    <p className="text-muted-foreground">
-                        Build gamified multi-step lead capture forms — drag to reorder, group into steps, export as hosted lander
-                    </p>
+                <div className="mb-8 flex items-start justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold flex items-center gap-2">
+                            {emoji} Form Builder
+                            <span className="text-sm font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                Multi-Step Wizard
+                            </span>
+                            {vertical && hasAdminConfig && (
+                                <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 flex items-center gap-1">
+                                    <CheckCircle className="h-3 w-3" /> Saved
+                                </span>
+                            )}
+                        </h1>
+                        <p className="text-muted-foreground">
+                            Build gamified multi-step lead capture forms — drag to reorder, group into steps, export as hosted lander
+                        </p>
+                    </div>
+                    {vertical && (
+                        <Button onClick={saveConfig} disabled={isSaving} className="gap-2">
+                            <Save className="h-4 w-4" />
+                            {isSaving ? 'Saving...' : isSaved ? 'Saved ✓' : 'Save Config'}
+                        </Button>
+                    )}
                 </div>
 
                 {/* Vertical Selector */}
@@ -917,6 +981,15 @@ export function FormBuilder() {
                                         onClick={copyConfig}
                                     >
                                         {copied ? '✓ Copied!' : 'Copy JSON Config'}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        className="mt-2 w-full gap-2"
+                                        onClick={saveConfig}
+                                        disabled={isSaving}
+                                    >
+                                        <Save className="h-3.5 w-3.5" />
+                                        {isSaving ? 'Saving...' : 'Save to Platform'}
                                     </Button>
                                 </CardContent>
                             ) : (

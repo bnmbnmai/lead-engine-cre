@@ -103,6 +103,71 @@ export const VERTICAL_PREVIEW_CONFIG: Record<string, VerticalPreviewConfig> = {
             { label: 'Coverage Info', keys: ['coverageType', 'currentCarrier', 'claimsHistory'] },
         ],
     },
+    home_services: {
+        safeKeys: [
+            'propertyType', 'serviceType', 'projectScope',
+            'urgency', 'timeline', 'sqft', 'budget',
+        ],
+        formSteps: [
+            { label: 'Property Details', keys: ['propertyType', 'sqft'] },
+            { label: 'Service Info', keys: ['serviceType', 'projectScope', 'urgency'] },
+            { label: 'Budget & Timeline', keys: ['budget', 'timeline'] },
+        ],
+    },
+    real_estate: {
+        safeKeys: [
+            'propertyType', 'transactionType', 'priceRange',
+            'bedrooms', 'sqft', 'timeline', 'preApproved', 'financing',
+        ],
+        formSteps: [
+            { label: 'Property Details', keys: ['propertyType', 'bedrooms', 'sqft'] },
+            { label: 'Transaction Info', keys: ['transactionType', 'priceRange', 'financing'] },
+            { label: 'Timeline', keys: ['timeline', 'preApproved'] },
+        ],
+    },
+    auto: {
+        safeKeys: [
+            'coverageType', 'vehicleType', 'vehicleYear',
+            'currentCarrier', 'drivingRecord', 'annualMileage', 'multiCar',
+        ],
+        formSteps: [
+            { label: 'Vehicle Info', keys: ['vehicleType', 'vehicleYear', 'annualMileage'] },
+            { label: 'Coverage Info', keys: ['coverageType', 'currentCarrier', 'drivingRecord'] },
+            { label: 'Discounts', keys: ['multiCar'] },
+        ],
+    },
+    b2b_saas: {
+        safeKeys: [
+            'companySize', 'industry', 'currentSolution',
+            'budget', 'decisionTimeline', 'painPoints', 'usersNeeded',
+        ],
+        formSteps: [
+            { label: 'Company Info', keys: ['companySize', 'industry'] },
+            { label: 'Current Setup', keys: ['currentSolution', 'painPoints'] },
+            { label: 'Budget & Timeline', keys: ['budget', 'decisionTimeline', 'usersNeeded'] },
+        ],
+    },
+    legal: {
+        safeKeys: [
+            'caseType', 'urgency', 'priorRepresentation',
+            'caseTimeline', 'consultationType',
+        ],
+        formSteps: [
+            { label: 'Case Details', keys: ['caseType', 'urgency', 'caseTimeline'] },
+            { label: 'Consultation', keys: ['consultationType', 'priorRepresentation'] },
+        ],
+    },
+    financial_services: {
+        safeKeys: [
+            'serviceType', 'investmentRange', 'riskTolerance',
+            'timeline', 'currentAdvisor', 'accountType',
+        ],
+        formSteps: [
+            { label: 'Service Info', keys: ['serviceType', 'accountType'] },
+            { label: 'Financial Profile', keys: ['investmentRange', 'riskTolerance'] },
+            { label: 'Timeline', keys: ['timeline', 'currentAdvisor'] },
+        ],
+    },
 };
 
 /** Fallback config for verticals not explicitly mapped */
@@ -170,8 +235,10 @@ export function formatFieldLabel(key: string): string {
 
 /**
  * Redact a lead record for buyer preview.
- * Only whitelisted non-PII fields are included.
- * Parameter values are defense-in-depth scrubbed via scrubPII().
+ *
+ * For verticals with explicit configs: whitelist approach (only configured safe keys).
+ * For dynamic/unknown verticals: blocklist approach (show all non-PII parameter keys).
+ * All values are defense-in-depth scrubbed via scrubPII().
  */
 export function redactLeadForPreview(lead: {
     vertical: string;
@@ -184,39 +251,60 @@ export function redactLeadForPreview(lead: {
     dataHash?: string | null;
     parameters?: Record<string, any> | null;
 }): RedactedPreview {
-    const config = VERTICAL_PREVIEW_CONFIG[lead.vertical] || DEFAULT_PREVIEW_CONFIG;
+    const explicitConfig = VERTICAL_PREVIEW_CONFIG[lead.vertical];
 
     // Extract geo safely
     const geo = typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {};
 
-    // Build parameter map: only safe keys, with PII scrubbing
+    // Parse parameters once
+    const params: Record<string, any> = lead.parameters
+        ? (typeof lead.parameters === 'string' ? JSON.parse(lead.parameters) : lead.parameters)
+        : {};
+
+    // Build parameter map: filter through PII classification + scrub values
     const safeParams: Record<string, string> = {};
-    if (lead.parameters) {
-        const params = typeof lead.parameters === 'string'
-            ? JSON.parse(lead.parameters)
-            : lead.parameters;
+    for (const [key, value] of Object.entries(params)) {
+        // Always skip PII-classified keys
+        if (PII_PARAMETER_KEYS.has(key)) continue;
 
-        for (const [key, value] of Object.entries(params)) {
-            const classification = classifyField(key, lead.vertical);
-            if (classification === 'pii') continue; // Always skip PII
-            if (classification === 'unknown') continue; // Whitelist only
-
-            // Defense-in-depth: scrub the value through PII regex
-            const strValue = String(value ?? '');
-            const scrubbed = scrubPII(strValue);
-            safeParams[key] = scrubbed || 'Not Provided';
+        if (explicitConfig) {
+            // Whitelist mode: only keys in safeKeys pass
+            if (!explicitConfig.safeKeys.includes(key)) continue;
         }
+        // else: blocklist mode — anything not PII passes through
+
+        // Defense-in-depth: scrub the value through PII regex
+        const strValue = String(value ?? '');
+        const scrubbed = scrubPII(strValue);
+        safeParams[key] = scrubbed || 'Not Provided';
     }
 
-    // Build form steps with fields
-    const formSteps = config.formSteps.map((step) => ({
-        label: step.label,
-        fields: step.keys.map((key) => ({
-            key,
-            label: formatFieldLabel(key),
-            value: safeParams[key] || 'Not Provided',
-        })),
-    }));
+    // Build form steps
+    let formSteps: { label: string; fields: { key: string; label: string; value: string }[] }[];
+
+    if (explicitConfig) {
+        // Use curated form step groupings
+        formSteps = explicitConfig.formSteps.map((step) => ({
+            label: step.label,
+            fields: step.keys.map((key) => ({
+                key,
+                label: formatFieldLabel(key),
+                value: safeParams[key] || 'Not Provided',
+            })),
+        }));
+    } else {
+        // Dynamic: auto-derive a single "Lead Details" step from the params that passed
+        const dynamicKeys = Object.keys(safeParams);
+        formSteps = dynamicKeys.length > 0
+            ? [{
+                label: 'Lead Details', fields: dynamicKeys.map((key) => ({
+                    key,
+                    label: formatFieldLabel(key),
+                    value: safeParams[key],
+                }))
+            }]
+            : [];
+    }
 
     return {
         vertical: lead.vertical,

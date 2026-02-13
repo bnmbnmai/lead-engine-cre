@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Globe, Layout, Copy, Check, ExternalLink, Wallet, UserPlus, Building2, CheckCircle, Shield } from 'lucide-react';
 import { ErrorDetail, parseApiError } from '@/components/ui/ErrorDetail';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useAuth from '@/hooks/useAuth';
 import { useVerticals } from '@/hooks/useVerticals';
+import { VERTICAL_PRESETS } from '@/pages/FormBuilder';
 import api from '@/lib/api';
 
 type SourceTab = 'PLATFORM' | 'API' | 'OFFSITE';
@@ -72,7 +73,7 @@ function CurlExample({ vertical = 'roofing', state = 'FL', country = 'US', zip =
 
 export function SellerSubmit() {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<SourceTab>('PLATFORM');
     const [hasProfile, setHasProfile] = useState<boolean | null>(null);
     const [profileLoading, setProfileLoading] = useState(true);
@@ -82,6 +83,14 @@ export function SellerSubmit() {
     const [wizardVerticals, setWizardVerticals] = useState<string[]>([]);
     const [wizardSubmitting, setWizardSubmitting] = useState(false);
     const [profileError, setProfileError] = useState<any>(null);
+
+    // Hosted Lander state
+    const [landerVertical, setLanderVertical] = useState<string | null>(null);
+    const [copiedLanderUrl, setCopiedLanderUrl] = useState(false);
+    const [copiedLanderIframe, setCopiedLanderIframe] = useState(false);
+    const allVerticals = useMemo(() => Object.keys(VERTICAL_PRESETS), []);
+    const landerUrl = landerVertical ? `${window.location.origin}/f/${landerVertical}-${user?.id || 'preview'}` : '';
+    const landerIframe = landerUrl ? `<iframe src="${landerUrl}" width="100%" height="700" frameborder="0" style="border-radius:12px;max-width:480px;"></iframe>` : '';
 
     const { flatList: verticals, loading: verticalsLoading } = useVerticals();
 
@@ -489,32 +498,97 @@ export function SellerSubmit() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <p className="text-muted-foreground">
-                                Hosted landers are customizable lead capture pages tailored to specific verticals.
-                                Each lander automatically submits captured leads to the marketplace with <code className="font-mono text-xs">source: "OFFSITE"</code>.
+                                Choose a vertical template to generate a unique hosted landing page.
+                                Captured leads are automatically submitted to the marketplace with <code className="font-mono text-xs">source: "OFFSITE"</code>.
                             </p>
 
-                            {/* How It Works */}
+                            {/* Vertical Selector */}
                             <div>
-                                <h3 className="text-sm font-semibold mb-3">How It Works</h3>
-                                <div className="grid gap-3">
-                                    {[
-                                        { step: '1', title: 'Choose a vertical template', desc: 'Pre-built forms for roofing, mortgage, solar, insurance, and more' },
-                                        { step: '2', title: 'Customize branding & fields', desc: 'Add your logo, colors, and required qualification questions' },
-                                        { step: '3', title: 'Deploy to your domain', desc: 'Get a hosted URL or embed via iframe on your existing site' },
-                                        { step: '4', title: 'Leads auto-submit to marketplace', desc: 'Captured leads are verified, matched to asks, and enter auction' },
-                                    ].map((item) => (
-                                        <div key={item.step} className="flex gap-3 p-3 rounded-lg bg-muted/30">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                                <span className="text-sm font-bold text-primary">{item.step}</span>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm font-medium">{item.title}</div>
-                                                <div className="text-xs text-muted-foreground">{item.desc}</div>
-                                            </div>
-                                        </div>
+                                <label className="text-sm font-medium mb-2 block">Select Vertical</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                    {allVerticals.map((v) => (
+                                        <button
+                                            key={v}
+                                            onClick={() => setLanderVertical(v)}
+                                            className={`px-3 py-2 rounded-lg text-sm font-medium text-left transition-all capitalize ${landerVertical === v
+                                                ? 'bg-primary/10 ring-1 ring-primary/30 text-primary'
+                                                : 'bg-muted/30 hover:bg-muted/60 text-foreground'
+                                                }`}
+                                        >
+                                            {v.replace(/_/g, ' ')}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Generated URL & Embed — only when a vertical is selected */}
+                            {landerVertical && (
+                                <div className="space-y-4">
+                                    {/* Hosted URL */}
+                                    <div className="p-4 rounded-lg border border-border bg-muted/10 space-y-2">
+                                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                                            <ExternalLink className="h-4 w-4 text-primary" />
+                                            Hosted URL
+                                        </h4>
+                                        <p className="text-xs text-muted-foreground">
+                                            Share this link with leads. The form is fully hosted and maintained by Lead Engine.
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                value={landerUrl}
+                                                readOnly
+                                                className="font-mono text-xs"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(landerUrl);
+                                                    setCopiedLanderUrl(true);
+                                                    setTimeout(() => setCopiedLanderUrl(false), 2000);
+                                                }}
+                                            >
+                                                {copiedLanderUrl ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Iframe Embed */}
+                                    <div className="p-4 rounded-lg border border-border bg-muted/10 space-y-2">
+                                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                                            <Globe className="h-4 w-4 text-primary" />
+                                            Iframe Embed Code
+                                        </h4>
+                                        <p className="text-xs text-muted-foreground">
+                                            Paste this into your website HTML to embed the form on your existing site.
+                                        </p>
+                                        <pre className="bg-muted/30 p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap font-mono border border-border">
+                                            {landerIframe}
+                                        </pre>
+                                        <Button
+                                            size="sm"
+                                            className="w-full"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(landerIframe);
+                                                setCopiedLanderIframe(true);
+                                                setTimeout(() => setCopiedLanderIframe(false), 2000);
+                                            }}
+                                        >
+                                            {copiedLanderIframe ? (
+                                                <><Check className="h-3.5 w-3.5 mr-1.5 text-green-500" /> Copied!</>
+                                            ) : (
+                                                <><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy Embed Code</>
+                                            )}
+                                        </Button>
+                                    </div>
+
+                                    {/* Compliance Note */}
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 rounded-lg px-3 py-2">
+                                        <Shield className="h-3.5 w-3.5 text-green-400 shrink-0" />
+                                        Platform-hosted for TCPA, CCPA, and consent compliance
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Webhook Alternative */}
                             <div className="p-4 rounded-lg border border-border bg-muted/20">
@@ -527,16 +601,6 @@ export function SellerSubmit() {
                                     <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold">POST</span>
                                     {API_BASE}/api/v1/leads/submit
                                 </div>
-                            </div>
-
-                            {/* Coming Soon */}
-                            <div className="text-center py-4">
-                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                                    Visual lander builder — coming soon
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    In the meantime, use the API tab to set up webhook-based offsite submissions
-                                </p>
                             </div>
                         </CardContent>
                     </Card>

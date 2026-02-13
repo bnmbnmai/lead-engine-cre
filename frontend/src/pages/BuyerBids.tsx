@@ -103,7 +103,16 @@ export function BuyerBids() {
                                                 </td>
                                                 <td className="p-4">
                                                     <span className="font-semibold">
-                                                        {bid.amount ? formatCurrency(bid.amount) : 'Hidden'}
+                                                        {bid.amount ? formatCurrency(bid.amount) : (() => {
+                                                            try {
+                                                                const stored = localStorage.getItem(`bid_salt_${bid.commitment}`);
+                                                                if (stored) {
+                                                                    const { amount } = JSON.parse(stored);
+                                                                    return <span title="Sealed bid (not yet revealed)">🔒 {formatCurrency(amount)}</span>;
+                                                                }
+                                                            } catch { }
+                                                            return <span className="text-muted-foreground">Sealed</span>;
+                                                        })()}
                                                     </span>
                                                 </td>
                                                 <td className="p-4">

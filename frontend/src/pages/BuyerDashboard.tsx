@@ -211,7 +211,7 @@ export function BuyerDashboard() {
                     <div className="flex items-center gap-3">
                         <CRMExportButton />
                         <Button variant="outline" asChild>
-                            <Link to="/?view=asks">
+                            <Link to="/marketplace?view=asks">
                                 <Tag className="h-4 w-4 mr-2" />
                                 Browse Asks
                             </Link>
@@ -335,7 +335,16 @@ export function BuyerDashboard() {
                                             </div>
                                             <div className="text-right">
                                                 <div className="font-semibold">
-                                                    {bid.amount ? formatCurrency(bid.amount) : 'Hidden'}
+                                                    {bid.amount ? formatCurrency(bid.amount) : (() => {
+                                                        try {
+                                                            const stored = localStorage.getItem(`bid_salt_${bid.commitment}`);
+                                                            if (stored) {
+                                                                const { amount } = JSON.parse(stored);
+                                                                return <span title="Sealed bid (not yet revealed)">🔒 {formatCurrency(amount)}</span>;
+                                                            }
+                                                        } catch { }
+                                                        return <span className="text-muted-foreground">Sealed</span>;
+                                                    })()}
                                                 </div>
                                                 <Badge variant="outline" className={getStatusColor(bid.status)}>
                                                     {bid.status}

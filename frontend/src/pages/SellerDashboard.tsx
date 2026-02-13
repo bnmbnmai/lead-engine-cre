@@ -16,7 +16,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 
 const DASHBOARD_TABS = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
-    { key: 'leads', label: 'Sold Leads', icon: FileText, path: '/seller/leads' },
+    { key: 'leads', label: 'My Leads', icon: FileText, path: '/seller/leads' },
     { key: 'asks', label: 'Active Asks', icon: Tag, path: '/seller/asks' },
     { key: 'submit', label: 'Submit', icon: Send, path: '/seller/submit' },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/seller/analytics' },
@@ -89,7 +89,10 @@ export function SellerDashboard() {
         {
             'marketplace:lead:new': (data: any) => {
                 if (data?.lead) {
-                    setRecentLeads((prev) => [data.lead, ...prev].slice(0, 5));
+                    // Refetch instead of blindly prepending — the backend
+                    // scopes GET /leads to the authenticated seller, so this
+                    // ensures only our leads appear in the list.
+                    refetchData();
                     toast({
                         type: 'success',
                         title: 'New Lead',
@@ -261,7 +264,7 @@ export function SellerDashboard() {
                     {/* Recent Leads */}
                     <Card className="lg:col-span-1">
                         <CardHeader className="flex-row items-center justify-between">
-                            <CardTitle>My Sold Leads</CardTitle>
+                            <CardTitle>My Recent Leads</CardTitle>
                             <Button variant="ghost" size="sm" asChild>
                                 <Link to="/seller/leads">View All</Link>
                             </Button>

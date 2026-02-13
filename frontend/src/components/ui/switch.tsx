@@ -39,7 +39,7 @@ const LabeledSwitch = React.forwardRef<
 >(({ label, description, className, ...props }, ref) => (
     <div className={cn('flex items-center justify-between gap-4', className)}>
         <div className="flex-1">
-            <label className="text-sm font-medium leading-none cursor-pointer">{label}</label>
+            <label className="text-sm font-medium leading-none cursor-pointer text-foreground">{label}</label>
             {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
         </div>
         <Switch ref={ref} {...props} />

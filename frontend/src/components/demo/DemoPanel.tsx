@@ -5,7 +5,7 @@
  * Toggle with beaker icon or keyboard shortcut Ctrl+Shift+D.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setAuthToken } from '@/lib/api';
 import socketClient from '@/lib/socket';
@@ -64,6 +64,11 @@ export function DemoPanel() {
     const navigate = useNavigate();
     const { user } = useAuth();
 
+    // Imperative guard: prevents rapid double-clicks from firing duplicate API calls
+    // (React batches setActions, so the ActionButton's disabled-while-loading check
+    //  can miss clicks that arrive before the re-render)
+    const runningActionsRef = useRef<Set<string>>(new Set());
+
     // Fetch demo status on open
     const refreshStatus = useCallback(async () => {
         try {
@@ -95,6 +100,10 @@ export function DemoPanel() {
     // ============================================
 
     async function runAction(key: string, fn: () => Promise<string>) {
+        // Bail immediately if this action is already in-flight
+        if (runningActionsRef.current.has(key)) return;
+        runningActionsRef.current.add(key);
+
         setActions(prev => ({ ...prev, [key]: { state: 'loading' } }));
         try {
             const message = await fn();
@@ -105,6 +114,8 @@ export function DemoPanel() {
         } catch (err: any) {
             setActions(prev => ({ ...prev, [key]: { state: 'error', message: err?.message || 'Failed' } }));
             setTimeout(() => setActions(prev => ({ ...prev, [key]: { state: 'idle' } })), 4000);
+        } finally {
+            runningActionsRef.current.delete(key);
         }
     }
 

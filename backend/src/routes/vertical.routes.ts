@@ -264,6 +264,89 @@ router.put('/suggestions/:id/reject', authMiddleware, async (req: AuthenticatedR
 });
 
 // ============================================
+// GET /:slug/form-config — Get saved form builder config for a vertical
+// ============================================
+
+router.get('/:slug/form-config', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { slug } = req.params;
+        const vertical = await prisma.vertical.findUnique({
+            where: { slug },
+            select: { formConfig: true, slug: true, name: true },
+        });
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+        res.json({ formConfig: vertical.formConfig || null, vertical: { slug: vertical.slug, name: vertical.name } });
+    } catch (error) {
+        console.error('Get form config error:', error);
+        res.status(500).json({ error: 'Failed to fetch form config' });
+    }
+});
+
+// ============================================
+// PUT /:slug/form-config — Save form builder config (Admin only)
+// ============================================
+
+const FormConfigSchema = z.object({
+    fields: z.array(z.object({
+        id: z.string(),
+        key: z.string(),
+        label: z.string(),
+        type: z.enum(['text', 'select', 'boolean', 'number', 'textarea', 'email', 'phone']),
+        required: z.boolean(),
+        placeholder: z.string().optional(),
+        options: z.array(z.string()).optional(),
+    })),
+    steps: z.array(z.object({
+        id: z.string(),
+        label: z.string(),
+        fieldIds: z.array(z.string()),
+    })),
+    gamification: z.object({
+        showProgress: z.boolean(),
+        showNudges: z.boolean(),
+        confetti: z.boolean(),
+    }).optional(),
+});
+
+router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (req.user!.role !== 'ADMIN') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        const { slug } = req.params;
+        const validation = FormConfigSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid form config', details: validation.error.issues });
+            return;
+        }
+
+        const vertical = await prisma.vertical.findUnique({ where: { slug } });
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        const updated = await prisma.vertical.update({
+            where: { slug },
+            data: { formConfig: validation.data as any },
+        });
+
+        res.json({
+            message: `Form config saved for '${updated.name}'`,
+            formConfig: updated.formConfig,
+        });
+    } catch (error) {
+        console.error('Save form config error:', error);
+        res.status(500).json({ error: 'Failed to save form config' });
+    }
+});
+
+// ============================================
 // GET /:slug — Single vertical + children
 // ============================================
 

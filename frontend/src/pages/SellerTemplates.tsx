@@ -1,18 +1,16 @@
 /**
  * Seller Template Library
  *
- * Read-only template browser for sellers. Shows pre-approved vertical
- * templates as cards with a "Customize & Deploy" panel for safe-only
- * customization (colors, logo, CTA, gamification).
- *
- * Full drag-and-drop editing is restricted to the admin Form Builder
- * at /admin/form-builder for compliance.
+ * Compact, searchable & filterable template browser for sellers.
+ * Replaces the old card-grid with a scalable list layout + category tabs.
+ * Customization panel (colors, branding, gamification) + full hosted lander
+ * export (URL + iframe embed with copy buttons).
  */
 
 import { useState, useMemo } from 'react';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
-    Sparkles, Shield, Search, Plus, Send,
+    Sparkles, Shield, Search, Plus, Send, ChevronRight,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,10 +21,31 @@ import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { getContrastText, meetsWcagAA, contrastRatio } from '@/lib/contrast';
 import useAuth from '@/hooks/useAuth';
 import { toast } from '@/hooks/useToast';
+import { api } from '@/lib/api';
 import {
+    FormField, FormStep,
     GamificationConfig, FormColorScheme,
     COLOR_SCHEMES, VERTICAL_PRESETS, GENERIC_TEMPLATE, autoGroupSteps,
 } from '@/pages/FormBuilder';
+
+// ============================================
+// Category Mapping
+// ============================================
+
+const CATEGORY_MAP: Record<string, string> = {
+    roofing: 'Home & Property',
+    solar: 'Home & Property',
+    home_services: 'Home & Property',
+    real_estate: 'Home & Property',
+    mortgage: 'Finance & Insurance',
+    insurance: 'Finance & Insurance',
+    auto: 'Finance & Insurance',
+    financial_services: 'Finance & Insurance',
+    b2b_saas: 'Business & Legal',
+    legal: 'Business & Legal',
+};
+
+const CATEGORIES = ['All', 'Home & Property', 'Finance & Insurance', 'Business & Legal'];
 
 // ============================================
 // Constants
@@ -51,6 +70,7 @@ export default function SellerTemplates() {
     const { user } = useAuth();
     const [selectedVertical, setSelectedVertical] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeCategory, setActiveCategory] = useState('All');
 
     // Customization state
     const [colorScheme, setColorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
@@ -73,23 +93,30 @@ export default function SellerTemplates() {
     const [requestVertical, setRequestVertical] = useState('');
     const [requestDescription, setRequestDescription] = useState('');
     const [requestSubmitting, setRequestSubmitting] = useState(false);
+    const [configLoading, setConfigLoading] = useState(false);
+    const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
+    const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
 
-    // All available verticals (from presets keys)
+    // Filtered verticals
     const verticals = useMemo(() => {
-        return Object.keys(VERTICAL_PRESETS).filter(v =>
-            !searchQuery || v.replace(/_/g, ' ').toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [searchQuery]);
+        return Object.keys(VERTICAL_PRESETS).filter(v => {
+            const matchesSearch = !searchQuery || v.replace(/_/g, ' ').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesCategory = activeCategory === 'All' || CATEGORY_MAP[v] === activeCategory;
+            return matchesSearch && matchesCategory;
+        });
+    }, [searchQuery, activeCategory]);
 
-    // Get fields for selected vertical
+    // Use admin config if available, otherwise fallback to presets
     const selectedFields = useMemo(() => {
+        if (adminFields) return adminFields;
         if (!selectedVertical) return [];
         return VERTICAL_PRESETS[selectedVertical] || GENERIC_TEMPLATE;
-    }, [selectedVertical]);
+    }, [selectedVertical, adminFields]);
 
     const selectedSteps = useMemo(() => {
+        if (adminSteps) return adminSteps;
         return autoGroupSteps(selectedFields);
-    }, [selectedFields]);
+    }, [selectedFields, adminSteps]);
 
     const effectiveColors: Record<string, string> = useMemo(() => ({
         ...colorScheme.vars,
@@ -104,18 +131,35 @@ export default function SellerTemplates() {
 
     // Generate hosted lander URL
     const hostedUrl = `${window.location.origin}/f/${selectedVertical}-${user?.id || 'preview'}`;
-
-
     const iframeEmbed = `<iframe src="${hostedUrl}" width="100%" height="700" frameborder="0" style="border-radius:12px;max-width:480px;"></iframe>`;
 
-    function handleSelectTemplate(vertical: string) {
+    async function handleSelectTemplate(vertical: string) {
         setSelectedVertical(vertical);
         setPreviewMode('preview');
-        // Reset customizations
         setColorScheme(COLOR_SCHEMES[0]);
         setCustomAccent(COLOR_SCHEMES[0].vars['--form-accent']);
         setCustomBg(COLOR_SCHEMES[0].vars['--form-bg']);
         setCustomText(COLOR_SCHEMES[0].vars['--form-text']);
+        setAdminFields(null);
+        setAdminSteps(null);
+
+        // Fetch admin-saved form config
+        setConfigLoading(true);
+        try {
+            const res = await api.getFormConfig(vertical);
+            if (res.data?.formConfig) {
+                const config = res.data.formConfig;
+                setAdminFields(config.fields || null);
+                setAdminSteps(config.steps || null);
+                if (config.gamification) {
+                    setGamification(config.gamification);
+                }
+            }
+        } catch {
+            // No admin config — will use preset fallback
+        } finally {
+            setConfigLoading(false);
+        }
     }
 
     function applyPreset(scheme: FormColorScheme) {
@@ -157,7 +201,7 @@ export default function SellerTemplates() {
                         onClick={() => setShowRequestForm(!showRequestForm)}
                     >
                         <Plus className="h-4 w-4 mr-2" />
-                        Request New Template
+                        Request Template
                     </Button>
                 </div>
 
@@ -198,7 +242,6 @@ export default function SellerTemplates() {
                                     disabled={!requestVertical.trim() || requestSubmitting}
                                     onClick={async () => {
                                         setRequestSubmitting(true);
-                                        // Simulate API submission (will be wired to real endpoint)
                                         await new Promise((r) => setTimeout(r, 800));
                                         toast({
                                             type: 'success',
@@ -226,64 +269,77 @@ export default function SellerTemplates() {
                     </Card>
                 )}
 
-                {/* Search */}
-                <div className="relative max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search verticals..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                    />
+                {/* Search + Category Filters */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search templates..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                        />
+                    </div>
+                    <div className="flex gap-1 p-1 rounded-lg bg-muted shrink-0">
+                        {CATEGORIES.map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => setActiveCategory(cat)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${activeCategory === cat
+                                    ? 'bg-background shadow-sm text-foreground'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Template Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {/* Template List */}
+                <div className="grid gap-2">
                     {verticals.map((v) => {
                         const fields = VERTICAL_PRESETS[v] || GENERIC_TEMPLATE;
                         const isSelected = selectedVertical === v;
+                        const category = CATEGORY_MAP[v] || 'Other';
                         return (
-                            <Card
+                            <button
                                 key={v}
-                                className={`cursor-pointer transition-all hover:shadow-md hover:border-primary/40 ${isSelected ? 'border-primary ring-2 ring-primary/20' : ''}`}
                                 onClick={() => handleSelectTemplate(v)}
+                                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-all ${isSelected
+                                    ? 'bg-primary/10 ring-1 ring-primary/30'
+                                    : 'bg-card hover:bg-muted/50 border border-border'
+                                    }`}
                             >
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-base flex items-center gap-2">
-                                        <span className="text-lg">{VERTICAL_EMOJI[v] || '📋'}</span>
-                                        {displayName(v)}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    <p className="text-xs text-muted-foreground">{fields.length} fields • Multi-step</p>
-                                    <div className="flex flex-wrap gap-1">
-                                        {fields.slice(0, 4).map(f => (
-                                            <span key={f.id} className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded-full">
+                                <span className="text-xl shrink-0">{VERTICAL_EMOJI[v] || '📋'}</span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-sm">{displayName(v)}</span>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{category}</span>
+                                    </div>
+                                    <div className="flex gap-1 mt-1">
+                                        {fields.slice(0, 3).map(f => (
+                                            <span key={f.id} className="text-[10px] bg-muted/60 px-1.5 py-0.5 rounded text-muted-foreground">
                                                 {f.label}
                                             </span>
                                         ))}
-                                        {fields.length > 4 && (
-                                            <span className="text-[10px] text-muted-foreground px-1.5 py-0.5">+{fields.length - 4}</span>
+                                        {fields.length > 3 && (
+                                            <span className="text-[10px] text-muted-foreground px-1">+{fields.length - 3}</span>
                                         )}
                                     </div>
-                                    <Button
-                                        size="sm"
-                                        variant={isSelected ? 'default' : 'outline'}
-                                        className="w-full mt-2 text-xs"
-                                        onClick={(e) => { e.stopPropagation(); handleSelectTemplate(v); }}
-                                    >
-                                        <Palette className="h-3.5 w-3.5 mr-1.5" />
-                                        {isSelected ? 'Customizing…' : 'Customize & Deploy'}
-                                    </Button>
-                                </CardContent>
-                            </Card>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <span className="text-xs text-muted-foreground hidden sm:block">{fields.length} fields</span>
+                                    <ChevronRight className={`h-4 w-4 transition-transform ${isSelected ? 'rotate-90 text-primary' : 'text-muted-foreground'}`} />
+                                </div>
+                            </button>
                         );
                     })}
                 </div>
 
                 {verticals.length === 0 && (
                     <div className="text-center py-12 text-muted-foreground">
-                        No templates match "{searchQuery}"
+                        No templates match your search
                     </div>
                 )}
 
@@ -301,7 +357,7 @@ export default function SellerTemplates() {
                             <CardContent className="space-y-5">
                                 {/* Color Presets */}
                                 <div>
-                                    <label className="text-sm font-medium mb-2 block">Color Preset</label>
+                                    <label className="text-sm font-medium mb-2 block text-foreground">Color Preset</label>
                                     <div className="flex flex-wrap gap-2">
                                         {COLOR_SCHEMES.map((scheme) => (
                                             <button
@@ -355,19 +411,19 @@ export default function SellerTemplates() {
                                     </div>
                                 </div>
 
-                                {/* WCAG Contrast Indicator */}
+                                {/* WCAG Contrast */}
                                 <div className={`rounded-lg px-3 py-2 text-xs flex items-center gap-2 ${textBgPasses ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}`}>
                                     {textBgPasses ? (
                                         <><CheckCircle2 className="h-3.5 w-3.5" /> WCAG AA Pass — contrast ratio {textBgRatio.toFixed(1)}:1</>
                                     ) : (
-                                        <><span>⚠️</span> Low contrast ({textBgRatio.toFixed(1)}:1) — text may be hard to read. WCAG AA requires 4.5:1</>
+                                        <><span>⚠️</span> Low contrast ({textBgRatio.toFixed(1)}:1) — WCAG AA requires 4.5:1</>
                                     )}
                                 </div>
 
                                 {/* Branding */}
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="text-sm font-medium mb-1 block">Company Name</label>
+                                        <label className="text-sm font-medium mb-1 block text-foreground">Company Name</label>
                                         <Input
                                             value={companyName}
                                             onChange={(e) => setCompanyName(e.target.value.slice(0, 60))}
@@ -377,7 +433,7 @@ export default function SellerTemplates() {
                                         <span className="text-[10px] text-muted-foreground">{companyName.length}/60</span>
                                     </div>
                                     <div>
-                                        <label className="text-sm font-medium mb-1 block">Logo URL</label>
+                                        <label className="text-sm font-medium mb-1 block text-foreground">Logo URL</label>
                                         <Input
                                             value={logoUrl}
                                             onChange={(e) => setLogoUrl(e.target.value)}
@@ -386,7 +442,7 @@ export default function SellerTemplates() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-sm font-medium mb-1 block">Thank-You Message</label>
+                                        <label className="text-sm font-medium mb-1 block text-foreground">Thank-You Message</label>
                                         <textarea
                                             value={thankYouMessage}
                                             onChange={(e) => setThankYouMessage(e.target.value.slice(0, 200))}
@@ -401,7 +457,7 @@ export default function SellerTemplates() {
 
                                 {/* CTA Text */}
                                 <div>
-                                    <label className="text-sm font-medium mb-1 block">CTA Button Text</label>
+                                    <label className="text-sm font-medium mb-1 block text-foreground">CTA Button Text</label>
                                     <div className="flex flex-wrap gap-1.5">
                                         {APPROVED_CTA_TEXTS.map(text => (
                                             <button
@@ -420,7 +476,7 @@ export default function SellerTemplates() {
 
                                 {/* Gamification */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium flex items-center gap-1">
+                                    <label className="text-sm font-medium flex items-center gap-1 text-foreground">
                                         <Sparkles className="h-4 w-4 text-primary" />
                                         Gamification
                                     </label>
@@ -483,7 +539,6 @@ export default function SellerTemplates() {
                                             color: customText,
                                         }}
                                     >
-                                        {/* Logo & Company */}
                                         {(logoUrl || companyName) && (
                                             <div className="flex items-center gap-3 mb-4">
                                                 {logoUrl && (
@@ -498,12 +553,18 @@ export default function SellerTemplates() {
                                             </div>
                                         )}
 
-                                        <h3 className="font-bold text-lg mb-1">
+                                        <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
                                             {VERTICAL_EMOJI[selectedVertical] || '📋'} {displayName(selectedVertical)}
+                                            {adminFields && (
+                                                <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">
+                                                    Admin Configured ✓
+                                                </span>
+                                            )}
                                         </h3>
-                                        <p className="text-sm opacity-70 mb-4">Get your personalized quote in under 60 seconds</p>
+                                        <p className="text-sm opacity-70 mb-4">
+                                            {configLoading ? 'Loading form config...' : 'Get your personalized quote in under 60 seconds'}
+                                        </p>
 
-                                        {/* Step Progress */}
                                         {gamification.showProgress && selectedSteps.length > 1 && (
                                             <div className="mb-4">
                                                 <StepProgress
@@ -514,7 +575,6 @@ export default function SellerTemplates() {
                                             </div>
                                         )}
 
-                                        {/* Field Preview */}
                                         <div className="space-y-3">
                                             {selectedFields.slice(0, 4).map(f => (
                                                 <div key={f.id}>
@@ -554,7 +614,6 @@ export default function SellerTemplates() {
                                             )}
                                         </div>
 
-                                        {/* CTA Button */}
                                         <button
                                             className="w-full mt-6 py-2.5 rounded-lg font-semibold text-sm transition-opacity hover:opacity-90"
                                             style={{
@@ -565,7 +624,6 @@ export default function SellerTemplates() {
                                             {ctaText}
                                         </button>
 
-                                        {/* Nudge */}
                                         {gamification.showNudges && (
                                             <p className="text-center text-[11px] opacity-50 mt-2">
                                                 🔒 Your info is secure & never shared without consent

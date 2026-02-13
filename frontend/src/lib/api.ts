@@ -238,6 +238,19 @@ export const api = {
         return apiFetch<{ verticals: any[]; total: number }>(`/api/v1/verticals/flat${query}`);
     },
 
+    // Form Config
+    getFormConfig: (slug: string) =>
+        apiFetch<{ formConfig: any | null; vertical: { slug: string; name: string } }>(
+            `/api/v1/verticals/${slug}/form-config`
+        ),
+
+    saveFormConfig: (slug: string, config: { fields: any[]; steps: any[]; gamification?: any }) =>
+        apiFetch<{ message: string; formConfig: any }>(
+            `/api/v1/verticals/${slug}/form-config`, {
+            method: 'PUT',
+            body: JSON.stringify(config),
+        }),
+
     // Demo Panel (dev-only)
     demoStatus: () => apiFetch<{ seeded: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/status'),
     demoSeed: () => apiFetch<{ success: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/seed', { method: 'POST' }),
