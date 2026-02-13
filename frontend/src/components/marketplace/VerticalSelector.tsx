@@ -1,17 +1,13 @@
 /**
- * VerticalSelector — Hierarchical vertical dropdown
+ * VerticalSelector — Searchable hierarchical vertical dropdown
  *
+ * Custom dropdown with integrated search input.
  * Fetches the vertical tree from the API, renders grouped/indented items
- * in a Radix Select. Deep levels (>2) collapse behind "Show more".
- * Includes a "Suggest New" trigger for authenticated users.
+ * with client-side filtering. Includes a "Suggest New" trigger.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { ChevronRight, Sparkles, Loader2 } from 'lucide-react';
-import {
-    Select, SelectContent, SelectGroup, SelectItem,
-    SelectLabel, SelectSeparator, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, ChevronDown, Sparkles, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
@@ -44,7 +40,7 @@ interface VerticalSelectorProps {
 
 const FALLBACK_VERTICALS: VerticalNode[] = [
     'solar', 'mortgage', 'roofing', 'insurance', 'home_services',
-    'b2b_saas', 'real_estate', 'auto', 'legal', 'financial',
+    'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services',
 ].map((slug) => ({
     id: slug,
     slug,
@@ -52,6 +48,21 @@ const FALLBACK_VERTICALS: VerticalNode[] = [
     depth: 0,
     children: [],
 }));
+
+// ============================================
+// Flatten helper for search
+// ============================================
+
+function flattenNodes(nodes: VerticalNode[]): VerticalNode[] {
+    const result: VerticalNode[] = [];
+    for (const node of nodes) {
+        result.push(node);
+        if (node.children?.length) {
+            result.push(...flattenNodes(node.children));
+        }
+    }
+    return result;
+}
 
 // ============================================
 // Component
@@ -68,7 +79,10 @@ export function VerticalSelector({
 }: VerticalSelectorProps) {
     const [tree, setTree] = useState<VerticalNode[]>(FALLBACK_VERTICALS);
     const [isLoading, setIsLoading] = useState(true);
-    const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const containerRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const fetchHierarchy = useCallback(async () => {
         try {
@@ -94,139 +108,142 @@ export function VerticalSelector({
         return () => window.removeEventListener('vertical:updated', handler);
     }, [fetchHierarchy]);
 
-    const toggleExpand = (slug: string) => {
-        setExpanded(prev => {
-            const next = new Set(prev);
-            if (next.has(slug)) next.delete(slug);
-            else next.add(slug);
-            return next;
-        });
-    };
-
-    // Render items recursively with indentation
-    const renderItems = (nodes: VerticalNode[], depth: number = 0): React.ReactNode[] => {
-        const items: React.ReactNode[] = [];
-
-        for (const node of nodes) {
-            const hasChildren = node.children && node.children.length > 0;
-            const isExpanded = expanded.has(node.slug);
-            const paddingLeft = depth * 16;
-
-            if (depth === 0 && hasChildren) {
-                // Top-level with children → render as group
-                items.push(
-                    <SelectGroup key={node.slug} data-testid={`vertical-group-${node.slug}`}>
-                        <SelectLabel
-                            className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-md transition-colors"
-                            style={{ paddingLeft: 8 }}
-                            onClick={(e) => { e.preventDefault(); toggleExpand(node.slug); }}
-                        >
-                            <span className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
-                                {node.name}
-                            </span>
-                            <ChevronRight
-                                className={`h-3 w-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                            />
-                        </SelectLabel>
-                        <SelectItem value={node.slug} style={{ paddingLeft: 12 }}>
-                            <span className="flex items-center gap-2">
-                                All {node.name}
-                                <Badge variant="outline" className="text-[10px] px-1 py-0">parent</Badge>
-                            </span>
-                        </SelectItem>
-                        {isExpanded && renderItems(node.children, depth + 1)}
-                    </SelectGroup>
-                );
-            } else if (depth === 0) {
-                // Top-level without children
-                items.push(
-                    <SelectItem key={node.slug} value={node.slug}>
-                        {node.name}
-                    </SelectItem>
-                );
-            } else if (depth <= 2) {
-                // Sub-level items with indentation
-                items.push(
-                    <SelectItem
-                        key={node.slug}
-                        value={node.slug}
-                        style={{ paddingLeft: paddingLeft + 12 }}
-                    >
-                        <span className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground text-xs">└</span>
-                            {node.name}
-                        </span>
-                    </SelectItem>
-                );
-                // Recurse into deeper children
-                if (hasChildren && depth < 2) {
-                    items.push(...renderItems(node.children, depth + 1));
-                } else if (hasChildren) {
-                    // Collapse deeper levels
-                    items.push(
-                        <div
-                            key={`more-${node.slug}`}
-                            className="pl-12 py-1 text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                            onClick={() => toggleExpand(node.slug)}
-                        >
-                            {isExpanded ? 'Show less' : `+${node.children.length} more...`}
-                        </div>
-                    );
-                    if (isExpanded) {
-                        items.push(...renderItems(node.children, depth + 1));
-                    }
-                }
+    // Close on outside click
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+                setSearch('');
             }
-        }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [isOpen]);
 
-        return items;
+    // Focus search on open
+    useEffect(() => {
+        if (isOpen) {
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+        }
+    }, [isOpen]);
+
+    // Filter nodes by search
+    const allFlat = flattenNodes(tree);
+    const filtered = search
+        ? allFlat.filter(n => n.name.toLowerCase().includes(search.toLowerCase()) || n.slug.includes(search.toLowerCase()))
+        : allFlat.filter(n => n.depth === 0); // Only show top-level when not searching
+
+    const selectedLabel = value === 'all' || !value
+        ? placeholder
+        : allFlat.find(n => n.slug === value)?.name || value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    const handleSelect = (slug: string) => {
+        onValueChange(slug);
+        setIsOpen(false);
+        setSearch('');
     };
 
     return (
-        <div className={`flex gap-2 items-center ${className || ''}`}>
-            <Select value={value} onValueChange={onValueChange} disabled={disabled || isLoading}>
-                <SelectTrigger
-                    className="w-[220px] sm:w-[260px]"
-                    data-testid="vertical-selector"
-                >
-                    {isLoading ? (
-                        <span className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Loading...
-                        </span>
-                    ) : (
-                        <SelectValue placeholder={placeholder} />
-                    )}
-                </SelectTrigger>
-                <SelectContent className="max-h-[360px]">
-                    <SelectItem value="all">
-                        <span className="font-medium">All Verticals</span>
-                    </SelectItem>
-                    <SelectSeparator />
-                    {renderItems(tree)}
-                    {showSuggest && (
-                        <>
-                            <SelectSeparator />
-                            <div className="p-1">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full justify-start gap-2 text-primary hover:text-primary"
-                                    data-testid="suggest-vertical-btn"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        onSuggestClick?.();
-                                    }}
-                                >
-                                    <Sparkles className="h-4 w-4" />
-                                    Suggest New Vertical
-                                </Button>
+        <div className={`relative ${className || ''}`} ref={containerRef}>
+            {/* Trigger Button */}
+            <button
+                type="button"
+                disabled={disabled || isLoading}
+                onClick={() => setIsOpen(!isOpen)}
+                data-testid="vertical-selector"
+                className="flex items-center justify-between w-[220px] sm:w-[260px] h-9 px-3 py-2 rounded-md border border-border bg-background text-sm hover:bg-accent/50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+            >
+                {isLoading ? (
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading...
+                    </span>
+                ) : (
+                    <span className="truncate">{selectedLabel}</span>
+                )}
+                <ChevronDown className={`h-4 w-4 ml-2 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Dropdown Panel */}
+            {isOpen && (
+                <div className="absolute z-50 mt-1 w-[280px] sm:w-[320px] rounded-lg border border-border bg-card shadow-lg animate-in fade-in-0 zoom-in-95">
+                    {/* Search Input */}
+                    <div className="p-2 border-b border-border">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                placeholder="Search verticals..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Options List */}
+                    <div className="max-h-[280px] overflow-y-auto p-1">
+                        {/* All Verticals option */}
+                        {!search && (
+                            <button
+                                type="button"
+                                onClick={() => handleSelect('all')}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${value === 'all' || !value ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-accent/50'}`}
+                            >
+                                {(value === 'all' || !value) && <Check className="h-3.5 w-3.5" />}
+                                <span className="font-medium">All Verticals</span>
+                            </button>
+                        )}
+
+                        {filtered.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                                No verticals match "{search}"
                             </div>
-                        </>
+                        ) : (
+                            filtered.map((node) => (
+                                <button
+                                    type="button"
+                                    key={node.slug}
+                                    onClick={() => handleSelect(node.slug)}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${value === node.slug ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-accent/50'}`}
+                                    style={{ paddingLeft: search ? 12 : (node.depth * 16) + 12 }}
+                                >
+                                    {value === node.slug && <Check className="h-3.5 w-3.5 shrink-0" />}
+                                    <span className="truncate">{node.name}</span>
+                                    {node.children?.length > 0 && (
+                                        <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto shrink-0">
+                                            {node.children.length}
+                                        </Badge>
+                                    )}
+                                </button>
+                            ))
+                        )}
+                    </div>
+
+                    {/* Suggest New Vertical */}
+                    {showSuggest && (
+                        <div className="border-t border-border p-1">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start gap-2 text-primary hover:text-primary"
+                                data-testid="suggest-vertical-btn"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsOpen(false);
+                                    onSuggestClick?.();
+                                }}
+                            >
+                                <Sparkles className="h-4 w-4" />
+                                Suggest New Vertical
+                            </Button>
+                        </div>
                     )}
-                </SelectContent>
-            </Select>
+                </div>
+            )}
         </div>
     );
 }

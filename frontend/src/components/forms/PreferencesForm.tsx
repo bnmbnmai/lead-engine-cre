@@ -228,18 +228,16 @@ export function PreferencesForm({ onSuccess }: PreferencesFormProps) {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {availableVerticals.length > 10 && (
-                                        <div className="relative max-w-xs mx-auto">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                            <input
-                                                type="text"
-                                                placeholder="Search verticals..."
-                                                value={verticalSearch}
-                                                onChange={(e) => setVerticalSearch(e.target.value)}
-                                                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                            />
-                                        </div>
-                                    )}
+                                    <div className="relative max-w-xs mx-auto mb-2">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search verticals..."
+                                            value={verticalSearch}
+                                            onChange={(e) => setVerticalSearch(e.target.value)}
+                                            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                        />
+                                    </div>
                                     <div className="flex flex-wrap justify-center gap-2">
                                         {filteredVerticals.filter(v => v.depth === 0).map((v) => (
                                             <Button
