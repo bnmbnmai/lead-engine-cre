@@ -11,6 +11,7 @@
  */
 
 import { PrismaClient, VerticalStatus } from '@prisma/client';
+import { FORM_CONFIG_TEMPLATES } from '../src/data/form-config-templates';
 
 const prisma = new PrismaClient();
 
@@ -274,6 +275,7 @@ async function seedVerticals() {
                     requiresTcpa: v.requiresTcpa ?? false,
                     requiresKyc: v.requiresKyc ?? false,
                     restrictedGeos: v.restrictedGeos ?? [],
+                    formConfig: (FORM_CONFIG_TEMPLATES[v.slug] ?? null) as any,
                 },
             });
             parentId = record.id;
@@ -304,6 +306,7 @@ async function seedVerticals() {
                         requiresTcpa: child.requiresTcpa ?? v.requiresTcpa ?? false,
                         requiresKyc: child.requiresKyc ?? v.requiresKyc ?? false,
                         restrictedGeos: child.restrictedGeos ?? [],
+                        formConfig: (FORM_CONFIG_TEMPLATES[child.slug] ?? null) as any,
                     },
                 });
                 console.log(`    ✅ ${child.slug}`);
@@ -313,6 +316,18 @@ async function seedVerticals() {
     }
 
     console.log(`\n🎉 Done! Created: ${created}, Skipped: ${skipped}`);
+
+    // Update formConfig for any existing verticals that were skipped
+    console.log('\n🔄 Syncing formConfig templates to all existing verticals...');
+    let configUpdated = 0;
+    for (const [slug, config] of Object.entries(FORM_CONFIG_TEMPLATES)) {
+        const result = await prisma.vertical.updateMany({
+            where: { slug },
+            data: { formConfig: config as any },
+        });
+        if (result.count > 0) configUpdated++;
+    }
+    console.log(`✅ Updated formConfig on ${configUpdated} verticals.`);
 }
 
 // Run standalone when executed directly

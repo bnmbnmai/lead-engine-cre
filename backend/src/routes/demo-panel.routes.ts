@@ -10,6 +10,7 @@ import { prisma } from '../lib/prisma';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
 import { generateToken } from '../middleware/auth';
+import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 
 const router = Router();
 
@@ -883,6 +884,42 @@ router.post('/reset', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Demo reset error:', error);
         res.status(500).json({ error: 'Failed to reset demo state', details: String(error) });
+    }
+});
+
+// ============================================
+// POST /seed-templates — Reset + seed all formConfig templates
+// ============================================
+router.post('/seed-templates', async (req: Request, res: Response) => {
+    try {
+        // 1. Clear all existing formConfig
+        await prisma.vertical.updateMany({
+            where: { formConfig: { not: undefined } },
+            data: { formConfig: undefined },
+        });
+
+        // 2. Ensure verticals exist
+        await seedVerticals();
+
+        // 3. Apply all templates
+        let updated = 0;
+        for (const [slug, config] of Object.entries(FORM_CONFIG_TEMPLATES)) {
+            const result = await prisma.vertical.updateMany({
+                where: { slug },
+                data: { formConfig: config as any },
+            });
+            if (result.count > 0) updated++;
+        }
+
+        res.json({
+            success: true,
+            templatesApplied: updated,
+            totalTemplates: Object.keys(FORM_CONFIG_TEMPLATES).length,
+            message: `Applied ${updated} form config templates across all verticals.`,
+        });
+    } catch (error) {
+        console.error('Seed templates error:', error);
+        res.status(500).json({ error: 'Failed to seed form templates', details: String(error) });
     }
 });
 
