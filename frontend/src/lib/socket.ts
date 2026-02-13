@@ -55,7 +55,10 @@ class SocketClient {
     private listeners: Map<string, Set<Function>> = new Map();
 
     connect(): Socket {
-        if (this.socket?.connected) {
+        // If a socket already exists (connected or still handshaking), reuse it.
+        // This prevents stacking duplicate io() instances that each fan events
+        // into the same this.listeners Map.
+        if (this.socket) {
             return this.socket;
         }
 
@@ -108,7 +111,10 @@ class SocketClient {
     }
 
     disconnect() {
-        this.socket?.disconnect();
+        if (this.socket) {
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+        }
         this.socket = null;
     }
 
