@@ -137,22 +137,77 @@ const PRICING: Record<string, { min: number; max: number }> = {
     real_estate: { min: 40, max: 150 }, auto: { min: 12, max: 40 }, legal: { min: 35, max: 120 }, financial_services: { min: 45, max: 180 },
 };
 
-// Non-PII demo form-field values (mirrors LeadSubmitForm VERTICAL_FIELDS)
-const VERTICAL_DEMO_PARAMS: Record<string, Record<string, string | boolean>> = {
-    solar: { roof_age: '8', monthly_bill: '185', ownership: 'own', panel_interest: 'purchase', shade_level: 'no_shade' },
-    mortgage: { loan_type: 'purchase', credit_range: 'good_700-749', property_type: 'single_family', purchase_price: '450000', down_payment_pct: '20' },
-    roofing: { roof_type: 'shingle', damage_type: 'storm', insurance_claim: true, roof_age: '15', square_footage: '2200' },
-    insurance: { coverage_type: 'home', current_provider: 'State Farm', policy_expiry: '30', num_drivers: '2' },
-    home_services: { service_type: 'hvac', urgency: 'this_week', property_type: 'residential' },
-    real_estate: { transaction_type: 'buying', property_type: 'single_family', price_range: '200k-500k', timeline: '1-3_months' },
-    auto: { vehicle_year: '2022', vehicle_make: 'Toyota', vehicle_model: 'Camry', mileage: '28000', coverage_type: 'full', current_insured: true },
-    b2b_saas: { company_size: '51-200', industry: 'technology', budget_range: '2000-10000', decision_timeline: '1-3_months', current_solution: 'Salesforce' },
-    legal: { case_type: 'personal_injury', urgency: 'this_week', has_representation: false, case_value: '75000' },
-    financial_services: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
-};
-
 function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick<T>(arr: T[]): T { return arr[rand(0, arr.length - 1)]; }
+
+// Non-PII demo form-field values — keys MUST match VERTICAL_PREVIEW_CONFIG.safeKeys (camelCase)
+// Returns randomized values so each injection looks unique
+function buildVerticalDemoParams(vertical: string): Record<string, string | boolean> {
+    switch (vertical) {
+        case 'solar':
+            return {
+                roofType: pick(['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO']),
+                roofAge: `${rand(2, 25)} years`,
+                sqft: `${rand(1200, 4500)}`,
+                electricBill: `$${rand(100, 400)}/mo`,
+                creditScore: pick(['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)', 'Below 650']),
+                systemSize: pick(['4-6 kW', '6-8 kW', '8-10 kW', '10+ kW']),
+                timeline: pick(['ASAP', '1-3 months', '3-6 months', 'Just researching']),
+                shading: pick(['No shading', 'Partial shade', 'Heavy shade']),
+            };
+        case 'mortgage':
+            return {
+                propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Multi-Family']),
+                homeValue: `$${rand(200, 900) * 1000}`,
+                loanAmount: `$${rand(150, 750) * 1000}`,
+                loanType: pick(['Purchase', 'Refinance', 'Cash-Out Refinance', 'HELOC']),
+                creditScore: pick(['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)']),
+                purchaseTimeline: pick(['Immediately', '1-3 months', '3-6 months', '6+ months']),
+                occupancy: pick(['Primary Residence', 'Second Home', 'Investment Property']),
+                downPayment: pick(['3%', '5%', '10%', '20%', '25%+']),
+            };
+        case 'roofing':
+            return {
+                propertyType: pick(['Single Family', 'Townhouse', 'Commercial']),
+                roofType: pick(['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO', 'Slate']),
+                roofAge: `${rand(5, 35)} years`,
+                projectBudget: `$${rand(5, 25) * 1000}-$${rand(25, 50) * 1000}`,
+                projectType: pick(['Full Replacement', 'Repair', 'Inspection', 'Storm Damage']),
+                urgency: pick(['Emergency', 'This week', '1-2 weeks', 'Flexible']),
+                sqft: `${rand(1000, 4000)}`,
+                stories: pick(['1 Story', '2 Stories', '3+ Stories']),
+            };
+        case 'insurance':
+            return {
+                propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Rental Property']),
+                coverageType: pick(['Homeowners', 'Renters', 'Umbrella', 'Bundled']),
+                currentCarrier: pick(['State Farm', 'Allstate', 'Progressive', 'GEICO', 'None']),
+                homeAge: `${rand(1, 50)} years`,
+                sqft: `${rand(900, 5000)}`,
+                claimsHistory: pick(['No claims', '1 claim (3+ years ago)', '1 claim (recent)', '2+ claims']),
+            };
+        case 'home_services':
+            return {
+                propertyType: pick(['Single Family', 'Condo', 'Townhouse']),
+            };
+        case 'real_estate':
+            return {
+                propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Multi-Family', 'Land']),
+            };
+        case 'auto':
+            return {
+                coverageType: pick(['Full Coverage', 'Liability Only', 'Comprehensive']),
+            };
+        case 'b2b_saas':
+        case 'legal':
+        case 'financial_services':
+        default:
+            return {};
+    }
+}
+
+
+
 
 // Demo buyer profiles for multi-user bid simulation
 const DEMO_BUYERS = [
@@ -495,8 +550,8 @@ router.post('/lead', async (req: Request, res: Response) => {
             return;
         }
 
-        // Build non-PII form parameters from vertical schema
-        const params = VERTICAL_DEMO_PARAMS[vertical] || {};
+        // Build non-PII form parameters from vertical schema (randomized)
+        const params = buildVerticalDemoParams(vertical);
 
         const lead = await prisma.lead.create({
             data: {
@@ -756,7 +811,7 @@ router.post('/reset', async (req: Request, res: Response) => {
             const vertical = FALLBACK_VERTICALS[i % FALLBACK_VERTICALS.length];
             const state = pick(STATES);
             const price = rand(PRICING[vertical].min, PRICING[vertical].max);
-            const params = VERTICAL_DEMO_PARAMS[vertical] || {};
+            const params = buildVerticalDemoParams(vertical);
             const lead = await prisma.lead.create({
                 data: {
                     sellerId: seller.id, vertical,

@@ -137,7 +137,9 @@ export function DemoPanel() {
         await runAction('inject', async () => {
             const { data, error } = await api.demoInjectLead();
             if (error) throw new Error(error.message || error.error);
-            return `⚡ Injected ${data?.lead?.vertical} lead in ${data?.lead?.state}`;
+            const v = data?.lead?.vertical?.replace(/_/g, ' ') || 'unknown';
+            const paramCount = data?.lead?.parameters ? Object.keys(data.lead.parameters).length : 0;
+            return `📋 Simulated form submission from ${v} lander — ${paramCount} fields captured in ${data?.lead?.state}`;
         });
     }
 
