@@ -27,6 +27,7 @@ import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import AdminNFTs from '@/pages/AdminNFTs';
 import AdminVerticals from '@/pages/AdminVerticals';
+import AskDetailPage from '@/pages/AskDetailPage';
 import AdConversions from '@/pages/AdConversions';
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';
@@ -78,6 +79,7 @@ function App() {
                                 {/* Marketplace — accessible to everyone (auth users use this from dashboard) */}
                                 <Route path="/marketplace" element={<HomePage />} />
                                 <Route path="/auction/:leadId" element={<AuctionPage />} />
+                                <Route path="/marketplace/ask/:askId" element={<AskDetailPage />} />
 
                                 {/* Buyer Routes (auth + role required) */}
                                 <Route path="/buyer" element={<ProtectedRoute role="BUYER"><BuyerDashboard /></ProtectedRoute>} />

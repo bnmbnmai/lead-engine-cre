@@ -12,7 +12,7 @@
 import { useState, useMemo } from 'react';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
-    Sparkles, Shield, Search,
+    Sparkles, Shield, Search, Plus, Send,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,7 @@ import { LabeledSwitch } from '@/components/ui/switch';
 import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { getContrastText, meetsWcagAA, contrastRatio } from '@/lib/contrast';
 import useAuth from '@/hooks/useAuth';
+import { toast } from '@/hooks/useToast';
 import {
     GamificationConfig, FormColorScheme,
     COLOR_SCHEMES, VERTICAL_PRESETS, GENERIC_TEMPLATE, autoGroupSteps,
@@ -68,6 +69,10 @@ export default function SellerTemplates() {
     const [previewMode, setPreviewMode] = useState<'preview' | 'iframe' | 'url'>('preview');
     const [copiedIframe, setCopiedIframe] = useState(false);
     const [copiedUrl, setCopiedUrl] = useState(false);
+    const [showRequestForm, setShowRequestForm] = useState(false);
+    const [requestVertical, setRequestVertical] = useState('');
+    const [requestDescription, setRequestDescription] = useState('');
+    const [requestSubmitting, setRequestSubmitting] = useState(false);
 
     // All available verticals (from presets keys)
     const verticals = useMemo(() => {
@@ -147,7 +152,79 @@ export default function SellerTemplates() {
                             Pre-approved lead capture templates. Customize colors, branding, and CTA — all forms are hosted by the platform for compliance.
                         </p>
                     </div>
+                    <Button
+                        variant="outline"
+                        onClick={() => setShowRequestForm(!showRequestForm)}
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Request New Template
+                    </Button>
                 </div>
+
+                {/* Request New Template Form */}
+                {showRequestForm && (
+                    <Card className="border-primary/30 bg-primary/5">
+                        <CardContent className="p-5 space-y-4">
+                            <h3 className="text-sm font-semibold flex items-center gap-2">
+                                <Plus className="h-4 w-4 text-primary" />
+                                Request a New Template
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                Submit a vertical idea. Our admin team will review and publish an approved template within 48 hours.
+                            </p>
+                            <div className="grid sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium mb-1 block">Vertical Name</label>
+                                    <Input
+                                        placeholder="e.g. Pet Insurance, Solar B2B"
+                                        value={requestVertical}
+                                        onChange={(e) => setRequestVertical(e.target.value.slice(0, 80))}
+                                        maxLength={80}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium mb-1 block">Description</label>
+                                    <Input
+                                        placeholder="What fields / flow would your ideal template have?"
+                                        value={requestDescription}
+                                        onChange={(e) => setRequestDescription(e.target.value.slice(0, 500))}
+                                        maxLength={500}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    size="sm"
+                                    disabled={!requestVertical.trim() || requestSubmitting}
+                                    onClick={async () => {
+                                        setRequestSubmitting(true);
+                                        // Simulate API submission (will be wired to real endpoint)
+                                        await new Promise((r) => setTimeout(r, 800));
+                                        toast({
+                                            type: 'success',
+                                            title: 'Template Requested',
+                                            description: `"${requestVertical}" has been submitted for admin review.`,
+                                        });
+                                        setRequestVertical('');
+                                        setRequestDescription('');
+                                        setShowRequestForm(false);
+                                        setRequestSubmitting(false);
+                                    }}
+                                >
+                                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                                    {requestSubmitting ? 'Submitting…' : 'Submit Request'}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setShowRequestForm(false)}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Search */}
                 <div className="relative max-w-sm">

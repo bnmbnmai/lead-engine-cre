@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, ExternalLink } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, ExternalLink, Tag } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -210,6 +210,12 @@ export function BuyerDashboard() {
                     </div>
                     <div className="flex items-center gap-3">
                         <CRMExportButton />
+                        <Button variant="outline" asChild>
+                            <Link to="/?view=asks">
+                                <Tag className="h-4 w-4 mr-2" />
+                                Browse Asks
+                            </Link>
+                        </Button>
                         <Button asChild>
                             <Link to="/marketplace">Browse Marketplace</Link>
                         </Button>

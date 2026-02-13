@@ -7,7 +7,6 @@ import { GlassCard } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { AskCard } from '@/components/marketplace/AskCard';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
@@ -18,7 +17,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 const DASHBOARD_TABS = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
     { key: 'leads', label: 'Sold Leads', icon: FileText, path: '/seller/leads' },
-    { key: 'asks', label: 'Asks', icon: Tag, path: '/seller/asks' },
+    { key: 'asks', label: 'Active Asks', icon: Tag, path: '/seller/asks' },
     { key: 'submit', label: 'Submit', icon: Send, path: '/seller/submit' },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/seller/analytics' },
 ] as const;
@@ -342,7 +341,75 @@ export function SellerDashboard() {
                         ) : (
                             <div className="grid md:grid-cols-2 gap-4">
                                 {activeAsks.map((ask) => (
-                                    <AskCard key={ask.id} ask={ask} basePath="/seller/asks" />
+                                    <Card key={ask.id} className="group hover:border-primary/50 transition-all">
+                                        <div className="p-5 space-y-3">
+                                            {/* Header: Vertical + Status */}
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <h3 className="font-semibold text-base capitalize">
+                                                        {ask.vertical?.replace(/_/g, ' ')}
+                                                    </h3>
+                                                    {ask.seller?.companyName && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {ask.seller.companyName}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <Badge className={getStatusColor(ask.status)}>
+                                                    {ask.status}
+                                                </Badge>
+                                            </div>
+
+                                            {/* Stats Row */}
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                                                    <div className="text-lg font-bold gradient-text">
+                                                        {formatCurrency(ask.reservePrice)}
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">Reserve</div>
+                                                </div>
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                                                    <div className="text-lg font-bold text-emerald-500">
+                                                        {ask._count?.leads || 0}
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">Active Leads</div>
+                                                </div>
+                                                <div className="rounded-lg bg-muted/50 px-3 py-2 text-center">
+                                                    <div className="text-lg font-bold text-amber-500">
+                                                        {ask._count?.bids || 0}
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">Bids</div>
+                                                </div>
+                                            </div>
+
+                                            {/* Geo + Buy Now */}
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                                <span className="flex items-center gap-1">
+                                                    📍 {ask.geoTargets?.states?.slice(0, 3).join(', ') || 'Nationwide'}
+                                                    {(ask.geoTargets?.states?.length || 0) > 3 && (
+                                                        <span> +{ask.geoTargets.states.length - 3}</span>
+                                                    )}
+                                                </span>
+                                                {ask.buyNowPrice && (
+                                                    <span className="text-green-500 font-medium">
+                                                        Buy Now: {formatCurrency(ask.buyNowPrice)}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* View Details Button */}
+                                            <Button
+                                                asChild
+                                                size="sm"
+                                                className="w-full group-hover:scale-[1.02] transition-transform"
+                                            >
+                                                <Link to={`/marketplace/ask/${ask.id}`}>
+                                                    View Details
+                                                    <ArrowUpRight className="h-4 w-4 ml-1" />
+                                                </Link>
+                                            </Button>
+                                        </div>
+                                    </Card>
                                 ))}
                             </div>
                         )}
