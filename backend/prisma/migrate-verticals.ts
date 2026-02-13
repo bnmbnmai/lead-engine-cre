@@ -361,7 +361,7 @@ async function executeMigration(
             created++;
         }
         if (created > 0) console.log(`  📦 Created ${created} missing children`);
-    }, { timeout: 30000 });
+    }, { timeout: 120000 });
 
     return changeLog;
 }
