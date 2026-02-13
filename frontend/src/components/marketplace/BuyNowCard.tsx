@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { MapPin, Clock, ShoppingCart, Tag, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MapPin, Clock, ShoppingCart, Tag, AlertTriangle, CheckCircle, Loader2, Eye } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -186,6 +187,12 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                     {error && (
                         <p className="text-xs text-red-500 text-center">{error}</p>
                     )}
+                    <Button asChild variant="outline" className="w-full">
+                        <Link to={`/lead/${lead.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                        </Link>
+                    </Button>
                     <Button
                         className={`w-full transition-all ${confirming
                             ? 'bg-amber-600 hover:bg-amber-700'
