@@ -39,7 +39,12 @@ router.get('/asks', generalLimiter, optionalAuthMiddleware, async (req: Authenti
         if (maxPrice) where.reservePrice = { ...where.reservePrice, lte: maxPrice };
         if (state) where.geoTargets = { path: ['states'], array_contains: state };
         if (country) where.geoTargets = { ...where.geoTargets, path: ['country'], equals: country };
-        if (search) where.vertical = { contains: search, mode: 'insensitive' };
+        if (search) {
+            where.OR = [
+                { id: { startsWith: search, mode: 'insensitive' } },
+                { vertical: { contains: search, mode: 'insensitive' } },
+            ];
+        }
 
         const [asks, total] = await Promise.all([
             prisma.ask.findMany({
@@ -332,7 +337,7 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             return;
         }
 
-        const { vertical, status, state, country, search, limit, offset, sortBy, sortOrder } = validation.data;
+        const { vertical, status, state, country, search, sellerId, sellerName, minReputation, limit, offset, sortBy, sortOrder } = validation.data;
 
         // Build query based on user role
         const where: any = {};
@@ -372,7 +377,24 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
         if (status) where.status = status;
         if (state) where.geo = { path: ['state'], equals: state };
         if (country) where.geo = { ...where.geo, path: ['country'], equals: country };
-        if (search) where.vertical = { contains: search, mode: 'insensitive' };
+        if (search) {
+            where.OR = [
+                { id: { startsWith: search, mode: 'insensitive' } },
+                { vertical: { contains: search, mode: 'insensitive' } },
+                { geo: { path: ['state'], string_contains: search } },
+                { geo: { path: ['city'], string_contains: search } },
+                { seller: { companyName: { contains: search, mode: 'insensitive' } } },
+            ];
+        }
+
+        // Seller-specific filters
+        if (sellerId) where.sellerId = sellerId;
+        if (sellerName) {
+            where.seller = { ...where.seller, companyName: { contains: sellerName, mode: 'insensitive' } };
+        }
+        if (minReputation !== undefined) {
+            where.seller = { ...where.seller, reputationScore: { gte: minReputation } };
+        }
 
         const [leads, total] = await Promise.all([
             prisma.lead.findMany({
@@ -391,6 +413,14 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
                     auctionEndAt: true,
                     createdAt: true,
                     _count: { select: { bids: true } },
+                    seller: {
+                        select: {
+                            id: true,
+                            companyName: true,
+                            reputationScore: true,
+                            isVerified: true,
+                        },
+                    },
                 },
             }),
             prisma.lead.count({ where }),
@@ -487,6 +517,40 @@ router.get('/leads/:id/preview', authMiddleware, async (req: AuthenticatedReques
     } catch (error) {
         console.error('Lead preview error:', error);
         res.status(500).json({ error: 'Failed to get lead preview' });
+    }
+});
+
+// ============================================
+// Seller Search (autocomplete for buyer filters)
+// ============================================
+
+router.get('/sellers/search', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const query = (req.query.q as string || '').trim();
+        if (!query || query.length < 2) {
+            res.json({ sellers: [] });
+            return;
+        }
+
+        const sellers = await prisma.sellerProfile.findMany({
+            where: {
+                companyName: { contains: query, mode: 'insensitive' },
+            },
+            select: {
+                id: true,
+                companyName: true,
+                reputationScore: true,
+                isVerified: true,
+                totalLeadsSold: true,
+            },
+            orderBy: { reputationScore: 'desc' },
+            take: 20,
+        });
+
+        res.json({ sellers });
+    } catch (error) {
+        console.error('Seller search error:', error);
+        res.status(500).json({ error: 'Failed to search sellers' });
     }
 });
 

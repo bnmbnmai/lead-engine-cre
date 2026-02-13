@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Shield, Zap, Users, Wallet } from 'lucide-react';
+import { MapPin, Clock, Shield, Zap, Users, Wallet, Star } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,12 @@ interface Lead {
     auctionStartAt?: string;
     _count?: { bids: number };
     auctionRoom?: { bidCount?: number; highestBid?: number };
+    seller?: {
+        id: string;
+        companyName: string;
+        reputationScore: number;
+        isVerified: boolean;
+    };
 }
 
 interface LeadCardProps {
@@ -102,6 +108,18 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                                 <MapPin className="h-3 w-3" />
                                 {lead.geo.city ? `${lead.geo.city}, ` : ''}{lead.geo.state || 'Unknown'}
                             </div>
+                            {lead.seller?.companyName && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <Star className="h-3 w-3 text-amber-500" />
+                                    <span className="truncate max-w-[120px]">{lead.seller.companyName}</span>
+                                    <span className="text-[10px] opacity-70">
+                                        {(Number(lead.seller.reputationScore) / 100).toFixed(0)}%
+                                    </span>
+                                    {lead.seller.isVerified && (
+                                        <span className="text-emerald-500 text-[10px] font-semibold">✓</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
@@ -206,7 +224,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                     )}
                 </div>
             </CardContent>
-        </Card>
+        </Card >
     );
 }
 

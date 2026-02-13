@@ -12,7 +12,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Zap, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Shield, Zap, ChevronDown, ChevronUp, Info, ExternalLink, Sparkles } from 'lucide-react';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
@@ -61,15 +62,15 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
                 const res = await api.apiFetch<PerksOverview>('/api/v1/buyer/perks-overview');
                 setPerks(res.data ?? null);
             } catch (error) {
-                // Fallback: synthetic overview for demo
+                // Fallback: safe default (non-holder)
                 setPerks({
-                    isHolder: true,
-                    multiplier: 1.2,
-                    prePingSeconds: 7,
-                    notifyOptedIn: true,
-                    gdprConsent: true,
+                    isHolder: false,
+                    multiplier: 1.0,
+                    prePingSeconds: 0,
+                    notifyOptedIn: false,
+                    gdprConsent: false,
                     autoBidEnabled: false,
-                    winStats: { totalBids: 42, wonBids: 18, winRate: 43 },
+                    winStats: { totalBids: 0, wonBids: 0, winRate: 0 },
                 });
             } finally {
                 setLoading(false);
@@ -120,6 +121,40 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
 
     if (!perks) return null;
 
+    // ── Non-holder teaser ──────────────────────────
+    if (!perks.isHolder) {
+        return (
+            <GlassCard className={className}>
+                <CardContent className="py-6">
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 rounded-xl bg-primary/10 shrink-0">
+                            <Sparkles className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-base">Vertical Ownership Perks</h3>
+                                <Tooltip content="Vertical NFTs represent ownership of a lead category (e.g. Solar, Mortgage). Owners get bid multipliers, early access to auctions, and priority notifications.">
+                                    <Info className="h-4 w-4 text-muted-foreground cursor-help shrink-0" aria-label="What are Vertical NFTs?" />
+                                </Tooltip>
+                            </div>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                Own a Vertical NFT to unlock a <strong className="text-foreground">1.2× bid multiplier</strong>, exclusive early access to auctions, and priority notifications.
+                            </p>
+                            <Link
+                                to="/admin/verticals"
+                                className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                            >
+                                Browse Vertical NFTs
+                                <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
+                        </div>
+                    </div>
+                </CardContent>
+            </GlassCard>
+        );
+    }
+
+    // ── Holder full panel ──────────────────────────
     return (
         <GlassCard className={className}>
             {/* Header with collapse toggle */}
@@ -136,28 +171,31 @@ export function PerksPanel({ className = '' }: PerksPanelProps) {
                         <Shield className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                        <CardTitle className="text-lg">Holder Perks</CardTitle>
+                        <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">Vertical Ownership Perks</CardTitle>
+                            <Tooltip content="As a Vertical NFT owner, you get bid multipliers, early auction access (pre-ping), and priority notifications for your verticals.">
+                                <Info className="h-4 w-4 text-muted-foreground cursor-help shrink-0" aria-label="About vertical perks" />
+                            </Tooltip>
+                        </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                            {perks.isHolder ? 'NFT Holder — Priority bidding active' : 'Standard bidder'}
+                            NFT Holder — Priority bidding active
                         </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Multiplier Badge with Tooltip */}
-                    {perks.isHolder && (
-                        <Tooltip content={`Your bids are weighted at ${perks.multiplier}× for auction ranking. You pay the original amount.`}>
-                            <Badge
-                                variant="outline"
-                                className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                                aria-label={`Bid multiplier: ${perks.multiplier} times`}
-                            >
-                                <Zap className="h-3 w-3 mr-1" />
-                                {perks.multiplier}× Multiplier
-                            </Badge>
-                        </Tooltip>
-                    )}
+                    <Tooltip content={`Your bids are weighted at ${perks.multiplier}× for auction ranking. You pay the original amount.`}>
+                        <Badge
+                            variant="outline"
+                            className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            aria-label={`Bid multiplier: ${perks.multiplier} times`}
+                        >
+                            <Zap className="h-3 w-3 mr-1" />
+                            {perks.multiplier}× Multiplier
+                        </Badge>
+                    </Tooltip>
                     {/* Pre-ping Badge with Tooltip */}
-                    {perks.isHolder && perks.prePingSeconds > 0 && (
+                    {perks.prePingSeconds > 0 && (
                         <Tooltip content={`You get ${perks.prePingSeconds}s exclusive early access before non-holders can bid.`}>
                             <Badge
                                 variant="outline"

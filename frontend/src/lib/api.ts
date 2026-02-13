@@ -129,6 +129,10 @@ export const api = {
     getLead: (id: string) => apiFetch<{ lead: any }>(`/api/v1/leads/${id}`),
     getLeadPreview: (id: string) => apiFetch<{ preview: any }>(`/api/v1/leads/${id}/preview`),
 
+    // Sellers
+    searchSellers: (q: string) =>
+        apiFetch<{ sellers: any[] }>(`/api/v1/sellers/search?q=${encodeURIComponent(q)}`),
+
     // Bids
     placeBid: (data: { leadId: string; amount?: number; commitment?: string }) =>
         apiFetch<{ bid: any }>('/api/v1/bids', {

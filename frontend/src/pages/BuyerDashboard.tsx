@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { LeadCard } from '@/components/marketplace/LeadCard';
 import { CRMExportButton } from '@/components/ui/CRMExportButton';
@@ -13,6 +14,7 @@ import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
+import { useDebounce } from '@/hooks/useDebounce';
 import { PerksPanel } from '@/components/marketplace/PerksPanel';
 
 export function BuyerDashboard() {
@@ -21,14 +23,46 @@ export function BuyerDashboard() {
     const [activeLeads, setActiveLeads] = useState<any[]>([]);
     const [purchasedLeads, setPurchasedLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 300);
+    const [sellerInput, setSellerInput] = useState('');
+    const [sellerName, setSellerName] = useState('');
+    const [sellerSuggestions, setSellerSuggestions] = useState<any[]>([]);
+    const [showSellerDropdown, setShowSellerDropdown] = useState(false);
+    const sellerDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Seller autocomplete
+    useEffect(() => {
+        if (sellerInput.length < 2) { setSellerSuggestions([]); return; }
+        const timer = setTimeout(async () => {
+            try {
+                const { data } = await api.searchSellers(sellerInput);
+                setSellerSuggestions(data?.sellers || []);
+                setShowSellerDropdown(true);
+            } catch { setSellerSuggestions([]); }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [sellerInput]);
+
+    // Close seller dropdown on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (sellerDropdownRef.current && !sellerDropdownRef.current.contains(e.target as Node)) setShowSellerDropdown(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
+                const leadsParams: Record<string, string> = { status: 'IN_AUCTION', limit: '6' };
+                if (debouncedSearch) leadsParams.search = debouncedSearch;
+                if (sellerName) leadsParams.sellerName = sellerName;
                 const [overviewRes, bidsRes, leadsRes] = await Promise.all([
                     api.getOverview(),
                     api.getMyBids(),
-                    api.listLeads({ status: 'IN_AUCTION', limit: '6' }),
+                    api.listLeads(leadsParams),
                 ]);
 
                 setOverview(overviewRes.data?.stats);
@@ -45,7 +79,7 @@ export function BuyerDashboard() {
         };
 
         fetchData();
-    }, []);
+    }, [debouncedSearch, sellerName]);
 
     // Re-fetch callback for socket events & polling fallback
     const refetchData = useCallback(() => {
@@ -114,6 +148,25 @@ export function BuyerDashboard() {
         { label: 'Total Spent', value: formatCurrency(overview?.totalSpent || 0), icon: DollarSign, color: 'text-amber-500' },
     ];
 
+    // Client-side filtering for bids and purchased leads
+    const q = debouncedSearch.toLowerCase();
+    const filteredBids = useMemo(() =>
+        q ? recentBids.filter((b: any) =>
+            b.lead?.vertical?.toLowerCase().includes(q) ||
+            b.lead?.id?.toLowerCase().startsWith(q) ||
+            b.lead?.geo?.state?.toLowerCase().includes(q) ||
+            b.lead?.geo?.city?.toLowerCase().includes(q)
+        ) : recentBids,
+        [recentBids, q]);
+    const filteredPurchased = useMemo(() =>
+        q ? purchasedLeads.filter((b: any) =>
+            b.lead?.vertical?.toLowerCase().includes(q) ||
+            b.lead?.id?.toLowerCase().startsWith(q) ||
+            b.lead?.geo?.state?.toLowerCase().includes(q) ||
+            b.lead?.geo?.city?.toLowerCase().includes(q)
+        ) : purchasedLeads,
+        [purchasedLeads, q]);
+
     return (
         <DashboardLayout>
             <div className="space-y-8">
@@ -128,6 +181,48 @@ export function BuyerDashboard() {
                         <Button asChild>
                             <Link to="/marketplace">Browse Marketplace</Link>
                         </Button>
+                    </div>
+                </div>
+
+                {/* Search & Seller Filter */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="max-w-md flex-1">
+                        <Input
+                            placeholder="Search by lead ID, vertical, or location..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            icon={<Search className="h-4 w-4" />}
+                        />
+                    </div>
+                    <div className="relative w-full sm:w-56" ref={sellerDropdownRef}>
+                        <Input
+                            placeholder="Filter by seller..."
+                            value={sellerInput}
+                            onChange={(e) => {
+                                setSellerInput(e.target.value);
+                                if (!e.target.value) { setSellerName(''); setShowSellerDropdown(false); }
+                            }}
+                            onFocus={() => sellerSuggestions.length > 0 && setShowSellerDropdown(true)}
+                            icon={<Users className="h-4 w-4" />}
+                        />
+                        {showSellerDropdown && sellerSuggestions.length > 0 && (
+                            <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-auto">
+                                {sellerSuggestions.map((s) => (
+                                    <button
+                                        key={s.id}
+                                        className="w-full px-3 py-2.5 text-left hover:bg-muted/60 flex items-center justify-between gap-2 text-sm transition-colors"
+                                        onClick={() => { setSellerName(s.companyName); setSellerInput(s.companyName); setShowSellerDropdown(false); }}
+                                    >
+                                        <span className="truncate font-medium">{s.companyName}</span>
+                                        <span className="flex items-center gap-1 shrink-0">
+                                            <Star className="h-3 w-3 text-amber-500" />
+                                            <span className="text-xs text-muted-foreground">{(Number(s.reputationScore) / 100).toFixed(0)}%</span>
+                                            {s.isVerified && <Badge variant="outline" className="text-[10px] px-1 py-0 text-emerald-500 border-emerald-500/30">✓</Badge>}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -148,7 +243,7 @@ export function BuyerDashboard() {
                     ))}
                 </div>
 
-                {/* Holder Perks Panel */}
+                {/* Vertical Ownership Perks */}
                 <PerksPanel />
 
                 <div className="grid lg:grid-cols-3 gap-6">
@@ -167,7 +262,7 @@ export function BuyerDashboard() {
                                         <div key={i} className="animate-pulse h-16 bg-muted rounded-xl" />
                                     ))}
                                 </div>
-                            ) : recentBids.length === 0 ? (
+                            ) : filteredBids.length === 0 ? (
                                 <div className="text-center py-8">
                                     <p className="text-muted-foreground mb-3">No bids yet</p>
                                     <p className="text-sm text-muted-foreground mb-4">
@@ -184,7 +279,7 @@ export function BuyerDashboard() {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {recentBids.map((bid) => (
+                                    {filteredBids.map((bid) => (
                                         <div key={bid.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -250,7 +345,7 @@ export function BuyerDashboard() {
                 </div>
 
                 {/* Purchased Leads */}
-                {purchasedLeads.length > 0 && (
+                {filteredPurchased.length > 0 && (
                     <div>
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -258,11 +353,11 @@ export function BuyerDashboard() {
                                 Purchased Leads
                             </h2>
                             <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
-                                {purchasedLeads.length} won
+                                {filteredPurchased.length} won
                             </Badge>
                         </div>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {purchasedLeads.map((bid) => (
+                            {filteredPurchased.map((bid) => (
                                 <Card key={bid.id} className="border-emerald-500/20">
                                     <CardContent className="p-5">
                                         <div className="flex items-start justify-between mb-3">
@@ -289,6 +384,13 @@ export function BuyerDashboard() {
                                                 </div>
                                             </div>
                                         </div>
+                                        {bid.lead?.id && (
+                                            <Button variant="outline" size="sm" className="w-full mt-3" asChild>
+                                                <Link to={`/leads/${bid.lead.id}`}>
+                                                    View Details <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
+                                                </Link>
+                                            </Button>
+                                        )}
                                     </CardContent>
                                 </Card>
                             ))}

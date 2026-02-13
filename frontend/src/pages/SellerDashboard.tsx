@@ -1,21 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap, UserPlus } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap, UserPlus, Search } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const DASHBOARD_TABS = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
-    { key: 'leads', label: 'Leads', icon: FileText, path: '/seller/leads' },
+    { key: 'leads', label: 'Sold Leads', icon: FileText, path: '/seller/leads' },
     { key: 'asks', label: 'Asks', icon: Tag, path: '/seller/asks' },
     { key: 'submit', label: 'Submit', icon: Send, path: '/seller/submit' },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/seller/analytics' },
@@ -29,16 +31,24 @@ export function SellerDashboard() {
     const [activeAsks, setActiveAsks] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [hasProfile, setHasProfile] = useState<boolean | null>(null);
+    const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 300);
 
     const activeTab = DASHBOARD_TABS.find((t) => t.path === location.pathname)?.key || 'overview';
 
     useEffect(() => {
         const fetchData = async () => {
             try {
+                const leadsParams: Record<string, string> = { limit: '5' };
+                const asksParams: Record<string, string> = { status: 'ACTIVE', limit: '4' };
+                if (debouncedSearch) {
+                    leadsParams.search = debouncedSearch;
+                    asksParams.search = debouncedSearch;
+                }
                 const [overviewRes, leadsRes, asksRes] = await Promise.all([
                     api.getOverview(),
-                    api.listLeads({ limit: '5' }),
-                    api.listAsks({ status: 'ACTIVE', limit: '4' }),
+                    api.listLeads(leadsParams),
+                    api.listAsks(asksParams),
                 ]);
 
                 setOverview(overviewRes.data?.stats);
@@ -54,7 +64,7 @@ export function SellerDashboard() {
         };
 
         fetchData();
-    }, []);
+    }, [debouncedSearch]);
 
     // Re-fetch callback for socket events & polling fallback
     const refetchData = useCallback(() => {
@@ -116,6 +126,17 @@ export function SellerDashboard() {
         { label: 'Revenue', value: formatCurrency(overview?.totalRevenue || 0), icon: DollarSign, color: 'text-amber-500' },
     ];
 
+    // Client-side filtering for already-loaded data
+    const q = debouncedSearch.toLowerCase();
+    const filteredLeads = useMemo(() =>
+        q ? recentLeads.filter((l: any) =>
+            l.vertical?.toLowerCase().includes(q) ||
+            l.id?.toLowerCase().startsWith(q) ||
+            l.geo?.state?.toLowerCase().includes(q) ||
+            l.geo?.city?.toLowerCase().includes(q)
+        ) : recentLeads,
+        [recentLeads, q]);
+
     return (
         <DashboardLayout>
             <div className="space-y-8">
@@ -167,6 +188,16 @@ export function SellerDashboard() {
                             {tab.label}
                         </button>
                     ))}
+                </div>
+
+                {/* Search Bar */}
+                <div className="max-w-md">
+                    <Input
+                        placeholder="Search by lead ID, vertical, or location..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        icon={<Search className="h-4 w-4" />}
+                    />
                 </div>
 
                 {/* Stats Grid */}
@@ -231,7 +262,7 @@ export function SellerDashboard() {
                     {/* Recent Leads */}
                     <Card className="lg:col-span-1">
                         <CardHeader className="flex-row items-center justify-between">
-                            <CardTitle>Recent Leads</CardTitle>
+                            <CardTitle>My Sold Leads</CardTitle>
                             <Button variant="ghost" size="sm" asChild>
                                 <Link to="/seller/leads">View All</Link>
                             </Button>
@@ -243,7 +274,7 @@ export function SellerDashboard() {
                                         <div key={i} className="animate-pulse h-16 bg-muted rounded-xl" />
                                     ))}
                                 </div>
-                            ) : recentLeads.length === 0 ? (
+                            ) : filteredLeads.length === 0 ? (
                                 <div className="text-center py-8">
                                     <p className="text-muted-foreground mb-4">No leads submitted yet</p>
                                     <Button variant="outline" size="sm" asChild>
@@ -252,7 +283,7 @@ export function SellerDashboard() {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {recentLeads.map((lead) => (
+                                    {filteredLeads.map((lead) => (
                                         <Link
                                             key={lead.id}
                                             to={`/seller/leads/${lead.id}`}

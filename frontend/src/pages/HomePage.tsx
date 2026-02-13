@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -78,6 +78,11 @@ export function HomePage() {
     const [isLoading, setIsLoading] = useState(true);
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
+    const [sellerName, setSellerName] = useState('');
+    const [sellerInput, setSellerInput] = useState('');
+    const [sellerSuggestions, setSellerSuggestions] = useState<any[]>([]);
+    const [showSellerDropdown, setShowSellerDropdown] = useState(false);
+    const sellerDropdownRef = useRef<HTMLDivElement>(null);
 
     const regionConfig = country !== 'ALL' ? getRegions(country) : null;
 
@@ -86,6 +91,33 @@ export function HomePage() {
         const timer = setTimeout(() => setDebouncedSearch(search), 300);
         return () => clearTimeout(timer);
     }, [search]);
+
+    // Seller autocomplete
+    useEffect(() => {
+        if (sellerInput.length < 2) {
+            setSellerSuggestions([]);
+            return;
+        }
+        const timer = setTimeout(async () => {
+            try {
+                const { data } = await api.searchSellers(sellerInput);
+                setSellerSuggestions(data?.sellers || []);
+                setShowSellerDropdown(true);
+            } catch { setSellerSuggestions([]); }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [sellerInput]);
+
+    // Close seller dropdown on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (sellerDropdownRef.current && !sellerDropdownRef.current.contains(e.target as Node)) {
+                setShowSellerDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -96,6 +128,7 @@ export function HomePage() {
                 if (country !== 'ALL') params.country = country;
                 if (region !== 'All') params.state = region;
                 if (debouncedSearch) params.search = debouncedSearch;
+                if (sellerName) params.sellerName = sellerName;
 
                 if (view === 'asks') {
                     const { data } = await api.listAsks(params);
@@ -112,7 +145,7 @@ export function HomePage() {
         };
 
         fetchData();
-    }, [view, vertical, country, region, debouncedSearch]);
+    }, [view, vertical, country, region, debouncedSearch, sellerName]);
 
     // Wrap fetchData for polling fallback
     const refetchData = useCallback(() => {
@@ -191,12 +224,14 @@ export function HomePage() {
         { autoConnect: false }, // Don't require auth for marketplace
     );
 
-    const hasFilters = vertical !== 'all' || country !== 'ALL' || region !== 'All';
+    const hasFilters = vertical !== 'all' || country !== 'ALL' || region !== 'All' || sellerName !== '';
 
     const clearFilters = () => {
         setVertical('all');
         setCountry('ALL');
         setRegion('All');
+        setSellerName('');
+        setSellerInput('');
     };
 
 
@@ -329,6 +364,46 @@ export function HomePage() {
                                     onSuggestClick={() => setSuggestOpen(true)}
                                     disabled={false}
                                 />
+
+                                {/* Seller Filter */}
+                                <div className="relative" ref={sellerDropdownRef}>
+                                    <Input
+                                        placeholder="Filter by seller..."
+                                        value={sellerInput}
+                                        onChange={(e) => {
+                                            setSellerInput(e.target.value);
+                                            if (!e.target.value) {
+                                                setSellerName('');
+                                                setShowSellerDropdown(false);
+                                            }
+                                        }}
+                                        onFocus={() => sellerSuggestions.length > 0 && setShowSellerDropdown(true)}
+                                        icon={<Users className="h-4 w-4" />}
+                                        className="w-full sm:w-48"
+                                    />
+                                    {showSellerDropdown && sellerSuggestions.length > 0 && (
+                                        <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-lg shadow-xl max-h-60 overflow-auto">
+                                            {sellerSuggestions.map((s) => (
+                                                <button
+                                                    key={s.id}
+                                                    className="w-full px-3 py-2.5 text-left hover:bg-muted/60 flex items-center justify-between gap-2 text-sm transition-colors"
+                                                    onClick={() => {
+                                                        setSellerName(s.companyName);
+                                                        setSellerInput(s.companyName);
+                                                        setShowSellerDropdown(false);
+                                                    }}
+                                                >
+                                                    <span className="truncate font-medium">{s.companyName}</span>
+                                                    <span className="flex items-center gap-1 shrink-0">
+                                                        <Star className="h-3 w-3 text-amber-500" />
+                                                        <span className="text-xs text-muted-foreground">{(Number(s.reputationScore) / 100).toFixed(0)}%</span>
+                                                        {s.isVerified && <Badge variant="outline" className="text-[10px] px-1 py-0 text-emerald-500 border-emerald-500/30">✓</Badge>}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -356,6 +431,15 @@ export function HomePage() {
                                     <Badge variant="secondary" className="gap-1 capitalize">
                                         {vertical.replace('_', ' ')}
                                         <button onClick={() => setVertical('all')}>
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </Badge>
+                                )}
+                                {sellerName && (
+                                    <Badge variant="secondary" className="gap-1">
+                                        <Users className="h-3 w-3" />
+                                        {sellerName}
+                                        <button onClick={() => { setSellerName(''); setSellerInput(''); }}>
                                             <X className="h-3 w-3" />
                                         </button>
                                     </Badge>
