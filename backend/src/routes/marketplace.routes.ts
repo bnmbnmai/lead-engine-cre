@@ -445,7 +445,7 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
 // Get Lead Details
 // ============================================
 
-router.get('/leads/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const lead = await prisma.lead.findUnique({
             where: { id: req.params.id },
