@@ -15,7 +15,7 @@
 > **Built for [Chainlink Convergence Hackathon 2026](https://chain.link/hackathon)**
 > Mandatory CRE + ACE track · First tokenized lead marketplace · Contributes custom data feed back to the ecosystem
 
-Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **5-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and **ERC-721 lead tokenization on every purchase**.
+Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **1-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and **ERC-721 lead tokenization on every purchase**.
 
 **Key Differentiator:** First platform to tokenize leads as on-chain assets — every purchased lead is minted as an ERC-721 NFT via `LeadNFTv2.sol`, providing immutable provenance, quality scores, resale capability, royalty earnings, and full portfolio management for buyers. Lead tokenization is **core** — not optional.
 
@@ -42,7 +42,7 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 
 | Problem | Legacy Marketplaces | Lead Engine |
 |---------|---------------------|-------------|
-| **Speed** | Opaque ping-post with immediate full PII delivery | 5-minute sealed-bid auctions with non-PII previews + sub-second bidding |
+| **Speed** | Opaque ping-post with immediate full PII delivery | 1-minute sealed-bid auctions with non-PII previews + sub-second bidding |
 | **Trust / Quality** | Limited verification; fraud common | Chainlink CRE quality scoring (0–10,000) + ZK fraud proofs |
 | **Privacy** | Full PII delivered immediately | Non-PII previews with per-vertical redaction; full PII only after purchase |
 | **Settlement** | Net 30–60 days typical | Instant USDC via x402 escrow |
@@ -68,7 +68,7 @@ sequenceDiagram
     API->>ACE: Compliance check (KYC, jurisdiction)
     ACE-->>API: ✅ Cleared
 
-    Note over RTB: 5-minute sealed-bid auction starts
+    Note over RTB: 1-minute sealed-bid auction starts
 
     API->>RTB: Match buyers (vertical, geo, quality gate)
     RTB->>B: WebSocket notification + non-PII preview
@@ -187,7 +187,7 @@ Atomic USDC escrow → release on purchase. **No 30–60 day waits, no chargebac
 
 ### Core — Real-Time Lead Bidding + On-Chain Tokenization
 
-- 🔄 **RTB Engine** — Sub-second real-time matching and bidding with WebSocket streaming; 5-minute default auctions (configurable 5–10min)
+- 🔄 **RTB Engine** — Sub-second real-time matching and bidding with WebSocket streaming; 1-minute default auctions (configurable 1–10min)
 - 🎨 **Lead Tokenization (Core)** — Every purchased lead is minted as an ERC-721 NFT via `LeadNFTv2.sol` — on-chain provenance, quality scores, resale capability, royalty earnings, and full portfolio management. Buyers own the lead on-chain.
 - ✅ **Automated Compliance** — KYC/AML, TCPA, MiCA, jurisdiction checks with zero manual review
 - 🔒 **Privacy-Preserving** — ZK proofs + encrypted bids; buyers see non-PII previews (per-vertical redaction via `piiProtection.ts`) before purchase, full PII only after
@@ -221,7 +221,7 @@ Atomic USDC escrow → release on purchase. **No 30–60 day waits, no chargebac
 Traditional lead marketplaces hold funds for 7-30 days. Lead Engine settles via **x402 USDC escrow in seconds** — sellers can reinvest in their next ad campaign immediately:
 
 1. Lead verified by CRE → quality score published on-chain
-2. Sealed-bid auction runs (auto-bid or manual) — **5-minute default window**
+2. Sealed-bid auction runs (auto-bid or manual) — **1-minute default window**
 3. Winner pays via x402 → USDC released to seller instantly
 4. Lead minted as ERC-721 NFT — buyer owns it on-chain, can resell + earn royalties
 5. Seller reinvests in next campaign with zero float lag
