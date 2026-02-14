@@ -114,6 +114,15 @@ export const api = {
 
     getAsk: (id: string) => apiFetch<{ ask: any }>(`/api/v1/asks/${id}`),
 
+    updateAsk: (id: string, data: any) =>
+        apiFetch<{ ask: any }>(`/api/v1/asks/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }),
+
+    deleteAsk: (id: string) =>
+        apiFetch<{ success: boolean }>(`/api/v1/asks/${id}`, { method: 'DELETE' }),
+
     // Leads
     listLeads: (params?: Record<string, string>) => {
         const query = params ? `?${new URLSearchParams(params)}` : '';

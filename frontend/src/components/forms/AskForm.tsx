@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
 import api from '@/lib/api';
@@ -201,22 +201,9 @@ export function AskForm({ onSuccess }: AskFormProps) {
 
                             <div>
                                 <label className="text-sm font-medium mb-2 block">Auction Duration</label>
-                                <Controller
-                                    name="auctionDuration"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="30">🔥 Hot — 30 seconds</SelectItem>
-                                                <SelectItem value="60">⚡ Standard — 60 seconds</SelectItem>
-                                                <SelectItem value="300">🕐 Extended — 5 minutes</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
+                                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                    ⚡ 60 seconds (sealed-bid)
+                                </p>
                             </div>
 
                             <div>

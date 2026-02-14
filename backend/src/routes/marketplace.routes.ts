@@ -171,6 +171,7 @@ router.get('/asks/:id', optionalAuthMiddleware, async (req: AuthenticatedRequest
             include: {
                 seller: {
                     select: {
+                        userId: true,
                         companyName: true,
                         reputationScore: true,
                         isVerified: true,
@@ -193,6 +194,60 @@ router.get('/asks/:id', optionalAuthMiddleware, async (req: AuthenticatedRequest
     } catch (error) {
         console.error('Get ask error:', error);
         res.status(500).json({ error: 'Failed to get ask' });
+    }
+});
+
+// ============================================
+// Update Ask (Seller Only)
+// ============================================
+
+router.put('/asks/:id', authMiddleware, requireSeller, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const seller = await prisma.sellerProfile.findFirst({ where: { user: { id: req.user!.id } } });
+        if (!seller) { res.status(403).json({ error: 'Seller profile not found' }); return; }
+
+        const ask = await prisma.ask.findUnique({ where: { id: req.params.id } });
+        if (!ask) { res.status(404).json({ error: 'Ask not found' }); return; }
+        if (ask.sellerId !== seller.id) { res.status(403).json({ error: 'Not your ask' }); return; }
+
+        const { reservePrice, buyNowPrice, acceptOffSite, geoTargets, status } = req.body;
+        const updateData: any = {};
+        if (reservePrice !== undefined) updateData.reservePrice = Number(reservePrice);
+        if (buyNowPrice !== undefined) updateData.buyNowPrice = buyNowPrice === null ? null : Number(buyNowPrice);
+        if (acceptOffSite !== undefined) updateData.acceptOffSite = Boolean(acceptOffSite);
+        if (geoTargets !== undefined) updateData.geoTargets = geoTargets;
+        if (status !== undefined && ['ACTIVE', 'PAUSED'].includes(status)) updateData.status = status;
+
+        const updated = await prisma.ask.update({ where: { id: req.params.id }, data: updateData });
+        res.json({ ask: updated });
+    } catch (error) {
+        console.error('Update ask error:', error);
+        res.status(500).json({ error: 'Failed to update ask' });
+    }
+});
+
+// ============================================
+// Delete Ask (Seller Only)
+// ============================================
+
+router.delete('/asks/:id', authMiddleware, requireSeller, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const seller = await prisma.sellerProfile.findFirst({ where: { user: { id: req.user!.id } } });
+        if (!seller) { res.status(403).json({ error: 'Seller profile not found' }); return; }
+
+        const ask = await prisma.ask.findUnique({
+            where: { id: req.params.id },
+            include: { leads: { where: { status: 'IN_AUCTION' }, select: { id: true }, take: 1 } },
+        });
+        if (!ask) { res.status(404).json({ error: 'Ask not found' }); return; }
+        if (ask.sellerId !== seller.id) { res.status(403).json({ error: 'Not your ask' }); return; }
+        if (ask.leads.length > 0) { res.status(409).json({ error: 'Cannot delete ask with active auctions' }); return; }
+
+        await prisma.ask.delete({ where: { id: req.params.id } });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete ask error:', error);
+        res.status(500).json({ error: 'Failed to delete ask' });
     }
 });
 
