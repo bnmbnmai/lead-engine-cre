@@ -23,7 +23,7 @@ const askSchema = z.object({
     reservePrice: z.number().positive('Reserve price required'),
     buyNowPrice: z.number().positive().optional(),
     acceptOffSite: z.boolean().default(true),
-    auctionDuration: z.number().min(300).max(86400).default(3600),
+    auctionDuration: z.number().min(30).max(300).default(60),
     revealWindow: z.number().min(60).max(3600).default(900),
     expiresInDays: z.number().min(1).max(90).default(30),
     parameters: z.record(z.unknown()).optional(),
@@ -45,7 +45,7 @@ export function AskForm({ onSuccess }: AskFormProps) {
         defaultValues: {
             geoTargets: { country: 'US', states: [] },
             acceptOffSite: true,
-            auctionDuration: 3600,
+            auctionDuration: 60,
             revealWindow: 900,
             expiresInDays: 30,
         },
@@ -210,12 +210,9 @@ export function AskForm({ onSuccess }: AskFormProps) {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="1800">30 minutes</SelectItem>
-                                                <SelectItem value="3600">1 hour</SelectItem>
-                                                <SelectItem value="7200">2 hours</SelectItem>
-                                                <SelectItem value="14400">4 hours</SelectItem>
-                                                <SelectItem value="43200">12 hours</SelectItem>
-                                                <SelectItem value="86400">24 hours</SelectItem>
+                                                <SelectItem value="30">🔥 Hot — 30 seconds</SelectItem>
+                                                <SelectItem value="60">⚡ Standard — 60 seconds</SelectItem>
+                                                <SelectItem value="300">🕐 Extended — 5 minutes</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     )}

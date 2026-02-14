@@ -42,8 +42,8 @@ describe('Auction Duration Config', () => {
         perksConfig = require('../../src/config/perks.env');
     });
 
-    test('LEAD_AUCTION_DURATION_SECS defaults to 300 (5 minutes)', () => {
-        expect(perksConfig.LEAD_AUCTION_DURATION_SECS).toBe(300);
+    test('LEAD_AUCTION_DURATION_SECS defaults to 60 (Standard preset)', () => {
+        expect(perksConfig.LEAD_AUCTION_DURATION_SECS).toBe(60);
     });
 
     test('NFT_AUCTION_DURATION_SECS defaults to 600 (10 minutes)', () => {
@@ -58,12 +58,13 @@ describe('Auction Duration Config', () => {
         expect(perksConfig.AUTO_EXTEND_MAX).toBe(5);
     });
 
-    test('PERKS_CONFIG.auction contains all 4 duration keys', () => {
+    test('PERKS_CONFIG.auction contains all duration keys + presets', () => {
         const auctionConfig = perksConfig.PERKS_CONFIG.auction;
         expect(auctionConfig).toBeDefined();
         expect(auctionConfig).toEqual({
-            leadDurationSecs: 300,
-            leadMaxDurationSecs: 600,
+            presets: { hot: 30, standard: 60, extended: 300 },
+            leadDurationSecs: 60,
+            leadMaxDurationSecs: 300,
             nftDurationSecs: 600,
             autoExtendIncrementSecs: 60,
             autoExtendMax: 5,
@@ -196,7 +197,7 @@ describe('Short Auction Edge Cases', () => {
         expect(result.success).toBe(true);
     });
 
-    test('validation schema defaults to 300s when omitted', () => {
+    test('validation schema defaults to 60s (Standard preset) when omitted', () => {
         const { AskCreateSchema } = require('../../src/utils/validation');
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
@@ -204,7 +205,7 @@ describe('Short Auction Edge Cases', () => {
             reservePrice: 50,
         });
         expect(result.success).toBe(true);
-        expect(result.data.auctionDuration).toBe(300);
+        expect(result.data.auctionDuration).toBe(60);
     });
 
     test('demo panel uses config constant, not hardcoded 3600', () => {

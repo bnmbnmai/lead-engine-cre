@@ -52,7 +52,8 @@ sequenceDiagram
     API->>ACE: Compliance check (KYC, jurisdiction)
     ACE-->>API: ✅ Cleared
 
-    Note over RTB: 5-minute sealed-bid auction starts
+    Note over RTB: Lightning Auction starts (30s / 60s / 5min)
+    Note over RTB: NFT holders get 12s early ping + 1.2× bid boost
 
     API->>RTB: Match buyers (vertical, geo, quality gate)
     RTB->>Buyer: WebSocket notification + non-PII preview

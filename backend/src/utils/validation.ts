@@ -103,7 +103,7 @@ export const AskCreateSchema = z.object({
     buyNowPrice: z.number().positive().optional(),
     parameters: z.record(z.unknown()).optional(),
     acceptOffSite: z.boolean().optional().default(true),
-    auctionDuration: z.number().min(60).max(3600).optional().default(300), // 1min to 1hr, default 5min
+    auctionDuration: z.number().min(30).max(3600).optional().default(60), // 30s (Hot) to 1hr, default 60s (Standard)
     revealWindow: z.number().min(60).max(3600).optional().default(900), // 1min to 1hr
     expiresInDays: z.number().min(1).max(90).optional().default(30),
 });
