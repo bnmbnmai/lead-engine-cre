@@ -51,7 +51,7 @@ sequenceDiagram
     API->>ACE: Compliance check (KYC, jurisdiction)
     ACE-->>API: Cleared
 
-    Note over RTB: 5-minute sealed-bid auction starts
+    Note over RTB: Lightning Auction starts (30s / 60s / 5min)
 
     API->>RTB: Match buyers (vertical, geo, quality gate)
     RTB->>B: WebSocket notification + non-PII preview
