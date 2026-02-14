@@ -1,14 +1,13 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { PreferencesForm } from '@/components/forms/PreferencesForm';
-import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { Info, X } from 'lucide-react';
+import { Info, X, CheckCircle } from 'lucide-react';
 
 export function BuyerPreferences() {
-    const navigate = useNavigate();
     const [showTip, setShowTip] = useState(() => {
         return !localStorage.getItem('le_prefs_tip_dismissed');
     });
+    const [saved, setSaved] = useState(false);
 
     const dismissTip = () => {
         setShowTip(false);
@@ -24,6 +23,17 @@ export function BuyerPreferences() {
                         Set rules once — auto-bid fires instantly on matching leads across 20+ markets. Configure budgets, quality gates, and geo targeting.
                     </p>
                 </div>
+
+                {/* Success banner */}
+                {saved && (
+                    <div className="mb-6 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 flex items-center gap-3 animate-in fade-in duration-300">
+                        <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
+                        <p className="text-sm font-medium text-emerald-300">Preferences saved successfully!</p>
+                        <button onClick={() => setSaved(false)} className="ml-auto text-muted-foreground hover:text-foreground transition">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
 
                 {/* Onboarding tooltip for first-time visitors */}
                 {showTip && (
@@ -46,7 +56,8 @@ export function BuyerPreferences() {
 
                 <PreferencesForm
                     onSuccess={() => {
-                        navigate('/buyer');
+                        setSaved(true);
+                        setTimeout(() => setSaved(false), 5000);
                     }}
                 />
             </div>
