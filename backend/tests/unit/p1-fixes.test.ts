@@ -169,7 +169,13 @@ describe('Nonce persistence', () => {
         for (let i = 0; i < 20; i++) {
             results.add(computePrePing('solar', `nonce-${i}`));
         }
-        expect(results.size).toBeGreaterThanOrEqual(2);
+        // When PRE_PING_MIN === PRE_PING_MAX, all values are the same
+        const rangeSize = PRE_PING_MAX - PRE_PING_MIN + 1;
+        if (rangeSize <= 1) {
+            expect(results.size).toBe(1);
+        } else {
+            expect(results.size).toBeGreaterThanOrEqual(2);
+        }
     });
 
     test('nonce result always in valid range', () => {

@@ -288,13 +288,13 @@ describe('Stacking & Bot Attack Prevention', () => {
         expect(s1).toBe(s2);
     });
 
-    test('computePrePing stays within 5-10 range', () => {
+    test('computePrePing stays within 12-12 range (fixed for holder priority)', () => {
         const slugs = ['mortgage', 'solar', 'insurance', 'roofing', 'auto',
             'home-services', 'b2b-saas', 'real-estate', 'legal', 'financial'];
         for (const slug of slugs) {
             const pp = computePrePing(slug);
-            expect(pp).toBeGreaterThanOrEqual(5);
-            expect(pp).toBeLessThanOrEqual(10);
+            expect(pp).toBeGreaterThanOrEqual(PRE_PING_MIN);
+            expect(pp).toBeLessThanOrEqual(PRE_PING_MAX);
         }
     });
 
@@ -302,9 +302,9 @@ describe('Stacking & Bot Attack Prevention', () => {
         const noNonce = computePrePing('mortgage', '');
         const withNonce = computePrePing('mortgage', 'abc123');
         // Different inputs should produce different results (with high probability)
-        // Due to small range (5-10), they could collide, so we just verify both are valid
-        expect(noNonce).toBeGreaterThanOrEqual(5);
-        expect(withNonce).toBeGreaterThanOrEqual(5);
+        // Due to fixed range (12-12), they will be the same, so we just verify both are valid
+        expect(noNonce).toBeGreaterThanOrEqual(PRE_PING_MIN);
+        expect(withNonce).toBeGreaterThanOrEqual(PRE_PING_MIN);
     });
 
     test('rapid sequence of bids tracks count accurately', () => {

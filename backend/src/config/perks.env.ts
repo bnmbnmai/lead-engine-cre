@@ -12,9 +12,9 @@
 /** Sealed-bid multiplier for NFT holders (1.2 = 20% boost) */
 export const HOLDER_MULTIPLIER = parseFloat(process.env.HOLDER_MULTIPLIER || '1.2');
 
-/** Pre-ping window range (seconds) */
-export const PRE_PING_MIN = parseInt(process.env.PRE_PING_MIN || '5', 10);
-export const PRE_PING_MAX = parseInt(process.env.PRE_PING_MAX || '10', 10);
+/** Pre-ping window for NFT holders (seconds) — fixed 12s head start */
+export const PRE_PING_MIN = parseInt(process.env.PRE_PING_MIN || '12', 10);
+export const PRE_PING_MAX = parseInt(process.env.PRE_PING_MAX || '12', 10);
 
 /** Grace period (ms) for pre-ping window (network latency tolerance) */
 export const PRE_PING_GRACE_MS = parseInt(process.env.PRE_PING_GRACE_MS || '1500', 10);
@@ -74,11 +74,18 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 
 // ── Auction Durations ──────────────────────────────
 
-/** Default lead auction duration (seconds) — 5 minutes for RTB alignment */
-export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '300', 10);
+/** Lightning Auction presets (seconds) */
+export const LIGHTNING_PRESETS = {
+    hot: parseInt(process.env.LIGHTNING_HOT_SECS || '30', 10),
+    standard: parseInt(process.env.LIGHTNING_STANDARD_SECS || '60', 10),
+    extended: parseInt(process.env.LIGHTNING_EXTENDED_SECS || '300', 10),
+} as const;
 
-/** Maximum lead auction duration (seconds) — 10 minutes hard cap */
-export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '600', 10);
+/** Default lead auction duration (seconds) — 60s Standard preset */
+export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '60', 10);
+
+/** Maximum lead auction duration (seconds) — 5 minutes (Extended preset) */
+export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '300', 10);
 
 /** Ping-post phase duration (seconds) — leads start here before auction fallback */
 export const PING_POST_DURATION_SECS = parseInt(process.env.PING_POST_DURATION_SECS || '60', 10);
@@ -143,6 +150,7 @@ export const PERKS_CONFIG = {
         maxDepth: MAX_HIERARCHY_DEPTH,
     },
     auction: {
+        presets: LIGHTNING_PRESETS,
         leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
         leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS,
         pingPostDurationSecs: PING_POST_DURATION_SECS,

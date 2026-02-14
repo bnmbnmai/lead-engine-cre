@@ -2,7 +2,7 @@
  * Holder Perks Service
  *
  * Grants priority-bidding perks to holders of a vertical's NFT:
- *   - 5–10 second pre-ping window (early bid access)
+ *   - 12-second pre-ping window (fixed holder priority)
  *   - 1.2× sealed-bid multiplier
  *   - Spam prevention via per-wallet activity thresholds
  *
@@ -16,6 +16,10 @@
 
 import { prisma } from '../lib/prisma';
 import { nftOwnershipCache, bidActivityCache } from '../lib/cache';
+import {
+    PRE_PING_MIN as _PRE_PING_MIN,
+    PRE_PING_MAX as _PRE_PING_MAX,
+} from '../config/perks.env';
 
 // ============================================
 // Types
@@ -41,9 +45,9 @@ export interface PrePingStatus {
 // Constants (exported for test assertions)
 // ============================================
 
-/** Pre-ping window range for holders (seconds) */
-export const PRE_PING_MIN = 5;
-export const PRE_PING_MAX = 10;
+/** Pre-ping window range for holders (seconds) — sourced from perks.env */
+export const PRE_PING_MIN = _PRE_PING_MIN;
+export const PRE_PING_MAX = _PRE_PING_MAX;
 
 /** Sealed-bid multiplier for holders */
 export const HOLDER_MULTIPLIER = 1.2;

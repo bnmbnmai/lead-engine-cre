@@ -2,11 +2,12 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState } from 'react';
-import { ChevronRight, ChevronLeft, Check, Tag, Zap } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Check, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LabeledSwitch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
 import api from '@/lib/api';
@@ -199,45 +200,21 @@ export function AskForm({ onSuccess }: AskFormProps) {
                             />
 
                             <div>
-                                <label className="text-sm font-medium mb-1 flex items-center gap-2">
-                                    <Zap className="h-4 w-4 text-violet-400" />
-                                    Smart Lightning
-                                </label>
-                                <p className="text-xs text-muted-foreground mb-3">
-                                    All leads flow through Smart Lightning — ping buyers instantly, then fallback to auction if needed.
-                                </p>
+                                <label className="text-sm font-medium mb-2 block">Auction Duration</label>
                                 <Controller
                                     name="auctionDuration"
                                     control={control}
                                     render={({ field }) => (
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {([
-                                                { value: 60, label: 'Hot', icon: '⚡', desc: '60s ping-post only — fastest close', sub: 'Ping-Post' },
-                                                { value: 360, label: 'Standard', icon: '🎯', desc: '60s ping-post + 5m auction fallback', sub: 'Recommended' },
-                                                { value: 300, label: 'Extended', icon: '🔍', desc: '5m direct auction — max price discovery', sub: 'Full Auction' },
-                                            ] as const).map((preset) => (
-                                                <button
-                                                    key={preset.value}
-                                                    type="button"
-                                                    onClick={() => field.onChange(preset.value)}
-                                                    className={`relative flex flex-col items-center p-4 rounded-xl border-2 text-center transition-all duration-200 cursor-pointer
-                                                        ${field.value === preset.value
-                                                            ? 'border-violet-500 bg-violet-500/5 ring-2 ring-violet-500/20 shadow-sm'
-                                                            : 'border-border hover:border-violet-400/40 hover:bg-accent/50'
-                                                        }`}
-                                                >
-                                                    <span className="text-2xl mb-1.5">{preset.icon}</span>
-                                                    <span className="font-semibold text-sm">{preset.label}</span>
-                                                    <span className="text-xs font-medium text-violet-400 mt-0.5">{preset.sub}</span>
-                                                    <span className="text-[10px] text-muted-foreground mt-1 leading-tight">{preset.desc}</span>
-                                                    {field.value === preset.value && (
-                                                        <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center">
-                                                            <Check className="h-3 w-3 text-white" />
-                                                        </div>
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="30">🔥 Hot — 30 seconds</SelectItem>
+                                                <SelectItem value="60">⚡ Standard — 60 seconds</SelectItem>
+                                                <SelectItem value="300">🕐 Extended — 5 minutes</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     )}
                                 />
                             </div>

@@ -195,9 +195,16 @@ describe('Nonce Persistence (#17)', () => {
 
         const results = slugs.map((slug, i) => computePrePing(slug, nonces[i]));
 
-        // Not all should be the same (statistically near-impossible)
+        // When PRE_PING_MIN === PRE_PING_MAX, all values are the same (fixed window)
         const unique = new Set(results);
-        expect(unique.size).toBeGreaterThan(1);
+        const rangeSize = PRE_PING_MAX - PRE_PING_MIN + 1;
+        if (rangeSize <= 1) {
+            expect(unique.size).toBe(1);
+            expect([...unique][0]).toBe(PRE_PING_MIN);
+        } else {
+            // Not all should be the same (statistically near-impossible with range > 1)
+            expect(unique.size).toBeGreaterThan(1);
+        }
     });
 
     test('10. prePingEndsAt recomputable from stored nonce', () => {
@@ -761,15 +768,22 @@ describe('Clock Skew & Distribution', () => {
         expect(result.remainingMs).toBeGreaterThan(0);
     });
 
-    test('45. computePrePing distribution covers full 5-10s range over 100 nonces', () => {
+    test('45. computePrePing distribution stays within configured range over 100 nonces', () => {
         const results = new Set<number>();
         for (let i = 0; i < 100; i++) {
             const nonce = `dist_test_${i}_${Math.random().toString(36)}`;
             results.add(computePrePing('distribution_test', nonce));
         }
 
-        // Should cover multiple values in the 5-10 range
-        expect(results.size).toBeGreaterThanOrEqual(3);
+        // When PRE_PING_MIN === PRE_PING_MAX, all values are the same (fixed window)
+        // When they differ, we expect multiple distinct values
+        const rangeSize = PRE_PING_MAX - PRE_PING_MIN + 1;
+        if (rangeSize <= 1) {
+            expect(results.size).toBe(1);
+            expect([...results][0]).toBe(PRE_PING_MIN);
+        } else {
+            expect(results.size).toBeGreaterThanOrEqual(3);
+        }
 
         // All values should be in valid range
         for (const val of results) {

@@ -65,7 +65,7 @@ export const LeadSubmitSchema = z.object({
 
 export const LeadQuerySchema = z.object({
     vertical: z.string().optional(),
-    status: z.enum(['PENDING_PING', 'IN_PING_POST', 'PENDING_AUCTION', 'IN_AUCTION', 'REVEAL_PHASE', 'SOLD', 'UNSOLD', 'EXPIRED']).optional(),
+    status: z.enum(['PENDING_AUCTION', 'IN_AUCTION', 'REVEAL_PHASE', 'SOLD', 'EXPIRED']).optional(),
     state: z.string().length(2).optional(),
     country: z.string().optional(),
     search: z.string().max(100).optional(),
@@ -81,10 +81,6 @@ export const LeadQuerySchema = z.object({
 // ============================================
 // Ask Schemas
 // ============================================
-
-// Lightning Auction duration presets (seconds)
-const DURATION_PRESETS = { hot: 30, standard: 60, extended: 300 } as const;
-export type DurationPreset = keyof typeof DURATION_PRESETS;
 
 export const AskCreateSchema = z.object({
     vertical: z.string(),
@@ -107,19 +103,9 @@ export const AskCreateSchema = z.object({
     buyNowPrice: z.number().positive().optional(),
     parameters: z.record(z.unknown()).optional(),
     acceptOffSite: z.boolean().optional().default(true),
-    // Lightning Auction: accept preset OR raw seconds (both optional)
-    durationPreset: z.enum(['hot', 'standard', 'extended']).optional(),
-    auctionDuration: z.number().min(30).max(3600).optional(), // 30s to 1hr
+    auctionDuration: z.number().min(30).max(3600).optional().default(60), // 30s (Hot) to 1hr, default 60s (Standard)
     revealWindow: z.number().min(60).max(3600).optional().default(900), // 1min to 1hr
     expiresInDays: z.number().min(1).max(90).optional().default(30),
-}).transform(data => {
-    // Resolve Lightning Auction duration:
-    // 1. Raw auctionDuration wins if provided (full control)
-    // 2. durationPreset maps to seconds
-    // 3. Default = 60s (standard)
-    const resolved = data.auctionDuration
-        ?? (data.durationPreset ? DURATION_PRESETS[data.durationPreset] : 60);
-    return { ...data, auctionDuration: resolved };
 });
 
 export const AskQuerySchema = z.object({

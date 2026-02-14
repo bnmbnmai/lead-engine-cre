@@ -29,6 +29,7 @@ import AdminNFTs from '@/pages/AdminNFTs';
 import AdminVerticals from '@/pages/AdminVerticals';
 import AskDetailPage from '@/pages/AskDetailPage';
 import LeadDetailPage from '@/pages/LeadDetailPage';
+import BuyerPortfolio from '@/pages/BuyerPortfolio';
 import AdConversions from '@/pages/AdConversions';
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';

@@ -13,7 +13,7 @@
 > **Built for [Chainlink Hackathon 2026 — Convergence](https://chain.link/hackathon)**
 > Powered by **Chainlink CRE** (Custom Functions) + **ACE** (Automated Compliance Engine)
 
-Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **Smart Lightning** (ping-post → auction → buy-now), non-PII previews, instant USDC settlement via x402, and **ERC-721 lead tokenization on every purchase**.
+Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **5-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and **ERC-721 lead tokenization on every purchase**.
 
 **Key Differentiator:** First platform to tokenize leads as on-chain assets — every purchased lead is minted as an ERC-721 NFT via `LeadNFTv2.sol`, providing immutable provenance, quality scores, resale capability, royalty earnings, and full portfolio management for buyers. Lead tokenization is **core** — not optional.
 
@@ -21,86 +21,53 @@ Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead
 
 ## 🎯 Lead-Centric Overview
 
-Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 30–60 days for payouts. Buyers overpay for unverified leads. Compliance is manual. Lead Engine fixes all of it:
+Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7–30 days for payouts. Buyers overpay for unverified leads. Compliance is manual. Lead Engine fixes all three with a decentralized real-time bidding engine:
 
-| **Problem** | **Legacy Marketplaces** | **Lead Engine** |
-|---|---|---|
-| **Speed** | Opaque ping-post — full PII sent before price negotiation; buyers cherry-pick, sellers wait | **Smart Lightning:** 60s ping-post with non-PII preview → 5-min sealed-bid auction fallback → instant Buy Now. Buyers bid blind, sellers clear fast |
-| **Trust / Quality** | No objective scoring; form-stuffing and recycled leads are rampant | Chainlink CRE quality score (0–10,000) + ZK fraud proofs computed off-chain, anchored on-chain |
-| **Privacy** | Full PII delivered immediately on acceptance — liability shifts to buyer before payment | Non-PII previews with per-vertical redaction; PII decrypted **only** after on-chain purchase + NFT mint |
-| **Settlement** | Net 30–60 day payouts; chargebacks eat margins | Instant USDC via x402 escrow — sellers paid same block, 2.5% platform fee |
-| **Compliance** | Manual KYC spreadsheets; ongoing TCPA/GDPR exposure with every lead handoff | Chainlink ACE auto-KYC with jurisdiction matrix, consent timestamping, MiCA attestation — zero manual steps |
-| **Automation** | Basic ping-tree rules; no autonomous agents | LangChain AI agent bids 24/7 via MCP tools; auto-bid rules fire during ping-post for instant matching |
-| **Provenance** | Database records only — disputes devolve into he-said-she-said | ERC-721 Lead NFTs with immutable quality score, ownership chain, and full trade history on-chain |
+| Problem | Legacy Marketplace | Lead Engine |
+|---------|--------------------|-------------|
+| **Speed** | Manual review, batch sales | **5-minute RTB auctions** with sub-second matching |
+| **Trust** | No verification, rampant fraud | **Chainlink CRE** quality scoring (0–10,000) + ZK fraud proofs |
+| **Privacy** | Buyers often receive full PII with no provenance, quality guarantees, or on-chain audit trail | **Non-PII previews** — per-vertical redaction; full PII only after purchase |
+| **Settlement** | 7–30 day payouts | **Instant USDC** via x402 escrow — sellers reinvest same day |
+| **Compliance** | Manual KYC review | **Chainlink ACE** auto-KYC, jurisdiction matrix, MiCA (zero manual) |
+| **Automation** | No buyer tools | **7-criteria auto-bid** fires 24/7 across 20+ markets |
+| **API Access** | None | **MCP agent server** — 9 tools + LangChain autonomous bidding |
+| **Provenance** | No audit trail | **ERC-721 lead NFTs** — on-chain quality scores, ownership, and trade history |
 
-### Smart Lightning Flow
-
-Every lead enters a single **Smart Lightning** pipeline — no mode toggles, no configuration guesswork:
-
-| Phase | Duration | What Happens |
-|-------|----------|-------------|
-| **① Ping-Post** | 60 seconds | Lead is broadcast with a non-PII preview. Auto-bid rules fire instantly. If a buyer's rule matches, the lead sells in seconds — no auction needed. |
-| **② Short Auction** | 5 minutes | If no auto-bid clears, the lead escalates to a sealed-bid auction with commit-reveal. Multiple buyers compete; highest bid wins at reveal. |
-| **③ Buy Now** | Indefinite | Unsold leads enter the Buy Now marketplace at the seller's fixed price. Any buyer can purchase instantly. |
-
-> **Duration presets:** Sellers choose *Hot* (ping-post only, 60s), *Standard* (ping-post + 5-min auction — recommended), or *Extended* (5-min auction, maximum discovery).
-
-### How Leads Flow Through the System
+### How a Lead Moves Through the System
 
 ```mermaid
 sequenceDiagram
-    participant S as 🟢 Seller
+    participant Seller as 🏷️ Seller
     participant API as ⚡ Lead Engine API
     participant CRE as 🔗 Chainlink CRE
-    participant ACE as 🔵 Chainlink ACE
-    participant RTB as 🟪 RTB Engine
-    participant B as 👤 Buyer
-    participant X as 💰 x402 Escrow
+    participant ACE as 🛡️ Chainlink ACE
+    participant RTB as 🔄 RTB Engine
+    participant Buyer as 💰 Buyer
+    participant Escrow as 💵 x402 Escrow
 
-    S->>API: Submit lead (vertical, geo, params)
-
+    Seller->>API: Submit lead (vertical, geo, params)
     API->>CRE: Verify quality + fraud check
     CRE-->>API: Quality score (0–10,000) + ZK proof
-
     API->>ACE: Compliance check (KYC, jurisdiction)
     ACE-->>API: ✅ Cleared
 
-    API->>RTB: Start Smart Lightning pipeline
+    Note over RTB: Lightning Auction starts (30s / 60s / 5min)
+    Note over RTB: NFT holders get 12s early ping + 1.2× bid boost
 
-    Note over RTB: ① Ping-Post Phase (60 seconds)
-    RTB->>B: Non-PII preview (vertical · geo · score)
-    B->>RTB: Auto-bid rules fire / manual bid
-    RTB-->>API: Winner found → instant sale
+    API->>RTB: Match buyers (vertical, geo, quality gate)
+    RTB->>Buyer: WebSocket notification + non-PII preview
+    Buyer->>RTB: Place sealed bid (commit-reveal)
+    RTB->>RTB: Auto-bid engine fires for matching rules
 
-    Note over RTB,B: If no match after 60s ↓
+    Note over RTB: Auction ends — reveal phase
 
-    Note over RTB: ② Short Auction (5 minutes)
-    RTB->>B: Sealed-bid auction opens
-    B->>RTB: Place sealed bid (commit-reveal)
-    Note over RTB: Auction ends → reveal phase
-    RTB-->>API: Winner found
-
-    Note over RTB,B: If no bids ↓
-
-    Note over RTB: ③ Buy Now (7-day expiry)
-    RTB->>B: Listed at seller's fixed price
-    B->>RTB: Buyer purchases instantly
-
-    B->>X: Winner pays USDC
-    X->>S: Instant settlement (−2.5% fee)
-    X->>B: Decrypted lead data + PII
-    Note over B: Lead minted as ERC-721 NFT
-    Note over B: CRM webhook → HubSpot / Zapier
+    RTB->>Escrow: Winner pays USDC
+    Escrow->>Seller: Instant settlement (minus 2.5% fee)
+    Escrow->>Buyer: Decrypted lead data + PII
+    Note over Buyer: Lead minted as ERC-721 NFT
+    Buyer->>Buyer: CRM webhook → HubSpot/Zapier
 ```
-
-### Buyer Experience
-
-| Touchpoint | What You Get |
-|---|---|
-| **Marketplace** | Live Lightning Auctions, Browse Seller Offers, Buy Now, and owned NFTs |
-| **My Portfolio** | All purchased LeadNFTs with full lead data, resale option, and on-chain provenance |
-| **Browse Seller Offers** | Find sellers willing to sell leads in specific verticals/geos |
-| **Auto-bid Agent** | Set rules once and let the agent bid 24/7 |
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
 
@@ -206,28 +173,6 @@ x402 enables **USDC escrow → instant release** on auction win or Buy-It-Now pu
 - 🧠 **AI Dynamic Verticals** — GPT-powered vertical suggestions with PII scrubbing, anti-hallucination validation, parent-slug resolution, and auto-creation threshold (≥5 hits → PROPOSED vertical)
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
-
-### Seller Features — Conversion Tracking
-
-Sellers can add their **Google Ads**, **Meta**, or **custom webhook URL** directly from the Seller Dashboard. The platform fires the pixel and/or webhook **instantly** on every successful sale (auction win or Buy Now) with the following payload:
-
-```json
-{
-  "event": "lead_sold",
-  "lead_id": "clx9abc123",
-  "sale_amount": 45.00,
-  "platform_fee": 1.13,
-  "vertical": "mortgage.refinance",
-  "geo": "US-TX",
-  "quality_score": 9200,
-  "transaction_id": "tx_def456",
-  "sold_at": "2026-02-14T01:23:45.000Z"
-}
-```
-
-- **Pixel URL** — Fires as a 1×1 image GET request (e.g., `https://googleads.g.doubleclick.net/pagead/conversion/...`)
-- **Webhook URL** — Receives a JSON POST to your server (e.g., `https://mycompany.com/webhook/lead-sold`)
-- Both are optional and configured per seller in **Seller Dashboard → Conversion Tracking**
 
 ### Optional — Vertical NFT Monetization Layer
 

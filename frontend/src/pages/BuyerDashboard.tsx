@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, ExternalLink, Tag, Zap } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, ExternalLink, Tag } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -214,7 +214,7 @@ export function BuyerDashboard() {
                         <Button variant="outline" asChild>
                             <Link to="/marketplace?view=asks">
                                 <Tag className="h-4 w-4 mr-2" />
-                                Seller Offers
+                                Browse Asks
                             </Link>
                         </Button>
                         <Button asChild>
@@ -400,7 +400,7 @@ export function BuyerDashboard() {
                                 {filteredPurchased.length} won
                             </Badge>
                             <Button variant="ghost" size="sm" asChild>
-                                <Link to="/buyer/portfolio">View All <ArrowUpRight className="h-3.5 w-3.5 ml-1" /></Link>
+                                <Link to="/buyer/portfolio">View All</Link>
                             </Button>
                             <Button
                                 variant="outline"
@@ -439,10 +439,6 @@ export function BuyerDashboard() {
                                             </div>
                                             <Badge className="bg-emerald-500/15 text-emerald-500 border-0">
                                                 Won
-                                            </Badge>
-                                            <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30 gap-1">
-                                                <Zap className="h-2.5 w-2.5" />
-                                                Smart Lightning
                                             </Badge>
                                         </div>
                                         {bid.lead?.nftTokenId && (
@@ -483,9 +479,9 @@ export function BuyerDashboard() {
                                                 )}
                                             </Button>
                                             {bid.lead?.id && (
-                                                <Button variant="outline" size="sm" className="flex-1 gap-1" asChild>
-                                                    <Link to="/buyer/portfolio">
-                                                        View Full Lead <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
+                                                <Button variant="outline" size="sm" className="flex-1" asChild>
+                                                    <Link to={`/lead/${bid.lead.id}`}>
+                                                        View Details <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
                                                     </Link>
                                                 </Button>
                                             )}

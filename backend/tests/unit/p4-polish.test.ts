@@ -78,9 +78,9 @@ describe('Centralized Config', () => {
         expect(config.HOLDER_MULTIPLIER).toBe(1.2);
     });
 
-    test('pre-ping range defaults to 5-10', () => {
-        expect(config.PRE_PING_MIN).toBe(5);
-        expect(config.PRE_PING_MAX).toBe(10);
+    test('pre-ping range defaults to 12-12 (fixed for holder priority)', () => {
+        expect(config.PRE_PING_MIN).toBe(12);
+        expect(config.PRE_PING_MAX).toBe(12);
     });
 
     test('hierarchy depth limit defaults to 5', () => {
