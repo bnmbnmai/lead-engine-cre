@@ -37,35 +37,35 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 
 ```mermaid
 sequenceDiagram
-    participant S as Seller
-    participant API as Lead Engine API
-    participant CRE as Chainlink CRE
-    participant ACE as Chainlink ACE
-    participant RTB as RTB Engine
-    participant B as Buyer
-    participant X as x402 Escrow
+    participant S as 🟢 Seller
+    participant API as ⚡ Lead Engine API
+    participant CRE as 🔗 Chainlink CRE
+    participant ACE as 🔵 Chainlink ACE
+    participant RTB as 🟪 RTB Engine
+    participant B as 👤 Buyer
+    participant X as 🟩 x402 Escrow
 
     S->>API: Submit lead (vertical, geo, params)
     API->>CRE: Verify quality + fraud check
     CRE-->>API: Quality score (0-10,000) + ZK proof
     API->>ACE: Compliance check (KYC, jurisdiction)
-    ACE-->>API: Cleared
+    ACE-->>API: ✅ Cleared
 
-    Note over RTB: Lightning Auction starts (30s / 60s / 5min)
+    Note over RTB: 5-minute sealed-bid auction starts
 
     API->>RTB: Match buyers (vertical, geo, quality gate)
     RTB->>B: WebSocket notification + non-PII preview
     B->>RTB: Place sealed bid (commit-reveal)
 
     Note over RTB: Auto-bid engine fires for matching rules
-    Note over RTB: Auction ends - reveal phase
+    Note over RTB: Auction ends → reveal phase
 
     B->>X: Winner pays USDC
-    X->>API: Instant settlement (minus 2.5% fee)
+    X->>S: Instant settlement (minus 2.5% fee)
     X->>B: Decrypted lead data + PII
 
     Note over X: Lead minted as ERC-721 NFT
-    Note over X: CRM webhook - HubSpot/Zapier
+    Note over X: CRM webhook → HubSpot/Zapier
 ```
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
