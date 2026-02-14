@@ -275,13 +275,9 @@ class RTBSocketServer {
                         return;
                     }
 
-                    // Calculate effective bid (1.2× for holders)
-                    const rawAmount = data.amount || 0;
-                    const effectiveBid = perks.isHolder
-                        ? applyMultiplier(rawAmount, perks.multiplier)
-                        : rawAmount;
 
-                    // Create bid
+
+                    // Create sealed bid (commit-reveal)
                     const bid = await prisma.bid.upsert({
                         where: {
                             leadId_buyerId: { leadId: data.leadId, buyerId: socket.userId! },
@@ -290,38 +286,21 @@ class RTBSocketServer {
                             leadId: data.leadId,
                             buyerId: socket.userId!,
                             commitment: data.commitment,
-                            amount: data.amount,
-                            effectiveBid,
                             isHolder: perks.isHolder,
-                            status: data.commitment ? 'PENDING' : 'REVEALED',
-                            revealedAt: data.amount ? new Date() : null,
+                            status: 'PENDING',
                         },
                         update: {
                             commitment: data.commitment,
-                            amount: data.amount,
-                            effectiveBid,
                             isHolder: perks.isHolder,
-                            status: data.commitment ? 'PENDING' : 'REVEALED',
-                            revealedAt: data.amount ? new Date() : null,
+                            status: 'PENDING',
                         },
                     });
 
-                    // Update auction room with effective bid
+                    // Update auction room bid count
                     if (lead.auctionRoom) {
-                        const updateData: any = { bidCount: { increment: 1 } };
-
-                        if (effectiveBid) {
-                            const currentHighest = lead.auctionRoom.highestBid ? Number(lead.auctionRoom.highestBid) : 0;
-                            if (effectiveBid > currentHighest) {
-                                updateData.highestBid = effectiveBid;
-                                updateData.effectiveBid = effectiveBid;
-                                updateData.highestBidder = socket.userId;
-                            }
-                        }
-
                         await prisma.auctionRoom.update({
                             where: { id: lead.auctionRoom.id },
-                            data: updateData,
+                            data: { bidCount: { increment: 1 } },
                         });
 
                         // Broadcast to room
@@ -329,9 +308,6 @@ class RTBSocketServer {
                         this.io.to(roomId).emit('bid:new', {
                             leadId: data.leadId,
                             bidCount: (lead.auctionRoom.bidCount || 0) + 1,
-                            highestBid: effectiveBid > (Number(lead.auctionRoom.highestBid) || 0)
-                                ? effectiveBid
-                                : lead.auctionRoom.highestBid,
                             isHolderBid: perks.isHolder,
                             timestamp: new Date(),
                         });
@@ -341,8 +317,6 @@ class RTBSocketServer {
                     if (perks.isHolder) {
                         socket.emit('bid:holder', {
                             bidId: bid.id,
-                            rawBid: rawAmount,
-                            effectiveBid,
                             multiplier: perks.multiplier,
                             prePingSeconds: perks.prePingSeconds,
                         });
@@ -351,7 +325,6 @@ class RTBSocketServer {
                     socket.emit('bid:confirmed', {
                         bidId: bid.id,
                         status: bid.status,
-                        effectiveBid,
                         isHolder: perks.isHolder,
                     });
 
@@ -363,8 +336,6 @@ class RTBSocketServer {
                             entityId: bid.id,
                             userId: socket.userId,
                             metadata: perks.isHolder ? {
-                                rawBid: rawAmount,
-                                effectiveBid,
                                 multiplier: perks.multiplier,
                             } : undefined,
                         },

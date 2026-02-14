@@ -134,10 +134,7 @@ export const BidRevealSchema = z.object({
     salt: z.string(),
 });
 
-export const BidDirectSchema = z.object({
-    leadId: z.string(),
-    amount: z.number().positive(),
-});
+
 
 // ============================================
 // Buyer Preferences
@@ -252,7 +249,7 @@ export type AskCreate = z.infer<typeof AskCreateSchema>;
 export type AskQuery = z.infer<typeof AskQuerySchema>;
 export type BidCommit = z.infer<typeof BidCommitSchema>;
 export type BidReveal = z.infer<typeof BidRevealSchema>;
-export type BidDirect = z.infer<typeof BidDirectSchema>;
+
 export type BuyerPreferences = z.infer<typeof BuyerPreferencesSchema>;
 export type PreferenceSet = z.infer<typeof PreferenceSetSchema>;
 export type BuyerPreferencesV2 = z.infer<typeof BuyerPreferencesV2Schema>;

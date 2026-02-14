@@ -248,7 +248,7 @@ export function PreferenceSetCard({
                             <div className="absolute left-0 bottom-full mb-2 w-72 p-3 rounded-xl bg-popover border border-border shadow-lg text-xs text-muted-foreground z-50 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
                                 <strong className="text-foreground">For manual marketplace users.</strong>{' '}
                                 If you're buying programmatically via the API or through an agent,
-                                use the open bid endpoint instead — auto-bid is optimized for
+                                use the sealed bid endpoint instead — auto-bid is optimized for
                                 manual buyers who want hands-free bidding on matching leads.
                             </div>
                         )}

@@ -15,6 +15,7 @@
  */
 
 import { prisma } from '../lib/prisma';
+import { ethers } from 'ethers';
 
 // ============================================
 // Types
@@ -169,13 +170,21 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             continue;
         }
 
-        // ═══ Place the bid ═══
+        // ═══ Place the sealed bid ═══
         try {
+            // Generate sealed-bid commitment
+            const salt = ethers.hexlify(ethers.randomBytes(32));
+            const commitment = ethers.keccak256(
+                ethers.AbiCoder.defaultAbiCoder().encode(['uint96', 'bytes32'], [bidAmount, salt])
+            );
+
             await prisma.bid.create({
                 data: {
                     leadId: lead.id,
                     buyerId: buyerId,
+                    commitment,
                     amount: bidAmount,
+                    salt,
                     status: 'PENDING',
                     source: 'AUTO_BID' as any,
                 },
