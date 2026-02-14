@@ -615,6 +615,15 @@ class RTBSocketServer {
             expiresAt: expiresAt.toISOString(),
         });
 
+        // Notify all clients that this lead left Live Leads → Buy Now
+        this.io.emit('lead:status-changed', {
+            leadId,
+            oldStatus: 'IN_AUCTION',
+            newStatus: 'UNSOLD',
+            buyNowPrice: binPrice,
+            expiresAt: expiresAt.toISOString(),
+        });
+
         // Log analytics
         await prisma.analyticsEvent.create({
             data: {
@@ -722,6 +731,13 @@ class RTBSocketServer {
                 winnerId: winningBid.buyerId,
                 winningAmount: Number(winningBid.amount), // Raw amount for settlement
                 effectiveBid: Number(winningBid.effectiveBid ?? winningBid.amount),
+            });
+
+            // Notify all clients that this lead left Live Leads → Sold
+            this.io.emit('lead:status-changed', {
+                leadId,
+                oldStatus: 'IN_AUCTION',
+                newStatus: 'SOLD',
             });
 
             console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);

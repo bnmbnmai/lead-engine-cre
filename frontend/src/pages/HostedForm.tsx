@@ -1,8 +1,8 @@
 /**
  * HostedForm — Public-facing multi-step form wizard
  *
- * Route: /f/:slug  (e.g. /f/roofing-clxyz123 or /f/solar.residential-clxyz123)
- * The slug format is: {verticalSlug}-{sellerId}
+ * Route: /f/:slug  (e.g. /f/roofing--clxyz123 or /f/solar.residential--cmxyz456)
+ * The slug format is: {verticalSlug}--{sellerId}
  *
  * Fetches formConfig from the public API, renders a fully functional
  * multi-step wizard with progress bar, validation, and submission.
@@ -41,12 +41,11 @@ interface FormConfig {
 export default function HostedForm() {
     const { slug } = useParams<{ slug: string }>();
 
-    // Parse the slug: everything before the last "-cl" is the verticalSlug
+    // Parse the slug: everything before "--" is the verticalSlug
     const verticalSlug = useMemo(() => {
         if (!slug) return '';
-        // Format: {verticalSlug}-{sellerId}
-        // sellerId starts with "cl" (cuid format) — find last occurrence of "-cl"
-        const idx = slug.lastIndexOf('-cl');
+        // Format: {verticalSlug}--{sellerId}
+        const idx = slug.indexOf('--');
         return idx > 0 ? slug.substring(0, idx) : slug;
     }, [slug]);
 

@@ -3,11 +3,10 @@ import { Link } from 'react-router-dom';
 import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
-import { formatCurrency, formatTimeRemaining, getStatusColor, getPhaseLabel } from '@/lib/utils';
+import { formatCurrency, formatTimeRemaining, getPhaseLabel } from '@/lib/utils';
 
 interface Lead {
     id: string;
@@ -124,10 +123,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                             )}
                         </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                        <Badge className={getStatusColor(lead.status)}>{lead.status.replace('_', ' ')}</Badge>
-                        {lead.isVerified && <ChainlinkBadge size="sm" />}
-                    </div>
+                    {lead.isVerified && <ChainlinkBadge size="sm" />}
                 </div>
 
                 {/* Source & Stats */}

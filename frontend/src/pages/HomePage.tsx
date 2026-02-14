@@ -243,6 +243,16 @@ export function HomePage() {
                     setBuyNowLeads((prev) => prev.filter((l) => l.id !== data.leadId));
                 }
             },
+            'lead:status-changed': (data: any) => {
+                if (data?.leadId) {
+                    // Remove from Live Leads when a lead is no longer active
+                    setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
+                    // If the lead moved to UNSOLD and we're on Buy Now, refresh
+                    if (view === 'buyNow' && data.newStatus === 'UNSOLD') {
+                        refetchData();
+                    }
+                }
+            },
         },
         refetchData,
         { autoConnect: false }, // Don't require auth for marketplace

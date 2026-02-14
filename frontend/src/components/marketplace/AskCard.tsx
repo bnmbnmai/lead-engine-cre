@@ -2,12 +2,11 @@ import { Link } from 'react-router-dom';
 import { MapPin, Zap, Eye, Wallet } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { VerticalBreadcrumb } from '@/components/ui/VerticalBreadcrumb';
-import { formatCurrency, getStatusColor } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
 interface Ask {
     id: string;
@@ -54,7 +53,7 @@ export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/
                             </p>
                         )}
                     </div>
-                    <Badge className={getStatusColor(ask.status)}>{ask.status}</Badge>
+
                 </div>
 
                 {/* Details */}

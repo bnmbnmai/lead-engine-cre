@@ -147,7 +147,7 @@ export default function SellerTemplates() {
     const textBgPasses = meetsWcagAA(customText, customBg);
 
     // Generate hosted lander URL
-    const hostedUrl = `${window.location.origin}/f/${selectedVertical}-${user?.id || 'preview'}`;
+    const hostedUrl = `${window.location.origin}/f/${selectedVertical}--${user?.id || 'preview'}`;
     const iframeEmbed = `<iframe src="${hostedUrl}" width="100%" height="700" frameborder="0" style="border-radius:12px;max-width:480px;"></iframe>`;
 
     async function handleSelectTemplate(vertical: string) {

@@ -88,7 +88,7 @@ export function SellerSubmit() {
     const [landerVertical, setLanderVertical] = useState<string | null>(null);
     const [copiedLanderUrl, setCopiedLanderUrl] = useState(false);
     const [copiedLanderIframe, setCopiedLanderIframe] = useState(false);
-    const landerUrl = landerVertical ? `${window.location.origin}/f/${landerVertical}-${user?.id || 'preview'}` : '';
+    const landerUrl = landerVertical ? `${window.location.origin}/f/${landerVertical}--${user?.id || 'preview'}` : '';
     const landerIframe = landerUrl ? `<iframe src="${landerUrl}" width="100%" height="700" frameborder="0" style="border-radius:12px;max-width:480px;"></iframe>` : '';
 
     // Check for seller profile
