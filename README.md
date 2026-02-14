@@ -23,50 +23,72 @@ Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead
 
 Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7–30 days for payouts. Buyers overpay for unverified leads. Compliance is manual. Lead Engine fixes all three with a decentralized real-time bidding engine:
 
-| Problem | Legacy Marketplace | Lead Engine |
-|---------|--------------------|-------------|
-| **Speed** | Manual review, batch sales | **5-minute RTB auctions** with sub-second matching |
-| **Trust** | No verification, rampant fraud | **Chainlink CRE** quality scoring (0–10,000) + ZK fraud proofs |
-| **Privacy** | Buyers often receive full PII with no provenance, quality guarantees, or on-chain audit trail | **Non-PII previews** — per-vertical redaction; full PII only after purchase |
-| **Settlement** | 7–30 day payouts | **Instant USDC** via x402 escrow — sellers reinvest same day |
-| **Compliance** | Manual KYC review | **Chainlink ACE** auto-KYC, jurisdiction matrix, MiCA (zero manual) |
-| **Automation** | No buyer tools | **7-criteria auto-bid** fires 24/7 across 20+ markets |
-| **API Access** | None | **MCP agent server** — 9 tools + LangChain autonomous bidding |
-| **Provenance** | No audit trail | **ERC-721 lead NFTs** — on-chain quality scores, ownership, and trade history |
+| Problem | Legacy Marketplaces | Lead Engine |
+|---------|---------------------|-------------|
+| **Speed** | Opaque ping-post with immediate full PII delivery | Lightning Auctions (30s / 60s / 5min) with non-PII previews + sub-second bidding |
+| **Trust / Quality** | Limited verification; fraud common | Chainlink CRE quality scoring (0–10,000) + ZK fraud proofs |
+| **Privacy** | Full PII delivered immediately | Non-PII previews with per-vertical redaction; full PII only after purchase |
+| **Settlement** | Net 30–60 days typical | Instant USDC via x402 escrow |
+| **Compliance** | Manual or semi-automated KYC | Chainlink ACE auto-KYC (zero manual) |
+| **Automation** | Basic rules-based bidding | Autonomous LangChain AI agent |
+| **Provenance** | No immutable audit trail | ERC-721 Lead NFTs with on-chain quality score and ownership history |
 
 ### How a Lead Moves Through the System
 
 ```mermaid
-sequenceDiagram
-    participant Seller as 🏷️ Seller
-    participant API as ⚡ Lead Engine API
-    participant CRE as 🔗 Chainlink CRE
-    participant ACE as 🛡️ Chainlink ACE
-    participant RTB as 🔄 RTB Engine
-    participant Buyer as 💰 Buyer
-    participant Escrow as 💵 x402 Escrow
+graph LR
+    subgraph Seller["🏷️ Seller"]
+        S1[Submit Lead]
+    end
 
-    Seller->>API: Submit lead (vertical, geo, params)
-    API->>CRE: Verify quality + fraud check
-    CRE-->>API: Quality score (0–10,000) + ZK proof
-    API->>ACE: Compliance check (KYC, jurisdiction)
-    ACE-->>API: ✅ Cleared
+    subgraph API["⚡ Lead Engine API"]
+        A1[Receive & Validate]
+        A2[Store & Encrypt PII]
+    end
 
-    Note over RTB: Lightning Auction starts (30s / 60s / 5min)
-    Note over RTB: NFT holders get 12s early ping + 1.2× bid boost
+    subgraph CRE["🔗 Chainlink CRE"]
+        C1[Quality Score<br/>0 – 10,000]
+        C2[ZK Fraud Proof]
+    end
 
-    API->>RTB: Match buyers (vertical, geo, quality gate)
-    RTB->>Buyer: WebSocket notification + non-PII preview
-    Buyer->>RTB: Place sealed bid (commit-reveal)
-    RTB->>RTB: Auto-bid engine fires for matching rules
+    subgraph ACE["🛡️ Chainlink ACE"]
+        AC1[KYC Check]
+        AC2[Jurisdiction Gate]
+    end
 
-    Note over RTB: Auction ends — reveal phase
+    subgraph RTB["🔄 RTB Engine"]
+        R1[Lightning Auction<br/>30s · 60s · 5min]
+        R2[NFT Holders get<br/>12s early ping + 1.2× boost]
+        R3[Sealed Bids<br/>commit-reveal]
+    end
 
-    RTB->>Escrow: Winner pays USDC
-    Escrow->>Seller: Instant settlement (minus 2.5% fee)
-    Escrow->>Buyer: Decrypted lead data + PII
-    Note over Buyer: Lead minted as ERC-721 NFT
-    Buyer->>Buyer: CRM webhook → HubSpot/Zapier
+    subgraph Buyers["💰 Buyers"]
+        B1[Real-time Ping<br/>non-PII preview]
+        B2[Place Bid / Auto-Bid]
+    end
+
+    subgraph Settlement["💵 Settlement"]
+        W1[Winner → x402 USDC]
+        W2[Mint ERC-721 Lead NFT]
+        W3[Deliver Full PII]
+        W4[No Winner → Buy Now]
+    end
+
+    S1 --> A1
+    A1 --> A2
+    A2 --> C1
+    C1 --> C2
+    C2 --> AC1
+    AC1 --> AC2
+    AC2 --> R1
+    R1 --> R2
+    R2 --> B1
+    B1 --> B2
+    B2 --> R3
+    R3 --> W1
+    W1 --> W2
+    W2 --> W3
+    R3 -.->|no bids| W4
 ```
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
