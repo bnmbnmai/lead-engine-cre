@@ -124,11 +124,11 @@ describe('Sidebar Navigation', () => {
 // ============================================
 
 describe('Analytics Real Data Hooks', () => {
-    test('BuyerAnalytics reads useMock from localStorage', () => {
+    test('BuyerAnalytics uses useMockData hook', () => {
         const filePath = require('path').resolve(__dirname, '../../..', 'frontend/src/pages/BuyerAnalytics.tsx');
         const fs = require('fs');
         const content = fs.readFileSync(filePath, 'utf-8');
-        expect(content).toContain("localStorage.getItem('VITE_USE_MOCK_DATA')");
+        expect(content).toContain("useMockData");
     });
 
     test('BuyerAnalytics has API error banner for production', () => {
@@ -143,7 +143,7 @@ describe('Analytics Real Data Hooks', () => {
         const filePath = require('path').resolve(__dirname, '../../..', 'frontend/src/pages/SellerAnalytics.tsx');
         const fs = require('fs');
         const content = fs.readFileSync(filePath, 'utf-8');
-        expect(content).toContain('if (useMock && !useRealData) return;');
+        expect(content).toContain('if (useMock) return;');
     });
 
     test('SellerAnalytics has API error banner', () => {

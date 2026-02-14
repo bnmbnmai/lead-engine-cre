@@ -175,6 +175,8 @@ export function DemoPanel() {
         const next = !mockData;
         setMockData(next);
         localStorage.setItem('VITE_USE_MOCK_DATA', next ? 'true' : 'false');
+        // Notify analytics pages to re-render instantly
+        window.dispatchEvent(new CustomEvent('mockdata:toggle'));
         setActions(prev => ({
             ...prev,
             mock: { state: 'success', message: next ? '📊 Mock data enabled' : '📊 Mock data disabled' },

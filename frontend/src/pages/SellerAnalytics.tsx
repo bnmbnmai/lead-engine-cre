@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { socketClient } from '@/lib/socket';
+import { useMockData } from '@/hooks/useMockData';
 
 const IS_PROD = import.meta.env.PROD;
 
@@ -107,18 +108,12 @@ export function SellerAnalytics() {
     const [apiError, setApiError] = useState(false);
     const [fetchKey, setFetchKey] = useState(0);
 
-    // Reactive mock toggle
-    const useMock = localStorage.getItem('VITE_USE_MOCK_DATA') === 'true';
+    // Reactive mock toggle — auto-updates when DemoPanel toggles
+    const [useMock] = useMockData();
 
-    // Real data toggle: default on in dev/demo, off in prod
-    const [useRealData, setUseRealData] = useState(
-        import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true'
-    );
-
-    const dataSource = useRealData ? 'real' as const : useMock ? 'mock' as const : undefined;
     const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
     const revenueData = useMemo(() => {
-        if (liveTimeSeries && liveTimeSeries.length > 0) {
+        if (!useMock && liveTimeSeries && liveTimeSeries.length > 0) {
             return liveTimeSeries.map((d: any) => ({
                 date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                 revenue: d.revenue || 0,
@@ -126,14 +121,14 @@ export function SellerAnalytics() {
                 gasCost: +(Math.random() * 2.5 + 0.1).toFixed(2),
             }));
         }
-        return (useMock && !useRealData) ? generateRevenueData(days) : [];
-    }, [liveTimeSeries, days, useMock, useRealData]);
+        return useMock ? generateRevenueData(days) : [];
+    }, [liveTimeSeries, days, useMock]);
 
     const fetchAnalytics = useCallback(async () => {
-        if (useMock && !useRealData) return;
+        if (useMock) return; // skip API when mock mode is on
         try {
             const [, leadsRes] = await Promise.all([
-                api.getOverview(dataSource),
+                api.getOverview('real'),
                 api.getLeadAnalytics({ groupBy: 'day' }),
             ]);
             if (leadsRes.data?.timeSeries) setLiveTimeSeries(leadsRes.data.timeSeries);
@@ -159,27 +154,27 @@ export function SellerAnalytics() {
                 setApiError(true);
             }
         }
-    }, [period, dataSource, useMock, useRealData]);
+    }, [period, useMock]);
 
     useEffect(() => { fetchAnalytics(); }, [fetchAnalytics, fetchKey]);
 
     // Socket: real-time analytics updates
     useEffect(() => {
-        if (!useRealData) return;
+        if (useMock) return;
         socketClient.connect();
         const unsub = socketClient.on('analytics:update', () => {
             setFetchKey(k => k + 1);
         });
         return () => { unsub(); };
-    }, [useRealData]);
+    }, [useMock]);
 
-    const VERTICAL_DATA = liveVerticals && liveVerticals.length > 0
-        ? liveVerticals
-        : useMock ? FALLBACK_VERTICAL_DATA : [];
+    const VERTICAL_DATA = useMock
+        ? FALLBACK_VERTICAL_DATA
+        : (liveVerticals && liveVerticals.length > 0 ? liveVerticals : []);
 
-    const CONVERSION_DATA = liveConversions && liveConversions.length > 0
-        ? liveConversions
-        : useMock ? FALLBACK_CONVERSION_DATA : [];
+    const CONVERSION_DATA = useMock
+        ? FALLBACK_CONVERSION_DATA
+        : (liveConversions && liveConversions.length > 0 ? liveConversions : []);
 
     const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
     const totalLeads = revenueData.reduce((sum, d) => sum + d.leads, 0);
@@ -216,26 +211,14 @@ export function SellerAnalytics() {
                         <p className="text-muted-foreground">Performance metrics, revenue insights, and on-chain activity</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        {useRealData && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Data
-                            </span>
-                        )}
-                        {useMock && !useRealData && (
+                        {useMock ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                 Mock Data
                             </span>
-                        )}
-                        {!IS_PROD && (
-                            <button
-                                onClick={() => setUseRealData(p => !p)}
-                                className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${useRealData
-                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30'
-                                        : 'bg-zinc-700/50 text-zinc-400 border-zinc-600 hover:bg-zinc-700'
-                                    }`}
-                            >
-                                {useRealData ? '◉ Real Data' : '○ Use Real Data'}
-                            </button>
+                        ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Data
+                            </span>
                         )}
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-28">
