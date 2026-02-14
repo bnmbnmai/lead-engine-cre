@@ -303,6 +303,13 @@ export const api = {
     getActiveAuctions: () =>
         apiFetch<{ auctions: any[] }>('/api/v1/verticals/auctions'),
 
+    // Public Lead Submit (hosted forms / embeds)
+    submitPublicLead: (data: { sellerId: string; vertical: string; parameters: Record<string, unknown>; geo?: Record<string, unknown> }) =>
+        apiFetch<{ lead: any; matchingAsks?: number }>('/api/v1/leads/public/submit', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }),
+
     // Buy It Now
     listBuyNowLeads: (params?: Record<string, string>) =>
         apiFetch<{ leads: any[]; pagination: any }>(

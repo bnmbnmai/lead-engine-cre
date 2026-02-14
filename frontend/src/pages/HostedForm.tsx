@@ -41,12 +41,17 @@ interface FormConfig {
 export default function HostedForm() {
     const { slug } = useParams<{ slug: string }>();
 
-    // Parse the slug: everything before "--" is the verticalSlug
-    const verticalSlug = useMemo(() => {
-        if (!slug) return '';
-        // Format: {verticalSlug}--{sellerId}
+    // Parse the slug: format is {verticalSlug}--{sellerId}
+    const { verticalSlug, sellerId } = useMemo(() => {
+        if (!slug) return { verticalSlug: '', sellerId: '' };
         const idx = slug.indexOf('--');
-        return idx > 0 ? slug.substring(0, idx) : slug;
+        if (idx > 0) {
+            return {
+                verticalSlug: slug.substring(0, idx),
+                sellerId: slug.substring(idx + 2),
+            };
+        }
+        return { verticalSlug: slug, sellerId: '' };
     }, [slug]);
 
     const [config, setConfig] = useState<FormConfig | null>(null);
@@ -59,6 +64,7 @@ export default function HostedForm() {
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     // Fetch form config
     useEffect(() => {
@@ -134,10 +140,35 @@ export default function HostedForm() {
     async function handleSubmit() {
         if (!validateStep()) return;
         setSubmitting(true);
-        // Simulate submission delay (in production this would POST to the API)
-        await new Promise(r => setTimeout(r, 1200));
-        setSubmitting(false);
-        setSubmitted(true);
+        setSubmitError(null);
+        try {
+            // Extract geo fields from form data if present
+            const geo: Record<string, string> = { country: 'US' };
+            if (formData.state) geo.state = String(formData.state);
+            if (formData.city) geo.city = String(formData.city);
+            if (formData.zip || formData.zipCode || formData.zip_code) {
+                geo.zip = String(formData.zip || formData.zipCode || formData.zip_code);
+            }
+
+            const res = await api.submitPublicLead({
+                sellerId,
+                vertical: verticalSlug,
+                parameters: formData as Record<string, unknown>,
+                geo,
+            });
+
+            if (res.error) {
+                throw new Error(res.error.message || res.error.error || 'Submission failed');
+            }
+
+            console.log('[HostedForm] Lead submitted:', res.data?.lead?.id);
+            setSubmitted(true);
+        } catch (err: any) {
+            console.error('[HostedForm] Submit error:', err);
+            setSubmitError(err.message || 'Something went wrong. Please try again.');
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     function renderField(f: FormField) {
@@ -300,6 +331,12 @@ export default function HostedForm() {
                             )}
                         </button>
                     </div>
+
+                    {submitError && (
+                        <p className="text-xs text-red-400 text-center mt-3 flex items-center justify-center gap-1">
+                            <AlertCircle className="h-3 w-3" />{submitError}
+                        </p>
+                    )}
                 </div>
 
                 {/* Footer */}

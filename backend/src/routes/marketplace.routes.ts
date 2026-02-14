@@ -329,6 +329,168 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
 });
 
 // ============================================
+// Public Lead Submit (Hosted Forms / Embeds / Off-site)
+// No auth required — sellerId comes from the hosted URL slug.
+// ============================================
+
+router.post('/leads/public/submit', leadSubmitLimiter, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { sellerId, vertical, parameters, geo, source, tcpaConsentAt } = req.body;
+
+        // Validate required fields
+        if (!sellerId || typeof sellerId !== 'string') {
+            res.status(400).json({ error: 'sellerId is required' });
+            return;
+        }
+        if (!vertical || typeof vertical !== 'string') {
+            res.status(400).json({ error: 'vertical is required' });
+            return;
+        }
+        if (!parameters || typeof parameters !== 'object') {
+            res.status(400).json({ error: 'parameters (form data) is required' });
+            return;
+        }
+
+        // Look up the seller by user ID (sellerId from URL is the User.id)
+        const seller = await prisma.sellerProfile.findFirst({
+            where: { user: { id: sellerId } },
+        });
+
+        if (!seller) {
+            res.status(404).json({ error: 'Seller not found' });
+            return;
+        }
+
+        // Validate vertical exists
+        const verticalRecord = await prisma.vertical.findUnique({
+            where: { slug: vertical },
+        });
+
+        if (!verticalRecord) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        // Build geo object from form parameters or explicit geo field
+        const leadGeo = geo || {
+            country: parameters.country || 'US',
+            state: parameters.state || parameters.region || undefined,
+            city: parameters.city || undefined,
+            zip: parameters.zip || parameters.zipCode || parameters.zip_code || undefined,
+        };
+
+        // Create the lead attributed to this seller
+        const lead = await prisma.lead.create({
+            data: {
+                sellerId: seller.id,
+                vertical,
+                geo: leadGeo as any,
+                source: source || 'PLATFORM',
+                parameters: parameters as any,
+                tcpaConsentAt: tcpaConsentAt ? new Date(tcpaConsentAt) : new Date(), // Default consent = now
+                expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min default
+            },
+        });
+
+        console.log(`[MARKETPLACE] Public lead ${lead.id} submitted for seller ${seller.id} (${seller.companyName}) — vertical: ${vertical}`);
+
+        // Verify lead via CRE
+        const verification = await creService.verifyLead(lead.id);
+
+        if (!verification.isValid) {
+            await prisma.lead.update({
+                where: { id: lead.id },
+                data: { status: 'CANCELLED' },
+            });
+            // Still return 201 to the form submitter — they don't need to know about internal verification
+            console.warn(`[MARKETPLACE] Public lead ${lead.id} failed CRE verification: ${verification.reason}`);
+            res.status(201).json({
+                lead: { id: lead.id, vertical: lead.vertical, status: 'CANCELLED' },
+            });
+            return;
+        }
+
+        // Find matching asks for this lead
+        const matchingAsks = await prisma.ask.findMany({
+            where: {
+                vertical,
+                status: 'ACTIVE',
+            },
+            orderBy: { reservePrice: 'desc' },
+            take: 10,
+        });
+
+        // Start auction if we have matching asks
+        if (matchingAsks.length > 0) {
+            const bestMatch = matchingAsks[0];
+
+            await prisma.lead.update({
+                where: { id: lead.id },
+                data: {
+                    askId: bestMatch.id,
+                    status: 'IN_AUCTION',
+                    reservePrice: bestMatch.reservePrice,
+                    auctionStartAt: new Date(),
+                    auctionEndAt: new Date(Date.now() + bestMatch.auctionDuration * 1000),
+                },
+            });
+
+            // Create auction room
+            await prisma.auctionRoom.create({
+                data: {
+                    leadId: lead.id,
+                    roomId: `auction_${lead.id}`,
+                    phase: 'BIDDING',
+                    biddingEndsAt: new Date(Date.now() + bestMatch.auctionDuration * 1000),
+                    revealEndsAt: new Date(Date.now() + (bestMatch.auctionDuration + bestMatch.revealWindow) * 1000),
+                },
+            });
+
+            console.log(`[MARKETPLACE] Lead ${lead.id} matched ask ${bestMatch.id} — auction started (${bestMatch.auctionDuration}s)`);
+        } else {
+            console.log(`[MARKETPLACE] Lead ${lead.id} has no matching asks — stays PENDING_AUCTION`);
+        }
+
+        // Log analytics
+        await prisma.analyticsEvent.create({
+            data: {
+                eventType: 'lead_submitted',
+                entityType: 'lead',
+                entityId: lead.id,
+                userId: sellerId,
+                metadata: { vertical, source: source || 'PLATFORM', origin: 'hosted_form' },
+            },
+        });
+
+        // Emit real-time events
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('lead:new', {
+                leadId: lead.id,
+                vertical,
+                sellerId: seller.id,
+                status: matchingAsks.length > 0 ? 'IN_AUCTION' : 'PENDING_AUCTION',
+                timestamp: new Date().toISOString(),
+            });
+        }
+
+        // Reload lead with auction data for the response
+        const finalLead = await prisma.lead.findUnique({
+            where: { id: lead.id },
+            select: { id: true, vertical: true, status: true, auctionEndAt: true, isVerified: true },
+        });
+
+        res.status(201).json({
+            lead: finalLead,
+            matchingAsks: matchingAsks.length,
+        });
+    } catch (error) {
+        console.error('Public lead submit error:', error);
+        res.status(500).json({ error: 'Failed to submit lead' });
+    }
+});
+
+// ============================================
 // List Leads
 // ============================================
 
