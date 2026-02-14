@@ -59,7 +59,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
         let dataHash = '';
         if (Object.keys(piiData).length > 0) {
             const piiResult = privacyService.encryptLeadPII(piiData);
-            encryptedData = piiResult.encrypted;
+            encryptedData = JSON.stringify(piiResult.encrypted);
             dataHash = piiResult.dataHash;
         }
 

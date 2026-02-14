@@ -350,7 +350,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
         let dataHash = data.dataHash || '';
         if (!encryptedData && Object.keys(piiData).length > 0) {
             const piiResult = privacyService.encryptLeadPII(piiData);
-            encryptedData = piiResult.encrypted;
+            encryptedData = JSON.stringify(piiResult.encrypted);
             dataHash = piiResult.dataHash;
         }
 
@@ -532,7 +532,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         let dataHash: string = '';
         if (Object.keys(piiData).length > 0) {
             const piiResult = privacyService.encryptLeadPII(piiData);
-            encryptedData = piiResult.encrypted;
+            encryptedData = JSON.stringify(piiResult.encrypted);
             dataHash = piiResult.dataHash;
         }
 
