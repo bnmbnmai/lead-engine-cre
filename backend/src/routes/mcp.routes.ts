@@ -246,20 +246,49 @@ async function callKimi(messages: any[], system: string): Promise<any> {
     return response.json();
 }
 
+// Tool → backend API endpoint mapping (mirrors mcp-server/tools.ts)
+// This lets the chat endpoint call the backend API directly without
+// requiring the MCP server to be running as a separate process.
+const TOOL_ROUTES: Record<string, { handler: string; method: 'GET' | 'POST' | 'PUT' }> = {
+    search_leads: { handler: '/api/v1/asks', method: 'GET' },
+    place_bid: { handler: '/api/v1/bids', method: 'POST' },
+    get_bid_floor: { handler: '/api/v1/bids/bid-floor', method: 'GET' },
+    export_leads: { handler: '/api/v1/crm/export', method: 'GET' },
+    get_preferences: { handler: '/api/v1/bids/preferences/v2', method: 'GET' },
+    set_auto_bid_rules: { handler: '/api/v1/bids/preferences/v2', method: 'PUT' },
+    configure_crm_webhook: { handler: '/api/v1/crm/webhooks', method: 'POST' },
+    ping_lead: { handler: '/api/v1/leads', method: 'GET' },
+    suggest_vertical: { handler: '/api/v1/verticals/suggest', method: 'POST' },
+};
+
+const SELF_BASE = `http://localhost:${process.env.PORT || 3001}`;
+
 async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<any> {
-    const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: `chat-${Date.now()}`,
-            method: name,
-            params,
-        }),
-        signal: AbortSignal.timeout(10000),
-    });
-    const rpcData: any = await rpcResponse.json();
-    return rpcData.result || rpcData.error || {};
+    const route = TOOL_ROUTES[name];
+    if (!route) return { error: `Unknown tool: ${name}` };
+
+    let url: string;
+    let fetchOpts: RequestInit;
+
+    if (route.method === 'GET') {
+        const query = new URLSearchParams();
+        for (const [k, v] of Object.entries(params)) {
+            if (v !== undefined && v !== null) query.set(k, String(v));
+        }
+        url = `${SELF_BASE}${route.handler}?${query}`;
+        fetchOpts = { method: 'GET', headers: { 'Content-Type': 'application/json' } };
+    } else {
+        url = `${SELF_BASE}${route.handler}`;
+        fetchOpts = {
+            method: route.method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        };
+    }
+
+    const response = await fetch(url, { ...fetchOpts, signal: AbortSignal.timeout(10000) });
+    const data = await response.json().catch(() => ({}));
+    return data;
 }
 
 router.post('/chat', async (req: Request, res: Response) => {
