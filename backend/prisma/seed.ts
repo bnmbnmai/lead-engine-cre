@@ -401,7 +401,7 @@ async function seedAsks(sellers: { id: string; verticals: string[] }[], count: n
                 buyNowPrice: faker.helpers.maybe(() => faker.number.float({ min: 100, max: 300, fractionDigits: 2 }), { probability: 0.4 }) ?? undefined,
                 status: faker.helpers.arrayElement(ASK_STATUSES),
                 acceptOffSite: faker.datatype.boolean(),
-                auctionDuration: faker.helpers.arrayElement([30, 60, 300]), // Lightning Auction: hot/standard/extended
+                auctionDuration: faker.helpers.arrayElement([300, 600, 900]), // Sealed-bid auction: standard/extended/long
                 revealWindow: faker.helpers.arrayElement([300, 600, 900, 1800]),
                 expiresAt: faker.date.future({ years: 0.25 }),
             },

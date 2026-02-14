@@ -407,9 +407,8 @@ paths:
       tags: [Bids]
       summary: Place a bid
       description: |
-        Submit a sealed bid on a lead. Supports two modes:
-        - **Sealed bid**: provide `commitment` (keccak256 hash of amount + salt)
-        - **Direct bid**: provide `amount` directly (for non-ZK auctions)
+        Submit a sealed bid on a lead. Provide a `commitment` hash
+        (keccak256 of amount + salt). Reveal your bid after the bidding phase ends.
       security:
         - bearerAuth: []
       requestBody:
@@ -417,9 +416,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/BidCommit"
-                - $ref: "#/components/schemas/BidDirect"
+              $ref: "#/components/schemas/BidCommit"
       responses:
         "201":
           description: Bid placed
@@ -734,15 +731,6 @@ components:
           pattern: "^0x[a-fA-F0-9]{64}$"
           description: keccak256(abi.encodePacked(amount, salt))
 
-    BidDirect:
-      type: object
-      required: [leadId, amount]
-      properties:
-        leadId:
-          type: string
-        amount:
-          type: number
-          minimum: 0.01
 
     BidReveal:
       type: object

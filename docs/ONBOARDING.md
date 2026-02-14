@@ -374,7 +374,7 @@ If you're focusing on improving the frontend visual design, these are the files 
 
 ## 11. Bid Previews & Compliance
 
-### Bid Mode
+### Sealed Commit-Reveal
 
 All bids use **sealed commit-reveal**. Bid amounts are encrypted (AES-256-GCM) until the reveal phase, preventing front-running and protecting buyer strategy.
 
