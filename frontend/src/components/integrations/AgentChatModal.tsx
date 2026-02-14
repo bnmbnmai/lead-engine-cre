@@ -103,7 +103,7 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
         } catch {
             setMessages((prev) => [
                 ...prev,
-                { role: 'assistant', content: '⚠️ Failed to reach the agent server. Make sure the MCP server is running on port 3002.' },
+                { role: 'assistant', content: '⚠️ Failed to reach the agent server. The MCP server at lead-engine-mcp.onrender.com may be starting up — please try again in a moment.' },
             ]);
         } finally {
             setIsLoading(false);
@@ -132,8 +132,8 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
                         Demo chat powered by MCP tools — your messages invoke real API endpoints
                         {agentMode && (
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono ${agentMode === 'kimi-k2.5'
-                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                 }`}>
                                 {agentMode === 'kimi-k2.5' ? '🧠 Kimi K2.5' : '⚡ Fallback'}
                             </span>

@@ -16,7 +16,7 @@ Connects to the MCP JSON-RPC server to discover, evaluate, and bid on leads.
 """
 import json, httpx
 
-MCP_URL = "${API_BASE_URL}/api/v1/mcp/rpc"
+MCP_URL = "https://lead-engine-mcp.onrender.com/rpc"
 API_KEY = "YOUR_API_KEY"
 
 HEADERS = {"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"}
@@ -71,7 +71,7 @@ export function BuyerIntegrations() {
 
     const token = localStorage.getItem('auth_token');
     const bearer = token ? token.slice(0, 12) + '…' : '<YOUR_JWT>';
-    const mcpEndpoint = `${API_BASE_URL}/api/v1/mcp/rpc`;
+    const mcpEndpoint = 'https://lead-engine-mcp.onrender.com/rpc';
 
     const pushCurl = `curl -X POST ${API_BASE_URL}/api/v1/crm/push \\
   -H "Content-Type: application/json" \\
