@@ -15,7 +15,7 @@ const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3002';
 // (Render, Fly, Railway, etc.). Never commit the real key.
 // If unset, the /chat endpoint falls back to keyword-based demo mode.
 const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
-const KIMI_BASE_URL = 'https://api.moonshot.ai/v1';
+const KIMI_BASE_URL = 'https://api.kimi.com/coding';
 
 // ── MCP tool definitions for the LLM ──
 
@@ -162,6 +162,14 @@ Be concise and use markdown formatting. Show numbers and data clearly.
 When the user asks about leads, search for them. When asked about pricing, check bid floors.
 Always explain what you found after calling a tool.`;
 
+// ── Anthropic-format tool definitions for Kimi Code ──
+
+const ANTHROPIC_TOOLS = MCP_TOOLS.map((t) => ({
+    name: t.function.name,
+    description: t.function.description,
+    input_schema: t.function.parameters,
+}));
+
 // ── GET /tools — list available MCP tools ──
 
 router.get('/tools', async (_req: Request, res: Response) => {
@@ -209,18 +217,20 @@ interface ChatMessage {
     toolCall?: { name: string; params: Record<string, unknown>; result?: unknown };
 }
 
-async function callKimi(messages: any[]): Promise<any> {
-    const response = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
+async function callKimi(messages: any[], system: string): Promise<any> {
+    const response = await fetch(`${KIMI_BASE_URL}/v1/messages`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${KIMI_API_KEY}`,
+            'x-api-key': KIMI_API_KEY,
+            'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
             model: 'kimi-k2.5',
+            max_tokens: 4096,
+            system,
             messages,
-            tools: MCP_TOOLS,
-            tool_choice: 'auto',
+            tools: ANTHROPIC_TOOLS,
             temperature: 0.2,
         }),
         signal: AbortSignal.timeout(30000),
@@ -264,10 +274,8 @@ router.post('/chat', async (req: Request, res: Response) => {
     }
 
     try {
-        // Build conversation for Kimi
-        const llmMessages: any[] = [
-            { role: 'system', content: SYSTEM_PROMPT },
-        ];
+        // Build conversation for Kimi (Anthropic format: no system in messages)
+        const llmMessages: any[] = [];
 
         // Include recent history (keep it concise)
         for (const h of history.slice(-6)) {
@@ -284,22 +292,26 @@ router.post('/chat', async (req: Request, res: Response) => {
         // ReAct loop: Kimi decides tools → execute → feed back → repeat
         while (iterations < MAX_ITERATIONS) {
             iterations++;
-            const completion = await callKimi(llmMessages);
-            const choice = completion.choices?.[0];
+            const completion = await callKimi(llmMessages, SYSTEM_PROMPT);
 
-            if (!choice) break;
+            // Anthropic format: response has content[] array with text and tool_use blocks
+            const contentBlocks = completion.content || [];
+            const stopReason = completion.stop_reason;
 
-            const assistantMsg = choice.message;
-            llmMessages.push(assistantMsg);
+            // Extract text content
+            const textBlocks = contentBlocks.filter((b: any) => b.type === 'text');
+            const toolUseBlocks = contentBlocks.filter((b: any) => b.type === 'tool_use');
+
+            // Push assistant message to conversation
+            llmMessages.push({ role: 'assistant', content: contentBlocks });
 
             // If Kimi called tools, execute them
-            if (assistantMsg.tool_calls?.length) {
-                for (const tc of assistantMsg.tool_calls) {
-                    const toolName = tc.function.name;
-                    let toolParams: Record<string, unknown> = {};
-                    try {
-                        toolParams = JSON.parse(tc.function.arguments || '{}');
-                    } catch { /* empty params */ }
+            if (toolUseBlocks.length > 0) {
+                const toolResultBlocks: any[] = [];
+
+                for (const tu of toolUseBlocks) {
+                    const toolName = tu.name;
+                    const toolParams = tu.input || {};
 
                     const result = await executeMcpTool(toolName, toolParams);
 
@@ -310,22 +322,25 @@ router.post('/chat', async (req: Request, res: Response) => {
                         toolCall: { name: toolName, params: toolParams, result },
                     });
 
-                    // Feed result back to Kimi
-                    llmMessages.push({
-                        role: 'tool',
-                        tool_call_id: tc.id,
+                    // Anthropic tool_result format
+                    toolResultBlocks.push({
+                        type: 'tool_result',
+                        tool_use_id: tu.id,
                         content: JSON.stringify(result),
                     });
                 }
-                // Continue loop — Kimi may want to call more tools or produce final answer
+
+                // Feed all tool results back
+                llmMessages.push({ role: 'user', content: toolResultBlocks });
                 continue;
             }
 
             // No tool calls = final answer
+            const finalText = textBlocks.map((b: any) => b.text).join('\n') || 'Done.';
             const outputMessages: ChatMessage[] = [
                 { role: 'user', content: message },
                 ...toolCallLog,
-                { role: 'assistant', content: assistantMsg.content || 'Done.' },
+                { role: 'assistant', content: finalText },
             ];
 
             res.json({
