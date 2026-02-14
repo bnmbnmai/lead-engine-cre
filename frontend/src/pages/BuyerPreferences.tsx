@@ -18,9 +18,9 @@ export function BuyerPreferences() {
         <DashboardLayout>
             <div className="max-w-4xl mx-auto">
                 <div className="mb-8">
-                    <h1 className="text-3xl font-bold">Buyer Preferences</h1>
+                    <h1 className="text-3xl font-bold">Auto Bidding</h1>
                     <p className="text-muted-foreground">
-                        Set rules once — auto-bid fires instantly on matching leads across 20+ markets. Configure budgets, quality gates, and geo targeting.
+                        Configure auto-bid rules — when matching leads appear, bids fire instantly. Set budgets, quality gates, and geo targeting per vertical.
                     </p>
                 </div>
 

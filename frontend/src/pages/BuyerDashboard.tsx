@@ -375,7 +375,7 @@ export function BuyerDashboard() {
                             <Card className="p-8 text-center">
                                 <p className="text-muted-foreground">No active auctions matching your preferences</p>
                                 <Button variant="outline" className="mt-4" asChild>
-                                    <Link to="/buyer/preferences">Update Preferences</Link>
+                                    <Link to="/buyer/preferences">Auto Bidding Settings</Link>
                                 </Button>
                             </Card>
                         ) : (

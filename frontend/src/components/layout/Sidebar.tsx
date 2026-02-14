@@ -40,7 +40,7 @@ const buyerItems: SidebarItem[] = [
     { href: '/buyer/bids', label: 'My Bids', icon: <Gavel className="h-5 w-5" /> },
     { href: '/buyer/portfolio', label: 'Portfolio', icon: <Briefcase className="h-5 w-5" /> },
     { href: '/buyer/analytics', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
-    { href: '/buyer/preferences', label: 'Preferences', icon: <Settings className="h-5 w-5" /> },
+    { href: '/buyer/preferences', label: 'Auto Bidding', icon: <Settings className="h-5 w-5" /> },
 ];
 
 const sellerItems: SidebarItem[] = [

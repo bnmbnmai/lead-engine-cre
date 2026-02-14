@@ -534,20 +534,8 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             }
 
             if (req.user.role === 'BUYER') {
+                // Buyers can browse all active leads; vertical preferences only apply to auto-bidding
                 where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
-
-                const buyer = await prisma.buyerProfile.findFirst({
-                    where: { user: { id: req.user.id } },
-                });
-
-                if (buyer) {
-                    if (buyer.verticals.length > 0) {
-                        where.vertical = { in: buyer.verticals };
-                    }
-                    if (!buyer.acceptOffSite) {
-                        where.source = { not: 'OFFSITE' };
-                    }
-                }
             }
         } else {
             // Public (unauthenticated): show all active leads
