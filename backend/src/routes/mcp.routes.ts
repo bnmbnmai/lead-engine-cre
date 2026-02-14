@@ -6,6 +6,7 @@
  * Tool calls are executed via the MCP JSON-RPC server.
  */
 import { Router, Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
 const MCP_BASE = process.env.MCP_SERVER_URL || 'https://lead-engine-mcp.onrender.com';
@@ -155,7 +156,8 @@ const MCP_TOOLS = [
     },
 ];
 
-const FRONTEND_URL = 'https://lead-engine-cre-frontend.vercel.app';
+// Use relative paths for lead links — the AgentChatModal renders these inside the SPA
+const FRONTEND_URL = '';
 
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
@@ -167,15 +169,44 @@ You have access to 9 MCP tools. Use them to answer the user's questions.
 - Only return non-sensitive fields: lead ID, vertical, state, reserve price, quality score, seller reputation, bid count.
 - If a tool result contains PII, ignore those fields and only reference safe data.
 
+## APP NAVIGATION
+You can link users to pages inside the app. Use relative markdown links (no domain).
+Available pages:
+
+| Page | Path | When to suggest |
+|------|------|-----------------|
+| Marketplace | /marketplace | "browse leads", "show marketplace", "take me to marketplace" |
+| Auction / Lead Detail | /auction/{leadId} | After listing leads or when user asks about a specific lead |
+| Buyer Dashboard | /buyer | "show my dashboard", "go home" |
+| My Bids | /buyer/bids | "show my bids", "bid history" |
+| Purchased Leads (Portfolio) | /buyer/portfolio | "my purchased leads", "won leads", "my portfolio" |
+| Buyer Preferences | /buyer/preferences | "my preferences", "auto-bid settings", "auto-bidding", "change my verticals" |
+| Buyer Analytics | /buyer/analytics | "my stats", "analytics", "performance" |
+| Integrations | /buyer/integrations | "integrations", "API keys", "webhooks" |
+| Seller Dashboard | /seller | "seller dashboard" |
+| Seller Leads | /seller/leads | "my listings", "my leads" (as seller) |
+| Seller Funnels | /seller/funnels | "my funnels", "landing pages", "lead capture forms" |
+| Submit Lead | /seller/submit | "submit a lead", "sell a lead" |
+| Seller Analytics | /seller/analytics | "seller stats", "seller analytics" |
+
 ## FORMATTING RULES
 - Be concise and use markdown formatting. Show numbers and data clearly.
 - When listing leads, format each lead with a clickable link:
-  **[Vertical — State — $Price](${FRONTEND_URL}/auction/{leadId})** | Quality: X | Bids: Y
-- After listing leads, add: "Click any lead above to view details and place a bid."
-- When the user asks about a specific lead, include a **[🎯 Place Bid](${FRONTEND_URL}/auction/{leadId})** link.
+  **[Vertical — State — $Price](/auction/{leadId})** | Quality: X | Bids: Y
+- After listing leads, add a call-to-action: "Click any lead above to view and bid." and optionally link to the full [Marketplace](/marketplace).
+- When the user asks about a specific lead, include a **[🎯 Place Bid](/auction/{leadId})** link.
 - When asked about pricing, check bid floors.
 - Always explain what you found after calling a tool.
-- If a search returns no results, suggest broadening the search (try different verticals or remove filters).`;
+- If a search returns no results, suggest broadening the search (try different verticals or remove filters).
+
+## SMART NAVIGATION
+Proactively suggest relevant navigation after answering:
+- After showing leads → "Want to see more? [Browse Marketplace](/marketplace)"
+- After checking preferences → "You can edit these in [Preferences](/buyer/preferences)"
+- After showing bids → "View your full bid history in [My Bids](/buyer/bids)"
+- When user asks "where can I..." or "how do I..." → provide the appropriate nav link
+- When user says "go to", "take me to", "open", "show me" → output a link to that page
+- Always use the format: [Page Name](/path) — never use full URLs.`;
 
 // ── Anthropic-format tool definitions for Kimi Code ──
 
@@ -281,7 +312,38 @@ function sanitizeLeadData(data: any): any {
     return data;
 }
 
+async function searchLeadsLocal(params: Record<string, unknown>): Promise<any> {
+    const where: any = { status: 'IN_AUCTION' };
+    if (params.vertical) where.vertical = { contains: params.vertical as string, mode: 'insensitive' };
+    if (params.state) where.geo = { path: ['state'], equals: params.state };
+    if (params.minPrice || params.maxPrice) {
+        where.reservePrice = {};
+        if (params.minPrice) where.reservePrice.gte = Number(params.minPrice);
+        if (params.maxPrice) where.reservePrice.lte = Number(params.maxPrice);
+    }
+    const limit = Math.min(Number(params.limit) || 5, 10);
+    const leads = await prisma.lead.findMany({
+        where,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+            seller: { select: { reputationScore: true, isVerified: true, companyName: true } },
+            _count: { select: { bids: true } },
+        },
+    });
+    return sanitizeLeadData({ leads });
+}
+
 async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<any> {
+    // For search_leads, prefer local DB query to get real lead IDs
+    if (name === 'search_leads') {
+        try {
+            return await searchLeadsLocal(params);
+        } catch (err) {
+            console.warn('[MCP] Local search_leads failed, falling back to MCP server:', err);
+        }
+    }
+
     const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -448,8 +510,52 @@ function pickToolCalls(message: string): { name: string; params: Record<string, 
     return calls;
 }
 
+// ── Navigation intent detection ──
+
+const NAV_ROUTES: { keywords: string[]; path: string; label: string; response: string }[] = [
+    { keywords: ['marketplace', 'browse leads', 'browse the marketplace'], path: '/marketplace', label: 'Marketplace', response: '🏪 Here you go — [Open Marketplace](/marketplace)' },
+    { keywords: ['my dashboard', 'go home', 'home', 'dashboard'], path: '/buyer', label: 'Dashboard', response: '🏠 [Go to Dashboard](/buyer)' },
+    { keywords: ['my bids', 'bid history', 'bids i placed'], path: '/buyer/bids', label: 'My Bids', response: '📋 [View My Bids](/buyer/bids)' },
+    { keywords: ['portfolio', 'purchased leads', 'won leads', 'my leads'], path: '/buyer/portfolio', label: 'Portfolio', response: '💼 [View My Portfolio](/buyer/portfolio) — your purchased leads' },
+    { keywords: ['auto-bid', 'autobid', 'preference', 'auto bid', 'settings', 'bidding rules'], path: '/buyer/preferences', label: 'Preferences', response: '⚙️ [Open Preferences](/buyer/preferences) — manage your auto-bid rules and verticals' },
+    { keywords: ['my analytics', 'my stats', 'my performance', 'buyer analytics'], path: '/buyer/analytics', label: 'Analytics', response: '📊 [View Analytics](/buyer/analytics)' },
+    { keywords: ['integration', 'api key', 'webhook'], path: '/buyer/integrations', label: 'Integrations', response: '🔗 [Open Integrations](/buyer/integrations) — API keys, webhooks, and agent config' },
+    { keywords: ['seller dashboard', 'sell dashboard'], path: '/seller', label: 'Seller Dashboard', response: '🏢 [Open Seller Dashboard](/seller)' },
+    { keywords: ['seller leads', 'my listings'], path: '/seller/leads', label: 'Seller Leads', response: '📄 [View Seller Leads](/seller/leads)' },
+    { keywords: ['funnel', 'landing page', 'lead capture', 'form builder'], path: '/seller/funnels', label: 'Funnels', response: '📝 [Open Funnels](/seller/funnels) — manage lead capture forms' },
+    { keywords: ['submit lead', 'sell a lead', 'submit a lead'], path: '/seller/submit', label: 'Submit Lead', response: '📤 [Submit a Lead](/seller/submit)' },
+    { keywords: ['seller analytics', 'seller stats'], path: '/seller/analytics', label: 'Seller Analytics', response: '📈 [View Seller Analytics](/seller/analytics)' },
+];
+
+function detectNavIntent(message: string): string | null {
+    const lower = message.toLowerCase();
+    // Only trigger for navigation-like phrases
+    const navPhrases = ['go to', 'take me', 'open', 'navigate', 'show me my', 'where is', 'where can i find'];
+    const isNavRequest = navPhrases.some((p) => lower.includes(p));
+    if (!isNavRequest) return null;
+
+    for (const route of NAV_ROUTES) {
+        if (route.keywords.some((kw) => lower.includes(kw))) {
+            return route.response;
+        }
+    }
+    return null;
+}
+
 async function fallbackChat(_req: Request, res: Response, message: string, history: ChatMessage[]) {
     const messages: ChatMessage[] = [...history, { role: 'user', content: message }];
+
+    // ── Check for pure navigation intent first ──
+    const navResponse = detectNavIntent(message);
+    if (navResponse) {
+        res.json({
+            messages: [...messages, { role: 'assistant' as const, content: navResponse }],
+            toolCalls: [],
+            mode: 'fallback',
+        });
+        return;
+    }
+
 
     try {
         const toolCalls = pickToolCalls(message);
@@ -476,17 +582,30 @@ async function fallbackChat(_req: Request, res: Response, message: string, histo
             const tc = tr.toolCall!;
             const result = tc.result as any;
             if (tc.name === 'search_leads') {
-                const leads = result?.asks || result?.leads || [];
-                if (leads.length === 0) return '📭 No leads found matching your criteria. Try a different vertical or remove geo filters.';
-                return `🔍 Found **${leads.length}** leads:\n${leads.slice(0, 5).map((l: any, i: number) => {
-                    const id = l.id || '';
-                    const vert = l.vertical || 'Unknown';
-                    const state = l.geoTargets?.states?.[0] || l.geo?.state || 'N/A';
-                    const price = l.reservePrice ? `$${l.reservePrice}` : '?';
-                    const quality = l.qualityScore ? ` | Quality: ${(Number(l.qualityScore) / 100).toFixed(0)}%` : '';
-                    const bids = l._count?.bids != null ? ` | Bids: ${l._count.bids}` : '';
-                    return `  ${i + 1}. **[${vert} — ${state} — ${price}](${FRONTEND_URL}/auction/${id})**${quality}${bids}`;
-                }).join('\n')}\n\n_Click any lead above to view details and place a bid._`;
+                // MCP may return asks or leads — extract actual leads for auction links
+                const items = result?.leads || result?.asks || [];
+                if (items.length === 0) return '📭 No leads found matching your criteria. Try a different vertical or remove geo filters.';
+
+                // Build links: prefer nested leads (with real lead IDs) over asks
+                const lines = items.slice(0, 5).map((item: any, i: number) => {
+                    // If item has nested leads (it's an ask), pick the first active lead
+                    const nestedLead = item.leads?.find((l: any) => l.status === 'IN_AUCTION') || item.leads?.[0];
+                    const linkId = nestedLead?.id || item.id || '';
+                    // Determine if linking to a lead or an ask
+                    const isLead = nestedLead || item.status === 'IN_AUCTION' || item.auctionStartAt;
+                    const linkPath = isLead ? `/auction/${linkId}` : `/marketplace/ask/${item.id}`;
+
+                    const vert = item.vertical || 'Unknown';
+                    const state = item.geoTargets?.states?.[0] || item.geo?.state || 'N/A';
+                    const price = item.reservePrice ? `$${item.reservePrice}` : '?';
+                    const quality = item.qualityScore ? ` | Quality: ${(Number(item.qualityScore) / 100).toFixed(0)}%` : '';
+                    const bids = item._count?.bids != null ? ` | Bids: ${item._count.bids}` : '';
+                    const verified = item.isVerified ? ' | ✅ Verified' : '';
+                    const seller = item.seller?.reputationScore ? ` | ⭐ ${(Number(item.seller.reputationScore) / 100).toFixed(0)}` : '';
+                    return `  ${i + 1}. **[${vert} — ${state} — ${price}](${linkPath})**${quality}${bids}${verified}${seller}`;
+                });
+
+                return `🔍 Found **${items.length}** leads:\n${lines.join('\n')}\n\n_Click any lead above to view details and place a bid._`;
             }
             if (tc.name === 'get_bid_floor') {
                 return `💰 Bid floor for **${tc.params.vertical}**: $${result?.floor || '?'} (ceiling: $${result?.ceiling || '?'})`;

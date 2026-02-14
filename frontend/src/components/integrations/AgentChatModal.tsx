@@ -4,7 +4,8 @@
  * Opens as a Dialog modal. Sends user messages to /api/v1/mcp/chat,
  * displays tool call traces and assistant responses.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bot, Send, Loader2, Wrench, User, Sparkles, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -27,11 +28,18 @@ interface AgentChatModalProps {
 // ── Component ──
 
 export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
+    const navigate = useNavigate();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [agentMode, setAgentMode] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Navigate to internal links and close modal
+    const handleInternalLink = useCallback((path: string) => {
+        onOpenChange(false);
+        navigate(path);
+    }, [navigate, onOpenChange]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -147,7 +155,7 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
                     className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
                 >
                     {messages.map((msg, i) => (
-                        <MessageBubble key={i} message={msg} />
+                        <MessageBubble key={i} message={msg} onNavigate={handleInternalLink} />
                     ))}
                     {isLoading && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -189,7 +197,7 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
 
 // ── Message Bubble ──
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, onNavigate }: { message: ChatMessage; onNavigate: (path: string) => void }) {
     if (message.role === 'user') {
         return (
             <div className="flex justify-end">
@@ -232,7 +240,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 <Bot className="h-3.5 w-3.5 text-violet-400" />
             </div>
             <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-muted text-sm leading-relaxed whitespace-pre-wrap">
-                <RenderMarkdown text={message.content} />
+                <RenderMarkdown text={message.content} onNavigate={onNavigate} />
             </div>
         </div>
     );
@@ -240,7 +248,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
 // ── Lightweight Markdown Renderer ──
 
-function RenderMarkdown({ text }: { text: string }) {
+function RenderMarkdown({ text, onNavigate }: { text: string; onNavigate: (path: string) => void }) {
     // Split by markdown links first: [text](url)
     const parts = text.split(/(\[.*?\]\(.*?\))/);
 
@@ -250,10 +258,24 @@ function RenderMarkdown({ text }: { text: string }) {
                 // Check for markdown link
                 const linkMatch = part.match(/^\[(.+?)\]\((.+?)\)$/);
                 if (linkMatch) {
+                    const url = linkMatch[2];
+                    const isInternal = url.startsWith('/');
+                    if (isInternal) {
+                        return (
+                            <a
+                                key={i}
+                                href={url}
+                                onClick={(e) => { e.preventDefault(); onNavigate(url); }}
+                                className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors cursor-pointer"
+                            >
+                                {renderInline(linkMatch[1])}
+                            </a>
+                        );
+                    }
                     return (
                         <a
                             key={i}
-                            href={linkMatch[2]}
+                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors"

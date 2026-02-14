@@ -104,7 +104,7 @@ export const AskCreateSchema = z.object({
     parameters: z.record(z.unknown()).optional(),
     acceptOffSite: z.boolean().optional().default(true),
     auctionDuration: z.number().min(60).max(60).optional().default(60), // locked to 60s for hackathon
-    revealWindow: z.number().min(60).max(300).optional().default(120), // 1min to 5min
+    revealWindow: z.number().min(0).max(300).optional().default(0), // deprecated — no separate reveal phase
     expiresInDays: z.number().min(1).max(90).optional().default(30),
 });
 

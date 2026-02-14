@@ -30,7 +30,7 @@ const VERTICALS: string[] = SEED_DATA.flatMap((v) => [
     ...(v.children?.map((c) => c.slug) ?? []),
 ]);
 
-const LEAD_STATUSES = ['PENDING_AUCTION', 'IN_AUCTION', 'REVEAL_PHASE', 'SOLD', 'EXPIRED'] as const;
+const LEAD_STATUSES = ['PENDING_AUCTION', 'IN_AUCTION', 'UNSOLD', 'SOLD', 'EXPIRED'] as const;
 const LEAD_SOURCES = ['PLATFORM', 'API', 'OFFSITE'] as const;
 const ASK_STATUSES = ['ACTIVE', 'PAUSED', 'EXPIRED'] as const;
 const BID_STATUSES = ['PENDING', 'REVEALED', 'ACCEPTED', 'OUTBID'] as const;
@@ -401,8 +401,8 @@ async function seedAsks(sellers: { id: string; verticals: string[] }[], count: n
                 buyNowPrice: faker.helpers.maybe(() => faker.number.float({ min: 100, max: 300, fractionDigits: 2 }), { probability: 0.4 }) ?? undefined,
                 status: faker.helpers.arrayElement(ASK_STATUSES),
                 acceptOffSite: faker.datatype.boolean(),
-                auctionDuration: faker.helpers.arrayElement([300, 600, 900]), // Sealed-bid auction: standard/extended/long
-                revealWindow: faker.helpers.arrayElement([300, 600, 900, 1800]),
+                auctionDuration: 60, // 60s sealed-bid auction
+                revealWindow: 0, // deprecated — no separate reveal
                 expiresAt: faker.date.future({ years: 0.25 }),
             },
         });
@@ -447,8 +447,8 @@ async function seedLeads(sellers: { id: string; verticals: string[] }[], asks: {
                     { value: false, weight: 2 },
                 ]),
                 createdAt,
-                auctionStartAt: ['IN_AUCTION', 'REVEAL_PHASE', 'SOLD'].includes(status) ? createdAt : undefined,
-                auctionEndAt: ['SOLD', 'EXPIRED'].includes(status) ? new Date(createdAt.getTime() + 3600000) : undefined,
+                auctionStartAt: ['IN_AUCTION', 'SOLD'].includes(status) ? createdAt : undefined,
+                auctionEndAt: ['IN_AUCTION', 'SOLD', 'EXPIRED'].includes(status) ? new Date(createdAt.getTime() + 60000) : undefined,
                 soldAt: status === 'SOLD' ? new Date(createdAt.getTime() + faker.number.int({ min: 1800, max: 7200 }) * 1000) : undefined,
                 expiresAt,
             },
@@ -462,7 +462,7 @@ async function seedLeads(sellers: { id: string; verticals: string[] }[], asks: {
 async function seedBids(leads: { id: string; status: string }[], buyerUsers: { id: string }[], count: number) {
     console.log(`  Creating ${count} bids...`);
 
-    const auctionLeads = leads.filter((l) => ['IN_AUCTION', 'REVEAL_PHASE', 'SOLD'].includes(l.status));
+    const auctionLeads = leads.filter((l) => ['IN_AUCTION', 'SOLD'].includes(l.status));
     if (auctionLeads.length === 0) return;
 
     for (let i = 0; i < count; i++) {

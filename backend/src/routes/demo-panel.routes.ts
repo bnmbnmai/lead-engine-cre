@@ -539,7 +539,6 @@ router.post('/seed', async (req: Request, res: Response) => {
                     status: 'ACTIVE',
                     parameters: { _demoTag: DEMO_TAG },
                     auctionDuration: LEAD_AUCTION_DURATION_SECS,
-                    revealWindow: 120,
                 },
             });
             askCount++;
@@ -816,7 +815,7 @@ router.post('/auction', async (req: Request, res: Response) => {
                 roomId: `demo-auction-${lead.id}`,
                 phase: 'BIDDING',
                 biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
-                revealEndsAt: new Date(Date.now() + (LEAD_AUCTION_DURATION_SECS + 30) * 1000),
+                revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), // no separate reveal
                 participants: [demoUser.id],
             },
         });

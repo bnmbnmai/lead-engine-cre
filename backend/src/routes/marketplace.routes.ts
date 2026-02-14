@@ -137,7 +137,6 @@ router.post('/asks', authMiddleware, requireSeller, async (req: AuthenticatedReq
                 parameters: data.parameters as any,
                 acceptOffSite: data.acceptOffSite,
                 auctionDuration: data.auctionDuration,
-                revealWindow: data.revealWindow,
                 expiresAt: new Date(Date.now() + data.expiresInDays! * 24 * 60 * 60 * 1000),
             },
         });
@@ -387,7 +386,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
                     roomId: `auction_${lead.id}`,
                     phase: 'BIDDING',
                     biddingEndsAt: new Date(Date.now() + bestMatch.auctionDuration * 1000),
-                    revealEndsAt: new Date(Date.now() + (bestMatch.auctionDuration + bestMatch.revealWindow) * 1000),
+                    revealEndsAt: new Date(Date.now() + bestMatch.auctionDuration * 1000), // no separate reveal
                 },
             });
         }
@@ -520,7 +519,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
                     geoTargets: leadGeo.country ? [leadGeo.country] : ['US'],
                     reservePrice: 5.0,
                     auctionDuration: 60, // 60-second auction
-                    revealWindow: 120,
+
                     status: 'ACTIVE',
                 },
             });
@@ -550,7 +549,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
                     roomId: `auction_${lead.id}`,
                     phase: 'BIDDING',
                     biddingEndsAt: new Date(Date.now() + bestMatch.auctionDuration * 1000),
-                    revealEndsAt: new Date(Date.now() + (bestMatch.auctionDuration + bestMatch.revealWindow) * 1000),
+                    revealEndsAt: new Date(Date.now() + bestMatch.auctionDuration * 1000), // no separate reveal
                 },
             });
 

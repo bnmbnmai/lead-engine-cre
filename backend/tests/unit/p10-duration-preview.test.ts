@@ -30,14 +30,6 @@ describe('Auction Duration Config', () => {
         expect(config).toContain("LEAD_AUCTION_DURATION_SECS || '60'");
     });
 
-    test('LEAD_AUCTION_MAX_DURATION_SECS defaults to 60', () => {
-        expect(config).toContain("LEAD_AUCTION_MAX_DURATION_SECS || '60'");
-    });
-
-    test('PERKS_CONFIG.auction includes leadMaxDurationSecs', () => {
-        expect(config).toContain('leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS');
-    });
-
     test('AuctionCreateSchema caps durationSecs at 60', () => {
         const routes = readBackend('routes/vertical.routes.ts');
         expect(routes).toContain('.max(60)');
@@ -50,9 +42,9 @@ describe('Auction Duration Config', () => {
         expect(routes).toContain('locked to 60s');
     });
 
-    test('createAuction clamps duration to [60, MAX]', () => {
+    test('createAuction clamps duration to [60, LEAD_AUCTION_DURATION_SECS]', () => {
         const src = readBackend('services/auction.service.ts');
-        expect(src).toContain('Math.max(60, Math.min(durationSecs, LEAD_AUCTION_MAX_DURATION_SECS))');
+        expect(src).toContain('Math.max(60, Math.min(durationSecs, LEAD_AUCTION_DURATION_SECS))');
     });
 });
 

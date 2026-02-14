@@ -25,11 +25,11 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 export function getStatusColor(status: string): string {
   const map: Record<string, string> = {
     // Lead statuses
-    PENDING_PING: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-    IN_PING_POST: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+    PENDING_PING: 'bg-gray-500/10 text-gray-400 border-gray-500/20',    // deprecated
+    IN_PING_POST: 'bg-gray-500/10 text-gray-400 border-gray-500/20',    // deprecated
     PENDING_AUCTION: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
     IN_AUCTION: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-    REVEAL_PHASE: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+    REVEAL_PHASE: 'bg-gray-500/10 text-gray-400 border-gray-500/20',    // deprecated
     SOLD: 'bg-green-500/10 text-green-500 border-green-500/20',
     UNSOLD: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
     EXPIRED: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
@@ -87,10 +87,10 @@ export function shortenAddress(address: string, chars = 4): string {
  */
 export function getPhaseLabel(status: string): string {
   const map: Record<string, string> = {
-    PENDING_PING: 'Queued',
-    IN_PING_POST: 'Ping-Post',
+    PENDING_PING: 'Legacy',
+    IN_PING_POST: 'Legacy',
     IN_AUCTION: 'Auction',
-    REVEAL_PHASE: 'Reveal',
+    REVEAL_PHASE: 'Legacy',
     SOLD: 'Sold',
     UNSOLD: 'Buy Now',
     EXPIRED: 'Expired',
