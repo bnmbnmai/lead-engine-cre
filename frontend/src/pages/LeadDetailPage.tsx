@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
@@ -82,6 +82,7 @@ export default function LeadDetailPage() {
     const { id } = useParams<{ id: string }>();
     const { isAuthenticated } = useAuth();
     const { openConnectModal } = useConnectModal();
+    const navigate = useNavigate();
 
     const [lead, setLead] = useState<LeadDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -120,6 +121,8 @@ export default function LeadDetailPage() {
                     setBuyError(res.error.error || 'Purchase failed');
                 } else {
                     setPurchased(true);
+                    // Redirect to portfolio after brief confirmation
+                    setTimeout(() => navigate('/buyer/portfolio'), 2000);
                 }
             } catch {
                 setBuyError('Network error — please try again');

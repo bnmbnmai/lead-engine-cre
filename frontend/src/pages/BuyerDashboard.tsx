@@ -399,6 +399,9 @@ export function BuyerDashboard() {
                             <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
                                 {filteredPurchased.length} won
                             </Badge>
+                            <Button variant="ghost" size="sm" asChild>
+                                <Link to="/buyer/portfolio">View All <ArrowUpRight className="h-3.5 w-3.5 ml-1" /></Link>
+                            </Button>
                             <Button
                                 variant="outline"
                                 size="sm"

@@ -14,6 +14,7 @@ import {
     Gem,
     Layers,
     Megaphone,
+    Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +38,7 @@ const marketplaceItems: SidebarItem[] = [
 const buyerItems: SidebarItem[] = [
     { href: '/buyer', label: 'Overview', icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: '/buyer/bids', label: 'My Bids', icon: <Gavel className="h-5 w-5" /> },
+    { href: '/buyer/portfolio', label: 'My Portfolio', icon: <Briefcase className="h-5 w-5" /> },
     { href: '/buyer/analytics', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { href: '/buyer/preferences', label: 'Preferences', icon: <Settings className="h-5 w-5" /> },
 ];

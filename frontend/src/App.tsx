@@ -12,6 +12,7 @@ initSentry();
 // Pages
 import HomePage from '@/pages/HomePage';
 import BuyerDashboard from '@/pages/BuyerDashboard';
+import BuyerPortfolio from '@/pages/BuyerPortfolio';
 import SellerDashboard from '@/pages/SellerDashboard';
 import AuctionPage from '@/pages/AuctionPage';
 import BuyerBids from '@/pages/BuyerBids';
@@ -87,6 +88,7 @@ function App() {
                                 <Route path="/buyer/bids" element={<ProtectedRoute role="BUYER"><BuyerBids /></ProtectedRoute>} />
                                 <Route path="/buyer/analytics" element={<ProtectedRoute role="BUYER"><BuyerAnalytics /></ProtectedRoute>} />
                                 <Route path="/buyer/preferences" element={<ProtectedRoute role="BUYER"><BuyerPreferences /></ProtectedRoute>} />
+                                <Route path="/buyer/portfolio" element={<ProtectedRoute role="BUYER"><BuyerPortfolio /></ProtectedRoute>} />
 
                                 {/* Seller Routes (auth + role required) */}
                                 <Route path="/seller" element={<ProtectedRoute role="SELLER"><SellerDashboard /></ProtectedRoute>} />
