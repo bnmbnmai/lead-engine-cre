@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
     Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
-    Search, Save, CheckCircle,
+    Save, CheckCircle,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { LanderExport } from '@/components/forms/LanderExport';
 import { getContrastText, meetsWcagAA } from '@/lib/contrast';
 import { useVerticals } from '@/hooks/useVerticals';
+import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import useAuth from '@/hooks/useAuth';
 import api from '@/lib/api';
 import { toast } from '@/hooks/useToast';
@@ -50,7 +51,7 @@ export function FormBuilder() {
     const dragSource = useRef<{ stepIdx: number; fieldIdx: number } | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
-    const [verticalSearch, setVerticalSearch] = useState('');
+
     const [gamification, setGamification] = useState<GamificationConfig>({
         showProgress: true,
         showNudges: true,
@@ -64,9 +65,7 @@ export function FormBuilder() {
     const [hasAdminConfig, setHasAdminConfig] = useState(false);
 
     // Dynamic verticals from API
-    const { flatList: apiVerticals, search: searchVerticals, loading: verticalsLoading } = useVerticals();
-    const filteredVerticals = verticalSearch ? searchVerticals(verticalSearch) : apiVerticals;
-    const displayVerticals = filteredVerticals;
+    const { flatList: apiVerticals } = useVerticals();
 
     // Auto-select first vertical on initial load
     useEffect(() => {
@@ -95,7 +94,7 @@ export function FormBuilder() {
                 setIsSaved(true);
                 setEditingId(null);
                 setPreviewStep(0);
-                setVerticalSearch('');
+
                 return;
             }
         } catch {
@@ -108,7 +107,6 @@ export function FormBuilder() {
         setSteps(autoGroupSteps(presetFields));
         setEditingId(null);
         setPreviewStep(0);
-        setVerticalSearch('');
     };
 
     const addField = () => {
@@ -292,59 +290,15 @@ export function FormBuilder() {
                 <div className="mb-6 space-y-3">
                     <div className="flex items-center gap-4">
                         <label className="text-sm font-medium">Vertical Template:</label>
-                        <div className="relative flex-1 max-w-xs">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <input
-                                type="text"
-                                placeholder="Search verticals..."
-                                value={verticalSearch}
-                                onChange={(e) => setVerticalSearch(e.target.value)}
-                                className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                            />
-                        </div>
+                        <NestedVerticalSelect
+                            value={vertical}
+                            onValueChange={loadPreset}
+                            placeholder="Select a vertical…"
+                            className="flex-1 max-w-sm"
+                            showSuggest
+                            onSuggestClick={() => window.open('/verticals/suggest', '_blank')}
+                        />
                     </div>
-                    {verticalsLoading ? (
-                        <div className="flex items-center gap-2 py-4">
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                            <span className="text-sm text-muted-foreground">Loading verticals…</span>
-                        </div>
-                    ) : displayVerticals.length === 0 ? (
-                        <div className="text-center py-4 space-y-2">
-                            <p className="text-sm text-muted-foreground">
-                                {verticalSearch ? 'No verticals match your search.' : 'No verticals available.'}
-                            </p>
-                            <button
-                                onClick={() => window.open('/verticals/suggest', '_blank')}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                            >
-                                <Sparkles className="h-3.5 w-3.5" />
-                                Suggest New Vertical
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex gap-2 flex-wrap max-h-40 overflow-y-auto">
-                            {displayVerticals.map((v) => (
-                                <button
-                                    key={v.value}
-                                    onClick={() => loadPreset(v.value)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all flex items-center gap-1.5 ${vertical === v.value
-                                        ? 'bg-primary text-primary-foreground shadow-sm'
-                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                        } ${v.depth > 0 ? 'text-xs ml-2' : ''}`}
-                                >
-                                    {v.depth > 0 ? (
-                                        <span className="opacity-50">›</span>
-                                    ) : (
-                                        <span>{VERTICAL_EMOJI[v.value] || ''}</span>
-                                    )}
-                                    {v.label}
-                                    {!VERTICAL_PRESETS[v.value] && (
-                                        <span className="text-[10px] opacity-60" title="No preset template — click to customise fields">(custom)</span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    )}
                     {vertical && !VERTICAL_PRESETS[vertical] && (
                         <p className="text-xs text-muted-foreground italic">
                             No preset template for this vertical — using generic contact fields. Customise below.

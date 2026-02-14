@@ -11,7 +11,7 @@ import { useState, useMemo } from 'react';
 import useVerticals from '@/hooks/useVerticals';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
-    Sparkles, Shield, Search, Plus, Send, ChevronRight,
+    Sparkles, Shield, Plus, Send,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,7 @@ import { getContrastText, meetsWcagAA, contrastRatio } from '@/lib/contrast';
 import useAuth from '@/hooks/useAuth';
 import { toast } from '@/hooks/useToast';
 import api from '@/lib/api';
+import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import {
     FormField, FormStep,
     GamificationConfig, FormColorScheme,
@@ -33,27 +34,7 @@ import {
 // Category Mapping
 // ============================================
 
-const ROOT_CATEGORY_MAP: Record<string, string> = {
-    roofing: 'Home & Property',
-    solar: 'Home & Property',
-    home_services: 'Home & Property',
-    real_estate: 'Home & Property',
-    mortgage: 'Finance & Insurance',
-    insurance: 'Finance & Insurance',
-    auto: 'Finance & Insurance',
-    financial_services: 'Finance & Insurance',
-    b2b_saas: 'Business & Legal',
-    legal: 'Business & Legal',
-};
 
-/** Derives category for any slug — children inherit from their parent prefix */
-function getCategory(slug: string): string {
-    if (ROOT_CATEGORY_MAP[slug]) return ROOT_CATEGORY_MAP[slug];
-    const root = slug.split('.')[0];
-    return ROOT_CATEGORY_MAP[root] || 'Other';
-}
-
-const CATEGORIES = ['All', 'Home & Property', 'Finance & Insurance', 'Business & Legal'];
 
 // ============================================
 // Constants
@@ -76,10 +57,8 @@ const APPROVED_CTA_TEXTS = [
 
 export default function SellerTemplates() {
     const { user } = useAuth();
-    const { flatList: apiVerticals } = useVerticals();
+    useVerticals();
     const [selectedVertical, setSelectedVertical] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [activeCategory, setActiveCategory] = useState('All');
 
     // Customization state
     const [colorScheme, setColorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
@@ -106,23 +85,7 @@ export default function SellerTemplates() {
     const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
     const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
 
-    // Filtered verticals — merge API verticals with any VERTICAL_PRESETS-only slugs
-    const verticals = useMemo(() => {
-        // Build ordered list: prefer API, fall back to VERTICAL_PRESETS keys
-        const slugSet = new Set(apiVerticals.map(v => v.value));
-        // Add any preset-only slugs not in API (safety fallback)
-        for (const slug of Object.keys(VERTICAL_PRESETS)) {
-            if (!slugSet.has(slug)) slugSet.add(slug);
-        }
-        // Filter by search + category
-        return [...slugSet].filter(v => {
-            const label = apiVerticals.find(a => a.value === v)?.label || v.replace(/_/g, ' ');
-            const matchesSearch = !searchQuery || label.toLowerCase().includes(searchQuery.toLowerCase())
-                || v.toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesCategory = activeCategory === 'All' || getCategory(v) === activeCategory;
-            return matchesSearch && matchesCategory;
-        });
-    }, [searchQuery, activeCategory, apiVerticals]);
+
 
     // Use admin config if available, otherwise fallback to presets
     const selectedFields = useMemo(() => {
@@ -287,82 +250,20 @@ export default function SellerTemplates() {
                     </Card>
                 )}
 
-                {/* Search + Category Filters */}
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search templates..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10"
-                        />
-                    </div>
-                    <div className="flex gap-1 p-1 rounded-lg bg-muted shrink-0">
-                        {CATEGORIES.map((cat) => (
-                            <button
-                                key={cat}
-                                onClick={() => setActiveCategory(cat)}
-                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${activeCategory === cat
-                                    ? 'bg-background shadow-sm text-foreground'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                    }`}
-                            >
-                                {cat}
-                            </button>
-                        ))}
-                    </div>
+                {/* Vertical Selector */}
+                <div className="flex items-center gap-4">
+                    <NestedVerticalSelect
+                        value={selectedVertical || ''}
+                        onValueChange={(slug) => handleSelectTemplate(slug)}
+                        placeholder="Select a template vertical…"
+                        className="w-full max-w-md"
+                    />
+                    {selectedVertical && (
+                        <span className="text-xs text-muted-foreground shrink-0">
+                            {(VERTICAL_PRESETS[selectedVertical] || GENERIC_TEMPLATE).length} fields
+                        </span>
+                    )}
                 </div>
-
-                {/* Template List */}
-                <div className="grid gap-2">
-                    {verticals.map((v) => {
-                        const fields = VERTICAL_PRESETS[v] || GENERIC_TEMPLATE;
-                        const isSelected = selectedVertical === v;
-                        const category = getCategory(v);
-                        const apiV = apiVerticals.find(a => a.value === v);
-                        const isChild = v.includes('.');
-                        const label = apiV?.label || displayName(v);
-                        return (
-                            <button
-                                key={v}
-                                onClick={() => handleSelectTemplate(v)}
-                                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-all ${isSelected
-                                    ? 'bg-primary/10 ring-1 ring-primary/30'
-                                    : 'bg-card hover:bg-muted/50 border border-border'
-                                    } ${isChild ? 'ml-6 border-l-2 border-l-primary/20' : ''}`}
-                            >
-                                <span className="text-xl shrink-0">{isChild ? '›' : (VERTICAL_EMOJI[v] || '📋')}</span>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`font-medium ${isChild ? 'text-xs' : 'text-sm'}`}>{label}</span>
-                                        {!isChild && <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{category}</span>}
-                                    </div>
-                                    <div className="flex gap-1 mt-1">
-                                        {fields.slice(0, 3).map(f => (
-                                            <span key={f.id} className="text-[10px] bg-muted/60 px-1.5 py-0.5 rounded text-muted-foreground">
-                                                {f.label}
-                                            </span>
-                                        ))}
-                                        {fields.length > 3 && (
-                                            <span className="text-[10px] text-muted-foreground px-1">+{fields.length - 3}</span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-xs text-muted-foreground hidden sm:block">{fields.length} fields</span>
-                                    <ChevronRight className={`h-4 w-4 transition-transform ${isSelected ? 'rotate-90 text-primary' : 'text-muted-foreground'}`} />
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {verticals.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground">
-                        No templates match your search
-                    </div>
-                )}
 
                 {/* Customization Panel */}
                 {selectedVertical && (
