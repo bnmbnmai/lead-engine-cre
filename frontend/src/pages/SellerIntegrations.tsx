@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Check, Globe, Webhook, Link2, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { Copy, Check, Globe, Webhook, Link2, ChevronDown, ChevronUp } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -260,33 +260,6 @@ export function SellerIntegrations() {
                             </div>
                         </CardContent>
                     )}
-                </Card>
-
-                {/* ────────── Chainlink ────────── */}
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="p-3 rounded-xl bg-primary/10">
-                                <Shield className="h-6 w-6 text-primary" />
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="text-lg font-semibold">Chainlink Integration</h3>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                    Every lead submitted through the marketplace is verified via{' '}
-                                    <strong>Chainlink CRE (Compute Runtime Environment)</strong> for TCPA compliance,
-                                    data integrity, and fraud detection. Verification results are anchored on-chain
-                                    for provenance and auditability.
-                                </p>
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                    {['CRE Verification', 'ACE Compliance', 'On-Chain Provenance', 'Fraud Detection'].map((badge) => (
-                                        <span key={badge} className="px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                                            {badge}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
                 </Card>
 
                 {/* Coming soon placeholder */}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Webhook, Link2, Check, Shield, Copy, Bot, Sparkles, Terminal, FileText } from 'lucide-react';
+import { Webhook, Link2, Check, Copy, Bot, Sparkles, Terminal, FileText } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -194,33 +194,6 @@ export function BuyerIntegrations() {
                             <p><strong>Formats:</strong> HubSpot (Contact + Deal), Zapier (catch hook), Generic (full lead JSON)</p>
                             <p><strong>Rate limit:</strong> 60 fires / minute per webhook</p>
                             <p><strong>Retries:</strong> 3 attempts with exponential backoff; circuit breaker after 5 consecutive failures</p>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* ────────── Chainlink ────────── */}
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="p-3 rounded-xl bg-primary/10">
-                                <Shield className="h-6 w-6 text-primary" />
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="text-lg font-semibold">Chainlink Verification</h3>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                    Every lead you purchase has been verified through{' '}
-                                    <strong>Chainlink CRE</strong> before the auction starts. Verification covers
-                                    TCPA consent, data completeness, duplicate detection, and fraud scoring.
-                                    Results are anchored on-chain for auditability.
-                                </p>
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                    {['TCPA Verified', 'Fraud Scored', 'On-Chain Proof', 'Duplicate Checked'].map((badge) => (
-                                        <span key={badge} className="px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                                            {badge}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
                         </div>
                     </CardContent>
                 </Card>
