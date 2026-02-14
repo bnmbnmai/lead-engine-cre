@@ -52,7 +52,7 @@ describe('Routing', () => {
         const src = readFile(path.join(frontendSrc, 'pages/SellerDashboard.tsx'));
         // Dashboard link destinations
         expect(src).toContain('to="/seller/submit"');
-        expect(src).toContain('to="/seller/asks/new"');
+        expect(src).toContain('to="/seller/funnels"');
         expect(src).toContain('to="/seller/leads"');
         // Analytics uses href prop in Quick Actions array, not direct `to=`
         expect(src).toContain("'/seller/analytics'");
@@ -150,9 +150,11 @@ describe('Role Guards', () => {
 
     test('15. Seller routes use role="SELLER"', () => {
         const src = readFile(path.join(frontendSrc, 'App.tsx'));
-        // All seller routes should have role="SELLER"
-        const sellerRouteLines = src.split('\n').filter(l => l.includes('/seller') && l.includes('Route'));
-        expect(sellerRouteLines.length).toBeGreaterThanOrEqual(7);
+        // All seller routes should have role="SELLER" (except redirects which use Navigate)
+        const sellerRouteLines = src.split('\n').filter(l =>
+            l.includes('/seller') && l.includes('Route') && !l.includes('Navigate')
+        );
+        expect(sellerRouteLines.length).toBeGreaterThanOrEqual(5);
         sellerRouteLines.forEach(line => {
             expect(line).toContain('role="SELLER"');
         });

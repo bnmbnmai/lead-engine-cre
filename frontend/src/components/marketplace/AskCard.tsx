@@ -28,7 +28,7 @@ interface Ask {
 interface AskCardProps {
     ask: Ask;
     isAuthenticated?: boolean;
-    /** Link prefix for the "View Ask" button. Seller pages should pass '/seller/asks'. */
+    /** Link prefix for the "View Ask" button. Seller pages should pass '/seller/funnels'. */
     basePath?: string;
 }
 

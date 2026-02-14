@@ -6,13 +6,13 @@ import {
     Settings,
     FileText,
     Send,
-    Tag,
     TrendingUp,
-    Blocks,
     ShoppingCart,
     X,
     Gem,
     Layers,
+    Blocks,
+    Zap,
     Megaphone,
     Briefcase,
 } from 'lucide-react';
@@ -45,10 +45,9 @@ const buyerItems: SidebarItem[] = [
 
 const sellerItems: SidebarItem[] = [
     { href: '/seller', label: 'Overview', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: '/seller/asks', label: 'My Asks', icon: <Tag className="h-5 w-5" /> },
+    { href: '/seller/funnels', label: 'My Funnels', icon: <Zap className="h-5 w-5" /> },
     { href: '/seller/leads', label: 'My Leads', icon: <FileText className="h-5 w-5" /> },
     { href: '/seller/submit', label: 'Submit Lead', icon: <Send className="h-5 w-5" /> },
-    { href: '/seller/templates', label: 'Templates', icon: <Blocks className="h-5 w-5" /> },
     { href: '/seller/analytics', label: 'Analytics', icon: <TrendingUp className="h-5 w-5" /> },
     { href: '/seller/conversions', label: 'Ad Conversions', icon: <Megaphone className="h-5 w-5" /> },
 ];

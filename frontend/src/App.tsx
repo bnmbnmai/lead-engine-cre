@@ -18,11 +18,9 @@ import AuctionPage from '@/pages/AuctionPage';
 import BuyerBids from '@/pages/BuyerBids';
 import { BuyerPreferences } from '@/pages/BuyerPreferences';
 import SellerLeads from '@/pages/SellerLeads';
-import SellerAsks from '@/pages/SellerAsks';
+import SellerFunnels from '@/pages/SellerFunnels';
 import SellerSubmit from '@/pages/SellerSubmit';
-import CreateAsk from '@/pages/CreateAsk';
 import FormBuilder from '@/pages/FormBuilder';
-import SellerTemplates from '@/pages/SellerTemplates';
 import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import AdminNFTs from '@/pages/AdminNFTs';
@@ -98,11 +96,13 @@ function App() {
                                 <Route path="/seller" element={<ProtectedRoute role="SELLER"><SellerDashboard /></ProtectedRoute>} />
                                 <Route path="/seller/leads" element={<ProtectedRoute role="SELLER"><SellerLeads /></ProtectedRoute>} />
                                 <Route path="/seller/leads/:leadId" element={<ProtectedRoute role="SELLER"><SellerLeads /></ProtectedRoute>} />
-                                <Route path="/seller/asks" element={<ProtectedRoute role="SELLER"><SellerAsks /></ProtectedRoute>} />
-                                <Route path="/seller/asks/:askId" element={<ProtectedRoute role="SELLER"><SellerAsks /></ProtectedRoute>} />
-                                <Route path="/seller/asks/new" element={<ProtectedRoute role="SELLER"><CreateAsk /></ProtectedRoute>} />
+                                <Route path="/seller/funnels" element={<ProtectedRoute role="SELLER"><SellerFunnels /></ProtectedRoute>} />
+                                {/* Redirects from old routes */}
+                                <Route path="/seller/asks" element={<Navigate to="/seller/funnels" replace />} />
+                                <Route path="/seller/asks/new" element={<Navigate to="/seller/funnels" replace />} />
+                                <Route path="/seller/asks/:askId" element={<Navigate to="/seller/funnels" replace />} />
+                                <Route path="/seller/templates" element={<Navigate to="/seller/funnels" replace />} />
                                 <Route path="/seller/submit" element={<ProtectedRoute role="SELLER"><SellerSubmit /></ProtectedRoute>} />
-                                <Route path="/seller/templates" element={<ProtectedRoute role="SELLER"><SellerTemplates /></ProtectedRoute>} />
                                 <Route path="/seller/analytics" element={<ProtectedRoute role="SELLER"><SellerAnalytics /></ProtectedRoute>} />
 
                                 {/* Admin Routes (auth + admin role required) */}

@@ -17,7 +17,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 const DASHBOARD_TABS = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
     { key: 'leads', label: 'My Leads', icon: FileText, path: '/seller/leads' },
-    { key: 'asks', label: 'Active Asks', icon: Tag, path: '/seller/asks' },
+    { key: 'funnels', label: 'My Funnels', icon: Tag, path: '/seller/funnels' },
     { key: 'submit', label: 'Submit', icon: Send, path: '/seller/submit' },
     { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/seller/analytics' },
 ] as const;
@@ -183,9 +183,9 @@ export function SellerDashboard() {
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" asChild>
-                            <Link to="/seller/asks/new">
+                            <Link to="/seller/funnels">
                                 <Plus className="h-4 w-4 mr-2" />
-                                New Ask
+                                New Funnel
                             </Link>
                         </Button>
                         <Button asChild>
@@ -263,9 +263,9 @@ export function SellerDashboard() {
                             color: 'from-blue-500 to-cyan-400',
                         },
                         {
-                            title: 'Create Auction',
-                            desc: 'Post an ask to start receiving sealed bids',
-                            href: '/seller/asks/new',
+                            title: 'Manage Funnels',
+                            desc: 'Create funnels, set pricing, and customize forms',
+                            href: '/seller/funnels',
                             icon: Tag,
                             color: 'from-emerald-500 to-teal-400',
                         },
@@ -393,9 +393,9 @@ export function SellerDashboard() {
                     {/* Active Asks */}
                     <div className="lg:col-span-2">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-semibold">Your Active Asks</h2>
+                            <h2 className="text-xl font-semibold">Your Active Funnels</h2>
                             <Button variant="outline" size="sm" asChild>
-                                <Link to="/seller/asks">
+                                <Link to="/seller/funnels">
                                     Manage All <ArrowUpRight className="h-4 w-4 ml-1" />
                                 </Link>
                             </Button>
@@ -410,12 +410,12 @@ export function SellerDashboard() {
                         ) : activeAsks.length === 0 ? (
                             <Card className="p-8 text-center">
                                 <p className="text-muted-foreground mb-4">
-                                    Create an ask to start receiving bids on your leads
+                                    Create a funnel to start receiving bids on your leads
                                 </p>
                                 <Button asChild>
-                                    <Link to="/seller/asks/new">
+                                    <Link to="/seller/funnels">
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Create Your First Ask
+                                        Create Your First Funnel
                                     </Link>
                                 </Button>
                             </Card>
