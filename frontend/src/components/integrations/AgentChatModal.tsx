@@ -5,7 +5,7 @@
  * displays tool call traces and assistant responses.
  */
 import { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Loader2, Wrench, User, Sparkles } from 'lucide-react';
+import { Bot, Send, Loader2, Wrench, User, Sparkles, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -232,10 +232,63 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 <Bot className="h-3.5 w-3.5 text-violet-400" />
             </div>
             <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-muted text-sm leading-relaxed whitespace-pre-wrap">
-                {message.content}
+                <RenderMarkdown text={message.content} />
             </div>
         </div>
     );
+}
+
+// ── Lightweight Markdown Renderer ──
+
+function RenderMarkdown({ text }: { text: string }) {
+    // Split by markdown links first: [text](url)
+    const parts = text.split(/(\[.*?\]\(.*?\))/);
+
+    return (
+        <>
+            {parts.map((part, i) => {
+                // Check for markdown link
+                const linkMatch = part.match(/^\[(.+?)\]\((.+?)\)$/);
+                if (linkMatch) {
+                    return (
+                        <a
+                            key={i}
+                            href={linkMatch[2]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors"
+                        >
+                            {renderInline(linkMatch[1])}
+                            <ExternalLink className="h-3 w-3 inline-flex flex-shrink-0" />
+                        </a>
+                    );
+                }
+                // Render inline formatting for non-link parts
+                return <span key={i}>{renderInline(part)}</span>;
+            })}
+        </>
+    );
+}
+
+function renderInline(text: string): React.ReactNode[] {
+    // Handle **bold**, _italic_, `code`
+    const tokens = text.split(/(\*\*.*?\*\*|_.*?_|`.*?`)/);
+    return tokens.map((token, i) => {
+        if (token.startsWith('**') && token.endsWith('**')) {
+            return <strong key={i}>{token.slice(2, -2)}</strong>;
+        }
+        if (token.startsWith('_') && token.endsWith('_') && token.length > 2) {
+            return <em key={i} className="text-muted-foreground">{token.slice(1, -1)}</em>;
+        }
+        if (token.startsWith('`') && token.endsWith('`')) {
+            return (
+                <code key={i} className="px-1 py-0.5 rounded bg-background/50 text-xs font-mono text-violet-300">
+                    {token.slice(1, -1)}
+                </code>
+            );
+        }
+        return token;
+    });
 }
 
 export default AgentChatModal;

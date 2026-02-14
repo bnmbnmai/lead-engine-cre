@@ -155,14 +155,27 @@ const MCP_TOOLS = [
     },
 ];
 
+const FRONTEND_URL = 'https://lead-engine-cre-frontend.vercel.app';
+
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
 You help buyers discover, evaluate, and bid on commercial real-estate leads on a blockchain-verified marketplace powered by Chainlink.
 You have access to 9 MCP tools. Use them to answer the user's questions.
-Be concise and use markdown formatting. Show numbers and data clearly.
-When the user asks about leads, search for them. When asked about pricing, check bid floors.
-Always explain what you found after calling a tool.
-If a search returns no results, suggest broadening the search (try different verticals or remove filters).`;
+
+## STRICT PII RULES
+- NEVER reveal phone numbers, emails, full names, street addresses, or any personally identifiable information.
+- Only return non-sensitive fields: lead ID, vertical, state, reserve price, quality score, seller reputation, bid count.
+- If a tool result contains PII, ignore those fields and only reference safe data.
+
+## FORMATTING RULES
+- Be concise and use markdown formatting. Show numbers and data clearly.
+- When listing leads, format each lead with a clickable link:
+  **[Vertical — State — $Price](${FRONTEND_URL}/auction/{leadId})** | Quality: X | Bids: Y
+- After listing leads, add: "Click any lead above to view details and place a bid."
+- When the user asks about a specific lead, include a **[🎯 Place Bid](${FRONTEND_URL}/auction/{leadId})** link.
+- When asked about pricing, check bid floors.
+- Always explain what you found after calling a tool.
+- If a search returns no results, suggest broadening the search (try different verticals or remove filters).`;
 
 // ── Anthropic-format tool definitions for Kimi Code ──
 
@@ -246,6 +259,28 @@ async function callKimi(messages: any[], system: string): Promise<any> {
     return response.json();
 }
 
+// ── PII sanitization — strip sensitive fields from tool results ──
+
+const PII_FIELDS = new Set([
+    'phone', 'email', 'firstName', 'lastName', 'fullName', 'name',
+    'address', 'streetAddress', 'street', 'city', 'zip', 'zipCode',
+    'ssn', 'dateOfBirth', 'dob', 'ip', 'ipAddress',
+    'contactName', 'contactEmail', 'contactPhone',
+]);
+
+function sanitizeLeadData(data: any): any {
+    if (Array.isArray(data)) return data.map(sanitizeLeadData);
+    if (data && typeof data === 'object') {
+        const clean: any = {};
+        for (const [key, value] of Object.entries(data)) {
+            if (PII_FIELDS.has(key)) continue;
+            clean[key] = sanitizeLeadData(value);
+        }
+        return clean;
+    }
+    return data;
+}
+
 async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<any> {
     const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
         method: 'POST',
@@ -259,7 +294,8 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
         signal: AbortSignal.timeout(10000),
     });
     const rpcData: any = await rpcResponse.json();
-    return rpcData.result || rpcData.error || {};
+    const result = rpcData.result || rpcData.error || {};
+    return sanitizeLeadData(result);
 }
 
 router.post('/chat', async (req: Request, res: Response) => {
@@ -441,10 +477,16 @@ async function fallbackChat(_req: Request, res: Response, message: string, histo
             const result = tc.result as any;
             if (tc.name === 'search_leads') {
                 const leads = result?.asks || result?.leads || [];
-                if (leads.length === 0) return '📭 No leads found matching your criteria.';
-                return `🔍 Found **${leads.length}** leads:\n${leads.slice(0, 5).map((l: any, i: number) =>
-                    `  ${i + 1}. ${l.vertical || 'Unknown'} — ${l.geo?.state || 'N/A'} — Reserve: $${l.reservePrice || '?'}`
-                ).join('\n')}`;
+                if (leads.length === 0) return '📭 No leads found matching your criteria. Try a different vertical or remove geo filters.';
+                return `🔍 Found **${leads.length}** leads:\n${leads.slice(0, 5).map((l: any, i: number) => {
+                    const id = l.id || '';
+                    const vert = l.vertical || 'Unknown';
+                    const state = l.geoTargets?.states?.[0] || l.geo?.state || 'N/A';
+                    const price = l.reservePrice ? `$${l.reservePrice}` : '?';
+                    const quality = l.qualityScore ? ` | Quality: ${(Number(l.qualityScore) / 100).toFixed(0)}%` : '';
+                    const bids = l._count?.bids != null ? ` | Bids: ${l._count.bids}` : '';
+                    return `  ${i + 1}. **[${vert} — ${state} — ${price}](${FRONTEND_URL}/auction/${id})**${quality}${bids}`;
+                }).join('\n')}\n\n_Click any lead above to view details and place a bid._`;
             }
             if (tc.name === 'get_bid_floor') {
                 return `💰 Bid floor for **${tc.params.vertical}**: $${result?.floor || '?'} (ceiling: $${result?.ceiling || '?'})`;
