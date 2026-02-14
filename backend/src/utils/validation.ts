@@ -198,7 +198,7 @@ export const PreferenceSetSchema = z.object({
 });
 
 export const BuyerPreferencesV2Schema = z.object({
-    preferenceSets: z.array(PreferenceSetSchema).min(1).max(20),
+    preferenceSets: z.array(PreferenceSetSchema).min(0).max(20), // allow clearing all auto-bid rules
 });
 
 // ============================================

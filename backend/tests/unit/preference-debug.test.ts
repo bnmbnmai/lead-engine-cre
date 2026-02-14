@@ -259,9 +259,9 @@ describe('BuyerPreferencesV2Schema', () => {
         isActive: true,
     };
 
-    test('rejects empty preferenceSets array', () => {
+    test('accepts empty preferenceSets array (clear all auto-bid rules)', () => {
         const result = BuyerPreferencesV2Schema.safeParse({ preferenceSets: [] });
-        expect(result.success).toBe(false);
+        expect(result.success).toBe(true);
     });
 
     test('rejects more than 20 sets', () => {
