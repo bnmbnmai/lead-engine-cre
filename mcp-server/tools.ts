@@ -33,15 +33,14 @@ export const TOOLS: ToolDefinition[] = [
     },
     {
         name: 'place_bid',
-        description: 'Place a bid on a lead. For commit-reveal auctions, first call with commitment hash. For direct bids, include amount.',
+        description: 'Place a sealed bid on a lead. Submit a commitment hash (keccak256 of amount + salt). Reveal after the bidding phase ends.',
         inputSchema: {
             type: 'object',
             properties: {
                 leadId: { type: 'string', description: 'The lead ID to bid on' },
-                amount: { type: 'number', description: 'Bid amount in USDC (for direct bids)' },
-                commitment: { type: 'string', description: 'Bid commitment hash (for commit-reveal auctions)' },
+                commitment: { type: 'string', description: 'Bid commitment hash — keccak256(abi.encode(amount, salt))' },
             },
-            required: ['leadId'],
+            required: ['leadId', 'commitment'],
         },
         handler: '/api/v1/bids',
         method: 'POST',
