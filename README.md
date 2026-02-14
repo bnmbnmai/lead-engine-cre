@@ -67,39 +67,30 @@ sequenceDiagram
 
     API->>RTB: Start Smart Lightning pipeline
 
-    rect rgba(59, 130, 246, 0.12)
-        Note over RTB: ① Ping-Post Phase (60 seconds)
-        RTB->>B: Non-PII preview (vertical · geo · score)
-        B->>RTB: Auto-bid rules fire / manual bid
-        RTB-->>API: Winner found → instant sale
-    end
+    Note over RTB: ① Ping-Post Phase (60 seconds)
+    RTB->>B: Non-PII preview (vertical · geo · score)
+    B->>RTB: Auto-bid rules fire / manual bid
+    RTB-->>API: Winner found → instant sale
 
     Note over RTB,B: If no match after 60s ↓
 
-    rect rgba(168, 85, 247, 0.12)
-        Note over RTB: ② Short Auction (5 minutes)
-        RTB->>B: Sealed-bid auction opens
-        B->>RTB: Place sealed bid (commit-reveal)
-        Note over RTB: Auction ends → reveal phase
-        RTB-->>API: Winner found
-    end
+    Note over RTB: ② Short Auction (5 minutes)
+    RTB->>B: Sealed-bid auction opens
+    B->>RTB: Place sealed bid (commit-reveal)
+    Note over RTB: Auction ends → reveal phase
+    RTB-->>API: Winner found
 
     Note over RTB,B: If no bids ↓
 
-    rect rgba(234, 179, 8, 0.12)
-        Note over RTB: ③ Buy Now (7-day expiry)
-        RTB->>B: Listed at seller's fixed price
-        B->>RTB: Buyer purchases instantly
-    end
+    Note over RTB: ③ Buy Now (7-day expiry)
+    RTB->>B: Listed at seller's fixed price
+    B->>RTB: Buyer purchases instantly
 
-    rect rgba(34, 197, 94, 0.12)
-        Note over X: Settlement
-        B->>X: Winner pays USDC
-        X->>S: Instant settlement (−2.5% fee)
-        X->>B: Decrypted lead data + PII
-        Note over B: Lead minted as ERC-721 NFT
-        Note over B: CRM webhook → HubSpot / Zapier
-    end
+    B->>X: Winner pays USDC
+    X->>S: Instant settlement (−2.5% fee)
+    X->>B: Decrypted lead data + PII
+    Note over B: Lead minted as ERC-721 NFT
+    Note over B: CRM webhook → HubSpot / Zapier
 ```
 
 ### Buyer Experience
