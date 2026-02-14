@@ -15,7 +15,7 @@ const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3002';
 // (Render, Fly, Railway, etc.). Never commit the real key.
 // If unset, the /chat endpoint falls back to keyword-based demo mode.
 const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
-const KIMI_BASE_URL = 'https://api.moonshot.cn/v1';
+const KIMI_BASE_URL = 'https://api.moonshot.ai/v1';
 
 // ── MCP tool definitions for the LLM ──
 
@@ -217,7 +217,7 @@ async function callKimi(messages: any[]): Promise<any> {
             'Authorization': `Bearer ${KIMI_API_KEY}`,
         },
         body: JSON.stringify({
-            model: 'moonshot-v1-128k',
+            model: 'kimi-k2.5',
             messages,
             tools: MCP_TOOLS,
             tool_choice: 'auto',
@@ -331,6 +331,7 @@ router.post('/chat', async (req: Request, res: Response) => {
             res.json({
                 messages: outputMessages,
                 toolCalls: toolCallLog.map((t) => t.toolCall),
+                mode: 'kimi-k2.5',
             });
             return;
         }
@@ -343,6 +344,7 @@ router.post('/chat', async (req: Request, res: Response) => {
                 { role: 'assistant', content: 'I executed several tools but reached the iteration limit. Here are the results above.' },
             ],
             toolCalls: toolCallLog.map((t) => t.toolCall),
+            mode: 'kimi-k2.5',
         });
     } catch (err: any) {
         console.error('Kimi chat error:', err.message);
@@ -442,6 +444,7 @@ async function fallbackChat(_req: Request, res: Response, message: string, histo
         res.json({
             messages: [...messages, ...toolResults, { role: 'assistant' as const, content: toolSummaries.join('\n\n') }],
             toolCalls: toolResults.map((tr) => tr.toolCall),
+            mode: 'fallback',
         });
     } catch (err: any) {
         res.status(500).json({ error: 'Agent execution failed', details: err.message });

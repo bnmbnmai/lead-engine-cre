@@ -30,6 +30,7 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [agentMode, setAgentMode] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll to bottom
@@ -93,6 +94,11 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
                 newMessages.push(assistantMsg);
             }
 
+            // Track which mode the agent is in
+            if (data.mode) {
+                setAgentMode(data.mode);
+            }
+
             setMessages((prev) => [...prev, ...newMessages]);
         } catch {
             setMessages((prev) => [
@@ -122,8 +128,16 @@ export function AgentChatModal({ open, onOpenChange }: AgentChatModalProps) {
                         </div>
                         Agent Chat
                     </DialogTitle>
-                    <DialogDescription>
+                    <DialogDescription className="flex items-center gap-2">
                         Demo chat powered by MCP tools — your messages invoke real API endpoints
+                        {agentMode && (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono ${agentMode === 'kimi-k2.5'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>
+                                {agentMode === 'kimi-k2.5' ? '🧠 Kimi K2.5' : '⚡ Fallback'}
+                            </span>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
 

@@ -216,8 +216,8 @@ tools = [
 
 # Create agent
 llm = ChatOpenAI(
-    model="moonshot-v1-128k",
-    base_url="https://api.moonshot.cn/v1",
+    model="kimi-k2.5",
+    base_url="https://api.moonshot.ai/v1",
     api_key=os.environ["KIMI_API_KEY"],
     temperature=0,
 )
