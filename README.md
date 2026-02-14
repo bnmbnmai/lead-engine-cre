@@ -48,43 +48,33 @@ Every lead enters a single **Smart Lightning** pipeline — no mode toggles, no 
 ### How Leads Flow Through the System
 
 ```mermaid
-sequenceDiagram
-    participant Seller as 🏷️ Seller
-    participant API as ⚡ Lead Engine API
-    participant CRE as 🔗 Chainlink CRE
-    participant ACE as 🛡️ Chainlink ACE
-    participant RTB as 🔄 RTB Engine
-    participant Buyer as 💰 Buyer
-    participant Escrow as 💵 x402 Escrow
-
-    Seller->>API: Submit lead (vertical, geo, params)
-    API->>CRE: Quality scoring + fraud check
-    CRE-->>API: Score (0–10,000) + ZK proof hash
-    API->>ACE: Compliance check (KYC, jurisdiction, consent)
-    ACE-->>API: ✅ Cleared + attestation
-
-    Note over RTB: ① Ping-Post phase (60s)
-
-    API->>RTB: Broadcast non-PII preview to matched buyers
-    RTB->>Buyer: WebSocket ping + enriched preview
-    RTB->>RTB: Auto-bid engine evaluates matching rules
-    alt Auto-bid match found
-        RTB->>Escrow: Instant sale — buyer pays USDC
-    else No match within 60s
-        Note over RTB: ② Auction phase (5 min)
-        RTB->>Buyer: Sealed-bid auction starts
-        Buyer->>RTB: Place sealed bid (commit-reveal)
-        Note over RTB: Reveal phase — highest bid wins
-    end
-
-    alt Lead sold (ping-post or auction)
-        Escrow->>Seller: Instant USDC settlement (minus 2.5%)
-        Escrow->>Buyer: Decrypted PII + lead data
-        Note over Buyer: Lead minted as ERC-721 NFT
-        Buyer->>Buyer: CRM webhook → HubSpot/Zapier
-    else Unsold
-        Note over RTB: ③ Buy Now at seller's fixed price
-    end
+flowchart TD
+    A[Seller] --> B[Submit Lead<br/>vertical + geo + params]
+    B --> C[Lead Engine API]
+    
+    C --> D[Chainlink CRE<br/>Quality Score + ZK Fraud Proof]
+    C --> E[Chainlink ACE<br/>Compliance + Jurisdiction]
+    
+    D & E --> F[Ping-Post Phase<br/>60 seconds]
+    
+    F --> G{Auto-bid match?}
+    G -->|Yes| H[Instant Sale]
+    G -->|No| I[Auction Phase<br/>5 minutes]
+    
+    I --> J{Highest bid?}
+    J -->|Yes| H
+    J -->|No| K[Unsold → Buy Now<br/>7-day expiry]
+    
+    H --> L[Instant x402 Settlement<br/>-2.5% platform fee]
+    L --> M[Lead minted as ERC-721 NFT]
+    M --> N[Full PII revealed to buyer]
+    N --> O[Buyer]
+    
+    K --> P[Buyer can purchase instantly]
+    P --> L
+    
+    style H fill:#22c55e,stroke:#16a34a
+    style K fill:#eab308,stroke:#ca8a04
 ```
 
 ### Buyer Experience
