@@ -117,10 +117,10 @@ https://sepolia.etherscan.io/tx/<TX_HASH>#eventlog
 
 ## Simulation Output
 
-Both scripts write JSON reports to `test-results/`:
+Both scripts print JSON reports to stdout:
 
-| File | Contents |
-|------|----------|
+| Report | Contents |
+|--------|----------|
 | `on-chain-events.json` | All events found by `query-events.ts` |
 | `e2e-onchain-simulation.json` | Step-by-step simulation results |
 

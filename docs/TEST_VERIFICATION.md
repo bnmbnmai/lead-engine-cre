@@ -8,7 +8,7 @@
 
 ```powershell
 # Backend unit + integration (11 test files)
-cd backend; npx jest --forceExit --verbose 2>&1 | Tee-Object test-results/backend.txt
+cd backend; npx jest --forceExit --verbose
 
 # Security simulation
 cd backend; npx jest tests/security/privacy-audit.test.ts --verbose
@@ -23,9 +23,9 @@ cd backend; npx jest tests/crm-webhooks.test.ts --verbose
 cd backend; npx jest tests/unit/zk.service.test.ts --verbose
 
 # Artillery load (full)
-artillery run tests/load/artillery-rtb.yaml --output test-results/artillery-rtb.json
-artillery run tests/load/artillery-edge-cases.yaml --output test-results/artillery-edge.json
-artillery run tests/load/artillery-stress-10k.yaml --output test-results/artillery-stress.json
+artillery run tests/load/artillery-rtb.yaml
+artillery run tests/load/artillery-edge-cases.yaml
+artillery run tests/load/artillery-stress-10k.yaml
 
 # Cypress E2E (53+ tests)
 cd frontend; npx cypress run --spec "cypress/e2e/**/*.cy.ts"

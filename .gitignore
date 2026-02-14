@@ -27,6 +27,16 @@ contracts/coverage.json
 # Testing
 coverage/
 *.lcov
+test-results/
+cypress-output*.txt
+cypress/screenshots/
+cypress/videos/
+re-run-tests.sh
+
+# Scratch / junk (never commit)
+*wtf*
+*scratch*
+*promotion*
 
 # Security scan reports (may contain vulnerability details)
 reports/

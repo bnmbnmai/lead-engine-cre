@@ -387,7 +387,6 @@ npm run dev
 ## 🧪 Testing
 
 > **1,288+ tests verified** across Jest + Hardhat. Cypress and Artillery require live infra.
-> Run `./re-run-tests.sh` to execute all suites with color output and result logging.
 
 ### Test Results Summary
 
@@ -490,8 +489,8 @@ npm run dev
 ### Commands
 
 ```bash
-# Run all suites at once
-./re-run-tests.sh
+# Run all backend tests
+cd backend && npx jest --verbose --forceExit
 
 # Individual suites
 cd backend && npx jest --verbose --forceExit        # Backend (requires DB)
@@ -546,7 +545,6 @@ lead-engine-cre/
 ├── mcp-server/            # MCP Agent Server (9 tools, LangChain agent)
 ├── docs/                  # Deployment, demo script, pitch deck, submission
 ├── tests/load/            # Artillery (22 scenarios, 10K peak)
-├── re-run-tests.sh        # Run all test suites with one command
 └── scripts/               # Security scan, contract deployment
 ```
 

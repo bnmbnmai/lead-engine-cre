@@ -130,5 +130,5 @@
 - [ ] All links in submission form work
 - [ ] Video plays without issues
 - [ ] Pitch deck exported and linked
-- [ ] X/Twitter thread posted (see `docs/X_PROMOTION.md`)
+- [ ] X/Twitter thread posted
 - [ ] Double-check submission deadline
