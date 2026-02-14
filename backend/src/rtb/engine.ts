@@ -20,7 +20,7 @@ interface MatchResult {
 
 class RTBEngine {
     // ============================================
-    // Lead Intake Processing (Smart Lightning Flow)
+    // Lead Intake Processing (Sealed-Bid Auction Flow)
     // ============================================
 
     async processLeadIntake(leadId: string): Promise<{ success: boolean; error?: string }> {
@@ -77,7 +77,7 @@ class RTBEngine {
                 return { success: true };
             }
 
-            // ── Smart Lightning Flow: Ping-Post Phase ──
+            // ── Sealed-Bid Auction Flow: Ping-Post Phase ──
             // Instead of jumping straight to IN_AUCTION, enter a 60-second
             // ping-post phase. If a winner emerges, resolve instantly.
             // If not, the auction monitor escalates to a full 300s auction.

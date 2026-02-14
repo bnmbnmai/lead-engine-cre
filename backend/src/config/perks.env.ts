@@ -74,18 +74,18 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 
 // ── Auction Durations ──────────────────────────────
 
-/** Lightning Auction presets (seconds) */
-export const LIGHTNING_PRESETS = {
-    hot: parseInt(process.env.LIGHTNING_HOT_SECS || '30', 10),
-    standard: parseInt(process.env.LIGHTNING_STANDARD_SECS || '60', 10),
-    extended: parseInt(process.env.LIGHTNING_EXTENDED_SECS || '300', 10),
+/** Sealed-bid auction presets (seconds) */
+export const AUCTION_PRESETS = {
+    short: parseInt(process.env.AUCTION_SHORT_SECS || '60', 10),
+    standard: parseInt(process.env.AUCTION_STANDARD_SECS || '300', 10),
+    extended: parseInt(process.env.AUCTION_EXTENDED_SECS || '600', 10),
 } as const;
 
-/** Default lead auction duration (seconds) — 60s Standard preset */
-export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '60', 10);
+/** Default lead auction duration (seconds) — 5-minute sealed-bid auction */
+export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '300', 10);
 
-/** Maximum lead auction duration (seconds) — 5 minutes (Extended preset) */
-export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '300', 10);
+/** Maximum lead auction duration (seconds) — 10 minutes */
+export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '600', 10);
 
 /** Ping-post phase duration (seconds) — leads start here before auction fallback */
 export const PING_POST_DURATION_SECS = parseInt(process.env.PING_POST_DURATION_SECS || '60', 10);
@@ -150,7 +150,7 @@ export const PERKS_CONFIG = {
         maxDepth: MAX_HIERARCHY_DEPTH,
     },
     auction: {
-        presets: LIGHTNING_PRESETS,
+        presets: AUCTION_PRESETS,
         leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
         leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS,
         pingPostDurationSecs: PING_POST_DURATION_SECS,
