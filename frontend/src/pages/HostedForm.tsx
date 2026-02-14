@@ -55,6 +55,9 @@ export default function HostedForm() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Color state — starts with defaults, overridden by seller's saved config
+    const [colors, setColors] = useState<FormPreviewColors>(DEFAULT_COLORS);
+
     const [currentStep, setCurrentStep] = useState(0);
     const [formData, setFormData] = useState<Record<string, string | boolean>>({});
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -75,6 +78,26 @@ export default function HostedForm() {
             .catch(() => setError('This form is not available or has expired.'))
             .finally(() => setLoading(false));
     }, [verticalSlug]);
+
+    // Fetch seller-specific template colors
+    useEffect(() => {
+        if (!verticalSlug || !sellerId) return;
+        api.getPublicTemplateConfig(verticalSlug, sellerId)
+            .then((res) => {
+                const tc = res.data?.templateConfig;
+                if (tc?.bg && tc?.text && tc?.accent) {
+                    setColors({
+                        bg: tc.bg,
+                        text: tc.text,
+                        accent: tc.accent,
+                        border: tc.border || DEFAULT_COLORS.border,
+                        inputBg: tc.inputBg || DEFAULT_COLORS.inputBg,
+                        muted: tc.muted || DEFAULT_COLORS.muted,
+                    });
+                }
+            })
+            .catch(() => { /* fallback to DEFAULT_COLORS */ });
+    }, [verticalSlug, sellerId]);
 
     // Derived
     const steps = config?.steps || [];
@@ -166,8 +189,8 @@ export default function HostedForm() {
     // ─── Loading state ───────────────────────────────────────
     if (loading) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: DEFAULT_COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Loader2 style={{ width: 32, height: 32, color: DEFAULT_COLORS.accent, animation: 'spin 1s linear infinite' }} />
+            <div style={{ minHeight: '100vh', backgroundColor: colors.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 style={{ width: 32, height: 32, color: colors.accent, animation: 'spin 1s linear infinite' }} />
             </div>
         );
     }
@@ -175,11 +198,11 @@ export default function HostedForm() {
     // ─── Error state ─────────────────────────────────────────
     if (error || !config) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: DEFAULT_COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ minHeight: '100vh', backgroundColor: colors.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                 <div style={{ textAlign: 'center' }}>
                     <AlertCircle style={{ width: 48, height: 48, color: '#ef4444', margin: '0 auto 1rem' }} />
-                    <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: DEFAULT_COLORS.text, marginBottom: '0.5rem' }}>Form Not Found</h1>
-                    <p style={{ color: DEFAULT_COLORS.muted, fontSize: '0.875rem', maxWidth: 384 }}>
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: colors.text, marginBottom: '0.5rem' }}>Form Not Found</h1>
+                    <p style={{ color: colors.muted, fontSize: '0.875rem', maxWidth: 384 }}>
                         {error || 'This form is not available. Please check the URL and try again.'}
                     </p>
                 </div>
@@ -190,16 +213,16 @@ export default function HostedForm() {
     // ─── Submitted state ─────────────────────────────────────
     if (submitted) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: DEFAULT_COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div style={{ minHeight: '100vh', backgroundColor: colors.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                 <div style={{ textAlign: 'center', maxWidth: 448 }}>
                     <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
                         <CheckCircle style={{ width: 32, height: 32, color: '#4ade80' }} />
                     </div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: DEFAULT_COLORS.text, marginBottom: '0.5rem' }}>Thank You!</h1>
-                    <p style={{ color: DEFAULT_COLORS.muted }}>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: colors.text, marginBottom: '0.5rem' }}>Thank You!</h1>
+                    <p style={{ color: colors.muted }}>
                         Your information has been submitted successfully. A specialist will be in touch shortly.
                     </p>
-                    <p style={{ fontSize: '0.7rem', color: DEFAULT_COLORS.muted, marginTop: '1.5rem', opacity: 0.5 }}>Powered by Lead Engine</p>
+                    <p style={{ fontSize: '0.7rem', color: colors.muted, marginTop: '1.5rem', opacity: 0.5 }}>Powered by Lead Engine</p>
                 </div>
             </div>
         );
@@ -213,7 +236,7 @@ export default function HostedForm() {
             fields={fields}
             steps={steps}
             currentStep={currentStep}
-            colors={DEFAULT_COLORS}
+            colors={colors}
             showProgress={config.gamification?.showProgress !== false}
             showNudges={config.gamification?.showNudges !== false}
             ctaText="Submit"

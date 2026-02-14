@@ -210,13 +210,14 @@ router.put('/asks/:id', authMiddleware, requireSeller, async (req: Authenticated
         if (!ask) { res.status(404).json({ error: 'Ask not found' }); return; }
         if (ask.sellerId !== seller.id) { res.status(403).json({ error: 'Not your ask' }); return; }
 
-        const { reservePrice, buyNowPrice, acceptOffSite, geoTargets, status } = req.body;
+        const { reservePrice, buyNowPrice, acceptOffSite, geoTargets, status, parameters } = req.body;
         const updateData: any = {};
         if (reservePrice !== undefined) updateData.reservePrice = Number(reservePrice);
         if (buyNowPrice !== undefined) updateData.buyNowPrice = buyNowPrice === null ? null : Number(buyNowPrice);
         if (acceptOffSite !== undefined) updateData.acceptOffSite = Boolean(acceptOffSite);
         if (geoTargets !== undefined) updateData.geoTargets = geoTargets;
         if (status !== undefined && ['ACTIVE', 'PAUSED'].includes(status)) updateData.status = status;
+        if (parameters !== undefined) updateData.parameters = parameters;
 
         const updated = await prisma.ask.update({ where: { id: req.params.id }, data: updateData });
         res.json({ ask: updated });
@@ -248,6 +249,41 @@ router.delete('/asks/:id', authMiddleware, requireSeller, async (req: Authentica
     } catch (error) {
         console.error('Delete ask error:', error);
         res.status(500).json({ error: 'Failed to delete ask' });
+    }
+});
+
+// ============================================
+// Public Template Config (for hosted forms)
+// No auth — used by HostedForm to fetch seller-specific colors/branding.
+// ============================================
+
+router.get('/asks/public/template-config', generalLimiter, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { vertical, sellerId } = req.query as { vertical?: string; sellerId?: string };
+        if (!vertical || !sellerId) {
+            res.status(400).json({ error: 'vertical and sellerId query params are required' });
+            return;
+        }
+
+        // Find the seller profile by user id
+        const seller = await prisma.sellerProfile.findFirst({ where: { user: { id: sellerId } } });
+        if (!seller) {
+            res.json({ templateConfig: null });
+            return;
+        }
+
+        // Find the seller's active ask for this vertical
+        const ask = await prisma.ask.findFirst({
+            where: { sellerId: seller.id, vertical, status: 'ACTIVE' },
+            orderBy: { createdAt: 'desc' },
+            select: { parameters: true },
+        });
+
+        const templateConfig = (ask?.parameters as any)?.templateConfig || null;
+        res.json({ templateConfig });
+    } catch (error) {
+        console.error('Public template config error:', error);
+        res.status(500).json({ error: 'Failed to fetch template config' });
     }
 });
 

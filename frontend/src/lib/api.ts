@@ -312,6 +312,12 @@ export const api = {
     getActiveAuctions: () =>
         apiFetch<{ auctions: any[] }>('/api/v1/verticals/auctions'),
 
+    // Public Template Config (hosted form colors/branding)
+    getPublicTemplateConfig: (vertical: string, sellerId: string) =>
+        apiFetch<{ templateConfig: any }>(
+            `/api/v1/asks/public/template-config?vertical=${encodeURIComponent(vertical)}&sellerId=${encodeURIComponent(sellerId)}`,
+        ),
+
     // Public Lead Submit (hosted forms / embeds)
     submitPublicLead: (data: { sellerId: string; vertical: string; parameters: Record<string, unknown>; geo?: Record<string, unknown> }) =>
         apiFetch<{ lead: any; matchingAsks?: number }>('/api/v1/leads/public/submit', {

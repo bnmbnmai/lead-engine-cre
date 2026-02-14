@@ -113,11 +113,13 @@ export function FormBuilder() {
         const id = genId();
         const newField: FormField = { id, key: `field_${id}`, label: 'New Field', type: 'text', required: false, placeholder: '' };
         setFields((prev) => [...prev, newField]);
-        // Add to last step
+        // Add to second-to-last step (Contact Info should always be last)
         setSteps((prev) => {
             if (prev.length === 0) return [{ id: genId(), label: 'Step 1', fieldIds: [id] }];
             const copy = [...prev];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], fieldIds: [...copy[copy.length - 1].fieldIds, id] };
+            const lastIsContact = copy.length > 1 && copy[copy.length - 1].label.toLowerCase().includes('contact');
+            const targetIdx = lastIsContact ? copy.length - 2 : copy.length - 1;
+            copy[targetIdx] = { ...copy[targetIdx], fieldIds: [...copy[targetIdx].fieldIds, id] };
             return copy;
         });
         setEditingId(id);

@@ -185,8 +185,18 @@ export default function SellerFunnels() {
         setGeoCountry(funnel.geoTargets?.country || 'US');
         setGeoStates(funnel.geoTargets?.states || []);
 
-        // Reset template state and load config
-        applyPreset(COLOR_SCHEMES[0]);
+        // Load saved template colors (if any), otherwise default
+        const tc = funnel.parameters?.templateConfig;
+        if (tc?.bg && tc?.text && tc?.accent) {
+            setCustomBg(tc.bg);
+            setCustomText(tc.text);
+            setCustomAccent(tc.accent);
+            // Find matching preset by accent color, or keep first
+            const match = COLOR_SCHEMES.find(s => s.vars['--form-accent'] === tc.accent);
+            setColorScheme(match || COLOR_SCHEMES[0]);
+        } else {
+            applyPreset(COLOR_SCHEMES[0]);
+        }
         setAdminFields(null);
         setAdminSteps(null);
         setPreviewMode('preview');
@@ -262,6 +272,16 @@ export default function SellerFunnels() {
                 auctionDuration: 60,
                 revealWindow: 900,
                 expiresInDays: parseInt(expiresInDays) || 30,
+                parameters: {
+                    templateConfig: {
+                        bg: customBg,
+                        text: customText,
+                        accent: customAccent,
+                        border: effectiveColors['--form-border'] || '#334155',
+                        inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
+                        muted: effectiveColors['--form-muted'] || '#94a3b8',
+                    },
+                },
             };
             const bnp = parseFloat(buyNowPrice);
             if (!isNaN(bnp) && bnp > 0) payload.buyNowPrice = bnp;
@@ -290,6 +310,16 @@ export default function SellerFunnels() {
             payload.buyNowPrice = isNaN(bnp) || buyNowPrice.trim() === '' ? null : bnp;
             payload.acceptOffSite = acceptOffSite;
             payload.geoTargets = { country: geoCountry, states: geoStates };
+            payload.parameters = {
+                templateConfig: {
+                    bg: customBg,
+                    text: customText,
+                    accent: customAccent,
+                    border: effectiveColors['--form-border'] || '#334155',
+                    inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
+                    muted: effectiveColors['--form-muted'] || '#94a3b8',
+                },
+            };
 
             const { error: apiError } = await api.updateAsk(selectedFunnelId, payload);
             if (apiError) throw new Error(apiError.error);

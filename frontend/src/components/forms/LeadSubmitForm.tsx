@@ -159,6 +159,8 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [adSource, setAdSource] = useState<Record<string, string>>({});
     // Fraud warning checkbox
     const [fraudAcknowledged, setFraudAcknowledged] = useState(false);
+    // Admin-configured fields from API
+    const [adminVerticalFields, setAdminVerticalFields] = useState<{ key: string; label: string; type: 'text' | 'select' | 'boolean'; options?: string[] }[] | null>(null);
 
 
     const regionConfig = getRegionOptions(selectedCountry);
@@ -175,7 +177,28 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const selectedVertical = watch('vertical');
     // Extract root slug for VERTICAL_FIELDS lookup (e.g. "solar.battery_storage" → "solar")
     const verticalRoot = selectedVertical?.split('.')[0] || '';
-    const verticalFields = verticalRoot ? (VERTICAL_FIELDS[verticalRoot] || []) : [];
+
+    // Fetch admin-saved form config when vertical changes
+    const CONTACT_KEYS = new Set(['fullName', 'full_name', 'first_name', 'last_name', 'name', 'email', 'phone', 'phone_number', 'zip', 'zipcode', 'zip_code', 'state', 'country', 'city', 'address', 'region']);
+    useEffect(() => {
+        if (!selectedVertical) { setAdminVerticalFields(null); return; }
+        api.getFormConfig(selectedVertical)
+            .then(res => {
+                if (res.data?.formConfig?.fields) {
+                    // Filter out contact/geo fields — those are handled by the form's own geo section
+                    const nonContact = res.data.formConfig.fields
+                        .filter((f: any) => !CONTACT_KEYS.has(f.key))
+                        .map((f: any) => ({ key: f.key, label: f.label, type: f.type === 'number' || f.type === 'email' || f.type === 'phone' || f.type === 'textarea' ? 'text' as const : f.type as 'text' | 'select' | 'boolean', options: f.options }));
+                    setAdminVerticalFields(nonContact.length > 0 ? nonContact : null);
+                } else {
+                    setAdminVerticalFields(null);
+                }
+            })
+            .catch(() => setAdminVerticalFields(null));
+    }, [selectedVertical]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Use admin-configured fields if available, otherwise fall back to hardcoded presets
+    const verticalFields = adminVerticalFields || (verticalRoot ? (VERTICAL_FIELDS[verticalRoot] || []) : []);
 
     // Auto-read UTM params from URL on mount
     useEffect(() => {
