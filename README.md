@@ -21,20 +21,19 @@ Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead
 
 ## 🎯 Lead-Centric Overview
 
-Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7–30 days for payouts. Buyers overpay for unverified leads. Compliance is manual. Lead Engine fixes all three with a decentralized real-time bidding engine:
+Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 30–60 days for payouts. Buyers overpay for unverified leads. Compliance is manual. Lead Engine fixes all of it:
 
-| Problem | Legacy Marketplace | Lead Engine |
-|---------|--------------------|-------------|
-| **Speed** | Manual review, batch sales | **5-minute RTB auctions** with sub-second matching |
-| **Trust** | No verification, rampant fraud | **Chainlink CRE** quality scoring (0–10,000) + ZK fraud proofs |
-| **Privacy** | Buyers often receive full PII with no provenance, quality guarantees, or on-chain audit trail | **Non-PII previews** — per-vertical redaction; full PII only after purchase |
-| **Settlement** | 7–30 day payouts | **Instant USDC** via x402 escrow — sellers reinvest same day |
-| **Compliance** | Manual KYC review | **Chainlink ACE** auto-KYC, jurisdiction matrix, MiCA (zero manual) |
-| **Automation** | No buyer tools | **7-criteria auto-bid** fires 24/7 across 20+ markets |
-| **API Access** | None | **MCP agent server** — 9 tools + LangChain autonomous bidding |
-| **Provenance** | No audit trail | **ERC-721 lead NFTs** — on-chain quality scores, ownership, and trade history |
+| **Problem** | **Legacy Marketplaces** | **Lead Engine** |
+|---|---|---|
+| **Speed** | Opaque ping-post bidding with immediate full PII delivery | Lightning Auctions (30s / 60s / 5min) with non-PII previews + sub-second bidding |
+| **Trust / Quality** | Limited or inconsistent verification; fraud and form-stuffing common | Chainlink CRE quality scoring (0–10,000) + ZK fraud proofs |
+| **Privacy** | Full PII delivered immediately upon acceptance | Non-PII previews with per-vertical redaction; full PII revealed only after purchase |
+| **Settlement** | Net 30–60 days typical | Instant USDC via x402 escrow — sellers paid same day |
+| **Compliance** | Manual or semi-automated KYC; ongoing TCPA exposure | Chainlink ACE auto-KYC, jurisdiction matrix, MiCA (zero manual) |
+| **Automation** | Basic rules-based bidding | Autonomous LangChain AI agent that bids 24/7 |
+| **Provenance** | Database records only — no immutable audit trail | ERC-721 Lead NFTs with on-chain quality score, ownership, and trade history |
 
-### How a Lead Moves Through the System
+### How Leads Flow Through the System
 
 ```mermaid
 sequenceDiagram
@@ -52,7 +51,7 @@ sequenceDiagram
     API->>ACE: Compliance check (KYC, jurisdiction)
     ACE-->>API: ✅ Cleared
 
-    Note over RTB: 5-minute sealed-bid auction starts
+    Note over RTB: Lightning Auction starts (30s / 60s / 5min)
 
     API->>RTB: Match buyers (vertical, geo, quality gate)
     RTB->>Buyer: WebSocket notification + non-PII preview
@@ -67,6 +66,15 @@ sequenceDiagram
     Note over Buyer: Lead minted as ERC-721 NFT
     Buyer->>Buyer: CRM webhook → HubSpot/Zapier
 ```
+
+### Buyer Experience
+
+| Touchpoint | What You Get |
+|---|---|
+| **Marketplace** | Live Lightning Auctions, Browse Seller Offers, Buy Now, and owned NFTs |
+| **My Portfolio** | All purchased LeadNFTs with full lead data, resale option, and on-chain provenance |
+| **Browse Seller Offers** | Find sellers willing to sell leads in specific verticals/geos |
+| **Auto-bid Agent** | Set rules once and let the agent bid 24/7 |
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
 
