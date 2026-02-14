@@ -506,6 +506,37 @@ class RTBSocketServer {
                     await this.resolveAuction(room.leadId);
                 }
 
+                // ── Orphan auction sweep ──
+                // Catch IN_AUCTION leads whose auctionEndAt has passed but have
+                // no auctionRoom (e.g. created by demo seeder or direct DB inserts).
+                // These leads would otherwise stay IN_AUCTION forever.
+                const orphanExpired = await prisma.lead.findMany({
+                    where: {
+                        status: { in: ['IN_AUCTION', 'REVEAL_PHASE'] },
+                        auctionEndAt: { lte: now },
+                        auctionRoom: null,  // no auction room — monitor couldn't track them
+                    },
+                    select: { id: true, vertical: true, reservePrice: true },
+                });
+
+                for (const lead of orphanExpired) {
+                    // Check if there's a winning bid
+                    const topBid = await prisma.bid.findFirst({
+                        where: { leadId: lead.id, status: 'REVEALED', amount: { not: null } },
+                        orderBy: [{ amount: 'desc' }],
+                    });
+
+                    const reserve = lead.reservePrice ? Number(lead.reservePrice) : 0;
+                    if (topBid && Number(topBid.amount) >= reserve) {
+                        // Settle the auction with the winning bid
+                        await this.resolveAuction(lead.id);
+                    } else {
+                        // No valid bids or below reserve → convert to Buy It Now
+                        await this.convertToUnsold(lead.id, lead);
+                    }
+                    console.log(`[MONITOR] Orphan auction ${lead.id} → resolved (no auctionRoom)`);
+                }
+
                 // ── Buy It Now expiry sweep ──
                 // Transition stale UNSOLD leads past their expiresAt to EXPIRED
                 const expiredBinLeads = await prisma.lead.findMany({
