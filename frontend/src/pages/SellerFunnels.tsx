@@ -353,17 +353,36 @@ export default function SellerFunnels() {
         }
     }
 
-    // ── Save conversion settings ──
-    async function saveConversionSettings() {
+    // ── Save funnel settings (conversion tracking + template colors) ──
+    async function saveFunnelSettings() {
         setConvSaving(true);
         try {
+            // 1. Persist conversion tracking URLs
             const res = await api.updateConversionSettings({
                 conversionPixelUrl: conversionPixelUrl || undefined,
                 conversionWebhookUrl: conversionWebhookUrl || undefined,
             });
             if (res.error) throw new Error(res.error.error);
+
+            // 2. Persist template colors to the Ask record (if editing)
+            if (selectedFunnelId) {
+                const { error: askErr } = await api.updateAsk(selectedFunnelId, {
+                    parameters: {
+                        templateConfig: {
+                            bg: customBg,
+                            text: customText,
+                            accent: customAccent,
+                            border: effectiveColors['--form-border'] || '#334155',
+                            inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
+                            muted: effectiveColors['--form-muted'] || '#94a3b8',
+                        },
+                    },
+                });
+                if (askErr) throw new Error(askErr.error);
+            }
+
             setConvSaved(true);
-            toast({ type: 'success', title: 'Conversion tracking saved' });
+            toast({ type: 'success', title: 'Funnel settings saved' });
             setTimeout(() => setConvSaved(false), 2000);
         } catch (err: any) {
             toast({ type: 'error', title: 'Save failed', description: err?.message || 'Could not save.' });
@@ -755,12 +774,12 @@ export default function SellerFunnels() {
                                                         size="sm"
                                                         variant="outline"
                                                         className="w-full"
-                                                        onClick={saveConversionSettings}
+                                                        onClick={saveFunnelSettings}
                                                         disabled={convSaving}
                                                     >
                                                         {convSaved ? (
                                                             <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Saved!</>
-                                                        ) : convSaving ? 'Saving...' : 'Save Conversion Settings'}
+                                                        ) : convSaving ? 'Saving...' : 'Save Funnel Settings'}
                                                     </Button>
                                                 </div>
                                             </CardContent>
