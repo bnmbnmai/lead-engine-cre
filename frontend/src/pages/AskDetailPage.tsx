@@ -39,7 +39,7 @@ export function AskDetailPage() {
                 if (apiError) throw new Error(apiError.message || apiError.error);
                 setAsk(data?.ask);
             } catch (err: any) {
-                setError(err.message || 'Failed to load ask');
+                setError(err.message || 'Failed to load funnel');
             } finally {
                 setIsLoading(false);
             }
@@ -120,12 +120,12 @@ export function AskDetailPage() {
             <DashboardLayout>
                 <div className="max-w-4xl mx-auto text-center py-20">
                     <Tag className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold mb-2">Ask Not Found</h1>
-                    <p className="text-muted-foreground mb-6">{error || 'This ask may have been removed or expired.'}</p>
+                    <h1 className="text-2xl font-bold mb-2">Funnel Not Found</h1>
+                    <p className="text-muted-foreground mb-6">{error || 'This funnel may have been removed or expired.'}</p>
                     <Button asChild>
                         <Link to={isOwner ? '/seller/funnels' : '/marketplace?view=asks'}>
                             <ArrowLeft className="h-4 w-4 mr-2" />
-                            {isOwner ? 'Back to My Asks' : 'Back to Marketplace'}
+                            {isOwner ? 'Back to My Funnels' : 'Back to Marketplace'}
                         </Link>
                     </Button>
                 </div>
@@ -144,7 +144,7 @@ export function AskDetailPage() {
                 <Button variant="ghost" size="sm" asChild>
                     <Link to={isOwner ? '/seller/funnels' : '/marketplace?view=asks'}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
-                        {isOwner ? 'Back to My Asks' : 'Back to Marketplace'}
+                        {isOwner ? 'Back to My Funnels' : 'Back to Marketplace'}
                     </Link>
                 </Button>
 
@@ -156,7 +156,7 @@ export function AskDetailPage() {
                             <Badge className={getStatusColor(ask.status)}>{ask.status}</Badge>
                             {isOwner && (
                                 <Badge variant="outline" className="text-violet-400 border-violet-400/40">
-                                    Your Ask
+                                    Your Funnel
                                 </Badge>
                             )}
                         </div>
@@ -355,9 +355,9 @@ export function AskDetailPage() {
                                                 onClick={handleToggleStatus}
                                             >
                                                 {ask.status === 'ACTIVE' ? (
-                                                    <><Pause className="h-4 w-4" /> Pause Ask</>
+                                                    <><Pause className="h-4 w-4" /> Pause Funnel</>
                                                 ) : (
-                                                    <><Play className="h-4 w-4" /> Resume Ask</>
+                                                    <><Play className="h-4 w-4" /> Resume Funnel</>
                                                 )}
                                             </Button>
 
@@ -375,7 +375,7 @@ export function AskDetailPage() {
                                                     className="w-full gap-2 text-destructive hover:text-destructive"
                                                     onClick={() => setConfirmDelete(true)}
                                                 >
-                                                    <Trash2 className="h-4 w-4" /> Delete Ask
+                                                    <Trash2 className="h-4 w-4" /> Delete Funnel
                                                 </Button>
                                             ) : (
                                                 <div className="space-y-2">
