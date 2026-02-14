@@ -27,6 +27,7 @@ interface LeadDetail {
     buyNowPrice: number | null;
     isVerified: boolean;
     parameters: Record<string, unknown> | null;
+    formSteps?: { label: string; fields: { key: string; label: string; value: string }[] }[];
     createdAt: string;
     auctionStartAt: string | null;
     auctionEndAt: string | null;
@@ -263,15 +264,33 @@ export default function LeadDetailPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Lead Parameters Card */}
-                            {lead.parameters && Object.keys(lead.parameters).length > 0 && (
+                            {/* Lead Parameters / Preview Steps */}
+                            {lead.formSteps && lead.formSteps.length > 0 ? (
+                                /* Buyer preview: structured form steps with redacted PII */
+                                lead.formSteps.map((step, idx) => (
+                                    <Card key={idx}>
+                                        <CardContent className="p-6">
+                                            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">{step.label}</h2>
+                                            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                                                {step.fields.map((field) => (
+                                                    <div key={field.key}>
+                                                        <dt className="text-xs text-muted-foreground">{field.label}</dt>
+                                                        <dd className="text-sm font-medium mt-0.5">{field.value}</dd>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))
+                            ) : lead.parameters && Object.keys(lead.parameters).length > 0 ? (
+                                /* Owner view: raw parameters */
                                 <Card>
                                     <CardContent className="p-6">
                                         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Lead Parameters</h2>
                                         <DynamicFieldRenderer parameters={lead.parameters} />
                                     </CardContent>
                                 </Card>
-                            )}
+                            ) : null}
 
                             {/* Privacy Notice */}
                             <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">

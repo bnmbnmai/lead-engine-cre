@@ -726,6 +726,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                 lead: {
                     id: lead.id,
                     ...preview,
+                    geo: typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {},
                     seller: lead.seller ? {
                         companyName: lead.seller.companyName,
                         reputationScore: lead.seller.reputationScore,
@@ -734,7 +735,11 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     auctionRoom: lead.auctionRoom,
                     auctionStartAt: lead.auctionStartAt,
                     auctionEndAt: lead.auctionEndAt,
-                    buyNowPrice: lead.buyNowPrice,
+                    reservePrice: lead.reservePrice ? parseFloat(String(lead.reservePrice)) : null,
+                    buyNowPrice: lead.buyNowPrice ? parseFloat(String(lead.buyNowPrice)) : null,
+                    expiresAt: lead.expiresAt,
+                    nftTokenId: lead.nftTokenId,
+                    createdAt: lead.createdAt,
                     qualityScore,
                     _count: (lead as any)._count,
                 },

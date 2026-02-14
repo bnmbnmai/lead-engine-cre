@@ -535,7 +535,7 @@ export default function SellerFunnels() {
                                         <div className="flex flex-wrap gap-6">
                                             <LabeledSwitch
                                                 label="Accept Off-site Leads"
-                                                description="Receive leads from external landers"
+                                                description="I'll send leads from external landers"
                                                 checked={acceptOffSite}
                                                 onCheckedChange={setAcceptOffSite}
                                             />
