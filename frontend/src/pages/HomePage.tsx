@@ -373,7 +373,7 @@ export function HomePage() {
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
-                                        Browse Asks
+                                        Seller Offers
                                     </button>
                                     <button
                                         onClick={() => setView('buyNow')}

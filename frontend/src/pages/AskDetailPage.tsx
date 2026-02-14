@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MapPin, Tag, Zap, ArrowLeft, Users, DollarSign, Clock, ExternalLink } from 'lucide-react';
+import { MapPin, Tag, Zap, ArrowLeft, Users, DollarSign, Clock, ShoppingCart, MessageSquare } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -234,22 +234,36 @@ export function AskDetailPage() {
                                 <div className="pt-4 border-t border-border space-y-3">
                                     {isAuthenticated ? (
                                         <>
-                                            <Button className="w-full" asChild>
-                                                <Link to={`/auction/${activeLeads[0]?.id || ''}`}>
-                                                    <ExternalLink className="h-4 w-4 mr-2" />
-                                                    View Active Auction
+                                            {activeLeads.length > 0 && (
+                                                <Button className="w-full gap-2" variant="gradient" asChild>
+                                                    <Link to={`/auction/${activeLeads[0].id}`}>
+                                                        <Zap className="h-4 w-4" />
+                                                        Start Lightning Auction
+                                                    </Link>
+                                                </Button>
+                                            )}
+                                            <Button variant="outline" className="w-full gap-2" asChild>
+                                                <Link to="/marketplace?view=buyNow">
+                                                    <ShoppingCart className="h-4 w-4" />
+                                                    Make Buy Now Offer
                                                 </Link>
                                             </Button>
-                                            <Button variant="outline" className="w-full" asChild>
-                                                <Link to="/marketplace?view=asks">
-                                                    Browse More Asks
-                                                </Link>
+                                            <Button
+                                                variant="ghost"
+                                                className="w-full gap-2 text-muted-foreground"
+                                                onClick={() => {
+                                                    // Stub: in production this would open a messaging modal or mailto
+                                                    alert(`Contact ${ask.seller?.companyName || 'Seller'} — messaging coming soon!`);
+                                                }}
+                                            >
+                                                <MessageSquare className="h-4 w-4" />
+                                                Contact Seller
                                             </Button>
                                         </>
                                     ) : (
                                         <div className="space-y-3">
                                             <p className="text-sm text-muted-foreground">
-                                                Connect your wallet to place bids on leads from this seller.
+                                                Connect your wallet to bid on leads or contact this seller.
                                             </p>
                                             <ConnectButton />
                                         </div>

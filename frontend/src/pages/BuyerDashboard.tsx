@@ -214,7 +214,7 @@ export function BuyerDashboard() {
                         <Button variant="outline" asChild>
                             <Link to="/marketplace?view=asks">
                                 <Tag className="h-4 w-4 mr-2" />
-                                Browse Asks
+                                Seller Offers
                             </Link>
                         </Button>
                         <Button asChild>
