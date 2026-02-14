@@ -6,30 +6,27 @@
  *
  * Fetches formConfig from the public API, renders a fully functional
  * multi-step wizard with progress bar, validation, and submission.
+ * Delegates all rendering to the shared FormPreview component.
  */
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
+import FormPreview from '@/components/forms/FormPreview';
+import type { FormPreviewColors } from '@/components/forms/FormPreview';
+import { COLOR_SCHEMES } from '@/constants/formPresets';
+import type { FormField, FormStep } from '@/types/formBuilder';
 
-// ─── Types ───────────────────────────────────────────────────────
-interface FormField {
-    id: string;
-    key: string;
-    label: string;
-    type: 'text' | 'email' | 'phone' | 'number' | 'select' | 'boolean' | 'textarea' | 'date' | 'url';
-    required: boolean;
-    placeholder?: string;
-    options?: string[];
-    validation?: { min?: number; max?: number; pattern?: string };
-}
-
-interface FormStep {
-    id: string;
-    label: string;
-    fieldIds: string[];
-}
+// ─── Default colors (Dark scheme) ─────────────────────────────────
+const DEFAULT_COLORS: FormPreviewColors = {
+    bg: COLOR_SCHEMES[0].vars['--form-bg'],
+    text: COLOR_SCHEMES[0].vars['--form-text'],
+    accent: COLOR_SCHEMES[0].vars['--form-accent'],
+    border: COLOR_SCHEMES[0].vars['--form-border'],
+    inputBg: COLOR_SCHEMES[0].vars['--form-input-bg'],
+    muted: COLOR_SCHEMES[0].vars['--form-muted'],
+};
 
 interface FormConfig {
     fields: FormField[];
@@ -41,7 +38,6 @@ interface FormConfig {
 export default function HostedForm() {
     const { slug } = useParams<{ slug: string }>();
 
-    // Parse the slug: format is {verticalSlug}--{sellerId}
     const { verticalSlug, sellerId } = useMemo(() => {
         if (!slug) return { verticalSlug: '', sellerId: '' };
         const idx = slug.indexOf('--');
@@ -93,10 +89,7 @@ export default function HostedForm() {
     }, [steps, fields, currentStep]);
 
     const isLastStep = currentStep === Math.max(steps.length - 1, 0);
-    const totalSteps = steps.length || 1;
-    const progress = ((currentStep + 1) / totalSteps) * 100;
 
-    // ─── Field rendering ──────────────────────────────────────
     function updateField(key: string, value: string | boolean) {
         setFormData(prev => ({ ...prev, [key]: value }));
         setFieldErrors(prev => {
@@ -142,7 +135,6 @@ export default function HostedForm() {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            // Extract geo fields from form data if present
             const geo: Record<string, string> = { country: String(formData.country || 'US') };
             if (formData.state) geo.state = String(formData.state);
             if (formData.city) geo.city = String(formData.city);
@@ -171,81 +163,23 @@ export default function HostedForm() {
         }
     }
 
-    function renderField(f: FormField) {
-        const value = formData[f.key] ?? '';
-        const err = fieldErrors[f.key];
-        const inputClasses = `w-full px-4 py-3 rounded-lg bg-[#1a1a2e] border text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all ${err ? 'border-red-500' : 'border-white/10'}`;
-
-        return (
-            <div key={f.id} className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-300">
-                    {f.label} {f.required && <span className="text-indigo-400">*</span>}
-                </label>
-
-                {f.type === 'select' && f.options ? (
-                    <select
-                        value={value as string}
-                        onChange={e => updateField(f.key, e.target.value)}
-                        className={inputClasses}
-                    >
-                        <option value="">Select {f.label.toLowerCase()}...</option>
-                        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                ) : f.type === 'boolean' ? (
-                    <div className="flex gap-3">
-                        {['Yes', 'No'].map(opt => (
-                            <button
-                                key={opt}
-                                type="button"
-                                onClick={() => updateField(f.key, opt === 'Yes')}
-                                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${(value === true && opt === 'Yes') || (value === false && opt === 'No')
-                                    ? 'bg-indigo-600 border-indigo-500 text-white'
-                                    : 'bg-[#1a1a2e] border-white/10 text-gray-400 hover:border-white/20'
-                                    }`}
-                            >
-                                {opt}
-                            </button>
-                        ))}
-                    </div>
-                ) : f.type === 'textarea' ? (
-                    <textarea
-                        value={value as string}
-                        onChange={e => updateField(f.key, e.target.value)}
-                        placeholder={f.placeholder || f.label}
-                        rows={3}
-                        className={inputClasses}
-                    />
-                ) : (
-                    <input
-                        type={f.type === 'phone' ? 'tel' : f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : 'text'}
-                        value={value as string}
-                        onChange={e => updateField(f.key, e.target.value)}
-                        placeholder={f.placeholder || f.label}
-                        className={inputClasses}
-                    />
-                )}
-
-                {err && <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{err}</p>}
-            </div>
-        );
-    }
-
-    // ─── Loading / Error states ───────────────────────────────
+    // ─── Loading state ───────────────────────────────────────
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+            <div style={{ minHeight: '100vh', backgroundColor: DEFAULT_COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 style={{ width: 32, height: 32, color: DEFAULT_COLORS.accent, animation: 'spin 1s linear infinite' }} />
             </div>
         );
     }
 
+    // ─── Error state ─────────────────────────────────────────
     if (error || !config) {
         return (
-            <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center px-4">
-                <div className="text-center space-y-4">
-                    <AlertCircle className="h-12 w-12 text-red-400 mx-auto" />
-                    <h1 className="text-xl font-semibold text-white">Form Not Found</h1>
-                    <p className="text-gray-400 text-sm max-w-sm">
+            <div style={{ minHeight: '100vh', backgroundColor: DEFAULT_COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <AlertCircle style={{ width: 48, height: 48, color: '#ef4444', margin: '0 auto 1rem' }} />
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: DEFAULT_COLORS.text, marginBottom: '0.5rem' }}>Form Not Found</h1>
+                    <p style={{ color: DEFAULT_COLORS.muted, fontSize: '0.875rem', maxWidth: 384 }}>
                         {error || 'This form is not available. Please check the URL and try again.'}
                     </p>
                 </div>
@@ -253,99 +187,43 @@ export default function HostedForm() {
         );
     }
 
-    // ─── Submitted ────────────────────────────────────────────
+    // ─── Submitted state ─────────────────────────────────────
     if (submitted) {
         return (
-            <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center px-4">
-                <div className="text-center space-y-4 max-w-md">
-                    <div className="h-16 w-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
-                        <CheckCircle className="h-8 w-8 text-green-400" />
+            <div style={{ minHeight: '100vh', backgroundColor: DEFAULT_COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                <div style={{ textAlign: 'center', maxWidth: 448 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                        <CheckCircle style={{ width: 32, height: 32, color: '#4ade80' }} />
                     </div>
-                    <h1 className="text-2xl font-bold text-white">Thank You!</h1>
-                    <p className="text-gray-400">
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: DEFAULT_COLORS.text, marginBottom: '0.5rem' }}>Thank You!</h1>
+                    <p style={{ color: DEFAULT_COLORS.muted }}>
                         Your information has been submitted successfully. A specialist will be in touch shortly.
                     </p>
-                    <div className="pt-4">
-                        <p className="text-xs text-gray-600">Powered by Lead Engine</p>
-                    </div>
+                    <p style={{ fontSize: '0.7rem', color: DEFAULT_COLORS.muted, marginTop: '1.5rem', opacity: 0.5 }}>Powered by Lead Engine</p>
                 </div>
             </div>
         );
     }
 
-    // ─── Form wizard ──────────────────────────────────────────
+    // ─── Form wizard ─────────────────────────────────────────
     return (
-        <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center px-4 py-12">
-            <div className="w-full max-w-md">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-2xl font-bold text-white mb-1">{verticalName || 'Get Started'}</h1>
-                    <p className="text-sm text-gray-400">Get your personalized quote in under 60 seconds</p>
-                </div>
-
-                {/* Progress bar */}
-                {totalSteps > 1 && (
-                    <div className="mb-8">
-                        <div className="flex justify-between text-xs text-gray-500 mb-2">
-                            <span>Step {currentStep + 1} of {totalSteps}</span>
-                            <span>{steps[currentStep]?.label || ''}</span>
-                        </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500 ease-out"
-                                style={{ width: `${progress}%` }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* Form card */}
-                <div className="bg-[#16162a] border border-white/5 rounded-2xl p-6 shadow-2xl">
-                    <div className="space-y-4">
-                        {currentFields.map(f => renderField(f))}
-                    </div>
-
-                    {/* Navigation */}
-                    <div className="flex gap-3 mt-6">
-                        {currentStep > 0 && (
-                            <button
-                                type="button"
-                                onClick={handleBack}
-                                className="flex-1 px-4 py-3 rounded-lg bg-white/5 text-gray-300 text-sm font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <ArrowLeft className="h-4 w-4" /> Back
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handleNext}
-                            disabled={submitting}
-                            className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 disabled:opacity-60"
-                        >
-                            {submitting ? (
-                                <><Loader2 className="h-4 w-4 animate-spin" /> Submitting...</>
-                            ) : isLastStep ? (
-                                <>Submit <CheckCircle className="h-4 w-4" /></>
-                            ) : (
-                                <>Next <ArrowRight className="h-4 w-4" /></>
-                            )}
-                        </button>
-                    </div>
-
-                    {submitError && (
-                        <p className="text-xs text-red-400 text-center mt-3 flex items-center justify-center gap-1">
-                            <AlertCircle className="h-3 w-3" />{submitError}
-                        </p>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="text-center mt-6">
-                    <p className="text-[11px] text-gray-600">
-                        🔒 Your data is encrypted and protected • Powered by Lead Engine
-                    </p>
-                </div>
-            </div>
-        </div>
+        <FormPreview
+            verticalName={verticalName}
+            verticalSlug={verticalSlug}
+            fields={fields}
+            steps={steps}
+            currentStep={currentStep}
+            colors={DEFAULT_COLORS}
+            showProgress={config.gamification?.showProgress !== false}
+            showNudges={config.gamification?.showNudges !== false}
+            ctaText="Submit"
+            formData={formData}
+            fieldErrors={fieldErrors}
+            onFieldChange={updateField}
+            onNext={handleNext}
+            onBack={handleBack}
+            submitting={submitting}
+            submitError={submitError}
+        />
     );
 }

@@ -12,7 +12,7 @@ import useVerticals from '@/hooks/useVerticals';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
     Sparkles, Shield, Plus, Activity, Tag, MapPin,
-    Pause, Play, Trash2, Save, X, DollarSign,
+    Trash2, Save, X, DollarSign,
     Zap, ArrowRight,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -21,8 +21,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { LabeledSwitch } from '@/components/ui/switch';
-import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
-import { getContrastText, meetsWcagAA, contrastRatio } from '@/lib/contrast';
+import { VERTICAL_EMOJI } from '@/components/forms/StepProgress';
+import FormPreview from '@/components/forms/FormPreview';
+import { meetsWcagAA, contrastRatio } from '@/lib/contrast';
 import useAuth from '@/hooks/useAuth';
 import { toast } from '@/hooks/useToast';
 import api from '@/lib/api';
@@ -102,7 +103,6 @@ export default function SellerFunnels() {
     const [convSaving, setConvSaving] = useState(false);
 
     // ── Admin form config ──
-    const [configLoading, setConfigLoading] = useState(false);
     const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
     const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
 
@@ -214,7 +214,6 @@ export default function SellerFunnels() {
 
     // ── Load form config for a vertical ──
     async function loadFormConfig(v: string) {
-        setConfigLoading(true);
         try {
             const res = await api.getFormConfig(v);
             if (res.data?.formConfig) {
@@ -225,8 +224,6 @@ export default function SellerFunnels() {
             }
         } catch {
             // fallback to preset
-        } finally {
-            setConfigLoading(false);
         }
     }
 
@@ -305,19 +302,7 @@ export default function SellerFunnels() {
         }
     }
 
-    // ── Toggle status ──
-    async function handleToggleStatus() {
-        if (!selectedFunnel) return;
-        const newStatus = selectedFunnel.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
-        try {
-            const { error: apiError } = await api.updateAsk(selectedFunnel.id, { status: newStatus });
-            if (apiError) throw new Error(apiError.error);
-            await loadFunnels();
-            toast({ type: 'success', title: newStatus === 'ACTIVE' ? 'Funnel resumed' : 'Funnel paused' });
-        } catch (err: any) {
-            setError(err.message || 'Failed to update status');
-        }
-    }
+
 
     // ── Delete ──
     async function handleDelete() {
@@ -565,17 +550,7 @@ export default function SellerFunnels() {
                                                         <Save className="h-4 w-4 mr-1" />
                                                         {isSaving ? 'Saving…' : 'Save Changes'}
                                                     </Button>
-                                                    <Button
-                                                        variant={selectedFunnel?.status === 'ACTIVE' ? 'outline' : 'default'}
-                                                        size="sm"
-                                                        onClick={handleToggleStatus}
-                                                    >
-                                                        {selectedFunnel?.status === 'ACTIVE' ? (
-                                                            <><Pause className="h-4 w-4 mr-1" /> Pause</>
-                                                        ) : (
-                                                            <><Play className="h-4 w-4 mr-1" /> Resume</>
-                                                        )}
-                                                    </Button>
+
                                                     {!confirmDelete ? (
                                                         <Button
                                                             variant="ghost"
@@ -779,80 +754,28 @@ export default function SellerFunnels() {
                                             {/* Preview */}
                                             {previewMode === 'preview' && (
                                                 <Card className="overflow-hidden">
-                                                    <div
-                                                        className="p-6 rounded-lg min-h-[400px]"
-                                                        style={{ backgroundColor: customBg, color: customText }}
-                                                    >
-                                                        {(logoUrl || companyName) && (
-                                                            <div className="flex items-center gap-3 mb-4">
-                                                                {logoUrl && (
-                                                                    <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded object-cover"
-                                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                                                )}
-                                                                {companyName && <span className="font-semibold text-sm">{companyName}</span>}
-                                                            </div>
-                                                        )}
-
-                                                        <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
-                                                            {VERTICAL_EMOJI[activeVertical || ''] || '📋'} {displayName(activeVertical || '')}
-                                                            {adminFields && (
-                                                                <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">
-                                                                    Admin Configured ✓
-                                                                </span>
-                                                            )}
-                                                        </h3>
-                                                        <p className="text-sm opacity-70 mb-4">
-                                                            {configLoading ? 'Loading form config...' : 'Get your personalized quote in under 60 seconds'}
-                                                        </p>
-
-                                                        {gamification.showProgress && selectedSteps.length > 1 && (
-                                                            <div className="mb-4">
-                                                                <StepProgress steps={selectedSteps} currentStep={0} vertical={activeVertical || ''} />
-                                                            </div>
-                                                        )}
-
-                                                        <div className="space-y-3">
-                                                            {selectedFields.slice(0, 4).map(f => (
-                                                                <div key={f.id}>
-                                                                    <label className="text-xs font-medium opacity-80 mb-1 block">
-                                                                        {f.label} {f.required && <span style={{ color: customAccent }}>*</span>}
-                                                                    </label>
-                                                                    {f.type === 'select' ? (
-                                                                        <div className="w-full px-3 py-2 rounded-md text-sm opacity-60"
-                                                                            style={{ backgroundColor: effectiveColors['--form-input-bg'] || 'rgba(0,0,0,0.2)', border: `1px solid ${effectiveColors['--form-border'] || 'rgba(255,255,255,0.1)'}` }}>
-                                                                            Select {f.label.toLowerCase()}...
-                                                                        </div>
-                                                                    ) : f.type === 'boolean' ? (
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="w-9 h-5 rounded-full" style={{ backgroundColor: customAccent, opacity: 0.4 }} />
-                                                                            <span className="text-xs opacity-60">Yes / No</span>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="w-full px-3 py-2 rounded-md text-sm opacity-60"
-                                                                            style={{ backgroundColor: effectiveColors['--form-input-bg'] || 'rgba(0,0,0,0.2)', border: `1px solid ${effectiveColors['--form-border'] || 'rgba(255,255,255,0.1)'}` }}>
-                                                                            {f.placeholder || f.label}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                            {selectedFields.length > 4 && (
-                                                                <p className="text-xs opacity-50 italic">+ {selectedFields.length - 4} more fields across {selectedSteps.length} steps</p>
-                                                            )}
-                                                        </div>
-
-                                                        <button
-                                                            className="w-full mt-6 py-2.5 rounded-lg font-semibold text-sm transition-opacity hover:opacity-90"
-                                                            style={{ backgroundColor: customAccent, color: getContrastText(customAccent) }}
-                                                        >
-                                                            {ctaText}
-                                                        </button>
-
-                                                        {gamification.showNudges && (
-                                                            <p className="text-center text-[11px] opacity-50 mt-2">
-                                                                🔒 Your info is secure & never shared without consent
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                    <FormPreview
+                                                        compact
+                                                        verticalName={displayName(activeVertical || '')}
+                                                        verticalSlug={activeVertical || ''}
+                                                        fields={selectedFields}
+                                                        steps={selectedSteps}
+                                                        currentStep={0}
+                                                        colors={{
+                                                            bg: customBg,
+                                                            text: customText,
+                                                            accent: customAccent,
+                                                            border: effectiveColors['--form-border'] || '#334155',
+                                                            inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
+                                                            muted: effectiveColors['--form-muted'] || '#94a3b8',
+                                                        }}
+                                                        logoUrl={logoUrl || undefined}
+                                                        companyName={companyName || undefined}
+                                                        ctaText={ctaText}
+                                                        showProgress={gamification.showProgress}
+                                                        showNudges={gamification.showNudges}
+                                                        isAdminConfigured={!!adminFields}
+                                                    />
                                                 </Card>
                                             )}
 
