@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap, UserPlus, Search, Satellite, Save, Loader2 } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap, UserPlus, Search, Banknote } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -33,11 +33,7 @@ export function SellerDashboard() {
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
 
-    // Conversion tracking settings
-    const [convPixelUrl, setConvPixelUrl] = useState('');
-    const [convWebhookUrl, setConvWebhookUrl] = useState('');
-    const [convSaving, setConvSaving] = useState(false);
-    const [convLoaded, setConvLoaded] = useState(false);
+
 
     const activeTab = DASHBOARD_TABS.find((t) => t.path === location.pathname)?.key || 'overview';
 
@@ -71,32 +67,7 @@ export function SellerDashboard() {
         fetchData();
     }, [debouncedSearch]);
 
-    // Fetch conversion settings once
-    useEffect(() => {
-        if (convLoaded) return;
-        api.getConversionSettings().then((res) => {
-            if (res.data) {
-                setConvPixelUrl(res.data.conversionPixelUrl || '');
-                setConvWebhookUrl(res.data.conversionWebhookUrl || '');
-            }
-            setConvLoaded(true);
-        }).catch(() => setConvLoaded(true));
-    }, [convLoaded]);
 
-    const handleSaveConversion = async () => {
-        setConvSaving(true);
-        try {
-            await api.updateConversionSettings({
-                conversionPixelUrl: convPixelUrl || undefined,
-                conversionWebhookUrl: convWebhookUrl || undefined,
-            });
-            toast({ type: 'success', title: 'Saved', description: 'Conversion tracking settings updated' });
-        } catch {
-            toast({ type: 'error', title: 'Error', description: 'Failed to save conversion settings' });
-        } finally {
-            setConvSaving(false);
-        }
-    };
 
     // Re-fetch callback for socket events & polling fallback
     const refetchData = useCallback(() => {
@@ -293,48 +264,18 @@ export function SellerDashboard() {
                     ))}
                 </div>
 
-                {/* Conversion Tracking */}
+                {/* Instant Settlement highlight */}
                 <Card>
-                    <CardHeader className="flex-row items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Satellite className="h-5 w-5 text-violet-500" />
-                            <CardTitle>Conversion Tracking</CardTitle>
+                    <CardContent className="flex items-center gap-4 py-5">
+                        <div className="p-3 rounded-xl bg-emerald-500/10">
+                            <Banknote className="h-6 w-6 text-emerald-500" />
                         </div>
-                        <Badge variant="outline" className="text-violet-500 border-violet-500/30">Optional</Badge>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                            Fires immediately after a lead is sold (auction win or Buy Now). Supports both pixel and server-to-server webhook.
-                        </p>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1 block">Conversion Pixel URL</label>
-                                <Input
-                                    placeholder="https://googleads.g.doubleclick.net/pagead/conversion/..."
-                                    value={convPixelUrl}
-                                    onChange={(e) => setConvPixelUrl(e.target.value)}
-                                />
-                                <p className="text-[11px] text-muted-foreground mt-1">Fires as a 1×1 image GET request on each successful sale</p>
-                            </div>
-                            <div>
-                                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1 block">Conversion Webhook URL</label>
-                                <Input
-                                    placeholder="https://mycompany.com/webhook/lead-sold"
-                                    value={convWebhookUrl}
-                                    onChange={(e) => setConvWebhookUrl(e.target.value)}
-                                />
-                                <p className="text-[11px] text-muted-foreground mt-1">Receives a JSON POST with lead_id, sale_amount, vertical, quality_score, and transaction_id</p>
-                            </div>
+                        <div>
+                            <h3 className="font-semibold text-sm">Instant USDC Settlement</h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                All lead sales settle instantly in USDC via the x402 payment protocol &mdash; no invoicing, no 30-day net terms.
+                            </p>
                         </div>
-                        <Button
-                            size="sm"
-                            onClick={handleSaveConversion}
-                            disabled={convSaving}
-                            className="gap-2"
-                        >
-                            {convSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                            {convSaving ? 'Saving...' : 'Save Settings'}
-                        </Button>
                     </CardContent>
                 </Card>
 

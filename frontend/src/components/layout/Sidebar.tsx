@@ -13,7 +13,6 @@ import {
     Layers,
     Blocks,
     Zap,
-    Megaphone,
     Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -49,7 +48,6 @@ const sellerItems: SidebarItem[] = [
     { href: '/seller/leads', label: 'My Leads', icon: <FileText className="h-5 w-5" /> },
     { href: '/seller/submit', label: 'Submit Lead', icon: <Send className="h-5 w-5" /> },
     { href: '/seller/analytics', label: 'Analytics', icon: <TrendingUp className="h-5 w-5" /> },
-    { href: '/seller/conversions', label: 'Ad Conversions', icon: <Megaphone className="h-5 w-5" /> },
 ];
 
 const adminItems: SidebarItem[] = [

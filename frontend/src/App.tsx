@@ -28,7 +28,7 @@ import AdminVerticals from '@/pages/AdminVerticals';
 import AskDetailPage from '@/pages/AskDetailPage';
 import HostedForm from '@/pages/HostedForm';
 import LeadDetailPage from '@/pages/LeadDetailPage';
-import AdConversions from '@/pages/AdConversions';
+
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';
 import { ErrorDialog } from '@/components/ui/ErrorDialog';
@@ -110,8 +110,7 @@ function App() {
                                 <Route path="/admin/verticals" element={<ProtectedRoute role="ADMIN"><AdminVerticals /></ProtectedRoute>} />
                                 <Route path="/admin/form-builder" element={<ProtectedRoute role="ADMIN"><FormBuilder /></ProtectedRoute>} />
 
-                                {/* Seller: Ad Conversions */}
-                                <Route path="/seller/conversions" element={<ProtectedRoute role="SELLER"><AdConversions /></ProtectedRoute>} />
+
 
                                 {/* Fallback */}
                                 <Route path="*" element={<Navigate to="/" replace />} />
