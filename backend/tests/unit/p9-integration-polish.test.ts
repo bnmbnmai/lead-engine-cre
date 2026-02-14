@@ -4,7 +4,7 @@
  * 52 tests across 8 describe blocks:
  *   - Auction Service (8): short auctions, auto-extend, settle, concurrent bids
  *   - Lead Preview (6): non-PII fields, ZK badge, form step grouping, error states
- *   - Bid Mode Labels (4): Open/Sealed labels, tooltip text, mode toggle state
+ *   - Sealed Bid Compliance (2): BidPanel sealed-only, commitment flow
  *   - KYC Rejection Flow (6): CTA render, status transitions, error handling
  *   - NFT Feature Toggle (6): config read, route 501, frontend banner, guard bypass
  *   - Auto-Bid Dynamic (6): wildcard vertical, new verticals, budget enforcement
@@ -120,28 +120,19 @@ describe('Lead Preview', () => {
 });
 
 // ============================================
-// 3. Bid Mode Labels (4 tests)
+// 3. Sealed Bid Compliance (2 tests)
 // ============================================
 
-describe('Bid Mode Labels', () => {
+describe('Sealed Bid Compliance', () => {
     const src = readFrontend('components/bidding/BidPanel.tsx');
 
-    test('direct bid is labeled "Open Bid"', () => {
-        expect(src).toContain('Open Bid');
+    test('BidPanel does NOT contain Open Bid mode', () => {
+        expect(src).not.toContain('Open Bid');
         expect(src).not.toContain('Direct Bid');
     });
 
-    test('commit-reveal is labeled "Sealed Bid"', () => {
-        expect(src).toContain('Sealed Bid');
-        expect(src).not.toContain('Commit-Reveal');
-    });
-
-    test('Open Bid tooltip explains visibility', () => {
-        expect(src).toContain('Open Bid \u2014 your bid amount is visible immediately');
-    });
-
-    test('Sealed Bid tooltip explains encryption', () => {
-        expect(src).toContain('Sealed Bid \u2014 your bid is encrypted until the reveal phase');
+    test('BidPanel uses commitment-based flow', () => {
+        expect(src).toContain('commitment');
     });
 });
 
@@ -363,9 +354,9 @@ describe('Mock vs Real Data', () => {
         expect(src).toContain('getConversions');
     });
 
-    test('PreferenceSetCard uses "open bid" terminology (not "direct bid")', () => {
+    test('PreferenceSetCard does not reference open bid or direct bid', () => {
         const src = readFrontend('components/forms/PreferenceSetCard.tsx');
-        expect(src).toContain('open bid endpoint');
-        expect(src).not.toContain('direct bid endpoint');
+        expect(src).not.toContain('open bid');
+        expect(src).not.toContain('direct bid');
     });
 });

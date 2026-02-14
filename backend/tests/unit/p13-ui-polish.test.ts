@@ -5,7 +5,7 @@
  *   - Card glow hover-only (5)
  *   - Theme green accents (4)
  *   - FormBuilder StepProgress auto-contrast (5)
- *   - BidPanel labels (3)
+ *   - BidPanel sealed-only (3)
  *   - Mobile & Accessibility (3)
  */
 
@@ -112,24 +112,23 @@ describe('FormBuilder — StepProgress Auto-Contrast', () => {
     });
 });
 
-// ── BidPanel Labels (3 tests) ────────────────────────────
+// ── BidPanel Sealed-Only (3 tests) ──────────────────────
 
-describe('BidPanel — Bid Type Labels', () => {
+describe('BidPanel — Sealed-Only Compliance', () => {
     const src = read('components/bidding/BidPanel.tsx');
 
-    test('15. "Open Bid" label present', () => {
-        expect(src).toContain('Open Bid');
+    test('15. No Open Bid or Direct Bid references', () => {
+        expect(src).not.toContain('Open Bid');
+        expect(src).not.toContain('Direct Bid');
     });
 
-    test('16. "Sealed Bid" label present', () => {
-        expect(src).toContain('Sealed Bid');
+    test('16. Uses commitment-based sealed flow', () => {
+        expect(src).toContain('commitment');
     });
 
-    test('17. Bid mode explanations present with descriptive text', () => {
-        // Direct bid explanation
-        expect(src).toMatch(/Open Bid.*visible immediately/s);
-        // Sealed bid explanation
-        expect(src).toMatch(/Sealed Bid.*encrypted/s);
+    test('17. No bid mode toggle present', () => {
+        expect(src).not.toContain('bid mode');
+        expect(src).not.toContain('bidMode');
     });
 });
 
