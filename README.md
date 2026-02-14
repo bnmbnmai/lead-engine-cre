@@ -36,59 +36,36 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 ### How a Lead Moves Through the System
 
 ```mermaid
-graph TB
-    subgraph Seller["🏷️ Seller"]
-        S1["Submit Lead via Form / API"]
-    end
+sequenceDiagram
+    participant S as Seller
+    participant API as Lead Engine API
+    participant CRE as Chainlink CRE
+    participant ACE as Chainlink ACE
+    participant RTB as RTB Engine
+    participant B as Buyer
+    participant X as x402 Escrow
 
-    subgraph API["⚡ Lead Engine API"]
-        A1["Receive & Validate"]
-        A2["Encrypt PII · Store"]
-        A1 --> A2
-    end
+    S->>API: Submit lead (vertical, geo, params)
+    API->>CRE: Verify quality + fraud check
+    CRE-->>API: Quality score (0-10,000) + ZK proof
+    API->>ACE: Compliance check (KYC, jurisdiction)
+    ACE-->>API: Cleared
 
-    subgraph CRE["🔗 Chainlink CRE"]
-        C1["Quality Score (0 – 10,000)"]
-        C2["ZK Fraud Proof"]
-        C1 --> C2
-    end
+    Note over RTB: 5-minute sealed-bid auction starts
 
-    subgraph ACE["🛡️ Chainlink ACE"]
-        AC1["KYC / AML Check"]
-        AC2["TCPA · Jurisdiction Gate"]
-        AC1 --> AC2
-    end
+    API->>RTB: Match buyers (vertical, geo, quality gate)
+    RTB->>B: WebSocket notification + non-PII preview
+    B->>RTB: Place sealed bid (commit-reveal)
 
-    subgraph RTB["🔄 RTB Engine"]
-        R1["Lightning Auction"]
-        R2["30s · 60s · 5min tiers"]
-        R1 --> R2
-    end
+    Note over RTB: Auto-bid engine fires for matching rules
+    Note over RTB: Auction ends - reveal phase
 
-    subgraph Buyers["💰 Buyers"]
-        B1["Real-time Ping (non-PII preview)"]
-        B2["Place Bid / Auto-Bid"]
-        B1 --> B2
-    end
+    B->>X: Winner pays USDC
+    X->>API: Instant settlement (minus 2.5% fee)
+    X->>B: Decrypted lead data + PII
 
-    subgraph Winner["✅ Winner"]
-        W1["x402 USDC Settlement"]
-        W2["Mint ERC-721 Lead NFT"]
-        W3["Deliver Full PII"]
-        W1 --> W2 --> W3
-    end
-
-    subgraph NoWinner["🛒 No Winner"]
-        N1["Move to Buy Now Marketplace"]
-    end
-
-    S1 --> A1
-    A2 --> C1
-    C2 --> AC1
-    AC2 --> R1
-    R2 --> B1
-    B2 -->|winner| W1
-    B2 -.->|no bids| N1
+    Note over X: Lead minted as ERC-721 NFT
+    Note over X: CRM webhook - HubSpot/Zapier
 ```
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
