@@ -65,7 +65,7 @@ export const LeadSubmitSchema = z.object({
 
 export const LeadQuerySchema = z.object({
     vertical: z.string().optional(),
-    status: z.enum(['PENDING_AUCTION', 'IN_AUCTION', 'REVEAL_PHASE', 'SOLD', 'EXPIRED']).optional(),
+    status: z.enum(['PENDING_AUCTION', 'IN_AUCTION', 'SOLD', 'UNSOLD', 'EXPIRED']).optional(),
     state: z.string().length(2).optional(),
     country: z.string().optional(),
     search: z.string().max(100).optional(),

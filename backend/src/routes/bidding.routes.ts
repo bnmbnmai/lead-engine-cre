@@ -38,7 +38,6 @@ function classifyPrismaError(error: unknown): { status: number; message: string;
 
 router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        // Commit-reveal bid
         const validation = BidCommitSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({ error: 'Invalid bid', details: validation.error.issues });
@@ -64,7 +63,7 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
         }
 
         if (lead.auctionEndAt && lead.auctionEndAt < new Date()) {
-            res.status(400).json({ error: 'Bidding phase has ended' });
+            res.status(400).json({ error: 'Auction has ended' });
             return;
         }
 
@@ -86,32 +85,27 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
         });
 
         if (buyer) {
-            // Check off-site toggle
             if (!buyer.acceptOffSite && lead.source === 'OFFSITE') {
                 res.status(400).json({ error: 'Buyer does not accept off-site leads' });
                 return;
             }
-
-            // Check vertical preference
             if (buyer.verticals.length > 0 && !buyer.verticals.includes(lead.vertical)) {
                 res.status(400).json({ error: 'Lead vertical not in buyer preferences' });
                 return;
             }
-
-            // Check verified requirement
             if (buyer.requireVerified && !lead.isVerified) {
                 res.status(400).json({ error: 'Buyer requires verified leads' });
                 return;
             }
         }
 
-        // Check holder perks (pre-ping + future multiplier at reveal)
+        // Check holder perks
         const holderPerks = await applyHolderPerks(
             lead.vertical,
             req.user!.walletAddress,
         );
 
-        // Create or update bid
+        // Create or update sealed bid (commitment only — amount revealed after auction)
         const bid = await prisma.bid.upsert({
             where: {
                 leadId_buyerId: { leadId, buyerId: req.user!.id },
@@ -163,7 +157,7 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
                 prePingSeconds: holderPerks.prePingSeconds,
                 multiplier: holderPerks.multiplier,
             } : undefined,
-            message: 'Bid committed. Reveal after bidding phase ends.',
+            message: 'Bid committed. Reveal after auction ends.',
         });
     } catch (error) {
         console.error('Place bid error:', error);
@@ -172,7 +166,7 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
 });
 
 // ============================================
-// Reveal Bid
+// Reveal Bid (after 60s auction window closes)
 // ============================================
 
 router.post('/:bidId/reveal', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
@@ -205,40 +199,19 @@ router.post('/:bidId/reveal', authMiddleware, requireBuyer, async (req: Authenti
             return;
         }
 
-        // Check we're in reveal phase
-        if (bid.lead.status !== 'REVEAL_PHASE') {
-            if (bid.lead.auctionEndAt && bid.lead.auctionEndAt > new Date()) {
-                res.status(400).json({ error: 'Bidding phase not ended yet' });
-                return;
-            }
-
-            // Move lead to reveal phase
-            await prisma.lead.update({
-                where: { id: bid.leadId },
-                data: { status: 'REVEAL_PHASE' },
-            });
-
-            if (bid.lead.auctionRoom) {
-                await prisma.auctionRoom.update({
-                    where: { id: bid.lead.auctionRoom.id },
-                    data: { phase: 'REVEAL' },
-                });
-            }
-        }
-
-        // Check reveal deadline
-        if (bid.lead.auctionRoom?.revealEndsAt && bid.lead.auctionRoom.revealEndsAt < new Date()) {
-            res.status(400).json({ error: 'Reveal phase has ended' });
+        // Auction must have ended (60s window closed) before reveals are accepted
+        if (bid.lead.auctionEndAt && bid.lead.auctionEndAt > new Date()) {
+            res.status(400).json({ error: 'Auction still active — wait for the 60s window to close' });
             return;
         }
 
-        // Verify commitment
+        // Verify commitment: keccak256(abi.encode(amount, salt))
         const expectedCommitment = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(['uint96', 'bytes32'], [amount, salt])
         );
 
         if (bid.commitment !== expectedCommitment) {
-            res.status(400).json({ error: 'Invalid reveal - commitment mismatch' });
+            res.status(400).json({ error: 'Invalid reveal — commitment mismatch' });
             return;
         }
 
@@ -252,7 +225,7 @@ router.post('/:bidId/reveal', authMiddleware, requireBuyer, async (req: Authenti
             return;
         }
 
-        // Update bid
+        // Update bid to REVEALED
         const updatedBid = await prisma.bid.update({
             where: { id: bid.id },
             data: {
@@ -361,7 +334,7 @@ router.delete('/:bidId', authMiddleware, async (req: AuthenticatedRequest, res: 
             return;
         }
 
-        if (bid.lead.status === 'REVEAL_PHASE' || bid.lead.status === 'SOLD') {
+        if (bid.lead.status === 'SOLD') {
             res.status(400).json({ error: 'Cannot withdraw after auction ended' });
             return;
         }

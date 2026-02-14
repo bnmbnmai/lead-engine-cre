@@ -64,10 +64,15 @@ sequenceDiagram
     API->>ACE: KYC & jurisdiction
     ACE-->>API: ✅ Cleared
 
-    Note over RTB: 1-minute sealed-bid auction
+    Note over RTB: 60-second sealed-bid auction
 
-    RTB->>B: Non-PII preview
-    B->>RTB: Sealed bid (or auto-bid)
+    RTB->>B: Non-PII preview (WebSocket)
+    B->>RTB: Sealed bid (keccak256 commitment)
+
+    Note over RTB: Auction closes at 60s
+
+    B->>RTB: Reveal (amount + salt)
+    RTB->>RTB: Verify commitment, pick winner
 
     B->>X: Winner pays USDC
     X->>S: Instant settlement (minus 2.5%)

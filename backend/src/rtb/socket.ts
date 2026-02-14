@@ -7,10 +7,8 @@ import {
     applyHolderPerks,
     applyMultiplier,
     checkActivityThreshold,
-    isInPrePingWindow,
 } from '../services/holder-perks.service';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
-import { AUCTION_FALLBACK_DURATION_SECS } from '../config/perks.env';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
@@ -206,8 +204,7 @@ class RTBSocketServer {
                         phase: lead.auctionRoom?.phase || 'BIDDING',
                         bidCount: lead.auctionRoom?.bidCount || 0,
                         highestBid: lead.auctionRoom?.highestBid ? Number(lead.auctionRoom.highestBid) : null,
-                        biddingEndsAt: lead.auctionRoom?.biddingEndsAt,
-                        revealEndsAt: lead.auctionRoom?.revealEndsAt,
+                        biddingEndsAt: lead.auctionRoom?.biddingEndsAt || lead.auctionEndAt,
                     });
 
                     console.log(`User ${socket.userId} joined auction ${leadId}`);
@@ -243,11 +240,8 @@ class RTBSocketServer {
                     });
 
                     if (!lead || lead.status !== 'IN_AUCTION') {
-                        // Also allow bids during PING_POST phase
-                        if (!lead || (lead.status !== 'IN_PING_POST')) {
-                            socket.emit('error', { message: 'Auction not active' });
-                            return;
-                        }
+                        socket.emit('error', { message: 'Auction not active' });
+                        return;
                     }
 
                     // Check compliance
@@ -264,16 +258,6 @@ class RTBSocketServer {
 
                     // Check holder perks
                     const perks = await applyHolderPerks(lead.vertical, socket.walletAddress);
-
-                    // Pre-ping enforcement: only holders can bid during pre-ping window
-                    //   Uses isInPrePingWindow() to include grace period for latency tolerance
-                    const prePingStatus = isInPrePingWindow(lead.auctionRoom?.prePingEndsAt ?? null);
-                    if (prePingStatus.inWindow && !perks.isHolder) {
-                        socket.emit('error', {
-                            message: `Pre-ping window active — holders only (${Math.ceil(prePingStatus.remainingMs / 1000)}s remaining)`,
-                        });
-                        return;
-                    }
 
 
 
@@ -393,148 +377,18 @@ class RTBSocketServer {
             try {
                 const now = new Date();
 
-                // ── Ping-Post Expiry Sweep ──
-                // Check PING_POST rooms that have expired → resolve or escalate
-                const expiredPingPost = await prisma.auctionRoom.findMany({
+                // ── Expired Auction Sweep ──
+                // Find all IN_AUCTION leads whose 60s window has expired
+                const expiredAuctions = await prisma.lead.findMany({
                     where: {
-                        phase: 'PING_POST',
-                        biddingEndsAt: { lte: now },
-                    },
-                    include: { lead: true },
-                });
-
-                for (const room of expiredPingPost) {
-                    // Check if any revealed bids came in during ping-post
-                    const revealedBid = await prisma.bid.findFirst({
-                        where: {
-                            leadId: room.leadId,
-                            status: 'REVEALED',
-                            amount: { not: null },
-                        },
-                    });
-
-                    if (revealedBid) {
-                        // Winner during ping-post → resolve immediately
-                        console.log(`[MONITOR] Ping-post ${room.leadId} has bids → resolving`);
-                        await this.resolveAuction(room.leadId);
-                    } else {
-                        // No winner → escalate to full auction (300s)
-                        const auctionEndsAt = new Date(now.getTime() + AUCTION_FALLBACK_DURATION_SECS * 1000);
-                        const revealWindow = 900; // 15 min reveal
-
-                        await prisma.$transaction([
-                            prisma.auctionRoom.update({
-                                where: { id: room.id },
-                                data: {
-                                    phase: 'BIDDING',
-                                    biddingEndsAt: auctionEndsAt,
-                                    revealEndsAt: new Date(auctionEndsAt.getTime() + revealWindow * 1000),
-                                },
-                            }),
-                            prisma.lead.update({
-                                where: { id: room.leadId },
-                                data: {
-                                    status: 'IN_AUCTION',
-                                    auctionEndAt: auctionEndsAt,
-                                },
-                            }),
-                        ]);
-
-                        // Notify auction room of phase escalation
-                        this.io.to(room.roomId).emit('auction:phase', {
-                            leadId: room.leadId,
-                            phase: 'BIDDING',
-                            previousPhase: 'PING_POST',
-                            biddingEndsAt: auctionEndsAt,
-                            reason: 'ping_post_no_winner',
-                        });
-
-                        // Broadcast lead:auction-started for marketplace listeners
-                        this.io.emit('lead:auction-started', {
-                            leadId: room.leadId,
-                            vertical: room.lead.vertical,
-                            status: 'IN_AUCTION',
-                            auctionEndAt: auctionEndsAt.toISOString(),
-                            reservePrice: room.lead.reservePrice ? Number(room.lead.reservePrice) : null,
-                            previousPhase: 'PING_POST',
-                        });
-
-                        console.log(`[MONITOR] Ping-post ${room.leadId} → escalated to IN_AUCTION (${AUCTION_FALLBACK_DURATION_SECS}s)`);
-                    }
-                }
-
-                // Find auctions that need to transition to reveal phase
-                const endingBidding = await prisma.auctionRoom.findMany({
-                    where: {
-                        phase: 'BIDDING',
-                        biddingEndsAt: { lte: now },
-                    },
-                    include: { lead: true },
-                });
-
-                for (const room of endingBidding) {
-                    await prisma.$transaction([
-                        prisma.auctionRoom.update({
-                            where: { id: room.id },
-                            data: { phase: 'REVEAL' },
-                        }),
-                        prisma.lead.update({
-                            where: { id: room.leadId },
-                            data: { status: 'REVEAL_PHASE' },
-                        }),
-                    ]);
-
-                    this.io.to(room.roomId).emit('auction:phase', {
-                        leadId: room.leadId,
-                        phase: 'REVEAL',
-                        revealEndsAt: room.revealEndsAt,
-                    });
-
-                    console.log(`Auction ${room.leadId} transitioned to REVEAL phase`);
-                }
-
-                // Find auctions that need resolution
-                const endingReveal = await prisma.auctionRoom.findMany({
-                    where: {
-                        phase: 'REVEAL',
-                        revealEndsAt: { lte: now },
-                    },
-                    include: { lead: true },
-                });
-
-                for (const room of endingReveal) {
-                    await this.resolveAuction(room.leadId);
-                }
-
-                // ── Orphan auction sweep ──
-                // Catch IN_AUCTION leads whose auctionEndAt has passed but have
-                // no auctionRoom (e.g. created by demo seeder or direct DB inserts).
-                // These leads would otherwise stay IN_AUCTION forever.
-                const orphanExpired = await prisma.lead.findMany({
-                    where: {
-                        status: { in: ['IN_AUCTION', 'REVEAL_PHASE'] },
+                        status: 'IN_AUCTION',
                         auctionEndAt: { lte: now },
-                        auctionRoom: null,  // no auction room — monitor couldn't track them
                     },
                     select: { id: true, vertical: true, reservePrice: true },
                 });
 
-                for (const lead of orphanExpired) {
-                    // Check if there's a winning bid
-                    const topBid = await prisma.bid.findFirst({
-                        where: { leadId: lead.id, status: 'REVEALED', amount: { not: null } },
-                        orderBy: [{ amount: 'desc' }],
-                    });
-
-                    const reserve = lead.reservePrice ? Number(lead.reservePrice) : 0;
-                    if (topBid && Number(topBid.amount) >= reserve) {
-                        // Settle the auction with the winning bid
-                        await this.resolveAuction(lead.id);
-                    } else {
-                        // No valid bids or below reserve → convert to Buy It Now
-                        await this.convertToUnsold(lead.id, lead);
-                    }
-                    console.log(`[MONITOR] Orphan auction ${lead.id} → resolved (no auctionRoom)`);
+                for (const lead of expiredAuctions) {
+                    await this.resolveAuction(lead.id);
                 }
 
                 // ── Buy It Now expiry sweep ──

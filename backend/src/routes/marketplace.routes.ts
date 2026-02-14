@@ -626,11 +626,11 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
 
             if (req.user.role === 'BUYER') {
                 // Buyers can browse all active leads; vertical preferences only apply to auto-bidding
-                where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
+                where.status = 'IN_AUCTION';
             }
         } else {
             // Public (unauthenticated): show all active leads
-            where.status = { in: ['IN_AUCTION', 'REVEAL_PHASE'] };
+            where.status = 'IN_AUCTION';
         }
 
         // Buy It Now shorthand: override status to UNSOLD + only unexpired

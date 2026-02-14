@@ -22,7 +22,6 @@ import {
 import {
     NFT_AUCTION_DURATION_SECS,
     LEAD_AUCTION_DURATION_SECS,
-    LEAD_AUCTION_MAX_DURATION_SECS,
     AUTO_EXTEND_INCREMENT_SECS,
     AUTO_EXTEND_MAX,
 } from '../config/perks.env';
@@ -93,7 +92,7 @@ export async function createAuction(
     durationSecs: number = LEAD_AUCTION_DURATION_SECS,
 ): Promise<CreateAuctionResult> {
     // Clamp duration to configured bounds
-    durationSecs = Math.max(60, Math.min(durationSecs, LEAD_AUCTION_MAX_DURATION_SECS));
+    durationSecs = Math.max(60, Math.min(durationSecs, LEAD_AUCTION_DURATION_SECS));
     // 1. Look up vertical
     const vertical = await prisma.vertical.findUnique({ where: { slug } });
     if (!vertical) {

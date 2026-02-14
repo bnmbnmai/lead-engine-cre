@@ -2,10 +2,10 @@ import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
 import { creService } from '../services/cre.service';
-import { applyHolderPerks, computePrePing, HOLDER_EARLY_PING_SECONDS, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
+import { applyHolderPerks, HOLDER_EARLY_PING_SECONDS, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
 import { findNotifiableHolders } from '../services/notification.service';
 import { evaluateLeadForAutoBid } from '../services/auto-bid.service';
-import { LEAD_AUCTION_DURATION_SECS, PING_POST_DURATION_SECS, AUCTION_FALLBACK_DURATION_SECS } from '../config/perks.env';
+import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 
 // ============================================
 // RTB Engine
@@ -25,12 +25,6 @@ class RTBEngine {
 
     async processLeadIntake(leadId: string): Promise<{ success: boolean; error?: string }> {
         try {
-            // Mark lead as PENDING_PING while we verify
-            await prisma.lead.update({
-                where: { id: leadId },
-                data: { status: 'PENDING_PING' },
-            });
-
             const lead = await prisma.lead.findUnique({
                 where: { id: leadId },
                 include: { seller: { include: { user: true } } },
@@ -69,7 +63,7 @@ class RTBEngine {
             const matchingAsks = await this.findMatchingAsks(lead);
 
             if (matchingAsks.length === 0) {
-                // No immediate matches — revert to PENDING_AUCTION (backward compat)
+                // No immediate matches — revert to PENDING_AUCTION
                 await prisma.lead.update({
                     where: { id: leadId },
                     data: { status: 'PENDING_AUCTION' },
@@ -77,46 +71,37 @@ class RTBEngine {
                 return { success: true };
             }
 
-            // ── Sealed-Bid Auction Flow: Ping-Post Phase ──
-            // Instead of jumping straight to IN_AUCTION, enter a 60-second
-            // ping-post phase. If a winner emerges, resolve instantly.
-            // If not, the auction monitor escalates to a full 300s auction.
+            // ── Unified 60-Second Sealed-Bid Auction ──
+            // All bidding (ping-post, manual, auto-bid) happens in one window.
             const ask = matchingAsks[0];
-            const revealWindow = ask.revealWindow || 900;
-
-            // Compute pre-ping window with per-auction nonce
-            const prePingNonce = crypto.randomBytes(8).toString('hex');
-            const prePingSeconds = computePrePing(lead.vertical, prePingNonce);
             const now = new Date();
-            const pingPostEndsAt = new Date(now.getTime() + PING_POST_DURATION_SECS * 1000);
+            const auctionEndsAt = new Date(now.getTime() + LEAD_AUCTION_DURATION_SECS * 1000);
 
             await prisma.$transaction([
                 prisma.lead.update({
                     where: { id: leadId },
                     data: {
                         askId: ask.id,
-                        status: 'IN_PING_POST',
+                        status: 'IN_AUCTION',
                         auctionStartAt: now,
-                        auctionEndAt: pingPostEndsAt,
+                        auctionEndAt: auctionEndsAt,
                     },
                 }),
                 prisma.auctionRoom.create({
                     data: {
                         leadId,
                         roomId: `auction_${leadId}`,
-                        phase: 'PING_POST',
-                        prePingEndsAt: new Date(now.getTime() + prePingSeconds * 1000),
-                        prePingNonce,
-                        biddingEndsAt: pingPostEndsAt, // Initial: ping-post window
-                        revealEndsAt: new Date(pingPostEndsAt.getTime() + revealWindow * 1000),
+                        phase: 'BIDDING',
+                        biddingEndsAt: auctionEndsAt,
+                        revealEndsAt: auctionEndsAt, // No separate reveal — kept for schema compat
                     },
                 }),
             ]);
 
-            // Notify matching buyers (staggered: holders first, non-holders after 12s)
+            // Notify matching buyers (holders get a head start)
             await this.notifyMatchingBuyers(leadId);
 
-            console.log(`[RTB] Lead ${leadId} entered PING_POST phase (${PING_POST_DURATION_SECS}s window)`);
+            console.log(`[RTB] Lead ${leadId} entered IN_AUCTION (${LEAD_AUCTION_DURATION_SECS}s window)`);
             return { success: true };
         } catch (error) {
             console.error('Lead intake error:', error);
@@ -284,7 +269,7 @@ class RTBEngine {
 
         // ── Auto-Bid Evaluation ──
         // Trigger auto-bid rules so buyers with matching pref sets automatically
-        // place bids during the ping-post window (instant response).
+        // place bids during the auction window.
         try {
             const autoBidResult = await evaluateLeadForAutoBid({
                 id: leadId,

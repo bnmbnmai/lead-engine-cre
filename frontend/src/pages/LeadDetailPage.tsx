@@ -158,7 +158,7 @@ export default function LeadDetailPage() {
         ? [lead.geo?.city, lead.geo?.state, lead.geo?.country].filter(Boolean).join(', ') || 'Nationwide'
         : '';
     const isUnsold = lead?.status === 'UNSOLD';
-    const isLive = lead?.status === 'IN_AUCTION' || lead?.status === 'REVEAL_PHASE';
+    const isLive = lead?.status === 'IN_AUCTION';
     const reputationDisplay = lead?.seller
         ? `${(Number(lead.seller.reputationScore) / 100).toFixed(0)}%`
         : null;

@@ -123,7 +123,7 @@ export function AuctionPage() {
         );
     }
 
-    const phase = auctionState?.phase || (lead.status === 'REVEAL_PHASE' ? 'REVEAL' : 'BIDDING');
+    const phase = auctionState?.phase || 'BIDDING';
 
     // Derived bid stats — prefer optimistic local → socket state → lead data
     const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead._count?.bids ?? 0;

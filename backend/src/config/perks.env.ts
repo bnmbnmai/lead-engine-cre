@@ -74,20 +74,8 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 
 // ── Auction Durations ──────────────────────────────
 
-/** Universal auction duration (seconds) — single 60s sealed-bid auction for all lead types */
-export const AUCTION_DURATION_SECS = parseInt(process.env.AUCTION_DURATION_SECS || '60', 10);
-
-/** Default lead auction duration (seconds) — 60s sealed-bid auction */
+/** Lead auction duration (seconds) — single 60s sealed-bid auction */
 export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '60', 10);
-
-/** Maximum lead auction duration (seconds) — locked to 60s for hackathon */
-export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '60', 10);
-
-/** Ping-post phase duration (seconds) — leads start here before auction fallback */
-export const PING_POST_DURATION_SECS = parseInt(process.env.PING_POST_DURATION_SECS || '60', 10);
-
-/** Auction fallback duration (seconds) — used when ping-post produces no winner */
-export const AUCTION_FALLBACK_DURATION_SECS = parseInt(process.env.AUCTION_FALLBACK_DURATION_SECS || '60', 10);
 
 /** Default vertical NFT auction duration (seconds) — 60s for hackathon */
 export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '60', 10);
@@ -146,11 +134,7 @@ export const PERKS_CONFIG = {
         maxDepth: MAX_HIERARCHY_DEPTH,
     },
     auction: {
-        durationSecs: AUCTION_DURATION_SECS,
         leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
-        leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS,
-        pingPostDurationSecs: PING_POST_DURATION_SECS,
-        auctionFallbackDurationSecs: AUCTION_FALLBACK_DURATION_SECS,
         nftDurationSecs: NFT_AUCTION_DURATION_SECS,
         autoExtendIncrementSecs: AUTO_EXTEND_INCREMENT_SECS,
         autoExtendMax: AUTO_EXTEND_MAX,

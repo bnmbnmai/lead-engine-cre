@@ -37,7 +37,7 @@ interface LeadCardProps {
 
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
-    const isLive = ['IN_PING_POST', 'IN_AUCTION', 'REVEAL_PHASE'].includes(lead.status);
+    const isLive = lead.status === 'IN_AUCTION';
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
     const phaseLabel = getPhaseLabel(lead.status);
 

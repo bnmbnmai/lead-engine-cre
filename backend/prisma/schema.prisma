@@ -305,8 +305,8 @@ model Ask {
   acceptOffSite   Boolean   @default(true)
   
   // Auction settings
-  auctionDuration Int       @default(300)   // seconds — Sealed-bid auction default
-  revealWindow    Int       @default(900)   // seconds
+  auctionDuration Int       @default(60)    // seconds — 60s sealed-bid auction
+  revealWindow    Int       @default(0)     // seconds — deprecated, no separate reveal
   
   // Timestamps
   createdAt       DateTime  @default(now())
@@ -394,13 +394,13 @@ enum LeadSource {
 }
 
 enum LeadStatus {
-  PENDING_PING      // Lead submitted, awaiting CRE+ACE verification
-  IN_PING_POST      // Active ping-post phase (60s window)
+  PENDING_PING      // @deprecated — kept for data compat
+  IN_PING_POST      // @deprecated — kept for data compat
   PENDING_AUCTION
-  IN_AUCTION
-  REVEAL_PHASE
+  IN_AUCTION        // Active 60s sealed-bid auction
+  REVEAL_PHASE      // @deprecated — kept for data compat
   SOLD
-  UNSOLD          // Auction ended with no winner → available for Buy It Now
+  UNSOLD            // Auction ended with no winner → available for Buy It Now
   EXPIRED
   CANCELLED
   DISPUTED
@@ -426,7 +426,7 @@ model AuctionRoom {
   prePingEndsAt   DateTime?    // End of holder-only pre-ping window
   prePingNonce    String?      // Crypto nonce for audit trail / recomputation
   biddingEndsAt   DateTime
-  revealEndsAt    DateTime
+  revealEndsAt    DateTime?    // @deprecated — no separate reveal phase
   
   // Effective bid tracking (holder multiplier applied)
   effectiveBid    Decimal?     @db.Decimal(10, 2)
@@ -442,9 +442,9 @@ model AuctionRoom {
 }
 
 enum AuctionPhase {
-  PING_POST     // Ping-post phase (60s, before full auction)
-  BIDDING
-  REVEAL
+  PING_POST     // @deprecated — kept for data compat
+  BIDDING       // Active sealed-bid auction
+  REVEAL        // @deprecated — kept for data compat
   RESOLVED
   CANCELLED
 }
