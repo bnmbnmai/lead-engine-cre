@@ -213,7 +213,7 @@ export function AskDetailPage() {
                             <CardContent className="p-6 space-y-4">
                                 <div className="flex items-center gap-2 text-sm">
                                     <Zap className="h-4 w-4 text-violet-400" />
-                                    <span className="text-violet-400 font-medium">Lightning Auction</span>
+                                    <span className="text-violet-400 font-medium">Sealed-Bid Auction</span>
                                 </div>
 
                                 {ask.acceptOffSite && (
