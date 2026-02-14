@@ -352,11 +352,29 @@ router.get('/public/:slug/form-config', generalLimiter, async (req: Authenticate
             where: { slug },
             select: { formConfig: true, slug: true, name: true },
         });
-        if (!vertical || !vertical.formConfig) {
+        if (!vertical) {
             res.status(404).json({ error: 'Form not found' });
             return;
         }
-        res.json({ formConfig: vertical.formConfig, vertical: { slug: vertical.slug, name: vertical.name } });
+
+        // Use saved formConfig or generate a sensible default
+        const formConfig = vertical.formConfig || {
+            fields: [
+                { id: 'f_name', key: 'name', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
+                { id: 'f_email', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'john@example.com' },
+                { id: 'f_phone', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 123-4567' },
+                { id: 'f_state', key: 'state', label: 'State', type: 'text', required: false, placeholder: 'CA' },
+                { id: 'f_zip', key: 'zip', label: 'Zip Code', type: 'text', required: false, placeholder: '90210' },
+                { id: 'f_notes', key: 'notes', label: 'Additional Details', type: 'textarea', required: false, placeholder: 'Tell us more about what you need...' },
+            ],
+            steps: [
+                { id: 's_info', label: 'Your Info', fieldIds: ['f_name', 'f_email', 'f_phone'] },
+                { id: 's_details', label: 'Details', fieldIds: ['f_state', 'f_zip', 'f_notes'] },
+            ],
+            gamification: { showProgress: true, showNudges: true, confetti: true },
+        };
+
+        res.json({ formConfig, vertical: { slug: vertical.slug, name: vertical.name } });
     } catch (error) {
         console.error('Public form config error:', error);
         res.status(500).json({ error: 'Failed to fetch form config' });
