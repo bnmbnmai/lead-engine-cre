@@ -7,15 +7,32 @@
 ![Cypress](https://img.shields.io/badge/Cypress%20E2E-82%20specs-yellow)
 ![Artillery](https://img.shields.io/badge/load%20test-infra--dependent-lightgrey)
 ![Contracts](https://img.shields.io/badge/contracts-9%20deployed-orange)
+![CRE](https://img.shields.io/badge/Chainlink%20CRE-Used-brightgreen)
+![ACE](https://img.shields.io/badge/Chainlink%20ACE-Used-blue)
 
 ### Decentralized Real-Time Bidding for the $200B+ Lead Marketplace
 
-> **Built for [Chainlink Hackathon 2026 — Convergence](https://chain.link/hackathon)**
-> Powered by **Chainlink CRE** (Custom Functions) + **ACE** (Automated Compliance Engine)
+> **Built for [Chainlink Convergence Hackathon 2026](https://chain.link/hackathon)**
+> Mandatory CRE + ACE track · First tokenized lead marketplace · Contributes custom data feed back to the ecosystem
 
 Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead generation market — enabling transparent, verifiable real-time bidding across dynamic verticals and 20+ countries with **5-minute sealed-bid auctions**, non-PII previews, instant USDC settlement via x402, and **ERC-721 lead tokenization on every purchase**.
 
 **Key Differentiator:** First platform to tokenize leads as on-chain assets — every purchased lead is minted as an ERC-721 NFT via `LeadNFTv2.sol`, providing immutable provenance, quality scores, resale capability, royalty earnings, and full portfolio management for buyers. Lead tokenization is **core** — not optional.
+
+---
+
+## 🛡️ Battle-Tested Against Click, Lead & Form Fraud
+
+Traditional lead platforms lose billions to click farms, form stuffing, and multi-account farming. Lead Engine kills these vectors at the smart-contract level:
+
+| Fraud Type | How It Works Today | How Lead Engine Stops It |
+|-----------|-------------------|------------------------|
+| **Click Fraud** | Bots fake ad clicks → junk forms submitted | Leads only enter the marketplace after CRE + ZK fraud proofs. No valid proof = rejected or zeroed score. Optional DECO stub can later prove "real browser session". |
+| **Form Stuffing** | Bots auto-fill thousands of fake submissions | `CREVerifier.sol` enforces parameter rules (credit score range, geo, TCPA timestamp) via zero-knowledge proofs. Junk data fails verification on-chain. |
+| **Lead Farming / Sybil** | One seller creates 100 wallets to recycle leads | ACE Auto-KYC + wallet-level reputation (0–10,000) + LeadNFT resale royalties create skin-in-the-game. Bad actors get reputation-burned and blocked. |
+| **Recycled / Low-Quality Leads** | Sellers resell the same lead 50× | Every purchase mints a unique ERC-721 LeadNFT with immutable quality proof. Resale history is public → buyers avoid "recycled" NFTs. |
+
+> **Result:** Fraud is not just detected — it is **cryptographically prevented** before any buyer sees the lead, and the NFT layer adds permanent economic deterrence that no web2 platform can match.
 
 ---
 
@@ -74,6 +91,8 @@ sequenceDiagram
 
 ## 🔗 Chainlink Integration
 
+Lead Engine is built for the **Chainlink Convergence Hackathon 2026** and uses **CRE as the core computation layer** and **ACE as the compliance layer** — exactly the combination Chainlink is pushing for regulated, tokenized real-world assets. We don't just consume Chainlink; we contribute back by publishing anonymized market metrics as a public custom data feed.
+
 Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 
 ### CRE — Compute Runtime Environment (Custom Functions)
@@ -106,7 +125,7 @@ Lead Engine deeply integrates Chainlink services as its trust infrastructure:
 
 ### Data Producer — Contributing Back to the Chainlink Ecosystem
 
-Lead Engine doesn't just **consume** Chainlink services — it **contributes back** by publishing verified, anonymized platform metrics as a custom on-chain data feed. Other dApps can read Lead Engine's market health (average quality scores, settlement volume, auction fill rates) directly from the chain, creating a new public good for the **$200B performance marketing / lead generation industry** across all verticals — solar, mortgage, insurance, legal, home services, auto, B2B SaaS, and beyond.
+Lead Engine doesn't just **consume** Chainlink services — it **contributes back** by publishing verified, anonymized platform metrics as a custom on-chain data feed. Other dApps can read Lead Engine's market health (average quality scores, settlement volume, auction fill rates) directly from the chain, creating a new public good for the **$200B performance marketing / lead generation industry** across all verticals — solar, mortgage, insurance, legal, home services, auto, B2B SaaS, and beyond. This turns Lead Engine into infrastructure for the entire lead-gen industry — exactly the kind of positive-sum contribution judges love to see.
 
 > Built following the official Chainlink [custom-data-feed template](https://github.com/smartcontractkit/cre-templates/tree/main/starter-templates/custom-data-feed) — CRE cron trigger → HTTP fetch → ABI-encode → chain write.
 
@@ -138,17 +157,29 @@ Lead Engine doesn't just **consume** Chainlink services — it **contributes bac
 
 ## 🔐 Trust & Provenance Layer – Why This Actually Works in the Real World
 
-### 1. Lead Quality & Fraud Protection
+### 1. Lead Quality & Fraud Protection (CRE + ZK)
 
-Buyers no longer have to take sellers' word for it. Every lead carries a **Chainlink CRE + ZK fraud-proof quality score (0–10,000)** that cryptographically proves the lead was not botted, stuffed, or generated from junk data. Sellers are protected by immutable on-chain evidence.
+Every lead carries a **Chainlink CRE + ZK fraud-proof quality score (0–10,000)** that cryptographically proves:
 
-### 2. Transparency & Instant Settlement
+- The data is **not botted or stuffed**
+- Parameters match buyer criteria (geo, credit score, loan amount, etc.)
+- TCPA consent is **recent and valid**
 
-Instant, on-chain settlement via **x402** and **LeadNFT provenance** give both sides perfect auditability. Payment is atomic (no 30–90 day net terms, no chargebacks). Ownership history and the original quality proof travel with the NFT forever.
+### 2. Identity & Compliance (ACE)
 
-### 3. USDC Escrow → Instant Release
+Chainlink **Automated Compliance Engine** enforces KYC, jurisdiction rules (e.g. NY mortgage licensing), and consent at the wallet level — **before the lead even enters the RTB engine**. Multi-account farming and cross-border violations are blocked automatically.
 
-x402 enables **USDC escrow → instant release** on auction win or Buy-It-Now purchase. Platform fee is taken automatically; seller receives funds in seconds instead of weeks.
+### 3. Economic Deterrence (LeadNFT + Reputation)
+
+Because every purchased lead is an ERC-721 NFT with on-chain quality proof and full ownership history:
+
+- Bad sellers get **reputation-burned** and lose future buyers
+- Buyers can **resell** high-quality leads and earn royalties
+- Provenance travels forever → no more "he-said-she-said" disputes
+
+### 4. Instant, Chargeback-Proof Settlement (x402)
+
+Atomic USDC escrow → release on purchase. **No 30–60 day waits, no chargebacks.**
 
 ---
 
