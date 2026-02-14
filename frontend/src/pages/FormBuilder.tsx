@@ -66,7 +66,7 @@ export function FormBuilder() {
     // Dynamic verticals from API
     const { flatList: apiVerticals, search: searchVerticals, loading: verticalsLoading } = useVerticals();
     const filteredVerticals = verticalSearch ? searchVerticals(verticalSearch) : apiVerticals;
-    const displayVerticals = filteredVerticals.filter(v => v.depth === 0);
+    const displayVerticals = filteredVerticals;
 
     // Auto-select first vertical on initial load
     useEffect(() => {
@@ -330,9 +330,13 @@ export function FormBuilder() {
                                     className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all flex items-center gap-1.5 ${vertical === v.value
                                         ? 'bg-primary text-primary-foreground shadow-sm'
                                         : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                        }`}
+                                        } ${v.depth > 0 ? 'text-xs ml-2' : ''}`}
                                 >
-                                    <span>{VERTICAL_EMOJI[v.value] || ''}</span>
+                                    {v.depth > 0 ? (
+                                        <span className="opacity-50">›</span>
+                                    ) : (
+                                        <span>{VERTICAL_EMOJI[v.value] || ''}</span>
+                                    )}
                                     {v.label}
                                     {!VERTICAL_PRESETS[v.value] && (
                                         <span className="text-[10px] opacity-60" title="No preset template — click to customise fields">(custom)</span>

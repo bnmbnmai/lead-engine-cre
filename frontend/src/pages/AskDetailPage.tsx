@@ -213,14 +213,7 @@ export function AskDetailPage() {
                             <CardContent className="p-6 space-y-4">
                                 <div className="flex items-center gap-2 text-sm">
                                     <Zap className="h-4 w-4 text-violet-400" />
-                                    <span className="text-violet-400 font-medium">Smart Lightning</span>
-                                    <span className="text-muted-foreground text-xs">
-                                        {ask.auctionDuration && ask.auctionDuration <= 60
-                                            ? 'Ping-Post only'
-                                            : ask.auctionDuration && ask.auctionDuration > 60
-                                                ? `Ping-Post + ${Math.round((ask.auctionDuration - 60) / 60)}m auction`
-                                                : 'Standard'}
-                                    </span>
+                                    <span className="text-violet-400 font-medium">Lightning Auction</span>
                                 </div>
 
                                 {ask.acceptOffSite && (
@@ -250,7 +243,7 @@ export function AskDetailPage() {
                                                 <Button className="w-full gap-2" variant="gradient" asChild>
                                                     <Link to={`/auction/${activeLeads[0].id}`}>
                                                         <Zap className="h-4 w-4" />
-                                                        Enter Smart Lightning
+                                                        Enter Auction
                                                     </Link>
                                                 </Button>
                                             )}

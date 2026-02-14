@@ -71,18 +71,6 @@ export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/
                         </div>
                     )}
 
-                    <div className="flex items-center gap-2 text-sm">
-                        <Zap className="h-4 w-4 text-violet-400" />
-                        <span className="text-violet-400 font-medium">Smart Lightning</span>
-                        <span className="text-muted-foreground text-xs">
-                            {ask.auctionDuration && ask.auctionDuration <= 60
-                                ? 'Ping-Post only'
-                                : ask.auctionDuration && ask.auctionDuration > 60
-                                    ? `Ping-Post + ${Math.round((ask.auctionDuration - 60) / 60)}m auction`
-                                    : 'Standard'}
-                        </span>
-                    </div>
-
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Zap className="h-4 w-4" />
                         <span>{ask._count?.leads || 0} active leads</span>

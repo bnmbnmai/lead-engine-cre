@@ -264,6 +264,7 @@ export const api = {
     demoInjectLead: (vertical?: string) => apiFetch<{ success: boolean; lead: any }>('/api/v1/demo-panel/lead', { method: 'POST', body: JSON.stringify({ vertical }) }),
     demoStartAuction: (vertical?: string) => apiFetch<{ success: boolean; leadId: string }>('/api/v1/demo-panel/auction', { method: 'POST', body: JSON.stringify({ vertical }) }),
     demoReset: () => apiFetch<{ success: boolean; cleared: number; reseeded: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/reset', { method: 'POST' }),
+    demoSeedTemplates: () => apiFetch<{ success: boolean; templatesApplied: number; totalTemplates: number; message: string }>('/api/v1/demo-panel/seed-templates', { method: 'POST' }),
 
     // Vertical Auctions
     createVerticalAuction: (slug: string, reservePrice: number, durationSecs: number) =>

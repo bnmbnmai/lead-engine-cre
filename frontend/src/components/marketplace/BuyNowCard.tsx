@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, ShoppingCart, Tag, AlertTriangle, CheckCircle, Loader2, Eye, Zap } from 'lucide-react';
+import { MapPin, Clock, ShoppingCart, Tag, AlertTriangle, CheckCircle, Loader2, Eye } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -124,10 +124,6 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                         <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
                             <Tag className="h-3 w-3 mr-1" />
                             Buy Now
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30 gap-1">
-                            <Zap className="h-2.5 w-2.5" />
-                            Smart Lightning
                         </Badge>
                         {lead.isVerified && (
                             <Badge variant="outline" className="text-blue-400 border-blue-400/30 text-xs">

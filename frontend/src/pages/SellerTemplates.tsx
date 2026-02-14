@@ -8,6 +8,7 @@
  */
 
 import { useState, useMemo } from 'react';
+import useVerticals from '@/hooks/useVerticals';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
     Sparkles, Shield, Search, Plus, Send, ChevronRight,
@@ -32,7 +33,7 @@ import {
 // Category Mapping
 // ============================================
 
-const CATEGORY_MAP: Record<string, string> = {
+const ROOT_CATEGORY_MAP: Record<string, string> = {
     roofing: 'Home & Property',
     solar: 'Home & Property',
     home_services: 'Home & Property',
@@ -44,6 +45,13 @@ const CATEGORY_MAP: Record<string, string> = {
     b2b_saas: 'Business & Legal',
     legal: 'Business & Legal',
 };
+
+/** Derives category for any slug — children inherit from their parent prefix */
+function getCategory(slug: string): string {
+    if (ROOT_CATEGORY_MAP[slug]) return ROOT_CATEGORY_MAP[slug];
+    const root = slug.split('.')[0];
+    return ROOT_CATEGORY_MAP[root] || 'Other';
+}
 
 const CATEGORIES = ['All', 'Home & Property', 'Finance & Insurance', 'Business & Legal'];
 
@@ -68,6 +76,7 @@ const APPROVED_CTA_TEXTS = [
 
 export default function SellerTemplates() {
     const { user } = useAuth();
+    const { flatList: apiVerticals } = useVerticals();
     const [selectedVertical, setSelectedVertical] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
@@ -97,14 +106,23 @@ export default function SellerTemplates() {
     const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
     const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
 
-    // Filtered verticals
+    // Filtered verticals — merge API verticals with any VERTICAL_PRESETS-only slugs
     const verticals = useMemo(() => {
-        return Object.keys(VERTICAL_PRESETS).filter(v => {
-            const matchesSearch = !searchQuery || v.replace(/_/g, ' ').toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesCategory = activeCategory === 'All' || CATEGORY_MAP[v] === activeCategory;
+        // Build ordered list: prefer API, fall back to VERTICAL_PRESETS keys
+        const slugSet = new Set(apiVerticals.map(v => v.value));
+        // Add any preset-only slugs not in API (safety fallback)
+        for (const slug of Object.keys(VERTICAL_PRESETS)) {
+            if (!slugSet.has(slug)) slugSet.add(slug);
+        }
+        // Filter by search + category
+        return [...slugSet].filter(v => {
+            const label = apiVerticals.find(a => a.value === v)?.label || v.replace(/_/g, ' ');
+            const matchesSearch = !searchQuery || label.toLowerCase().includes(searchQuery.toLowerCase())
+                || v.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesCategory = activeCategory === 'All' || getCategory(v) === activeCategory;
             return matchesSearch && matchesCategory;
         });
-    }, [searchQuery, activeCategory]);
+    }, [searchQuery, activeCategory, apiVerticals]);
 
     // Use admin config if available, otherwise fallback to presets
     const selectedFields = useMemo(() => {
@@ -301,7 +319,10 @@ export default function SellerTemplates() {
                     {verticals.map((v) => {
                         const fields = VERTICAL_PRESETS[v] || GENERIC_TEMPLATE;
                         const isSelected = selectedVertical === v;
-                        const category = CATEGORY_MAP[v] || 'Other';
+                        const category = getCategory(v);
+                        const apiV = apiVerticals.find(a => a.value === v);
+                        const isChild = v.includes('.');
+                        const label = apiV?.label || displayName(v);
                         return (
                             <button
                                 key={v}
@@ -309,13 +330,13 @@ export default function SellerTemplates() {
                                 className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-all ${isSelected
                                     ? 'bg-primary/10 ring-1 ring-primary/30'
                                     : 'bg-card hover:bg-muted/50 border border-border'
-                                    }`}
+                                    } ${isChild ? 'ml-6 border-l-2 border-l-primary/20' : ''}`}
                             >
-                                <span className="text-xl shrink-0">{VERTICAL_EMOJI[v] || '📋'}</span>
+                                <span className="text-xl shrink-0">{isChild ? '›' : (VERTICAL_EMOJI[v] || '📋')}</span>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-medium text-sm">{displayName(v)}</span>
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{category}</span>
+                                        <span className={`font-medium ${isChild ? 'text-xs' : 'text-sm'}`}>{label}</span>
+                                        {!isChild && <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{category}</span>}
                                     </div>
                                     <div className="flex gap-1 mt-1">
                                         {fields.slice(0, 3).map(f => (

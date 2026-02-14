@@ -83,7 +83,7 @@ export function shortenAddress(address: string, chars = 4): string {
 }
 
 /**
- * Map a lead status to its Smart Lightning phase label.
+ * Map a lead status to its Lightning Auction phase label.
  */
 export function getPhaseLabel(status: string): string {
   const map: Record<string, string> = {

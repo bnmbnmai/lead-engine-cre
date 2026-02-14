@@ -29,6 +29,7 @@ import {
     Sparkles,
     RefreshCw,
     Shield,
+    Layers,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -141,6 +142,14 @@ export function DemoPanel() {
             const { data, error } = await api.demoReset();
             if (error) throw new Error(error.message || error.error);
             return `🔄 Cleared ${data?.cleared} records — dashboards are now empty`;
+        });
+    }
+
+    async function handleSeedTemplates() {
+        await runAction('seedTemplates', async () => {
+            const { data, error } = await api.demoSeedTemplates();
+            if (error) throw new Error(error.message || error.error);
+            return `📋 Applied ${data?.templatesApplied}/${data?.totalTemplates} form templates across all verticals`;
         });
     }
 
@@ -441,6 +450,13 @@ export function DemoPanel() {
                                 icon={RefreshCw}
                                 onClick={handleReset}
                                 variant="danger"
+                            />
+                            <ActionButton
+                                actionKey="seedTemplates"
+                                label="Reset + Seed All Templates"
+                                icon={Layers}
+                                onClick={handleSeedTemplates}
+                                variant="accent"
                             />
                         </Section>
 

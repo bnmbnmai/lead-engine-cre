@@ -126,12 +126,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
                         <Badge className={getStatusColor(lead.status)}>{lead.status.replace('_', ' ')}</Badge>
-                        {isLive && (
-                            <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30 gap-1">
-                                <Zap className="h-2.5 w-2.5" />
-                                Smart Lightning
-                            </Badge>
-                        )}
                         {lead.isVerified && <ChainlinkBadge size="sm" />}
                     </div>
                 </div>

@@ -128,22 +128,58 @@ router.post('/demo-admin-login', async (req: Request, res: Response) => {
     }
 });
 
-// ── Hierarchical verticals: parent.child slugs ──
+// ── Hierarchical verticals: parent.child slugs (all 40 children matching form-config-templates) ──
 const HIERARCHICAL_VERTICALS = [
+    // Solar (4)
     { parent: 'solar', child: 'solar.residential', name: 'Residential Solar' },
     { parent: 'solar', child: 'solar.commercial', name: 'Commercial Solar' },
-    { parent: 'mortgage', child: 'mortgage.refinance', name: 'Mortgage Refinance' },
+    { parent: 'solar', child: 'solar.battery_storage', name: 'Battery Storage' },
+    { parent: 'solar', child: 'solar.community', name: 'Community Solar' },
+    // Mortgage (4)
     { parent: 'mortgage', child: 'mortgage.purchase', name: 'Mortgage Purchase' },
-    { parent: 'legal', child: 'legal.personal_injury', name: 'Personal Injury' },
-    { parent: 'legal', child: 'legal.family_law', name: 'Family Law' },
-    { parent: 'home_services', child: 'home_services.plumbing', name: 'Plumbing' },
-    { parent: 'home_services', child: 'home_services.hvac', name: 'HVAC' },
-    { parent: 'insurance', child: 'insurance.auto', name: 'Auto Insurance' },
-    { parent: 'insurance', child: 'insurance.homeowners', name: 'Homeowners Insurance' },
+    { parent: 'mortgage', child: 'mortgage.refinance', name: 'Mortgage Refinance' },
+    { parent: 'mortgage', child: 'mortgage.heloc', name: 'HELOC' },
+    { parent: 'mortgage', child: 'mortgage.reverse', name: 'Reverse Mortgage' },
+    // Roofing (4)
+    { parent: 'roofing', child: 'roofing.repair', name: 'Roof Repair' },
     { parent: 'roofing', child: 'roofing.replacement', name: 'Roof Replacement' },
-    { parent: 'real_estate', child: 'real_estate.commercial', name: 'Commercial Real Estate' },
-    { parent: 'financial_services', child: 'financial_services.wealth', name: 'Wealth Management' },
+    { parent: 'roofing', child: 'roofing.inspection', name: 'Roof Inspection' },
+    { parent: 'roofing', child: 'roofing.gutter', name: 'Gutter & Drainage' },
+    // Insurance (4)
+    { parent: 'insurance', child: 'insurance.auto', name: 'Auto Insurance' },
+    { parent: 'insurance', child: 'insurance.home', name: 'Home Insurance' },
+    { parent: 'insurance', child: 'insurance.life', name: 'Life Insurance' },
+    { parent: 'insurance', child: 'insurance.health', name: 'Health Insurance' },
+    // Home Services (4)
+    { parent: 'home_services', child: 'home_services.plumbing', name: 'Plumbing' },
+    { parent: 'home_services', child: 'home_services.electrical', name: 'Electrical' },
+    { parent: 'home_services', child: 'home_services.hvac', name: 'HVAC' },
+    { parent: 'home_services', child: 'home_services.landscaping', name: 'Landscaping' },
+    // B2B SaaS (4)
     { parent: 'b2b_saas', child: 'b2b_saas.crm', name: 'CRM Software' },
+    { parent: 'b2b_saas', child: 'b2b_saas.analytics', name: 'Analytics Platforms' },
+    { parent: 'b2b_saas', child: 'b2b_saas.marketing_automation', name: 'Marketing Automation' },
+    { parent: 'b2b_saas', child: 'b2b_saas.hr_tech', name: 'HR Technology' },
+    // Real Estate (4)
+    { parent: 'real_estate', child: 'real_estate.residential', name: 'Residential' },
+    { parent: 'real_estate', child: 'real_estate.commercial', name: 'Commercial Real Estate' },
+    { parent: 'real_estate', child: 'real_estate.rental', name: 'Rental & Property Mgmt' },
+    { parent: 'real_estate', child: 'real_estate.land', name: 'Vacant Land' },
+    // Auto (4)
+    { parent: 'auto', child: 'auto.sales', name: 'Auto Sales' },
+    { parent: 'auto', child: 'auto.warranty', name: 'Auto Warranty' },
+    { parent: 'auto', child: 'auto.repair', name: 'Auto Repair' },
+    { parent: 'auto', child: 'auto.insurance', name: 'Auto Insurance Quotes' },
+    // Legal (4)
+    { parent: 'legal', child: 'legal.personal_injury', name: 'Personal Injury' },
+    { parent: 'legal', child: 'legal.family', name: 'Family Law' },
+    { parent: 'legal', child: 'legal.immigration', name: 'Immigration' },
+    { parent: 'legal', child: 'legal.criminal_defense', name: 'Criminal Defense' },
+    // Financial Services (4)
+    { parent: 'financial_services', child: 'financial_services.debt_consolidation', name: 'Debt Consolidation' },
+    { parent: 'financial_services', child: 'financial_services.banking', name: 'Banking' },
+    { parent: 'financial_services', child: 'financial_services.credit_repair', name: 'Credit Repair' },
+    { parent: 'financial_services', child: 'financial_services.tax_prep', name: 'Tax Preparation' },
 ];
 
 // Flat list of child slugs for picking

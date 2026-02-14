@@ -20,16 +20,19 @@ export function AuctionPage() {
     const [lead, setLead] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [bidLoading, setBidLoading] = useState(false);
+    const [myBidAmount, setMyBidAmount] = useState<number | null>(null);
+
+    // Optimistic local overrides — updated immediately on bid, then reconciled via socket
+    const [localHighestBid, setLocalHighestBid] = useState<number | null>(null);
+    const [localBidCount, setLocalBidCount] = useState<number | null>(null);
 
     const { state: auctionState, placeBid, error: socketError } = useAuction({
         leadId: leadId!,
-        onBidPlaced: () => {
+        onBidPlaced: (event) => {
+            // Reconcile optimistic state with server-confirmed values
+            setLocalHighestBid(event.highestBid);
+            setLocalBidCount(event.bidCount);
             fetchLead();
-            toast({
-                type: 'success',
-                title: 'Bid Placed',
-                description: 'Your bid has been submitted successfully.',
-            });
         },
         onResolved: (event) => {
             if (import.meta.env.DEV) console.log('Auction resolved:', event);
@@ -58,8 +61,20 @@ export function AuctionPage() {
         setBidLoading(true);
         try {
             placeBid(data);
-            // Show immediate feedback — sealed bids get a specific message
-            if (data.commitment) {
+
+            if (data.amount) {
+                // Optimistic UI updates — don't wait for socket roundtrip
+                setMyBidAmount(data.amount);
+                setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
+                if (!localHighestBid || data.amount > localHighestBid) {
+                    setLocalHighestBid(data.amount);
+                }
+                toast({
+                    type: 'success',
+                    title: '✅ Bid Placed!',
+                    description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
+                });
+            } else if (data.commitment) {
                 toast({
                     type: 'success',
                     title: 'Sealed Bid Committed',
@@ -67,7 +82,7 @@ export function AuctionPage() {
                 });
             }
         } finally {
-            setTimeout(() => setBidLoading(false), 1000);
+            setTimeout(() => setBidLoading(false), 600);
         }
     };
 
@@ -103,6 +118,10 @@ export function AuctionPage() {
 
     const phase = auctionState?.phase || (lead.status === 'REVEAL_PHASE' ? 'REVEAL' : 'BIDDING');
 
+    // Derived bid stats — prefer optimistic local → socket state → lead data
+    const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead._count?.bids ?? 0;
+    const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead.highestBidAmount ?? null;
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -135,23 +154,30 @@ export function AuctionPage() {
                                             </div>
                                         </div>
                                     </div>
-                                    <Badge className={getStatusColor(lead.status)} variant="outline">
-                                        {lead.status.replace('_', ' ')}
-                                    </Badge>
+                                    <div className="flex flex-col items-end gap-1.5">
+                                        <Badge className={getStatusColor(lead.status)} variant="outline">
+                                            {lead.status.replace('_', ' ')}
+                                        </Badge>
+                                        {myBidAmount && (
+                                            <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">
+                                                Your bid: {formatCurrency(myBidAmount)}
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Stats */}
                                 <div className="grid grid-cols-3 gap-4">
                                     <GlassCard className="p-4 text-center">
                                         <div className="text-2xl font-bold gradient-text">
-                                            {auctionState?.bidCount || lead._count?.bids || 0}
+                                            {displayBidCount}
                                         </div>
                                         <div className="text-sm text-muted-foreground">Total Bids</div>
                                     </GlassCard>
                                     <GlassCard className="p-4 text-center">
                                         <div className="text-2xl font-bold text-green-500">
-                                            {auctionState?.highestBid
-                                                ? formatCurrency(auctionState.highestBid)
+                                            {displayHighestBid
+                                                ? formatCurrency(displayHighestBid)
                                                 : 'No bids'}
                                         </div>
                                         <div className="text-sm text-muted-foreground">Highest Bid</div>
@@ -225,7 +251,7 @@ export function AuctionPage() {
                         <BidPanel
                             leadId={lead.id}
                             reservePrice={lead.reservePrice}
-                            highestBid={auctionState?.highestBid}
+                            highestBid={displayHighestBid}
                             phase={phase as any}
                             onPlaceBid={handlePlaceBid}
                             isLoading={bidLoading}

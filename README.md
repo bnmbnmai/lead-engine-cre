@@ -36,59 +36,59 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 ### How a Lead Moves Through the System
 
 ```mermaid
-graph LR
+graph TB
     subgraph Seller["🏷️ Seller"]
-        S1[Submit Lead]
+        S1["Submit Lead via Form / API"]
     end
 
     subgraph API["⚡ Lead Engine API"]
-        A1[Receive & Validate]
-        A2[Store & Encrypt PII]
+        A1["Receive & Validate"]
+        A2["Encrypt PII · Store"]
+        A1 --> A2
     end
 
     subgraph CRE["🔗 Chainlink CRE"]
-        C1[Quality Score<br/>0 – 10,000]
-        C2[ZK Fraud Proof]
+        C1["Quality Score (0 – 10,000)"]
+        C2["ZK Fraud Proof"]
+        C1 --> C2
     end
 
     subgraph ACE["🛡️ Chainlink ACE"]
-        AC1[KYC Check]
-        AC2[Jurisdiction Gate]
+        AC1["KYC / AML Check"]
+        AC2["TCPA · Jurisdiction Gate"]
+        AC1 --> AC2
     end
 
     subgraph RTB["🔄 RTB Engine"]
-        R1[Lightning Auction<br/>30s · 60s · 5min]
-        R2[NFT Holders get<br/>12s early ping + 1.2× boost]
-        R3[Sealed Bids<br/>commit-reveal]
+        R1["Lightning Auction"]
+        R2["30s · 60s · 5min tiers"]
+        R1 --> R2
     end
 
     subgraph Buyers["💰 Buyers"]
-        B1[Real-time Ping<br/>non-PII preview]
-        B2[Place Bid / Auto-Bid]
+        B1["Real-time Ping (non-PII preview)"]
+        B2["Place Bid / Auto-Bid"]
+        B1 --> B2
     end
 
-    subgraph Settlement["💵 Settlement"]
-        W1[Winner → x402 USDC]
-        W2[Mint ERC-721 Lead NFT]
-        W3[Deliver Full PII]
-        W4[No Winner → Buy Now]
+    subgraph Winner["✅ Winner"]
+        W1["x402 USDC Settlement"]
+        W2["Mint ERC-721 Lead NFT"]
+        W3["Deliver Full PII"]
+        W1 --> W2 --> W3
+    end
+
+    subgraph NoWinner["🛒 No Winner"]
+        N1["Move to Buy Now Marketplace"]
     end
 
     S1 --> A1
-    A1 --> A2
     A2 --> C1
-    C1 --> C2
     C2 --> AC1
-    AC1 --> AC2
     AC2 --> R1
-    R1 --> R2
     R2 --> B1
-    B1 --> B2
-    B2 --> R3
-    R3 --> W1
-    W1 --> W2
-    W2 --> W3
-    R3 -.->|no bids| W4
+    B2 -->|winner| W1
+    B2 -.->|no bids| N1
 ```
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
