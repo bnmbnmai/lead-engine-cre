@@ -80,6 +80,12 @@ export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURA
 /** Maximum lead auction duration (seconds) — 10 minutes hard cap */
 export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '600', 10);
 
+/** Ping-post phase duration (seconds) — leads start here before auction fallback */
+export const PING_POST_DURATION_SECS = parseInt(process.env.PING_POST_DURATION_SECS || '60', 10);
+
+/** Auction fallback duration (seconds) — used when ping-post produces no winner */
+export const AUCTION_FALLBACK_DURATION_SECS = parseInt(process.env.AUCTION_FALLBACK_DURATION_SECS || '300', 10);
+
 /** Default vertical NFT auction duration (seconds) — 10 minutes */
 export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '600', 10);
 
@@ -139,6 +145,8 @@ export const PERKS_CONFIG = {
     auction: {
         leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
         leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS,
+        pingPostDurationSecs: PING_POST_DURATION_SECS,
+        auctionFallbackDurationSecs: AUCTION_FALLBACK_DURATION_SECS,
         nftDurationSecs: NFT_AUCTION_DURATION_SECS,
         autoExtendIncrementSecs: AUTO_EXTEND_INCREMENT_SECS,
         autoExtendMax: AUTO_EXTEND_MAX,

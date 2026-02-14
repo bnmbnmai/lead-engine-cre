@@ -54,6 +54,9 @@ export const SPAM_THRESHOLD_BIDS_PER_MINUTE = 5;
 /** Score bonus for holders in RTB match ranking */
 export const HOLDER_SCORE_BONUS = 2000;
 
+/** Seconds earlier that holders receive lead:ping vs non-holders */
+export const HOLDER_EARLY_PING_SECONDS = 12;
+
 /** Default (non-holder) perks */
 export const DEFAULT_PERKS: HolderPerks = {
     isHolder: false,

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Zap, Eye, Wallet } from 'lucide-react';
+import { MapPin, Zap, Eye, Wallet } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,14 +71,15 @@ export function AskCard({ ask, isAuthenticated = true, basePath = '/marketplace/
                         </div>
                     )}
 
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span>
-                            Lightning Auction • {ask.auctionDuration && ask.auctionDuration < 60
-                                ? `${ask.auctionDuration}s`
-                                : ask.auctionDuration && ask.auctionDuration >= 60
-                                    ? `${Math.round(ask.auctionDuration / 60)}m`
-                                    : '60s'}
+                    <div className="flex items-center gap-2 text-sm">
+                        <Zap className="h-4 w-4 text-violet-400" />
+                        <span className="text-violet-400 font-medium">Smart Lightning</span>
+                        <span className="text-muted-foreground text-xs">
+                            {ask.auctionDuration && ask.auctionDuration <= 60
+                                ? 'Ping-Post only'
+                                : ask.auctionDuration && ask.auctionDuration > 60
+                                    ? `Ping-Post + ${Math.round((ask.auctionDuration - 60) / 60)}m auction`
+                                    : 'Standard'}
                         </span>
                     </div>
 

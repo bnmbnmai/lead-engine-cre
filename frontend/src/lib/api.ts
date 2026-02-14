@@ -312,6 +312,12 @@ export const api = {
         apiFetch<{ preview: string; estimatedDelivery: string; status: string; note: string }>(
             `/api/v1/leads/${leadId}/requalify`, { method: 'POST' },
         ),
+
+    // Decrypted lead data (only available for owned NFTs)
+    getLeadDecrypted: (leadId: string) =>
+        apiFetch<{ lead: { id: string; firstName: string; lastName: string; email: string; phone: string; address?: string; city?: string; state?: string; zip?: string; notes?: string; customFields?: Record<string, unknown> } }>(
+            `/api/v1/leads/${leadId}/decrypted`,
+        ),
 };
 
 export default api;

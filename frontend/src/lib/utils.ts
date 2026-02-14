@@ -25,6 +25,8 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 export function getStatusColor(status: string): string {
   const map: Record<string, string> = {
     // Lead statuses
+    PENDING_PING: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    IN_PING_POST: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
     PENDING_AUCTION: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
     IN_AUCTION: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
     REVEAL_PHASE: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
@@ -78,4 +80,23 @@ export function formatTimeRemaining(endTime: string | Date): string {
 export function shortenAddress(address: string, chars = 4): string {
   if (!address) return '';
   return `${address.slice(0, chars + 2)}…${address.slice(-chars)}`;
+}
+
+/**
+ * Map a lead status to its Smart Lightning phase label.
+ */
+export function getPhaseLabel(status: string): string {
+  const map: Record<string, string> = {
+    PENDING_PING: 'Queued',
+    IN_PING_POST: 'Ping-Post',
+    IN_AUCTION: 'Auction',
+    REVEAL_PHASE: 'Reveal',
+    SOLD: 'Sold',
+    UNSOLD: 'Buy Now',
+    EXPIRED: 'Expired',
+    CANCELLED: 'Cancelled',
+    DISPUTED: 'Disputed',
+    PENDING_AUCTION: 'Queued',
+  };
+  return map[status] || status.replace(/_/g, ' ');
 }

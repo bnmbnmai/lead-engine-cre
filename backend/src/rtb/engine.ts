@@ -2,9 +2,10 @@ import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
 import { creService } from '../services/cre.service';
-import { applyHolderPerks, computePrePing, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
+import { applyHolderPerks, computePrePing, HOLDER_EARLY_PING_SECONDS, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
 import { findNotifiableHolders } from '../services/notification.service';
-import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
+import { evaluateLeadForAutoBid } from '../services/auto-bid.service';
+import { LEAD_AUCTION_DURATION_SECS, PING_POST_DURATION_SECS, AUCTION_FALLBACK_DURATION_SECS } from '../config/perks.env';
 
 // ============================================
 // RTB Engine
@@ -19,11 +20,17 @@ interface MatchResult {
 
 class RTBEngine {
     // ============================================
-    // Lead Intake Processing
+    // Lead Intake Processing (Smart Lightning Flow)
     // ============================================
 
     async processLeadIntake(leadId: string): Promise<{ success: boolean; error?: string }> {
         try {
+            // Mark lead as PENDING_PING while we verify
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: { status: 'PENDING_PING' },
+            });
+
             const lead = await prisma.lead.findUnique({
                 where: { id: leadId },
                 include: { seller: { include: { user: true } } },
@@ -62,47 +69,54 @@ class RTBEngine {
             const matchingAsks = await this.findMatchingAsks(lead);
 
             if (matchingAsks.length === 0) {
-                // No immediate matches - keep lead pending
+                // No immediate matches — revert to PENDING_AUCTION (backward compat)
+                await prisma.lead.update({
+                    where: { id: leadId },
+                    data: { status: 'PENDING_AUCTION' },
+                });
                 return { success: true };
             }
 
-            // Start auction
+            // ── Smart Lightning Flow: Ping-Post Phase ──
+            // Instead of jumping straight to IN_AUCTION, enter a 60-second
+            // ping-post phase. If a winner emerges, resolve instantly.
+            // If not, the auction monitor escalates to a full 300s auction.
             const ask = matchingAsks[0];
-            const auctionDuration = ask.auctionDuration || LEAD_AUCTION_DURATION_SECS;
             const revealWindow = ask.revealWindow || 900;
 
-            // Compute pre-ping window with per-auction nonce for unpredictability
-            // (Fix #16: must use nonce to stay in sync with createAuction logic)
+            // Compute pre-ping window with per-auction nonce
             const prePingNonce = crypto.randomBytes(8).toString('hex');
             const prePingSeconds = computePrePing(lead.vertical, prePingNonce);
-            const auctionStartAt = new Date();
+            const now = new Date();
+            const pingPostEndsAt = new Date(now.getTime() + PING_POST_DURATION_SECS * 1000);
 
             await prisma.$transaction([
                 prisma.lead.update({
                     where: { id: leadId },
                     data: {
                         askId: ask.id,
-                        status: 'IN_AUCTION',
-                        auctionStartAt,
-                        auctionEndAt: new Date(Date.now() + auctionDuration * 1000),
+                        status: 'IN_PING_POST',
+                        auctionStartAt: now,
+                        auctionEndAt: pingPostEndsAt,
                     },
                 }),
                 prisma.auctionRoom.create({
                     data: {
                         leadId,
                         roomId: `auction_${leadId}`,
-                        phase: 'BIDDING',
-                        prePingEndsAt: new Date(auctionStartAt.getTime() + prePingSeconds * 1000),
-                        prePingNonce, // Persist for audit trail / recomputation
-                        biddingEndsAt: new Date(Date.now() + auctionDuration * 1000),
-                        revealEndsAt: new Date(Date.now() + (auctionDuration + revealWindow) * 1000),
+                        phase: 'PING_POST',
+                        prePingEndsAt: new Date(now.getTime() + prePingSeconds * 1000),
+                        prePingNonce,
+                        biddingEndsAt: pingPostEndsAt, // Initial: ping-post window
+                        revealEndsAt: new Date(pingPostEndsAt.getTime() + revealWindow * 1000),
                     },
                 }),
             ]);
 
-            // Notify matching buyers
+            // Notify matching buyers (staggered: holders first, non-holders after 12s)
             await this.notifyMatchingBuyers(leadId);
 
+            console.log(`[RTB] Lead ${leadId} entered PING_POST phase (${PING_POST_DURATION_SECS}s window)`);
             return { success: true };
         } catch (error) {
             console.error('Lead intake error:', error);
@@ -167,9 +181,23 @@ class RTBEngine {
     private async notifyMatchingBuyers(leadId: string) {
         const lead = await prisma.lead.findUnique({
             where: { id: leadId },
+            include: {
+                ask: { select: { vertical: true, reservePrice: true, buyNowPrice: true } },
+                seller: { include: { user: true } },
+            },
         });
 
         if (!lead) return;
+
+        // ── Fetch CRE quality score and proof data ──
+        const qualityScore = await creService.getQualityScore(leadId);
+
+        // ── Fetch seller ACE compliance attestation ──
+        const aceAttestation = await aceService.canTransact(
+            lead.seller.user.walletAddress,
+            lead.vertical,
+            (lead.geo as any)?.geoHash || ''
+        );
 
         // Find buyers with matching preferences
         const buyers = await prisma.buyerProfile.findMany({
@@ -186,17 +214,35 @@ class RTBEngine {
 
         const geoData = lead.geo as any;
 
+        // Build enriched non-PII preview payload (safe to send pre-purchase)
+        const pingPayload = {
+            leadId,
+            vertical: lead.vertical,
+            geo: { state: geoData?.state, country: geoData?.country },
+            reservePrice: lead.ask?.reservePrice ? Number(lead.ask.reservePrice) : null,
+            auctionEndAt: lead.auctionEndAt,
+            // ── CRE Score + Proof ──
+            qualityScore,                         // 0-10000 CRE computed score
+            proofHash: lead.dataHash || null,      // ZK proof hash (non-PII)
+            isVerified: lead.isVerified,
+            // ── ACE Attestation ──
+            aceCompliant: aceAttestation.allowed,
+            aceReason: aceAttestation.reason || null,
+        };
+
+        // Partition buyers into holders and non-holders
+        const holders: string[] = [];
+        const nonHolders: string[] = [];
+
         for (const buyer of buyers) {
             // Check off-site toggle
             if (!buyer.acceptOffSite && lead.source === 'OFFSITE') continue;
 
             // Check geo filters
             const geoFilters = buyer.geoFilters as any;
-            // Country match
             if (geoFilters?.country && geoData?.country) {
                 if (geoFilters.country !== geoData.country) continue;
             }
-            // Region match (support both "regions" and legacy "states")
             const regionList = geoFilters?.regions || geoFilters?.states;
             if (regionList?.length > 0 && geoData?.state) {
                 if (!regionList.includes(geoData.state)) continue;
@@ -204,12 +250,75 @@ class RTBEngine {
             const excludeList = geoFilters?.excludeRegions || geoFilters?.excludeStates;
             if (excludeList?.includes(geoData?.state)) continue;
 
-            // Notify buyer — holders get priority notification
+            // Check NFT ownership (cached, fast)
             const holderPerks = await applyHolderPerks(lead.vertical, buyer.user.walletAddress);
             if (holderPerks.isHolder) {
-                console.log(`[RTB] Priority notify holder ${buyer.user.walletAddress} about lead ${leadId} (${holderPerks.prePingSeconds}s pre-ping)`);
+                holders.push(buyer.userId);
             } else {
-                console.log(`[RTB] Notify buyer ${buyer.user.walletAddress} about lead ${leadId}`);
+                nonHolders.push(buyer.userId);
+            }
+        }
+
+        // ── Staggered Ping ──
+        // Holders get lead:ping immediately (12s head start)
+        if (holders.length > 0) {
+            console.log(`[RTB] Holder ping → ${holders.length} holders for lead ${leadId} (${HOLDER_EARLY_PING_SECONDS}s head start)`);
+            this.emitToUsers(holders, 'lead:ping', {
+                ...pingPayload,
+                isHolderPing: true,
+                headStartSeconds: HOLDER_EARLY_PING_SECONDS,
+            });
+        }
+
+        // Non-holders get lead:ping after HOLDER_EARLY_PING_SECONDS delay
+        if (nonHolders.length > 0) {
+            setTimeout(() => {
+                console.log(`[RTB] Standard ping → ${nonHolders.length} buyers for lead ${leadId}`);
+                this.emitToUsers(nonHolders, 'lead:ping', {
+                    ...pingPayload,
+                    isHolderPing: false,
+                    headStartSeconds: 0,
+                });
+            }, HOLDER_EARLY_PING_SECONDS * 1000);
+        }
+
+        // ── Auto-Bid Evaluation ──
+        // Trigger auto-bid rules so buyers with matching pref sets automatically
+        // place bids during the ping-post window (instant response).
+        try {
+            const autoBidResult = await evaluateLeadForAutoBid({
+                id: leadId,
+                vertical: lead.vertical,
+                geo: {
+                    country: geoData?.country || 'US',
+                    state: geoData?.state,
+                    city: geoData?.city,
+                    zip: geoData?.zip,
+                },
+                source: lead.source as string,
+                qualityScore,
+                isVerified: lead.isVerified,
+                reservePrice: Number(lead.reservePrice ?? 0),
+            });
+
+            if (autoBidResult.bidsPlaced.length > 0) {
+                console.log(`[RTB] Auto-bid placed ${autoBidResult.bidsPlaced.length} bids for lead ${leadId}`);
+            }
+        } catch (err) {
+            console.error(`[RTB] Auto-bid evaluation failed for lead ${leadId}:`, err);
+        }
+    }
+
+    /**
+     * Emit a socket event to specific users by userId.
+     * Iterates connected sockets and matches by authenticated userId.
+     */
+    private emitToUsers(userIds: string[], event: string, data: any) {
+        const sockets = (this as any).io?.sockets?.sockets;
+        if (!sockets) return;
+        for (const [, socket] of sockets) {
+            if (userIds.includes((socket as any).userId)) {
+                socket.emit(event, data);
             }
         }
     }
@@ -329,7 +438,7 @@ class RTBEngine {
             // 3. Lead data revealed to buyer
             // 4. After confirmation period, funds released to seller
 
-            const mockTxHash = `0x${Date.now().toString(16)}${'0'.repeat(48)}`;
+            const mockTxHash = `0x${Date.now().toString(16)}${'0'.repeat(48)} `;
 
             await prisma.transaction.update({
                 where: { id: transactionId },

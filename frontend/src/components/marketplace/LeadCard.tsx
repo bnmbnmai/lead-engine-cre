@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
-import { formatCurrency, formatTimeRemaining, getStatusColor } from '@/lib/utils';
+import { formatCurrency, formatTimeRemaining, getStatusColor, getPhaseLabel } from '@/lib/utils';
 
 interface Lead {
     id: string;
@@ -38,8 +38,9 @@ interface LeadCardProps {
 
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
-    const isLive = lead.status === 'IN_AUCTION' || lead.status === 'REVEAL_PHASE';
+    const isLive = ['IN_PING_POST', 'IN_AUCTION', 'REVEAL_PHASE'].includes(lead.status);
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
+    const phaseLabel = getPhaseLabel(lead.status);
 
     // Live countdown timer — ticks every second for in-auction leads
     const [timeLeft, setTimeLeft] = useState<string | null>(
@@ -125,6 +126,12 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
                         <Badge className={getStatusColor(lead.status)}>{lead.status.replace('_', ' ')}</Badge>
+                        {isLive && (
+                            <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30 gap-1">
+                                <Zap className="h-2.5 w-2.5" />
+                                Smart Lightning
+                            </Badge>
+                        )}
                         {lead.isVerified && <ChainlinkBadge size="sm" />}
                     </div>
                 </div>
@@ -142,11 +149,11 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                             <span className="font-mono text-xs">API</span>
                         </div>
                     )}
-                    {lead.auctionDuration && (
-                        <div className="flex items-center gap-1 text-amber-500">
+                    {isLive && timeLeft && (
+                        <div className="flex items-center gap-1 text-violet-400">
                             <Zap className="h-3.5 w-3.5" />
-                            <span className="text-xs font-medium">
-                                Lightning • {lead.auctionDuration < 60 ? `${lead.auctionDuration}s` : `${Math.round(lead.auctionDuration / 60)}m`}
+                            <span className="text-xs font-semibold">
+                                {phaseLabel} • {timeLeft}
                             </span>
                         </div>
                     )}
@@ -157,7 +164,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                         <Users className="h-4 w-4" />
                         <span className="font-medium">{bidCount}</span> bids
                     </div>
-                    {timeLeft && (
+                    {!isLive && timeLeft && (
                         <div className="flex items-center gap-1 text-blue-500">
                             <Clock className="h-4 w-4" />
                             {timeLeft}

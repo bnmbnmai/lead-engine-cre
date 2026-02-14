@@ -52,6 +52,11 @@ jest.mock('../../src/services/notification.service', () => ({
     getHolderNotifyOptIn: mockGetHolderNotifyOptIn,
 }));
 
+// Mock node-cron to prevent open timer handles in tests
+jest.mock('node-cron', () => ({
+    schedule: jest.fn(() => ({ stop: jest.fn() })),
+}));
+
 // ── Imports (after mocks) ──────────────────
 
 import {

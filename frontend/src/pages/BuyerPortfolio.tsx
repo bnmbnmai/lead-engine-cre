@@ -14,6 +14,13 @@ import {
     Tag,
     Shield,
     RefreshCw,
+    Zap,
+    Eye,
+    EyeOff,
+    User,
+    Mail,
+    Phone,
+    Home,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -53,6 +60,9 @@ export function BuyerPortfolio() {
     const debouncedSearch = useDebounce(search, 300);
     const [csvExporting, setCsvExporting] = useState(false);
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
+    const [expandedLead, setExpandedLead] = useState<string | null>(null);
+    const [decryptedData, setDecryptedData] = useState<Record<string, any>>({});
+    const [decryptLoading, setDecryptLoading] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         try {
@@ -73,9 +83,45 @@ export function BuyerPortfolio() {
         {
             'marketplace:refreshAll': () => fetchData(),
             'lead:buy-now-sold': () => fetchData(),
+            'lead:auction-started': () => fetchData(),
         },
         fetchData,
     );
+
+    // View Full Lead — decrypt + expand
+    const handleViewFull = async (leadId: string) => {
+        if (expandedLead === leadId) {
+            setExpandedLead(null);
+            return;
+        }
+        // Already cached?
+        if (decryptedData[leadId]) {
+            setExpandedLead(leadId);
+            return;
+        }
+        setDecryptLoading(leadId);
+        try {
+            const { data, error } = await api.getLeadDecrypted(leadId);
+            if (error) {
+                // Fallback: show placeholder when endpoint isn't live yet
+                setDecryptedData((prev) => ({
+                    ...prev,
+                    [leadId]: { firstName: '—', lastName: '—', email: '—', phone: '—', _placeholder: true },
+                }));
+            } else {
+                setDecryptedData((prev) => ({ ...prev, [leadId]: data?.lead || {} }));
+            }
+            setExpandedLead(leadId);
+        } catch {
+            setDecryptedData((prev) => ({
+                ...prev,
+                [leadId]: { firstName: '—', lastName: '—', email: '—', phone: '—', _placeholder: true },
+            }));
+            setExpandedLead(leadId);
+        } finally {
+            setDecryptLoading(null);
+        }
+    };
 
     // Filter
     const q = debouncedSearch.toLowerCase();
@@ -255,6 +301,10 @@ export function BuyerPortfolio() {
                                             <Badge className="bg-emerald-500/15 text-emerald-500 border-0 text-xs">
                                                 Won
                                             </Badge>
+                                            <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30 gap-1">
+                                                <Zap className="h-2.5 w-2.5" />
+                                                Smart Lightning
+                                            </Badge>
                                         </div>
 
                                         {/* Quality Score */}
@@ -328,7 +378,24 @@ export function BuyerPortfolio() {
                                                     <><Send className="h-3.5 w-3.5" /> Push to CRM</>
                                                 )}
                                             </Button>
-                                            {lead?.id && (
+                                            {lead?.id && lead?.nftTokenId && (
+                                                <Button
+                                                    variant={expandedLead === leadId ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    className="flex-1 gap-1 text-xs"
+                                                    onClick={() => handleViewFull(leadId)}
+                                                    disabled={decryptLoading === leadId}
+                                                >
+                                                    {decryptLoading === leadId ? (
+                                                        <><RefreshCw className="h-3 w-3 animate-spin" /> Decrypting…</>
+                                                    ) : expandedLead === leadId ? (
+                                                        <><EyeOff className="h-3 w-3" /> Hide Data</>
+                                                    ) : (
+                                                        <><Eye className="h-3 w-3" /> View Full Lead</>
+                                                    )}
+                                                </Button>
+                                            )}
+                                            {lead?.id && !lead?.nftTokenId && (
                                                 <Button variant="outline" size="sm" className="flex-1 gap-1 text-xs" asChild>
                                                     <Link to={`/lead/${lead.id}`}>
                                                         View Full Lead <ArrowUpRight className="h-3 w-3" />
@@ -348,6 +415,56 @@ export function BuyerPortfolio() {
                                                 </Button>
                                             )}
                                         </div>
+
+                                        {/* Decrypted Data Reveal */}
+                                        {expandedLead === leadId && decryptedData[leadId] && (
+                                            <div className="mt-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <Shield className="h-4 w-4 text-emerald-500" />
+                                                    <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Decrypted Contact Data</span>
+                                                    {decryptedData[leadId]._placeholder && (
+                                                        <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 ml-auto">Preview</Badge>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2.5 text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <div>
+                                                            <div className="text-[10px] text-muted-foreground">Name</div>
+                                                            <div className="font-medium">{decryptedData[leadId].firstName} {decryptedData[leadId].lastName}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <div>
+                                                            <div className="text-[10px] text-muted-foreground">Email</div>
+                                                            <div className="font-medium">{decryptedData[leadId].email}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <div>
+                                                            <div className="text-[10px] text-muted-foreground">Phone</div>
+                                                            <div className="font-medium">{decryptedData[leadId].phone}</div>
+                                                        </div>
+                                                    </div>
+                                                    {decryptedData[leadId].address && (
+                                                        <div className="flex items-center gap-2">
+                                                            <Home className="h-3.5 w-3.5 text-muted-foreground" />
+                                                            <div>
+                                                                <div className="text-[10px] text-muted-foreground">Address</div>
+                                                                <div className="font-medium">
+                                                                    {decryptedData[leadId].address}
+                                                                    {decryptedData[leadId].city && `, ${decryptedData[leadId].city}`}
+                                                                    {decryptedData[leadId].state && `, ${decryptedData[leadId].state}`}
+                                                                    {decryptedData[leadId].zip && ` ${decryptedData[leadId].zip}`}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             );

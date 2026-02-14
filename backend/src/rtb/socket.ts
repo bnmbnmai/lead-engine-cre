@@ -10,6 +10,7 @@ import {
     isInPrePingWindow,
 } from '../services/holder-perks.service';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
+import { AUCTION_FALLBACK_DURATION_SECS } from '../config/perks.env';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -241,8 +242,11 @@ class RTBSocketServer {
                     });
 
                     if (!lead || lead.status !== 'IN_AUCTION') {
-                        socket.emit('error', { message: 'Auction not active' });
-                        return;
+                        // Also allow bids during PING_POST phase
+                        if (!lead || (lead.status !== 'IN_PING_POST')) {
+                            socket.emit('error', { message: 'Auction not active' });
+                            return;
+                        }
                     }
 
                     // Check compliance
@@ -287,6 +291,7 @@ class RTBSocketServer {
                             commitment: data.commitment,
                             amount: data.amount,
                             effectiveBid,
+                            isHolder: perks.isHolder,
                             status: data.commitment ? 'PENDING' : 'REVEALED',
                             revealedAt: data.amount ? new Date() : null,
                         },
@@ -294,6 +299,7 @@ class RTBSocketServer {
                             commitment: data.commitment,
                             amount: data.amount,
                             effectiveBid,
+                            isHolder: perks.isHolder,
                             status: data.commitment ? 'PENDING' : 'REVEALED',
                             revealedAt: data.amount ? new Date() : null,
                         },
@@ -414,6 +420,76 @@ class RTBSocketServer {
         setInterval(async () => {
             try {
                 const now = new Date();
+
+                // ── Ping-Post Expiry Sweep ──
+                // Check PING_POST rooms that have expired → resolve or escalate
+                const expiredPingPost = await prisma.auctionRoom.findMany({
+                    where: {
+                        phase: 'PING_POST',
+                        biddingEndsAt: { lte: now },
+                    },
+                    include: { lead: true },
+                });
+
+                for (const room of expiredPingPost) {
+                    // Check if any revealed bids came in during ping-post
+                    const revealedBid = await prisma.bid.findFirst({
+                        where: {
+                            leadId: room.leadId,
+                            status: 'REVEALED',
+                            amount: { not: null },
+                        },
+                    });
+
+                    if (revealedBid) {
+                        // Winner during ping-post → resolve immediately
+                        console.log(`[MONITOR] Ping-post ${room.leadId} has bids → resolving`);
+                        await this.resolveAuction(room.leadId);
+                    } else {
+                        // No winner → escalate to full auction (300s)
+                        const auctionEndsAt = new Date(now.getTime() + AUCTION_FALLBACK_DURATION_SECS * 1000);
+                        const revealWindow = 900; // 15 min reveal
+
+                        await prisma.$transaction([
+                            prisma.auctionRoom.update({
+                                where: { id: room.id },
+                                data: {
+                                    phase: 'BIDDING',
+                                    biddingEndsAt: auctionEndsAt,
+                                    revealEndsAt: new Date(auctionEndsAt.getTime() + revealWindow * 1000),
+                                },
+                            }),
+                            prisma.lead.update({
+                                where: { id: room.leadId },
+                                data: {
+                                    status: 'IN_AUCTION',
+                                    auctionEndAt: auctionEndsAt,
+                                },
+                            }),
+                        ]);
+
+                        // Notify auction room of phase escalation
+                        this.io.to(room.roomId).emit('auction:phase', {
+                            leadId: room.leadId,
+                            phase: 'BIDDING',
+                            previousPhase: 'PING_POST',
+                            biddingEndsAt: auctionEndsAt,
+                            reason: 'ping_post_no_winner',
+                        });
+
+                        // Broadcast lead:auction-started for marketplace listeners
+                        this.io.emit('lead:auction-started', {
+                            leadId: room.leadId,
+                            vertical: room.lead.vertical,
+                            status: 'IN_AUCTION',
+                            auctionEndAt: auctionEndsAt.toISOString(),
+                            reservePrice: room.lead.reservePrice ? Number(room.lead.reservePrice) : null,
+                            previousPhase: 'PING_POST',
+                        });
+
+                        console.log(`[MONITOR] Ping-post ${room.leadId} → escalated to IN_AUCTION (${AUCTION_FALLBACK_DURATION_SECS}s)`);
+                    }
+                }
 
                 // Find auctions that need to transition to reveal phase
                 const endingBidding = await prisma.auctionRoom.findMany({
@@ -564,8 +640,8 @@ class RTBSocketServer {
                 return;
             }
 
-            // Fallback ordering: effectiveBid DESC (nulls treated as amount)
-            // For pre-migration bids where effectiveBid is null, fall back to amount
+            // Fallback ordering: effectiveBid DESC → isHolder DESC (tie-breaker) → amount DESC → createdAt ASC
+            // Holders win ties; at equal everything, first bidder wins
             const winningBid = await prisma.bid.findFirst({
                 where: {
                     leadId,
@@ -574,7 +650,9 @@ class RTBSocketServer {
                 },
                 orderBy: [
                     { effectiveBid: { sort: 'desc', nulls: 'last' } },
+                    { isHolder: 'desc' },
                     { amount: 'desc' },
+                    { createdAt: 'asc' },
                 ],
                 include: { buyer: true },
             });

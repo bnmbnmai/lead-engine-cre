@@ -390,6 +390,8 @@ enum LeadSource {
 }
 
 enum LeadStatus {
+  PENDING_PING      // Lead submitted, awaiting CRE+ACE verification
+  IN_PING_POST      // Active ping-post phase (60s window)
   PENDING_AUCTION
   IN_AUCTION
   REVEAL_PHASE
@@ -436,6 +438,7 @@ model AuctionRoom {
 }
 
 enum AuctionPhase {
+  PING_POST     // Ping-post phase (60s, before full auction)
   BIDDING
   REVEAL
   RESOLVED
@@ -452,6 +455,7 @@ model Bid {
   amount       Decimal?  @db.Decimal(10, 2)  // Revealed amount (raw)
   effectiveBid Decimal?  @db.Decimal(10, 2)  // Effective bid (after holder multiplier)
   salt         String?   // Revealed salt
+  isHolder     Boolean   @default(false)     // Vertical NFT holder at bid time
   
   status       BidStatus @default(PENDING)
   source       BidSource @default(MANUAL)
@@ -469,7 +473,7 @@ model Bid {
   @@index([leadId, status])
   @@index([buyerId])
   @@index([leadId, amount(sort: Desc)])  // For finding highest bid
-  @@index([leadId, effectiveBid(sort: Desc)])  // For finding highest effective bid
+  @@index([leadId, effectiveBid(sort: Desc), isHolder(sort: Desc)])  // Holder tie-breaker
 }
 
 enum BidStatus {

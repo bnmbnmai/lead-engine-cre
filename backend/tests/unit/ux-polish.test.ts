@@ -330,6 +330,6 @@ describe('Prisma Index Coverage', () => {
     });
 
     test('Bid has effectiveBid descending index', () => {
-        expect(schemaContent).toContain('@@index([leadId, effectiveBid(sort: Desc)])');
+        expect(schemaContent).toContain('@@index([leadId, effectiveBid(sort: Desc), isHolder(sort: Desc)])');
     });
 });
