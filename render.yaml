@@ -47,5 +47,7 @@ services:
         sync: false
       - key: DEPLOYER_PRIVATE_KEY
         sync: false
+      - key: MARKETPLACE_ADDRESS
+        sync: false
       - key: PRIVACY_ENCRYPTION_KEY
         generateValue: true

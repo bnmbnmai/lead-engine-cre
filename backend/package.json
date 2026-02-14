@@ -15,7 +15,6 @@
         "test:coverage": "jest --coverage",
         "test:compliance": "jest tests/compliance --verbose",
         "test:security": "jest tests/security --verbose",
-        "test:load": "artillery run tests/load-test.yml",
         "db:push": "prisma db push",
         "db:migrate": "prisma migrate dev",
         "db:generate": "prisma generate",
@@ -28,7 +27,6 @@
     },
     "dependencies": {
         "@prisma/client": "^5.10.2",
-        "artillery-plugin-expect": "^2.24.0",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "ethers": "^6.11.1",
@@ -67,6 +65,6 @@
         "ts-node": "^10.9.2",
         "ts-node-dev": "^2.0.0",
         "typescript": "^5.4.2",
-        "vitest": "^4.0.18"
+        "artillery-plugin-expect": "^2.24.0"
     }
 }
