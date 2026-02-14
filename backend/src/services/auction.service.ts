@@ -84,8 +84,8 @@ export interface CreateAuctionResult {
 /**
  * Create an auction for a platform-owned vertical NFT.
  *
- * Duration is clamped to [60, LEAD_AUCTION_MAX_DURATION_SECS] (default 600s).
- * If omitted, defaults to LEAD_AUCTION_DURATION_SECS (300s / 5 min).
+ * Duration is clamped to [60, LEAD_AUCTION_MAX_DURATION_SECS] (default 60s).
+ * If omitted, defaults to LEAD_AUCTION_DURATION_SECS (60s / 1 min).
  */
 export async function createAuction(
     slug: string,

@@ -1,7 +1,7 @@
 /**
  * p16-demo-panel.test.ts — Demo Panel Fixes
  *
- * Tests for: clear-all, inject with non-PII fields, 5-min durations,
+ * Tests for: clear-all, inject with non-PII fields, 60s durations,
  * reset endpoint, and live countdown timer.
  */
 
@@ -24,7 +24,7 @@ const VERTICAL_DEMO_PARAMS: Record<string, Record<string, string | boolean>> = {
     financial_services: { service_type: 'financial_planning', portfolio_size: '250k-1m', risk_tolerance: 'moderate', existing_advisor: false },
 };
 
-const LEAD_AUCTION_DURATION_SECS = 300; // 5 minutes
+const LEAD_AUCTION_DURATION_SECS = 60; // 1 minute
 
 // ── Helper: formatTimeRemaining (mirrors utils.ts) ──
 function formatTimeRemaining(endTime: string | Date): string {
@@ -150,25 +150,25 @@ describe('Demo Panel: Inject Lead with Non-PII Fields', () => {
 });
 
 // ============================================
-// Group 3: 5-Minute Auction Duration
+// Group 3: 60-Second Auction Duration
 // ============================================
-describe('Demo Panel: 5-Minute Auction Duration', () => {
-    it('LEAD_AUCTION_DURATION_SECS should be 300', () => {
-        expect(LEAD_AUCTION_DURATION_SECS).toBe(300);
+describe('Demo Panel: 60-Second Auction Duration', () => {
+    it('LEAD_AUCTION_DURATION_SECS should be 60', () => {
+        expect(LEAD_AUCTION_DURATION_SECS).toBe(60);
     });
 
-    it('seeded IN_AUCTION leads should end in ~5 minutes, not 1-72 hours', () => {
+    it('seeded IN_AUCTION leads should end in ~1 minute, not 1-72 hours', () => {
         const now = Date.now();
         const auctionEnd = new Date(now + LEAD_AUCTION_DURATION_SECS * 1000);
         const diffMinutes = (auctionEnd.getTime() - now) / 60000;
-        expect(diffMinutes).toBeCloseTo(5, 0);
+        expect(diffMinutes).toBeCloseTo(1, 0);
     });
 
-    it('injected lead auctionEndAt should be now + 300s', () => {
+    it('injected lead auctionEndAt should be now + 60s', () => {
         const now = Date.now();
-        const endAt = new Date(now + 300 * 1000);
+        const endAt = new Date(now + 60 * 1000);
         const diff = endAt.getTime() - now;
-        expect(diff).toBe(300000); // 5 minutes in ms
+        expect(diff).toBe(60000); // 1 minute in ms
     });
 
     it('duration should NOT be random 1-72 hours (old behavior)', () => {
@@ -213,7 +213,7 @@ describe('Demo Panel: Reset to Clean Demo State', () => {
     it('reseeded leads should use LEAD_AUCTION_DURATION_SECS for duration', () => {
         const expectedEndMs = Date.now() + LEAD_AUCTION_DURATION_SECS * 1000;
         const expectedMinutes = (expectedEndMs - Date.now()) / 60000;
-        expect(expectedMinutes).toBeCloseTo(5, 0);
+        expect(expectedMinutes).toBeCloseTo(1, 0);
     });
 });
 
@@ -225,7 +225,7 @@ describe('LeadCard: Live Countdown Timer', () => {
     afterEach(() => { jest.useRealTimers(); });
 
     it('formatTimeRemaining should return mm:ss for <1 hour', () => {
-        const end = new Date(Date.now() + 300000); // 5 min
+        const end = new Date(Date.now() + 60000); // 1 min
         const result = formatTimeRemaining(end);
         expect(result).toMatch(/^\d+:\d{2}$/);
     });
@@ -252,23 +252,23 @@ describe('LeadCard: Live Countdown Timer', () => {
 
     it('progress should increase over time', () => {
         const start = Date.now();
-        const end = start + 300000; // 5 min
+        const end = start + 60000; // 1 min
         const calcProgress = () => {
             const total = end - start;
             const elapsed = Math.min(Date.now() - start, total);
             return Math.round((elapsed / total) * 100);
         };
         const p1 = calcProgress();
-        jest.advanceTimersByTime(60000); // 1 minute
+        jest.advanceTimersByTime(12000); // 12 seconds = 20% of 60s
         const p2 = calcProgress();
         expect(p2).toBeGreaterThan(p1);
-        expect(p2).toBeCloseTo(20, 0); // 1/5 = 20%
+        expect(p2).toBeCloseTo(20, 0); // 12/60 = 20%
     });
 
     it('progress should cap at 100%', () => {
         const start = Date.now();
-        const end = start + 300000;
-        jest.advanceTimersByTime(600000); // double the time
+        const end = start + 60000;
+        jest.advanceTimersByTime(120000); // double the time
         const total = end - start;
         const elapsed = Math.min(Date.now() - start, total);
         const progress = Math.min(Math.round((elapsed / total) * 100), 100);
@@ -305,17 +305,16 @@ describe('DemoPanel: Reset Button', () => {
 describe('Demo Panel: Seed Duration Fix', () => {
     it('seeded IN_AUCTION leads use LEAD_AUCTION_DURATION_SECS not random hours', () => {
         // Old: rand(1, 72) * 3600000  => 1h - 72h
-        // New: LEAD_AUCTION_DURATION_SECS * 1000  => 300s = 5 min
+        // New: LEAD_AUCTION_DURATION_SECS * 1000  => 60s = 1 min
         const duration = LEAD_AUCTION_DURATION_SECS * 1000;
-        expect(duration).toBe(300000);
+        expect(duration).toBe(60000);
         expect(duration).toBeLessThan(3600000); // less than 1 hour
     });
 
-    it('EXPIRED and SOLD leads keep longer durations (2 days from creation)', () => {
-        const createdAt = new Date();
-        const auctionEnd = new Date(createdAt.getTime() + 2 * 86400000);
-        const daysDiff = (auctionEnd.getTime() - createdAt.getTime()) / 86400000;
-        expect(daysDiff).toBe(2);
+    it('UNSOLD/SOLD leads should NOT have auctionEndAt (no misleading countdown)', () => {
+        // UNSOLD = Buy Now, SOLD = complete — neither needs a ticking timer
+        const auctionEnd = undefined;
+        expect(auctionEnd).toBeUndefined();
     });
 });
 

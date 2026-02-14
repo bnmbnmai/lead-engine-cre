@@ -353,33 +353,33 @@ describe('Docs RTB Section', () => {
 describe('Short Auctions', () => {
     const { AskCreateSchema } = require('../../src/utils/validation');
 
-    test('minimum auction duration is 30 seconds (Hot preset)', () => {
+    test('auction duration locked to exactly 60 seconds', () => {
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
             geoTargets: {},
             reservePrice: 50,
-            auctionDuration: 30,
+            auctionDuration: 60,
         });
         expect(result.success).toBe(true);
-        expect(result.data.auctionDuration).toBe(30);
+        expect(result.data.auctionDuration).toBe(60);
     });
 
-    test('below-minimum auction duration is rejected', () => {
+    test('below-60s auction duration is rejected', () => {
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
             geoTargets: {},
             reservePrice: 50,
-            auctionDuration: 29,
+            auctionDuration: 59,
         });
         expect(result.success).toBe(false);
     });
 
-    test('maximum auction duration is 3600 seconds', () => {
+    test('above-60s auction duration is rejected', () => {
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
             geoTargets: {},
             reservePrice: 50,
-            auctionDuration: 7200,
+            auctionDuration: 61,
         });
         expect(result.success).toBe(false);
     });
@@ -405,14 +405,14 @@ describe('Short Auctions', () => {
         expect(result.data.auctionDuration).toBe(60);
     });
 
-    test('default reveal window is 900 seconds', () => {
+    test('default reveal window is 120 seconds', () => {
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
             geoTargets: {},
             reservePrice: 50,
         });
         expect(result.success).toBe(true);
-        expect(result.data.revealWindow).toBe(900);
+        expect(result.data.revealWindow).toBe(120);
     });
 });
 

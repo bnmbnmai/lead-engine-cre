@@ -428,7 +428,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
                     vertical,
                     geoTargets: leadGeo.country ? [leadGeo.country] : ['US'],
                     reservePrice: 5.0,
-                    auctionDuration: 300, // 5-minute auction
+                    auctionDuration: 60, // 60-second auction
                     revealWindow: 120,
                     status: 'ACTIVE',
                 },

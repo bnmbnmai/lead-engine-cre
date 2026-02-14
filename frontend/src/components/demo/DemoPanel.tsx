@@ -453,10 +453,9 @@ export function DemoPanel() {
                             />
                             <ActionButton
                                 actionKey="seedTemplates"
-                                label="Reset + Seed All Templates"
+                                label="Sync Form Templates"
                                 icon={Layers}
                                 onClick={handleSeedTemplates}
-                                variant="accent"
                             />
                         </Section>
 
@@ -470,8 +469,8 @@ export function DemoPanel() {
                                 variant="accent"
                             />
                             <p className="text-[11px] text-muted-foreground pl-1">
-                                Creates a lead + simulates 6 bids arriving over 30 seconds.
-                                Click any IN_AUCTION lead on the Marketplace to open its auction page and watch bids arrive live.
+                                Creates a 60s auction lead + simulates 6 bids arriving over 25 seconds.
+                                Click any IN_AUCTION lead on the Marketplace to watch bids arrive live.
                             </p>
                         </Section>
 

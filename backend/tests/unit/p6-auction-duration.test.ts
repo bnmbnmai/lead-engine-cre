@@ -42,12 +42,12 @@ describe('Auction Duration Config', () => {
         perksConfig = require('../../src/config/perks.env');
     });
 
-    test('LEAD_AUCTION_DURATION_SECS defaults to 300 (Standard preset)', () => {
-        expect(perksConfig.LEAD_AUCTION_DURATION_SECS).toBe(300);
+    test('LEAD_AUCTION_DURATION_SECS defaults to 60 (universal auction)', () => {
+        expect(perksConfig.LEAD_AUCTION_DURATION_SECS).toBe(60);
     });
 
-    test('NFT_AUCTION_DURATION_SECS defaults to 600 (10 minutes)', () => {
-        expect(perksConfig.NFT_AUCTION_DURATION_SECS).toBe(600);
+    test('NFT_AUCTION_DURATION_SECS defaults to 60', () => {
+        expect(perksConfig.NFT_AUCTION_DURATION_SECS).toBe(60);
     });
 
     test('AUTO_EXTEND_INCREMENT_SECS defaults to 60 (1 minute)', () => {
@@ -58,16 +58,16 @@ describe('Auction Duration Config', () => {
         expect(perksConfig.AUTO_EXTEND_MAX).toBe(5);
     });
 
-    test('PERKS_CONFIG.auction contains all duration keys + presets', () => {
+    test('PERKS_CONFIG.auction contains all duration keys', () => {
         const auctionConfig = perksConfig.PERKS_CONFIG.auction;
         expect(auctionConfig).toBeDefined();
         expect(auctionConfig).toEqual({
-            presets: { short: 60, standard: 300, extended: 600 },
-            leadDurationSecs: 300,
-            leadMaxDurationSecs: 600,
+            durationSecs: 60,
+            leadDurationSecs: 60,
+            leadMaxDurationSecs: 60,
             pingPostDurationSecs: expect.any(Number),
-            auctionFallbackDurationSecs: 300,
-            nftDurationSecs: 600,
+            auctionFallbackDurationSecs: 60,
+            nftDurationSecs: 60,
             autoExtendIncrementSecs: 60,
             autoExtendMax: 5,
         });
@@ -171,7 +171,7 @@ describe('Auto-Extend Auction', () => {
 // ============================================
 
 describe('Short Auction Edge Cases', () => {
-    test('RTB engine defaults to LEAD_AUCTION_DURATION_SECS (300), not 3600', () => {
+    test('RTB engine defaults to LEAD_AUCTION_DURATION_SECS (60), not 3600', () => {
         const engineSrc = readBackend('rtb/engine.ts');
         expect(engineSrc).toContain('LEAD_AUCTION_DURATION_SECS');
         expect(engineSrc).not.toContain('|| 3600');
@@ -183,12 +183,12 @@ describe('Short Auction Edge Cases', () => {
             vertical: 'solar',
             geoTargets: { country: 'US', states: ['CA'] },
             reservePrice: 50,
-            auctionDuration: 7200, // 2 hours — should fail
+            auctionDuration: 7200, // should fail — locked to 60
         });
         expect(result.success).toBe(false);
     });
 
-    test('validation schema accepts 60s minimum (contract floor)', () => {
+    test('validation schema accepts 60s (the locked value)', () => {
         const { AskCreateSchema } = require('../../src/utils/validation');
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
@@ -199,7 +199,7 @@ describe('Short Auction Edge Cases', () => {
         expect(result.success).toBe(true);
     });
 
-    test('validation schema defaults to 60s (Standard preset) when omitted', () => {
+    test('validation schema defaults to 60s when omitted', () => {
         const { AskCreateSchema } = require('../../src/utils/validation');
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',

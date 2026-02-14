@@ -2,7 +2,7 @@
  * P10 — Auction Duration + Lead Preview Tests
  *
  * 17 tests across 3 describe blocks:
- *   - Auction Duration Config (6): default 300s, max 600s, config export, schema cap, clamping, optional
+ *   - Auction Duration Config (6): default 60s, max 60s, config export, schema cap, clamping, optional
  *   - Auto-Extend Edge Cases (4): max extensions, remaining threshold, settled skip, extension count
  *   - Lead Preview (7): endpoint, redaction, URL, AuctionPage integration, autoExpand, empty fields, ZK badge
  */
@@ -26,28 +26,28 @@ function readBackend(relativePath: string): string {
 describe('Auction Duration Config', () => {
     const config = readBackend('config/perks.env.ts');
 
-    test('LEAD_AUCTION_DURATION_SECS defaults to 300 (Standard preset)', () => {
-        expect(config).toContain("LEAD_AUCTION_DURATION_SECS || '300'");
+    test('LEAD_AUCTION_DURATION_SECS defaults to 60 (universal auction)', () => {
+        expect(config).toContain("LEAD_AUCTION_DURATION_SECS || '60'");
     });
 
-    test('LEAD_AUCTION_MAX_DURATION_SECS defaults to 600 (Extended preset)', () => {
-        expect(config).toContain("LEAD_AUCTION_MAX_DURATION_SECS || '600'");
+    test('LEAD_AUCTION_MAX_DURATION_SECS defaults to 60', () => {
+        expect(config).toContain("LEAD_AUCTION_MAX_DURATION_SECS || '60'");
     });
 
     test('PERKS_CONFIG.auction includes leadMaxDurationSecs', () => {
         expect(config).toContain('leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS');
     });
 
-    test('AuctionCreateSchema caps durationSecs at 600', () => {
+    test('AuctionCreateSchema caps durationSecs at 60', () => {
         const routes = readBackend('routes/vertical.routes.ts');
-        expect(routes).toContain('.max(600)');
+        expect(routes).toContain('.max(60)');
         expect(routes).not.toContain('.max(604800)');
     });
 
     test('AuctionCreateSchema.durationSecs is optional', () => {
         const routes = readBackend('routes/vertical.routes.ts');
         expect(routes).toContain('.optional()');
-        expect(routes).toContain('defaults to 300s');
+        expect(routes).toContain('locked to 60s');
     });
 
     test('createAuction clamps duration to [60, MAX]', () => {

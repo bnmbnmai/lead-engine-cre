@@ -74,27 +74,23 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 
 // ── Auction Durations ──────────────────────────────
 
-/** Sealed-bid auction presets (seconds) */
-export const AUCTION_PRESETS = {
-    short: parseInt(process.env.AUCTION_SHORT_SECS || '60', 10),
-    standard: parseInt(process.env.AUCTION_STANDARD_SECS || '300', 10),
-    extended: parseInt(process.env.AUCTION_EXTENDED_SECS || '600', 10),
-} as const;
+/** Universal auction duration (seconds) — single 60s sealed-bid auction for all lead types */
+export const AUCTION_DURATION_SECS = parseInt(process.env.AUCTION_DURATION_SECS || '60', 10);
 
-/** Default lead auction duration (seconds) — 5-minute sealed-bid auction */
-export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '300', 10);
+/** Default lead auction duration (seconds) — 60s sealed-bid auction */
+export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '60', 10);
 
-/** Maximum lead auction duration (seconds) — 10 minutes */
-export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '600', 10);
+/** Maximum lead auction duration (seconds) — locked to 60s for hackathon */
+export const LEAD_AUCTION_MAX_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_MAX_DURATION_SECS || '60', 10);
 
 /** Ping-post phase duration (seconds) — leads start here before auction fallback */
 export const PING_POST_DURATION_SECS = parseInt(process.env.PING_POST_DURATION_SECS || '60', 10);
 
 /** Auction fallback duration (seconds) — used when ping-post produces no winner */
-export const AUCTION_FALLBACK_DURATION_SECS = parseInt(process.env.AUCTION_FALLBACK_DURATION_SECS || '300', 10);
+export const AUCTION_FALLBACK_DURATION_SECS = parseInt(process.env.AUCTION_FALLBACK_DURATION_SECS || '60', 10);
 
-/** Default vertical NFT auction duration (seconds) — 10 minutes */
-export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '600', 10);
+/** Default vertical NFT auction duration (seconds) — 60s for hackathon */
+export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '60', 10);
 
 /** Auto-extend increment (seconds) — added when late bids arrive on low-activity auctions */
 export const AUTO_EXTEND_INCREMENT_SECS = parseInt(process.env.AUTO_EXTEND_INCREMENT_SECS || '60', 10);
@@ -150,7 +146,7 @@ export const PERKS_CONFIG = {
         maxDepth: MAX_HIERARCHY_DEPTH,
     },
     auction: {
-        presets: AUCTION_PRESETS,
+        durationSecs: AUCTION_DURATION_SECS,
         leadDurationSecs: LEAD_AUCTION_DURATION_SECS,
         leadMaxDurationSecs: LEAD_AUCTION_MAX_DURATION_SECS,
         pingPostDurationSecs: PING_POST_DURATION_SECS,

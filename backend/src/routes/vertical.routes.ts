@@ -717,7 +717,7 @@ router.post('/:slug/resale', authMiddleware, requireNFT, async (req: Authenticat
 
 const AuctionCreateSchema = z.object({
     reservePrice: z.number().positive('Reserve price must be positive'),
-    durationSecs: z.number().int().min(60).max(600).optional(), // 1 min to 10 min; defaults to 300s
+    durationSecs: z.number().int().min(60).max(60).optional(), // locked to 60s for hackathon
 });
 
 router.post('/:slug/auction', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {

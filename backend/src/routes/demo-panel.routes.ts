@@ -539,7 +539,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     status: 'ACTIVE',
                     parameters: { _demoTag: DEMO_TAG },
                     auctionDuration: LEAD_AUCTION_DURATION_SECS,
-                    revealWindow: 900,
+                    revealWindow: 120,
                 },
             });
             askCount++;
@@ -561,9 +561,10 @@ router.post('/seed', async (req: Request, res: Response) => {
 
             const now = new Date();
             const createdAt = new Date(now.getTime() - rand(0, 3) * 86400000);
+            // Only IN_AUCTION leads get a ticking countdown; UNSOLD/SOLD don't have auction timers
             const auctionEnd = status === 'IN_AUCTION'
                 ? new Date(now.getTime() + LEAD_AUCTION_DURATION_SECS * 1000)
-                : new Date(createdAt.getTime() + 2 * 86400000);
+                : undefined;
 
             // Build non-PII parameters
             const params = buildVerticalDemoParams(vertical);
@@ -584,7 +585,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     consentProof: DEMO_TAG,
                     createdAt,
                     auctionStartAt: createdAt,
-                    auctionEndAt: auctionEnd,
+                    auctionEndAt: auctionEnd ?? undefined,
                     soldAt: status === 'SOLD' ? new Date(createdAt.getTime() + rand(1, 3) * 86400000) : undefined,
                     parameters: params as any,
                 },
@@ -804,7 +805,7 @@ router.post('/auction', async (req: Request, res: Response) => {
                 tcpaConsentAt: new Date(),
                 consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
-                auctionEndAt: new Date(Date.now() + 120000), // 2 min auction
+                auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), // 60s auction
             },
         });
 
@@ -814,8 +815,8 @@ router.post('/auction', async (req: Request, res: Response) => {
                 leadId: lead.id,
                 roomId: `demo-auction-${lead.id}`,
                 phase: 'BIDDING',
-                biddingEndsAt: new Date(Date.now() + 90000),
-                revealEndsAt: new Date(Date.now() + 120000),
+                biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                revealEndsAt: new Date(Date.now() + (LEAD_AUCTION_DURATION_SECS + 30) * 1000),
                 participants: [demoUser.id],
             },
         });
@@ -832,14 +833,14 @@ router.post('/auction', async (req: Request, res: Response) => {
                     geo: { country: geo.country, state: geo.state },
                     isVerified: true,
                     auctionStartAt: new Date().toISOString(),
-                    auctionEndAt: new Date(Date.now() + 120000).toISOString(),
+                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString(),
                     _count: { bids: 0 },
                 },
             });
         }
 
         // Simulate bids arriving over 30s (fire-and-forget)
-        const bidIntervals = [3000, 6000, 10000, 15000, 20000, 25000];
+        const bidIntervals = [3000, 6000, 10000, 15000, 20000, 25000]; // all within 60s auction window
         let currentBid = reservePrice;
 
         bidIntervals.forEach((delay, index) => {
@@ -881,7 +882,7 @@ router.post('/auction', async (req: Request, res: Response) => {
             leadId: lead.id,
             vertical,
             reservePrice,
-            auctionEndsIn: '2 minutes',
+            auctionEndsIn: '60 seconds',
             simulatedBids: bidIntervals.length,
         });
     } catch (error) {
