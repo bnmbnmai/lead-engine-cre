@@ -318,6 +318,17 @@ export const api = {
         apiFetch<{ lead: { id: string; firstName: string; lastName: string; email: string; phone: string; address?: string; city?: string; state?: string; zip?: string; notes?: string; customFields?: Record<string, unknown> } }>(
             `/api/v1/leads/${leadId}/decrypted`,
         ),
+
+    // Seller conversion tracking settings
+    getConversionSettings: () =>
+        apiFetch<{ conversionPixelUrl: string | null; conversionWebhookUrl: string | null }>(
+            '/api/v1/seller/conversion-settings',
+        ),
+    updateConversionSettings: (settings: { conversionPixelUrl?: string; conversionWebhookUrl?: string }) =>
+        apiFetch<{ conversionPixelUrl: string | null; conversionWebhookUrl: string | null }>(
+            '/api/v1/seller/conversion-settings',
+            { method: 'PUT', body: JSON.stringify(settings) },
+        ),
 };
 
 export default api;

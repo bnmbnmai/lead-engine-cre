@@ -48,33 +48,83 @@ Every lead enters a single **Smart Lightning** pipeline — no mode toggles, no 
 ### How Leads Flow Through the System
 
 ```mermaid
-flowchart TD
-    A[Seller] --> B[Submit Lead<br/>vertical + geo + params]
-    B --> C[Lead Engine API]
-    
-    C --> D[Chainlink CRE<br/>Quality Score + ZK Fraud Proof]
-    C --> E[Chainlink ACE<br/>Compliance + Jurisdiction]
-    
-    D & E --> F[Ping-Post Phase<br/>60 seconds]
-    
-    F --> G{Auto-bid match?}
-    G -->|Yes| H[Instant Sale]
-    G -->|No| I[Auction Phase<br/>5 minutes]
-    
-    I --> J{Highest bid?}
-    J -->|Yes| H
-    J -->|No| K[Unsold → Buy Now<br/>7-day expiry]
-    
-    H --> L[Instant x402 Settlement<br/>-2.5% platform fee]
-    L --> M[Lead minted as ERC-721 NFT]
-    M --> N[Full PII revealed to buyer]
-    N --> O[Buyer]
-    
-    K --> P[Buyer can purchase instantly]
-    P --> L
-    
-    style H fill:#22c55e,stroke:#16a34a
-    style K fill:#eab308,stroke:#ca8a04
+flowchart LR
+    subgraph seller["🏢 Seller"]
+        direction TB
+        s1["Submit Lead<br/>vertical + geo + params"]
+        s2["Receive USDC<br/>instantly"]
+    end
+
+    subgraph api["⚡ Lead Engine API"]
+        direction TB
+        a1["Validate & Store"]
+        a2["Lead Verified ✓"]
+    end
+
+    subgraph cre["🔗 Chainlink CRE"]
+        direction TB
+        c1["Quality Score<br/>0 – 10,000"]
+        c2["ZK Fraud Proof"]
+        c1 --> c2
+    end
+
+    subgraph ace["🛡️ Chainlink ACE"]
+        direction TB
+        ac1["Auto-KYC"]
+        ac2["Jurisdiction<br/>Enforcement"]
+        ac1 --> ac2
+    end
+
+    subgraph rtb["🔄 RTB Engine"]
+        direction TB
+        r1["① Ping-Post<br/>60 seconds"]
+        r2{"Auto-bid<br/>match?"}
+        r3["② Short Auction<br/>5 minutes"]
+        r4{"Highest<br/>bid?"}
+        r5["③ Buy Now<br/>7-day expiry"]
+        r1 --> r2
+        r2 -->|No| r3
+        r3 --> r4
+        r4 -->|No| r5
+    end
+
+    subgraph buyer["👤 Buyer"]
+        direction TB
+        b1["Non-PII Preview<br/>vertical · geo · score"]
+        b2["Bid / Purchase"]
+        b3["ERC-721 NFT<br/>Minted"]
+        b4["Full PII<br/>Revealed"]
+        b1 --> b2
+        b3 --> b4
+    end
+
+    subgraph escrow["💰 x402 Escrow"]
+        direction TB
+        e1["USDC Received"]
+        e2["−2.5% Platform Fee"]
+        e3["Seller Paid"]
+        e1 --> e2 --> e3
+    end
+
+    s1 --> a1
+    a1 --> c1
+    a1 --> ac1
+    c2 --> a2
+    ac2 --> a2
+    a2 --> r1
+    r1 -.->|preview| b1
+    r2 -->|"Yes"| e1
+    r4 -->|"Yes"| e1
+    r5 -.-> b2
+    b2 --> e1
+    e1 --> b3
+    e3 --> s2
+
+    style r2 fill:#eab308,stroke:#ca8a04,color:#000
+    style r4 fill:#eab308,stroke:#ca8a04,color:#000
+    style e1 fill:#22c55e,stroke:#16a34a,color:#fff
+    style b3 fill:#6366f1,stroke:#4f46e5,color:#fff
+    style b4 fill:#6366f1,stroke:#4f46e5,color:#fff
 ```
 
 ### Buyer Experience
@@ -190,6 +240,28 @@ x402 enables **USDC escrow → instant release** on auction win or Buy-It-Now pu
 - 🧠 **AI Dynamic Verticals** — GPT-powered vertical suggestions with PII scrubbing, anti-hallucination validation, parent-slug resolution, and auto-creation threshold (≥5 hits → PROPOSED vertical)
 - 🛡️ **Off-Site Fraud Prevention** — Toggle-based off-site lead gating with anomaly detection, source spoofing protection, and sanctioned-country blocking
 - 📊 **Mock Data Seeding** — 200+ realistic entries across all verticals/geos for demo and testing (`npm run db:seed`)
+
+### Seller Features — Conversion Tracking
+
+Sellers can add their **Google Ads**, **Meta**, or **custom webhook URL** directly from the Seller Dashboard. The platform fires the pixel and/or webhook **instantly** on every successful sale (auction win or Buy Now) with the following payload:
+
+```json
+{
+  "event": "lead_sold",
+  "lead_id": "clx9abc123",
+  "sale_amount": 45.00,
+  "platform_fee": 1.13,
+  "vertical": "mortgage.refinance",
+  "geo": "US-TX",
+  "quality_score": 9200,
+  "transaction_id": "tx_def456",
+  "sold_at": "2026-02-14T01:23:45.000Z"
+}
+```
+
+- **Pixel URL** — Fires as a 1×1 image GET request (e.g., `https://googleads.g.doubleclick.net/pagead/conversion/...`)
+- **Webhook URL** — Receives a JSON POST to your server (e.g., `https://mycompany.com/webhook/lead-sold`)
+- Both are optional and configured per seller in **Seller Dashboard → Conversion Tracking**
 
 ### Optional — Vertical NFT Monetization Layer
 

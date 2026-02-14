@@ -259,6 +259,10 @@ model SellerProfile {
   kycStatus       KycStatus @default(PENDING)
   kycVerifiedAt   DateTime?
   
+  // Conversion tracking
+  conversionPixelUrl   String?   // e.g. Google Ads conversion pixel URL
+  conversionWebhookUrl String?   // Server-to-server POST endpoint
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

@@ -11,6 +11,7 @@ import {
 } from '../services/holder-perks.service';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 import { AUCTION_FALLBACK_DURATION_SECS } from '../config/perks.env';
+import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -747,6 +748,27 @@ class RTBSocketServer {
                     },
                 },
             });
+
+            // Fire seller conversion tracking (pixel + webhook) — non-blocking
+            const fullLead = await prisma.lead.findUnique({
+                where: { id: leadId },
+                select: { sellerId: true, vertical: true, geo: true },
+            });
+            if (fullLead) {
+                const geo = fullLead.geo as any;
+                const convPayload: ConversionPayload = {
+                    event: 'lead_sold',
+                    lead_id: leadId,
+                    sale_amount: Number(winningBid.amount),
+                    platform_fee: Number(winningBid.amount) * 0.025,
+                    vertical: fullLead.vertical,
+                    geo: geo ? `${geo.country || 'US'}-${geo.state || ''}` : 'US',
+                    quality_score: 0,
+                    transaction_id: '',
+                    sold_at: new Date().toISOString(),
+                };
+                fireConversionEvents(fullLead.sellerId, convPayload).catch(console.error);
+            }
         } catch (error) {
             console.error('Auction resolution error:', error);
         }

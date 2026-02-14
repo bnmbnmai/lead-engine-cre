@@ -8,6 +8,7 @@ import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
 import { x402Service } from '../services/x402.service';
 import { marketplaceAsksCache } from '../lib/cache';
+import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { redactLeadForPreview } from '../services/piiProtection';
 
 const router = Router();
@@ -636,6 +637,21 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
             });
         }
 
+        // Fire seller conversion tracking (pixel + webhook) — non-blocking
+        const geo = result.lead.geo as any;
+        const convPayload: ConversionPayload = {
+            event: 'lead_sold',
+            lead_id: result.lead.id,
+            sale_amount: Number(result.transaction.amount),
+            platform_fee: Number(result.transaction.platformFee),
+            vertical: result.lead.vertical,
+            geo: geo ? `${geo.country || 'US'}-${geo.state || ''}` : 'US',
+            quality_score: (result.lead as any).qualityScore || 0,
+            transaction_id: result.transaction.id,
+            sold_at: new Date().toISOString(),
+        };
+        fireConversionEvents(result.seller.id, convPayload).catch(console.error);
+
         res.json({
             lead: {
                 id: result.lead.id,
@@ -813,6 +829,56 @@ router.get('/sellers/search', async (req: AuthenticatedRequest, res: Response) =
     } catch (error) {
         console.error('Seller search error:', error);
         res.status(500).json({ error: 'Failed to search sellers' });
+    }
+});
+
+// ============================================
+// Seller Conversion Settings
+// ============================================
+
+router.get('/seller/conversion-settings', authMiddleware, requireSeller, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const profile = await prisma.sellerProfile.findUnique({
+            where: { userId: req.user!.id },
+            select: { conversionPixelUrl: true, conversionWebhookUrl: true },
+        });
+        if (!profile) {
+            res.status(404).json({ error: 'Seller profile not found' });
+            return;
+        }
+        res.json(profile);
+    } catch (error) {
+        console.error('Get conversion settings error:', error);
+        res.status(500).json({ error: 'Failed to fetch conversion settings' });
+    }
+});
+
+router.put('/seller/conversion-settings', authMiddleware, requireSeller, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { conversionPixelUrl, conversionWebhookUrl } = req.body;
+
+        // Validate URLs if provided
+        for (const [key, val] of Object.entries({ conversionPixelUrl, conversionWebhookUrl })) {
+            if (val !== undefined && val !== null && val !== '') {
+                try { new URL(val as string); } catch {
+                    res.status(400).json({ error: `Invalid URL for ${key}` });
+                    return;
+                }
+            }
+        }
+
+        const profile = await prisma.sellerProfile.update({
+            where: { userId: req.user!.id },
+            data: {
+                conversionPixelUrl: conversionPixelUrl || null,
+                conversionWebhookUrl: conversionWebhookUrl || null,
+            },
+            select: { conversionPixelUrl: true, conversionWebhookUrl: true },
+        });
+        res.json(profile);
+    } catch (error) {
+        console.error('Update conversion settings error:', error);
+        res.status(500).json({ error: 'Failed to update conversion settings' });
     }
 });
 
