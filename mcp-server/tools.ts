@@ -86,7 +86,7 @@ export const TOOLS: ToolDefinition[] = [
     },
     {
         name: 'set_auto_bid_rules',
-        description: 'Configure auto-bid rules for a vertical. The engine automatically bids on matching leads based on vertical, geo, quality score, and budget constraints.',
+        description: 'Configure auto-bid rules for a vertical. The engine automatically places sealed commit-reveal bids on matching leads based on vertical, geo, quality score, and budget constraints. Commitments are generated server-side; agents do not need to compute hashes.',
         inputSchema: {
             type: 'object',
             properties: {
