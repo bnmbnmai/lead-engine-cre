@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setAuthToken, API_BASE_URL } from '@/lib/api';
+import { formatVerticalTitle } from '@/lib/utils';
 import socketClient from '@/lib/socket';
 import useAuth from '@/hooks/useAuth';
 import {
@@ -157,9 +158,10 @@ export function DemoPanel() {
         await runAction('inject', async () => {
             const { data, error } = await api.demoInjectLead();
             if (error) throw new Error(error.message || error.error);
-            const v = data?.lead?.vertical?.replace(/_/g, ' ') || 'unknown';
+            const title = formatVerticalTitle(data?.lead?.vertical);
             const paramCount = data?.lead?.parameters ? Object.keys(data.lead.parameters).length : 0;
-            return `📋 Simulated form submission from ${v} lander — ${paramCount} fields captured in ${data?.lead?.state}`;
+            const geo = data?.lead?.geo?.state ? ` — ${data.lead.geo.state}` : '';
+            return `✅ Injected demo lead: ${title} (${paramCount} fields${geo})`;
         });
     }
 

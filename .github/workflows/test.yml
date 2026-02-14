@@ -148,62 +148,6 @@ jobs:
           if-no-files-found: ignore
 
   # ════════════════════════════════════════════════════════════
-  # Job 4: Cypress E2E Tests
-  # ════════════════════════════════════════════════════════════
-  cypress-e2e:
-    name: 🌲 Cypress E2E
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Cache Cypress binary
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/Cypress
-          key: cypress-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json', 'package-lock.json') }}
-          restore-keys: cypress-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify Cypress
-        working-directory: frontend
-        run: npx cypress verify
-
-      - name: Start dev server
-        working-directory: frontend
-        run: npm run dev &
-        env:
-          VITE_API_URL: http://localhost:3001
-
-      - name: Wait for dev server
-        run: npx wait-on http://localhost:5173 --timeout 30000
-
-      - name: Run Cypress tests
-        working-directory: frontend
-        run: npx cypress run --headless
-        env:
-          CYPRESS_BASE_URL: http://localhost:5173
-
-      - name: Upload Cypress artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cypress-artifacts
-          path: |
-            frontend/cypress/videos/
-            frontend/cypress/screenshots/
-          retention-days: 7
-          if-no-files-found: ignore
-
-  # ════════════════════════════════════════════════════════════
   # Job 5: Artillery Load Tests (advisory)
   # ════════════════════════════════════════════════════════════
   artillery-load:

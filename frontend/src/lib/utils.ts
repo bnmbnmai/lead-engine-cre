@@ -100,3 +100,27 @@ export function getPhaseLabel(status: string): string {
   };
   return map[status] || status.replace(/_/g, ' ');
 }
+
+/**
+ * Format a vertical slug into a clean, human-readable title.
+ *
+ *   "b2b_saas.crm"       → "B2B SaaS CRM"
+ *   "mortgage.refinance"  → "Mortgage Refinance"
+ *   "solar.residential"   → "Solar Residential"
+ *   "legal.family"        → "Legal Family"
+ */
+const ACRONYMS: Record<string, string> = {
+  b2b: 'B2B', b2c: 'B2C', saas: 'SaaS', crm: 'CRM',
+  seo: 'SEO', api: 'API', ai: 'AI', nft: 'NFT',
+  hvac: 'HVAC', roi: 'ROI', llc: 'LLC', ppc: 'PPC',
+  usa: 'USA', uk: 'UK', dui: 'DUI', iot: 'IoT',
+};
+
+export function formatVerticalTitle(slug: string | null | undefined): string {
+  if (!slug) return 'Unknown';
+  return slug
+    .replace(/[._]/g, ' ')
+    .split(' ')
+    .map((w) => ACRONYMS[w.toLowerCase()] ?? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}

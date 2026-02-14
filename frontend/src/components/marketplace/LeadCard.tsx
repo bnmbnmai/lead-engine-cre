@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
-import { formatCurrency, formatTimeRemaining, getPhaseLabel } from '@/lib/utils';
+import { formatCurrency, formatTimeRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
 
 interface Lead {
     id: string;
@@ -104,7 +104,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                             )}
                         </div>
                         <div>
-                            <h3 className="font-semibold capitalize">{lead.vertical}</h3>
+                            <h3 className="font-semibold">{formatVerticalTitle(lead.vertical)}</h3>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <MapPin className="h-3 w-3" />
                                 {lead.geo.city ? `${lead.geo.city}, ` : ''}{lead.geo.state || 'Unknown'}
