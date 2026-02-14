@@ -374,12 +374,15 @@ If you're focusing on improving the frontend visual design, these are the files 
 
 ## 11. Bid Previews & Compliance
 
-### Bid Modes
+### Bid Mode
 
-| Mode | Label | Description |
-|------|-------|-------------|
-| `direct` | **Open Bid** | Bid amount is visible immediately. Best for speed and simple auctions. |
-| `commit-reveal` | **Sealed Bid** | Bid is encrypted (AES-256-GCM) until the reveal phase. Prevents front-running. |
+All bids use **sealed commit-reveal**. Bid amounts are encrypted (AES-256-GCM) until the reveal phase, preventing front-running and protecting buyer strategy.
+
+| Phase | What Happens |
+|-------|-------------|
+| **Commit** | Buyer submits a commitment hash (`keccak256(amount + salt)`). Amount is hidden. |
+| **Reveal** | After auction bidding closes, buyers reveal their amount + salt. Engine verifies against commitment. |
+| **Resolution** | Highest valid revealed bid wins. Winner pays via x402 USDC escrow. |
 
 ### Lead Preview (Non-PII)
 

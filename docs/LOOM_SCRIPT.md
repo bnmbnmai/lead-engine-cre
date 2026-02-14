@@ -64,7 +64,7 @@
 ### Step 3: Holder Wins Close Bid via Multiplier (30s)
 > "Watch how the multiplier tips a close race in the holder's favor."
 
-- Start a new auction (admin API): reserve $50, 60s window
+- Start a new auction (admin API): reserve $50, 5-minute sealed-bid window
 - **Wallet A** bids $80 during pre-ping → effective bid = $96 (1.2×)
   - Show `HolderBidPlaced` event in console
 - Switch to **Wallet B** → try bidding during pre-ping → "Holders only" error

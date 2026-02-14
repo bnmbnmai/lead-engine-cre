@@ -1,4 +1,4 @@
-# Smart Lightning Flow
+# Sealed-Bid Auction Flow
 
 ```mermaid
 flowchart LR
@@ -30,9 +30,9 @@ flowchart LR
 
     subgraph rtb["🔄 RTB Engine"]
         direction TB
-        r1["① Ping-Post<br/>60 seconds"]
+        r1["① Sealed-Bid Auction<br/>5 minutes"]
         r2{"Auto-bid<br/>match?"}
-        r3["② Short Auction<br/>5 minutes"]
+        r3["② Reveal Phase"]
         r4{"Highest<br/>bid?"}
         r5["③ Buy Now<br/>7-day expiry"]
         r1 --> r2
@@ -44,7 +44,7 @@ flowchart LR
     subgraph buyer["👤 Buyer"]
         direction TB
         b1["Non-PII Preview<br/>vertical · geo · score"]
-        b2["Bid / Purchase"]
+        b2["Submit Commitment<br/>keccak256(amount + salt)"]
         b3["ERC-721 NFT<br/>Minted"]
         b4["Full PII<br/>Revealed"]
         b1 --> b2

@@ -25,7 +25,7 @@ Traditional lead marketplaces are opaque, slow, and fraud-prone. Sellers wait 7�
 
 | Problem | Legacy Marketplaces | Lead Engine |
 |---------|---------------------|-------------|
-| **Speed** | Opaque ping-post with immediate full PII delivery | Lightning Auctions (30s / 60s / 5min) with non-PII previews + sub-second bidding |
+| **Speed** | Opaque ping-post with immediate full PII delivery | 5-minute sealed-bid auctions with non-PII previews + sub-second bidding |
 | **Trust / Quality** | Limited verification; fraud common | Chainlink CRE quality scoring (0–10,000) + ZK fraud proofs |
 | **Privacy** | Full PII delivered immediately | Non-PII previews with per-vertical redaction; full PII only after purchase |
 | **Settlement** | Net 30–60 days typical | Instant USDC via x402 escrow |
