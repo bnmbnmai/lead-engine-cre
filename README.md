@@ -64,8 +64,8 @@ sequenceDiagram
     X->>S: Instant settlement (minus 2.5% fee)
     X->>B: Decrypted lead data + PII
 
-    Note over X: Lead minted as ERC-721 NFT
-    Note over X: CRM webhook → HubSpot/Zapier
+    Note over B: Lead minted as ERC-721 NFT
+    Note over B: CRM webhook → HubSpot/Zapier
 ```
 
 > **Result:** Sellers get USDC in seconds. Buyers get verified, compliant leads with on-chain provenance. No intermediaries.
