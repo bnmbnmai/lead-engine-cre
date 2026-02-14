@@ -14,7 +14,7 @@ export interface PreferenceSetData {
     label: string;
     vertical: string;
     priority: number;
-    geoCountry: string;
+    geoCountries: string[];
     geoInclude: string[];
     geoExclude: string[];
     maxBidPerLead?: number;
@@ -157,13 +157,16 @@ export function PreferenceSetCard({
                         Include Regions
                     </label>
                     <GeoFilter
-                        country={set.geoCountry}
-                        onCountryChange={(country) =>
-                            update({ geoCountry: country, geoInclude: [], geoExclude: [] })
-                        }
+                        country={set.geoCountries[0] || 'US'}
+                        onCountryChange={() => { }}
                         selectedRegions={set.geoInclude}
                         onRegionsChange={(geoInclude) => update({ geoInclude })}
                         mode="include"
+                        multiCountry
+                        countries={set.geoCountries}
+                        onCountriesChange={(geoCountries) =>
+                            update({ geoCountries, geoInclude: [], geoExclude: [] })
+                        }
                     />
                 </div>
                 <div>
@@ -171,12 +174,14 @@ export function PreferenceSetCard({
                         Exclude Regions
                     </label>
                     <GeoFilter
-                        country={set.geoCountry}
+                        country={set.geoCountries[0] || 'US'}
                         onCountryChange={() => { }}
                         selectedRegions={set.geoExclude}
                         onRegionsChange={(geoExclude) => update({ geoExclude })}
                         mode="exclude"
                         showCountrySelector={false}
+                        multiCountry
+                        countries={set.geoCountries}
                     />
                 </div>
             </div>

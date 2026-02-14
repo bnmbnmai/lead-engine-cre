@@ -250,6 +250,11 @@ export const api = {
             `/api/v1/verticals/${slug}/form-config`
         ),
 
+    getPublicFormConfig: (slug: string) =>
+        apiFetch<{ formConfig: any; vertical: { slug: string; name: string } }>(
+            `/api/v1/verticals/public/${slug}/form-config`
+        ),
+
     saveFormConfig: (slug: string, config: { fields: any[]; steps: any[]; gamification?: any }) =>
         apiFetch<{ message: string; formConfig: any }>(
             `/api/v1/verticals/${slug}/form-config`, {

@@ -213,7 +213,7 @@ model BuyerPreferenceSet {
   priority        Int      @default(0) // Lower = higher priority (overlap resolution)
 
   // Geo
-  geoCountry      String   @default("US")
+  geoCountries    String[]            // Country codes (e.g. ["US","CA","MX"])
   geoInclude      String[]            // State codes to include
   geoExclude      String[]            // State codes to exclude
 

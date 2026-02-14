@@ -342,6 +342,28 @@ router.get('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
 });
 
 // ============================================
+// GET /public/:slug/form-config — Public endpoint for hosted forms (no auth)
+// ============================================
+
+router.get('/public/:slug/form-config', generalLimiter, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { slug } = req.params;
+        const vertical = await prisma.vertical.findUnique({
+            where: { slug },
+            select: { formConfig: true, slug: true, name: true },
+        });
+        if (!vertical || !vertical.formConfig) {
+            res.status(404).json({ error: 'Form not found' });
+            return;
+        }
+        res.json({ formConfig: vertical.formConfig, vertical: { slug: vertical.slug, name: vertical.name } });
+    } catch (error) {
+        console.error('Public form config error:', error);
+        res.status(500).json({ error: 'Failed to fetch form config' });
+    }
+});
+
+// ============================================
 // PUT /:slug/form-config — Save form builder config (Admin only)
 // ============================================
 

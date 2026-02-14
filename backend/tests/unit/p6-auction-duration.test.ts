@@ -65,6 +65,8 @@ describe('Auction Duration Config', () => {
             presets: { hot: 30, standard: 60, extended: 300 },
             leadDurationSecs: 60,
             leadMaxDurationSecs: 300,
+            pingPostDurationSecs: 60,
+            auctionFallbackDurationSecs: 300,
             nftDurationSecs: 600,
             autoExtendIncrementSecs: 60,
             autoExtendMax: 5,

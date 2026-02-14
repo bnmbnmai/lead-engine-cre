@@ -28,6 +28,7 @@ import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import AdminNFTs from '@/pages/AdminNFTs';
 import AdminVerticals from '@/pages/AdminVerticals';
 import AskDetailPage from '@/pages/AskDetailPage';
+import HostedForm from '@/pages/HostedForm';
 import LeadDetailPage from '@/pages/LeadDetailPage';
 import AdConversions from '@/pages/AdConversions';
 import { DemoPanel } from '@/components/demo/DemoPanel';
@@ -82,6 +83,9 @@ function App() {
                                 <Route path="/auction/:leadId" element={<AuctionPage />} />
                                 <Route path="/lead/:id" element={<LeadDetailPage />} />
                                 <Route path="/marketplace/ask/:askId" element={<AskDetailPage />} />
+
+                                {/* Public hosted forms */}
+                                <Route path="/f/:slug" element={<HostedForm />} />
 
                                 {/* Buyer Routes (auth + role required) */}
                                 <Route path="/buyer" element={<ProtectedRoute role="BUYER"><BuyerDashboard /></ProtectedRoute>} />

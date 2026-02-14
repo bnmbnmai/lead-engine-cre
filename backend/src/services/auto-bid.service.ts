@@ -89,8 +89,9 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         const setId = prefSet.id;
 
         // ── 1. Geo country match ──
-        if (prefSet.geoCountry !== lead.geo.country) {
-            result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Country mismatch: ${prefSet.geoCountry} ≠ ${lead.geo.country}` });
+        const geoCountries: string[] = Array.isArray(prefSet.geoCountries) ? prefSet.geoCountries : [prefSet.geoCountries || 'US'];
+        if (!geoCountries.includes(lead.geo.country)) {
+            result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Country mismatch: [${geoCountries.join(',')}] does not include ${lead.geo.country}` });
             continue;
         }
 

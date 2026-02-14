@@ -277,6 +277,10 @@ interface GeoFilterProps {
     onRegionsChange: (regions: string[]) => void;
     mode?: 'include' | 'exclude';
     showCountrySelector?: boolean;
+    /** Multi-country selection mode (for Buyer Preferences) */
+    multiCountry?: boolean;
+    countries?: string[];
+    onCountriesChange?: (countries: string[]) => void;
 }
 
 export function GeoFilter({
@@ -286,14 +290,24 @@ export function GeoFilter({
     onRegionsChange,
     mode = 'include',
     showCountrySelector = true,
+    multiCountry = false,
+    countries = [],
+    onCountriesChange,
 }: GeoFilterProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [continentFilter, setContinentFilter] = useState<string>('ALL');
 
-    const countryConfig = getCountryConfig(country);
-    const regions = countryConfig?.regions || [];
+    // In multi-country mode, use the first selected country for region display
+    const activeCountry = multiCountry ? (countries[0] || 'US') : country;
+    const countryConfig = getCountryConfig(activeCountry);
+    // In multi-country mode, merge regions from all selected countries
+    const regions = multiCountry
+        ? countries.flatMap(code => getCountryConfig(code)?.regions || [])
+        : (countryConfig?.regions || []);
     const regionLabel = countryConfig?.regionLabel || 'Region';
+
+    const selectedCountrySet = new Set(multiCountry ? countries : [country]);
 
     const filteredCountries = continentFilter === 'ALL'
         ? COUNTRY_DATA
@@ -302,6 +316,23 @@ export function GeoFilter({
     const filteredRegions = regions.filter(
         (r) => r.name.toLowerCase().includes(search.toLowerCase()) || r.code.toLowerCase().includes(search.toLowerCase())
     );
+
+    const handleCountryClick = (code: string) => {
+        if (multiCountry && onCountriesChange) {
+            // Toggle country in multi-select mode
+            if (selectedCountrySet.has(code)) {
+                // Don't allow deselecting the last country
+                if (countries.length > 1) {
+                    onCountriesChange(countries.filter(c => c !== code));
+                }
+            } else {
+                onCountriesChange([...countries, code]);
+            }
+        } else {
+            onCountryChange(code);
+            onRegionsChange([]); // Reset regions on country change
+        }
+    };
 
     const toggleRegion = (code: string) => {
         if (selectedRegions.includes(code)) {
@@ -338,18 +369,32 @@ export function GeoFilter({
                             </button>
                         ))}
                     </div>
+                    {multiCountry && countries.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                            {countries.map((code) => {
+                                const cc = getCountryConfig(code);
+                                return (
+                                    <span key={code} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-primary/20 text-primary border border-primary/30">
+                                        {cc?.name || code}
+                                        {countries.length > 1 && (
+                                            <button type="button" onClick={() => onCountriesChange?.(countries.filter(c => c !== code))} className="hover:opacity-70">
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    )}
                     <div className="flex flex-wrap gap-2">
                         {filteredCountries.map((c) => (
                             <button
                                 key={c.code}
                                 type="button"
-                                onClick={() => {
-                                    onCountryChange(c.code);
-                                    onRegionsChange([]); // Reset regions on country change
-                                }}
+                                onClick={() => handleCountryClick(c.code)}
                                 className={cn(
                                     'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border',
-                                    country === c.code
+                                    selectedCountrySet.has(c.code)
                                         ? 'bg-primary text-primary-foreground border-primary'
                                         : 'bg-muted/50 text-muted-foreground border-border hover:border-primary/50'
                                 )}

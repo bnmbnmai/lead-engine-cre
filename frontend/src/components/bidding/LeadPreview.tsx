@@ -27,7 +27,7 @@ interface FormStep {
 interface LeadPreviewData {
     vertical: string;
     geoState: string;
-    geoCountry: string;
+    geoCountries: string[];
     source: string;
     status: string;
     isVerified: boolean;

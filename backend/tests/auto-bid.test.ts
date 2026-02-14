@@ -159,7 +159,7 @@ describe('Auto-Bid Service', () => {
 
         it('should skip when country does not match', async () => {
             mockFindMany.mockResolvedValue([
-                makePrefSet({ geoCountry: 'CA' }),
+                makePrefSet({ geoCountries: ['CA'] }),
             ]);
 
             const result = await evaluateLeadForAutoBid(makeLead({ geo: { country: 'US', state: 'CA' } }));

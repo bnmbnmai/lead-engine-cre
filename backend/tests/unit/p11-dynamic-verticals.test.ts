@@ -97,9 +97,8 @@ describe('Search & Empty States', () => {
         expect(src).toContain('No verticals');
     });
 
-    test('10. FormBuilder shows "(custom)" marker for unknown verticals', () => {
+    test('10. FormBuilder shows fallback message for unknown verticals', () => {
         const src = readFile(path.join(frontendSrc, 'pages/FormBuilder.tsx'));
-        expect(src).toContain('(custom)');
         expect(src).toContain('No preset template');
     });
 

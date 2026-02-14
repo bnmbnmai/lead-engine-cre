@@ -21,7 +21,7 @@ export interface PreferenceSetData {
     label: string;
     vertical: string;
     priority: number;
-    geoCountry: string;
+    geoCountries: string[];
     geoInclude: string[];
     geoExclude: string[];
     maxBidPerLead?: number;

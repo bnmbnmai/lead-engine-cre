@@ -7,11 +7,11 @@
  * export (URL + iframe embed with copy buttons).
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import useVerticals from '@/hooks/useVerticals';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
-    Sparkles, Shield, Plus, Send,
+    Sparkles, Shield, Plus, Send, Activity,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,6 +84,42 @@ export default function SellerTemplates() {
     const [configLoading, setConfigLoading] = useState(false);
     const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
     const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
+
+    // Conversion tracking — persisted server-side via SellerProfile
+    const [conversionPixelUrl, setConversionPixelUrl] = useState('');
+    const [conversionWebhookUrl, setConversionWebhookUrl] = useState('');
+    const [convSaved, setConvSaved] = useState(false);
+    const [convSaving, setConvSaving] = useState(false);
+
+    // Load conversion settings from backend on mount
+    useEffect(() => {
+        api.getConversionSettings()
+            .then(res => {
+                if (res.data) {
+                    setConversionPixelUrl(res.data.conversionPixelUrl || '');
+                    setConversionWebhookUrl(res.data.conversionWebhookUrl || '');
+                }
+            })
+            .catch(() => { /* seller may not have a profile yet */ });
+    }, []);
+
+    const saveConversionSettings = async () => {
+        setConvSaving(true);
+        try {
+            const res = await api.updateConversionSettings({
+                conversionPixelUrl: conversionPixelUrl || undefined,
+                conversionWebhookUrl: conversionWebhookUrl || undefined,
+            });
+            if (res.error) throw new Error(res.error.error);
+            setConvSaved(true);
+            toast({ type: 'success', title: 'Conversion tracking saved', description: 'Your pixel and webhook URLs have been saved.' });
+            setTimeout(() => setConvSaved(false), 2000);
+        } catch (err: any) {
+            toast({ type: 'error', title: 'Save failed', description: err?.message || 'Could not save conversion settings.' });
+        } finally {
+            setConvSaving(false);
+        }
+    };
 
 
 
@@ -417,6 +453,56 @@ export default function SellerTemplates() {
                                         checked={gamification.confetti}
                                         onCheckedChange={(v) => setGamification(g => ({ ...g, confetti: v }))}
                                     />
+                                </div>
+
+                                {/* Conversion Tracking */}
+                                <div className="space-y-3 pt-2 border-t border-border">
+                                    <label className="text-sm font-medium flex items-center gap-1 text-foreground">
+                                        <Activity className="h-4 w-4 text-primary" />
+                                        Conversion Tracking
+                                    </label>
+                                    <p className="text-xs text-muted-foreground -mt-1">
+                                        Track lead submissions with your ad platform or CRM. Both fire automatically when a lead successfully submits the hosted form.
+                                    </p>
+                                    <div>
+                                        <label className="text-xs font-medium mb-1 block text-foreground">Conversion Pixel URL</label>
+                                        <Input
+                                            value={conversionPixelUrl}
+                                            onChange={(e) => setConversionPixelUrl(e.target.value)}
+                                            placeholder="https://www.facebook.com/tr?id=...&ev=Lead"
+                                            type="url"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                                            An image pixel URL. Loaded as a 1×1 image on successful form submission (e.g., Facebook, Google Ads, TikTok).
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium mb-1 block text-foreground">Conversion Webhook URL</label>
+                                        <Input
+                                            value={conversionWebhookUrl}
+                                            onChange={(e) => setConversionWebhookUrl(e.target.value)}
+                                            placeholder="https://hooks.zapier.com/hooks/catch/..."
+                                            type="url"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                                            A POST webhook fired server-side on each form submission with lead data (e.g., Zapier, Make, custom CRM).
+                                        </p>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={saveConversionSettings}
+                                        disabled={convSaving || (!conversionPixelUrl && !conversionWebhookUrl)}
+                                    >
+                                        {convSaved ? (
+                                            <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Saved!</>
+                                        ) : convSaving ? (
+                                            'Saving...'
+                                        ) : (
+                                            'Save Conversion Settings'
+                                        )}
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>

@@ -178,7 +178,9 @@ export function AuctionPage() {
                                         <div className="text-2xl font-bold text-green-500">
                                             {displayHighestBid
                                                 ? formatCurrency(displayHighestBid)
-                                                : 'No bids'}
+                                                : displayBidCount > 0
+                                                    ? 'Sealed'
+                                                    : 'No bids'}
                                         </div>
                                         <div className="text-sm text-muted-foreground">Highest Bid</div>
                                     </GlassCard>

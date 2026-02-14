@@ -176,7 +176,10 @@ export const PreferenceSetSchema = z.object({
     label: z.string().min(1).max(100),
     vertical: z.string().min(1).max(100).regex(VERTICAL_SLUG_PATTERN, 'Invalid vertical slug format'),
     priority: z.number().int().min(0).default(0),
-    geoCountry: z.string().length(2).default('US'),
+    geoCountries: z.union([
+        z.string().length(2),
+        z.array(z.string().length(2)).min(1).max(30),
+    ]).transform(v => Array.isArray(v) ? v : [v]).default(['US']),
     geoInclude: z.array(z.string().min(1).max(4).regex(/^[A-Za-z]+$/, 'State code must be letters only')).default([])
         .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate state codes in geoInclude' }),
     geoExclude: z.array(z.string().min(1).max(4).regex(/^[A-Za-z]+$/, 'State code must be letters only')).default([])
