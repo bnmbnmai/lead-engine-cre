@@ -40,6 +40,29 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
 
         let stepStart = Date.now();
 
+        // ── PII defense-in-depth: strip any PII from parameters ──
+        const PII_KEYS = new Set([
+            'firstName', 'lastName', 'name', 'fullName',
+            'email', 'emailAddress', 'phone', 'phoneNumber', 'mobile',
+            'address', 'streetAddress', 'street', 'apartment', 'unit',
+            'ssn', 'socialSecurity', 'taxId',
+            'dob', 'dateOfBirth', 'birthDate',
+            'ip', 'ipAddress', 'userAgent',
+        ]);
+        const piiData: Record<string, any> = {};
+        const safeParameters: Record<string, any> = {};
+        for (const [key, value] of Object.entries(parameters as Record<string, any>)) {
+            if (PII_KEYS.has(key)) piiData[key] = value;
+            else safeParameters[key] = value;
+        }
+        let encryptedData: any = null;
+        let dataHash = '';
+        if (Object.keys(piiData).length > 0) {
+            const piiResult = privacyService.encryptLeadPII(piiData);
+            encryptedData = piiResult.encrypted;
+            dataHash = piiResult.dataHash;
+        }
+
         // ─── Step 1: Create Lead ───────────────────
         const lead = await prisma.lead.create({
             data: {
@@ -47,10 +70,11 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
                 vertical,
                 geo: { state: geoState, zip: geoZip, city: 'Miami' },
                 source: 'PLATFORM',
-                parameters,
+                parameters: safeParameters,
+                encryptedData: encryptedData as any,
+                dataHash,
                 reservePrice,
                 tcpaConsentAt: new Date(),
-                dataHash: '',
             },
         });
         steps.push({ step: '1. Create Lead', status: 'OK', duration: Date.now() - stepStart, data: { leadId: lead.id } });
