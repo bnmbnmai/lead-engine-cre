@@ -2,26 +2,165 @@
  * MCP Agent Proxy Routes
  *
  * Proxies requests to the MCP JSON-RPC server (default: localhost:3002).
- * Also provides a demo /chat endpoint that simulates an agent reasoning loop.
+ * The /chat endpoint uses Kimi K2.5 (Moonshot AI) as the reasoning LLM.
+ * Tool calls are executed via the MCP JSON-RPC server.
  */
 import { Router, Request, Response } from 'express';
 
 const router = Router();
 const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3002';
 
-// ── Tool definitions (mirrored for the demo chat) ──
+// ── Kimi K2.5 (Moonshot AI) Configuration ──
+// Set KIMI_API_KEY in your hosting platform's environment variables
+// (Render, Fly, Railway, etc.). Never commit the real key.
+// If unset, the /chat endpoint falls back to keyword-based demo mode.
+const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
+const KIMI_BASE_URL = 'https://api.moonshot.cn/v1';
 
-const TOOL_NAMES = [
-    'search_leads',
-    'place_bid',
-    'get_bid_floor',
-    'export_leads',
-    'get_preferences',
-    'set_auto_bid_rules',
-    'configure_crm_webhook',
-    'ping_lead',
-    'suggest_vertical',
-] as const;
+// ── MCP tool definitions for the LLM ──
+
+const MCP_TOOLS = [
+    {
+        type: 'function' as const,
+        function: {
+            name: 'search_leads',
+            description: 'Search and filter available leads in the marketplace by vertical, state, price range.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    vertical: { type: 'string', description: 'Lead vertical (solar, mortgage, roofing, insurance, etc.)' },
+                    state: { type: 'string', description: 'US state code (e.g., CA, FL, TX)' },
+                    minPrice: { type: 'number', description: 'Minimum reserve price in USDC' },
+                    maxPrice: { type: 'number', description: 'Maximum reserve price in USDC' },
+                    limit: { type: 'number', description: 'Max results to return', default: 5 },
+                },
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'get_bid_floor',
+            description: 'Get real-time bid floor pricing for a vertical. Returns floor, ceiling, and market index.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    vertical: { type: 'string', description: 'Lead vertical (solar, mortgage, etc.)' },
+                    country: { type: 'string', description: 'Country code', default: 'US' },
+                },
+                required: ['vertical'],
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'get_preferences',
+            description: 'Get the current buyer auto-bid preference sets (per-vertical, geo filters, budgets).',
+            parameters: { type: 'object', properties: {} },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'set_auto_bid_rules',
+            description: 'Configure auto-bid rules for a vertical. The engine auto-bids on matching leads.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    vertical: { type: 'string', description: 'Lead vertical' },
+                    autoBidEnabled: { type: 'boolean', default: true },
+                    autoBidAmount: { type: 'number', description: 'Bid amount in USDC' },
+                    minQualityScore: { type: 'number', description: 'Min quality score 0-10000' },
+                    dailyBudget: { type: 'number', description: 'Daily budget cap in USDC' },
+                    geoInclude: { type: 'array', items: { type: 'string' }, description: 'State codes to include' },
+                },
+                required: ['vertical', 'autoBidAmount'],
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'export_leads',
+            description: 'Export leads as CSV or JSON for CRM integration.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    format: { type: 'string', enum: ['csv', 'json'], default: 'json' },
+                    status: { type: 'string', default: 'SOLD' },
+                    days: { type: 'number', default: 30 },
+                },
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'place_bid',
+            description: 'Place a sealed bid on a specific lead.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    leadId: { type: 'string', description: 'The lead ID to bid on' },
+                    commitment: { type: 'string', description: 'Bid commitment hash' },
+                },
+                required: ['leadId', 'commitment'],
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'configure_crm_webhook',
+            description: 'Register a CRM webhook (HubSpot, Zapier, or generic).',
+            parameters: {
+                type: 'object',
+                properties: {
+                    url: { type: 'string', description: 'Webhook destination URL' },
+                    format: { type: 'string', enum: ['hubspot', 'zapier', 'generic'], default: 'generic' },
+                },
+                required: ['url'],
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'ping_lead',
+            description: 'Get full details and current status for a specific lead.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    leadId: { type: 'string', description: 'The lead ID' },
+                    action: { type: 'string', enum: ['status', 'evaluate'], default: 'status' },
+                },
+                required: ['leadId'],
+            },
+        },
+    },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'suggest_vertical',
+            description: 'AI-powered vertical classification from a lead description.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    description: { type: 'string', description: 'Lead description text' },
+                },
+                required: ['description'],
+            },
+        },
+    },
+];
+
+const SYSTEM_PROMPT = `You are an autonomous lead bidding agent for the Lead Engine CRE platform.
+You help buyers discover, evaluate, and bid on commercial real-estate leads.
+You have access to 9 MCP tools. Use them to answer the user's questions.
+Be concise and use markdown formatting. Show numbers and data clearly.
+When the user asks about leads, search for them. When asked about pricing, check bid floors.
+Always explain what you found after calling a tool.`;
 
 // ── GET /tools — list available MCP tools ──
 
@@ -62,12 +201,7 @@ router.post('/rpc', async (req: Request, res: Response) => {
     }
 });
 
-// ── POST /chat — demo agent reasoning loop ──
-// Simulates a LangChain-style agent that:
-//   1. Receives a user message
-//   2. Decides which tool(s) to call
-//   3. Executes tool calls via MCP /rpc
-//   4. Returns the assistant response + tool call log
+// ── POST /chat — Kimi K2.5 agent with MCP tool execution ──
 
 interface ChatMessage {
     role: 'user' | 'assistant' | 'tool';
@@ -75,63 +209,45 @@ interface ChatMessage {
     toolCall?: { name: string; params: Record<string, unknown>; result?: unknown };
 }
 
-// Simple keyword→tool mapping for the demo agent
-function pickToolCalls(message: string): { name: string; params: Record<string, unknown> }[] {
-    const lower = message.toLowerCase();
-    const calls: { name: string; params: Record<string, unknown> }[] = [];
+async function callKimi(messages: any[]): Promise<any> {
+    const response = await fetch(`${KIMI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${KIMI_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: 'moonshot-v1-128k',
+            messages,
+            tools: MCP_TOOLS,
+            tool_choice: 'auto',
+            temperature: 0.2,
+        }),
+        signal: AbortSignal.timeout(30000),
+    });
 
-    // Search intent
-    if (lower.includes('search') || lower.includes('find') || lower.includes('browse') || lower.includes('list') || lower.includes('show me')) {
-        const params: Record<string, unknown> = { limit: 5 };
-        // Extract vertical hints
-        const verticals = ['solar', 'mortgage', 'roofing', 'insurance', 'hvac', 'plumbing', 'auto'];
-        for (const v of verticals) {
-            if (lower.includes(v)) { params.vertical = v; break; }
-        }
-        // Extract state hints
-        const stateMatch = lower.match(/\b([A-Z]{2})\b/) || lower.match(/\b(california|texas|florida|new york)\b/i);
-        if (stateMatch) {
-            const stateMap: Record<string, string> = { california: 'CA', texas: 'TX', florida: 'FL', 'new york': 'NY' };
-            params.state = stateMap[stateMatch[1].toLowerCase()] || stateMatch[1].toUpperCase();
-        }
-        calls.push({ name: 'search_leads', params });
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Kimi API error ${response.status}: ${err}`);
     }
 
-    // Bid floor intent
-    if (lower.includes('floor') || lower.includes('pricing') || lower.includes('how much') || lower.includes('price')) {
-        const params: Record<string, unknown> = {};
-        const verticals = ['solar', 'mortgage', 'roofing', 'insurance', 'hvac'];
-        for (const v of verticals) {
-            if (lower.includes(v)) { params.vertical = v; break; }
-        }
-        if (!params.vertical) params.vertical = 'solar';
-        calls.push({ name: 'get_bid_floor', params });
-    }
+    return response.json();
+}
 
-    // Preferences intent
-    if (lower.includes('preference') || lower.includes('auto-bid') || lower.includes('autobid') || lower.includes('settings')) {
-        calls.push({ name: 'get_preferences', params: {} });
-    }
-
-    // Bid intent
-    if ((lower.includes('bid') || lower.includes('place')) && lower.includes('lead')) {
-        const idMatch = lower.match(/lead[_\s-]?([a-z0-9_-]+)/i) || lower.match(/clx[a-z0-9]+/i);
-        if (idMatch) {
-            calls.push({ name: 'place_bid', params: { leadId: idMatch[0], commitment: '0x_demo_hash' } });
-        }
-    }
-
-    // Export intent
-    if (lower.includes('export') || lower.includes('csv') || lower.includes('download')) {
-        calls.push({ name: 'export_leads', params: { format: lower.includes('csv') ? 'csv' : 'json' } });
-    }
-
-    // Fallback: if nothing matched, search leads
-    if (calls.length === 0) {
-        calls.push({ name: 'search_leads', params: { limit: 5 } });
-    }
-
-    return calls;
+async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<any> {
+    const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: `chat-${Date.now()}`,
+            method: name,
+            params,
+        }),
+        signal: AbortSignal.timeout(10000),
+    });
+    const rpcData: any = await rpcResponse.json();
+    return rpcData.result || rpcData.error || {};
 }
 
 router.post('/chat', async (req: Request, res: Response) => {
@@ -142,34 +258,155 @@ router.post('/chat', async (req: Request, res: Response) => {
         return;
     }
 
-    const messages: ChatMessage[] = [...history];
-    messages.push({ role: 'user', content: message });
+    // If no Kimi API key, fall back to keyword-based demo
+    if (!KIMI_API_KEY) {
+        return fallbackChat(req, res, message, history);
+    }
 
     try {
-        // Step 1: Determine tool calls
-        const toolCalls = pickToolCalls(message);
+        // Build conversation for Kimi
+        const llmMessages: any[] = [
+            { role: 'system', content: SYSTEM_PROMPT },
+        ];
 
-        // Step 2: Execute each tool via MCP
+        // Include recent history (keep it concise)
+        for (const h of history.slice(-6)) {
+            if (h.role === 'user' || h.role === 'assistant') {
+                llmMessages.push({ role: h.role, content: h.content });
+            }
+        }
+        llmMessages.push({ role: 'user', content: message });
+
+        const toolCallLog: ChatMessage[] = [];
+        let iterations = 0;
+        const MAX_ITERATIONS = 5;
+
+        // ReAct loop: Kimi decides tools → execute → feed back → repeat
+        while (iterations < MAX_ITERATIONS) {
+            iterations++;
+            const completion = await callKimi(llmMessages);
+            const choice = completion.choices?.[0];
+
+            if (!choice) break;
+
+            const assistantMsg = choice.message;
+            llmMessages.push(assistantMsg);
+
+            // If Kimi called tools, execute them
+            if (assistantMsg.tool_calls?.length) {
+                for (const tc of assistantMsg.tool_calls) {
+                    const toolName = tc.function.name;
+                    let toolParams: Record<string, unknown> = {};
+                    try {
+                        toolParams = JSON.parse(tc.function.arguments || '{}');
+                    } catch { /* empty params */ }
+
+                    const result = await executeMcpTool(toolName, toolParams);
+
+                    // Log for frontend
+                    toolCallLog.push({
+                        role: 'tool',
+                        content: `Called \`${toolName}\``,
+                        toolCall: { name: toolName, params: toolParams, result },
+                    });
+
+                    // Feed result back to Kimi
+                    llmMessages.push({
+                        role: 'tool',
+                        tool_call_id: tc.id,
+                        content: JSON.stringify(result),
+                    });
+                }
+                // Continue loop — Kimi may want to call more tools or produce final answer
+                continue;
+            }
+
+            // No tool calls = final answer
+            const outputMessages: ChatMessage[] = [
+                { role: 'user', content: message },
+                ...toolCallLog,
+                { role: 'assistant', content: assistantMsg.content || 'Done.' },
+            ];
+
+            res.json({
+                messages: outputMessages,
+                toolCalls: toolCallLog.map((t) => t.toolCall),
+            });
+            return;
+        }
+
+        // Max iterations reached
+        res.json({
+            messages: [
+                { role: 'user', content: message },
+                ...toolCallLog,
+                { role: 'assistant', content: 'I executed several tools but reached the iteration limit. Here are the results above.' },
+            ],
+            toolCalls: toolCallLog.map((t) => t.toolCall),
+        });
+    } catch (err: any) {
+        console.error('Kimi chat error:', err.message);
+        // Fall back to keyword-based if Kimi fails
+        return fallbackChat(req, res, message, history);
+    }
+});
+
+// ── Keyword-based fallback (when KIMI_API_KEY is not set or Kimi is unreachable) ──
+
+function pickToolCalls(message: string): { name: string; params: Record<string, unknown> }[] {
+    const lower = message.toLowerCase();
+    const calls: { name: string; params: Record<string, unknown> }[] = [];
+
+    if (lower.includes('search') || lower.includes('find') || lower.includes('browse') || lower.includes('list') || lower.includes('show me')) {
+        const params: Record<string, unknown> = { limit: 5 };
+        const verticals = ['solar', 'mortgage', 'roofing', 'insurance', 'hvac', 'plumbing', 'auto'];
+        for (const v of verticals) { if (lower.includes(v)) { params.vertical = v; break; } }
+        const stateMatch = lower.match(/\b([A-Z]{2})\b/) || lower.match(/\b(california|texas|florida|new york)\b/i);
+        if (stateMatch) {
+            const stateMap: Record<string, string> = { california: 'CA', texas: 'TX', florida: 'FL', 'new york': 'NY' };
+            params.state = stateMap[stateMatch[1].toLowerCase()] || stateMatch[1].toUpperCase();
+        }
+        calls.push({ name: 'search_leads', params });
+    }
+
+    if (lower.includes('floor') || lower.includes('pricing') || lower.includes('how much') || lower.includes('price')) {
+        const params: Record<string, unknown> = {};
+        for (const v of ['solar', 'mortgage', 'roofing', 'insurance', 'hvac']) {
+            if (lower.includes(v)) { params.vertical = v; break; }
+        }
+        if (!params.vertical) params.vertical = 'solar';
+        calls.push({ name: 'get_bid_floor', params });
+    }
+
+    if (lower.includes('preference') || lower.includes('auto-bid') || lower.includes('autobid') || lower.includes('settings')) {
+        calls.push({ name: 'get_preferences', params: {} });
+    }
+
+    if (lower.includes('export') || lower.includes('csv') || lower.includes('download')) {
+        calls.push({ name: 'export_leads', params: { format: lower.includes('csv') ? 'csv' : 'json' } });
+    }
+
+    if (calls.length === 0) {
+        calls.push({ name: 'search_leads', params: { limit: 5 } });
+    }
+
+    return calls;
+}
+
+async function fallbackChat(_req: Request, res: Response, message: string, history: ChatMessage[]) {
+    const messages: ChatMessage[] = [...history, { role: 'user', content: message }];
+
+    try {
+        const toolCalls = pickToolCalls(message);
         const toolResults: ChatMessage[] = [];
+
         for (const call of toolCalls) {
             try {
-                const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        jsonrpc: '2.0',
-                        id: `chat-${Date.now()}`,
-                        method: call.name,
-                        params: call.params,
-                    }),
-                    signal: AbortSignal.timeout(10000),
-                });
-                const rpcData: any = await rpcResponse.json();
-
+                const result = await executeMcpTool(call.name, call.params);
                 toolResults.push({
                     role: 'tool',
-                    content: JSON.stringify(rpcData.result || rpcData.error || {}, null, 2),
-                    toolCall: { name: call.name, params: call.params, result: rpcData.result || rpcData.error },
+                    content: JSON.stringify(result, null, 2),
+                    toolCall: { name: call.name, params: call.params, result },
                 });
             } catch {
                 toolResults.push({
@@ -180,7 +417,6 @@ router.post('/chat', async (req: Request, res: Response) => {
             }
         }
 
-        // Step 3: Generate assistant summary
         const toolSummaries = toolResults.map((tr) => {
             const tc = tr.toolCall!;
             const result = tc.result as any;
@@ -203,18 +439,13 @@ router.post('/chat', async (req: Request, res: Response) => {
             return `✅ \`${tc.name}\` executed successfully`;
         });
 
-        const assistantMessage: ChatMessage = {
-            role: 'assistant',
-            content: toolSummaries.join('\n\n'),
-        };
-
         res.json({
-            messages: [...messages, ...toolResults, assistantMessage],
+            messages: [...messages, ...toolResults, { role: 'assistant' as const, content: toolSummaries.join('\n\n') }],
             toolCalls: toolResults.map((tr) => tr.toolCall),
         });
     } catch (err: any) {
         res.status(500).json({ error: 'Agent execution failed', details: err.message });
     }
-});
+}
 
 export default router;

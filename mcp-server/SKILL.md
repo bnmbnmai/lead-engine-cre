@@ -132,8 +132,9 @@ Full autonomous agent with score-based rules, budget management, and CRM integra
 ```python
 # autonomous_bid_agent.py
 from langchain.agents import Tool, AgentExecutor, create_openai_tools_agent
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
+import os
 import requests
 
 MCP_URL = "http://localhost:3002/rpc"
@@ -214,7 +215,12 @@ tools = [
 ]
 
 # Create agent
-llm = ChatOpenAI(model="gpt-4", temperature=0)
+llm = ChatOpenAI(
+    model="moonshot-v1-128k",
+    base_url="https://api.moonshot.cn/v1",
+    api_key=os.environ["KIMI_API_KEY"],
+    temperature=0,
+)
 prompt = ChatPromptTemplate.from_messages([
     ("system", """You are an autonomous lead bidding agent for the Lead Engine CRE platform.
     Your job is to:
