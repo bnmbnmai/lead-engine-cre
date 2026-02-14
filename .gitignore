@@ -70,6 +70,12 @@ backend/prisma/*.db-journal
 .cache/
 *.tsbuildinfo
 frontend/tsc_errors.txt
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
+# Deploy / migration logs
+**/deploy-output*.txt
+**/migration-logs/
 
 # Private keys — CRITICAL: never commit
 *.pem
