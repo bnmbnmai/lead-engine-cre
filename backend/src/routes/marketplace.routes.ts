@@ -643,9 +643,11 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
             include: {
                 seller: {
                     select: {
+                        id: true,
                         companyName: true,
                         reputationScore: true,
                         isVerified: true,
+                        userId: true,
                     },
                 },
                 auctionRoom: true,
@@ -661,14 +663,40 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
         // Get quality score
         const qualityScore = await creService.getQualityScore(lead.id);
 
-        res.json({
-            lead: {
-                ...lead,
-                qualityScore,
-                encryptedData: undefined, // Don't expose
-                dataHash: undefined,
-            },
-        });
+        // Check if requesting user is the lead's seller (owns the PII)
+        const isOwner = req.user?.id && lead.seller?.userId === req.user.id;
+
+        if (isOwner) {
+            // Seller sees full lead data (they own the PII)
+            res.json({
+                lead: {
+                    ...lead,
+                    qualityScore,
+                    encryptedData: undefined,
+                    dataHash: undefined,
+                },
+            });
+        } else {
+            // Everyone else gets PII-redacted preview
+            const preview = redactLeadForPreview(lead as any);
+            res.json({
+                lead: {
+                    id: lead.id,
+                    ...preview,
+                    seller: lead.seller ? {
+                        companyName: lead.seller.companyName,
+                        reputationScore: lead.seller.reputationScore,
+                        isVerified: lead.seller.isVerified,
+                    } : undefined,
+                    auctionRoom: lead.auctionRoom,
+                    auctionStartAt: lead.auctionStartAt,
+                    auctionEndAt: lead.auctionEndAt,
+                    buyNowPrice: lead.buyNowPrice,
+                    qualityScore,
+                    _count: (lead as any)._count,
+                },
+            });
+        }
     } catch (error) {
         console.error('Get lead error:', error);
         res.status(500).json({ error: 'Failed to get lead' });

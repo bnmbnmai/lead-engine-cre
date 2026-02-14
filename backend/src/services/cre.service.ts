@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { zkService } from './zk.service';
-import { isValidRegion, getAllCountryCodes } from '../lib/geo-registry';
+import { isValidRegion, getAllCountryCodes, isValidPostalCode } from '../lib/geo-registry';
 
 // ============================================
 // CRE Verification Service
@@ -156,6 +156,12 @@ class CREService {
                 await this.logCheck(lead.id, 'GEO_VALIDATION', 'FAILED', `Invalid region ${geo.state} for country ${country}`);
                 return { isValid: false, reason: `Invalid region "${geo.state}" for ${country}` };
             }
+        }
+
+        // Validate postal code format if provided (warn, don't block)
+        if (geo.zip && !isValidPostalCode(country, geo.zip)) {
+            console.warn(`CRE: invalid postal code "${geo.zip}" for ${country} — lead ${lead.id}`);
+            await this.logCheck(lead.id, 'GEO_VALIDATION', 'PASSED', `Invalid postal format "${geo.zip}" for ${country} — allowed`);
         }
 
         await this.logCheck(lead.id, 'GEO_VALIDATION', 'PASSED');

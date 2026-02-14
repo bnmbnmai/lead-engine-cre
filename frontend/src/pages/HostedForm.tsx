@@ -143,7 +143,7 @@ export default function HostedForm() {
         setSubmitError(null);
         try {
             // Extract geo fields from form data if present
-            const geo: Record<string, string> = { country: 'US' };
+            const geo: Record<string, string> = { country: String(formData.country || 'US') };
             if (formData.state) geo.state = String(formData.state);
             if (formData.city) geo.city = String(formData.city);
             if (formData.zip || formData.zipCode || formData.zip_code) {

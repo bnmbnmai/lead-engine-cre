@@ -26,12 +26,12 @@ function readBackend(relativePath: string): string {
 describe('Auction Duration Config', () => {
     const config = readBackend('config/perks.env.ts');
 
-    test('LEAD_AUCTION_DURATION_SECS defaults to 60 (Standard preset)', () => {
-        expect(config).toContain("LEAD_AUCTION_DURATION_SECS || '60'");
+    test('LEAD_AUCTION_DURATION_SECS defaults to 300 (Standard preset)', () => {
+        expect(config).toContain("LEAD_AUCTION_DURATION_SECS || '300'");
     });
 
-    test('LEAD_AUCTION_MAX_DURATION_SECS defaults to 300 (Extended preset)', () => {
-        expect(config).toContain("LEAD_AUCTION_MAX_DURATION_SECS || '300'");
+    test('LEAD_AUCTION_MAX_DURATION_SECS defaults to 600 (Extended preset)', () => {
+        expect(config).toContain("LEAD_AUCTION_MAX_DURATION_SECS || '600'");
     });
 
     test('PERKS_CONFIG.auction includes leadMaxDurationSecs', () => {

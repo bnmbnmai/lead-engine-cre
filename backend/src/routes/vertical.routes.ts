@@ -360,16 +360,17 @@ router.get('/public/:slug/form-config', generalLimiter, async (req: Authenticate
         // Use saved formConfig or generate a sensible default
         const formConfig = vertical.formConfig || {
             fields: [
-                { id: 'f_name', key: 'name', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
+                { id: 'f_notes', key: 'notes', label: 'Additional Details', type: 'textarea', required: false, placeholder: 'Tell us more about what you need...' },
+                { id: 'f_name', key: 'fullName', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
                 { id: 'f_email', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'john@example.com' },
                 { id: 'f_phone', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 123-4567' },
-                { id: 'f_state', key: 'state', label: 'State', type: 'text', required: false, placeholder: 'CA' },
-                { id: 'f_zip', key: 'zip', label: 'Zip Code', type: 'text', required: false, placeholder: '90210' },
-                { id: 'f_notes', key: 'notes', label: 'Additional Details', type: 'textarea', required: false, placeholder: 'Tell us more about what you need...' },
+                { id: 'f_zip', key: 'zip', label: 'ZIP / Postal Code', type: 'text', required: true, placeholder: '90210' },
+                { id: 'f_state', key: 'state', label: 'State / Region', type: 'text', required: true, placeholder: 'CA' },
+                { id: 'f_country', key: 'country', label: 'Country', type: 'select', required: true, options: ['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'BR', 'MX', 'IN', 'JP', 'Other'] },
             ],
             steps: [
-                { id: 's_info', label: 'Your Info', fieldIds: ['f_name', 'f_email', 'f_phone'] },
-                { id: 's_details', label: 'Details', fieldIds: ['f_state', 'f_zip', 'f_notes'] },
+                { id: 's_details', label: 'Details', fieldIds: ['f_notes'] },
+                { id: 's_contact', label: 'Contact Info', fieldIds: ['f_name', 'f_email', 'f_phone', 'f_zip', 'f_state', 'f_country'] },
             ],
             gamification: { showProgress: true, showNudges: true, confetti: true },
         };
@@ -427,6 +428,18 @@ router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
             return;
         }
 
+        // Validate required contact/geo fields are present for CRE/ACE compatibility
+        const REQUIRED_KEYS = ['fullName', 'email', 'phone', 'zip', 'country'];
+        const fieldKeys = validation.data.fields.map(f => f.key);
+        const missingKeys = REQUIRED_KEYS.filter(k => !fieldKeys.includes(k));
+        const warnings: string[] = [];
+        if (missingKeys.length > 0) {
+            warnings.push(
+                `Missing recommended fields: ${missingKeys.join(', ')}. ` +
+                `These are needed for CRE geo verification and ACE compliance checks.`
+            );
+        }
+
         const updated = await prisma.vertical.update({
             where: { slug },
             data: { formConfig: validation.data as any },
@@ -435,6 +448,7 @@ router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
         res.json({
             message: `Form config saved for '${updated.name}'`,
             formConfig: updated.formConfig,
+            ...(warnings.length > 0 ? { warnings } : {}),
         });
     } catch (error) {
         console.error('Save form config error:', error);

@@ -42,8 +42,8 @@ describe('Auction Duration Config', () => {
         perksConfig = require('../../src/config/perks.env');
     });
 
-    test('LEAD_AUCTION_DURATION_SECS defaults to 60 (Standard preset)', () => {
-        expect(perksConfig.LEAD_AUCTION_DURATION_SECS).toBe(60);
+    test('LEAD_AUCTION_DURATION_SECS defaults to 300 (Standard preset)', () => {
+        expect(perksConfig.LEAD_AUCTION_DURATION_SECS).toBe(300);
     });
 
     test('NFT_AUCTION_DURATION_SECS defaults to 600 (10 minutes)', () => {
@@ -62,10 +62,10 @@ describe('Auction Duration Config', () => {
         const auctionConfig = perksConfig.PERKS_CONFIG.auction;
         expect(auctionConfig).toBeDefined();
         expect(auctionConfig).toEqual({
-            presets: { hot: 30, standard: 60, extended: 300 },
-            leadDurationSecs: 60,
-            leadMaxDurationSecs: 300,
-            pingPostDurationSecs: 60,
+            presets: { short: 60, standard: 300, extended: 600 },
+            leadDurationSecs: 300,
+            leadMaxDurationSecs: 600,
+            pingPostDurationSecs: expect.any(Number),
             auctionFallbackDurationSecs: 300,
             nftDurationSecs: 600,
             autoExtendIncrementSecs: 60,

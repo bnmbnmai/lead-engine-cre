@@ -243,7 +243,14 @@ export function FormBuilder() {
             }
             setIsSaved(true);
             setHasAdminConfig(true);
-            toast({ type: 'success', title: 'Config Saved', description: `Form config saved for ${vertical}. Sellers will now see this form.` });
+
+            // Show warnings about missing CRE/ACE fields if present
+            const warnings = (res.data as any)?.warnings as string[] | undefined;
+            if (warnings && warnings.length > 0) {
+                toast({ type: 'warning', title: 'Config Saved with Warnings', description: warnings.join(' ') });
+            } else {
+                toast({ type: 'success', title: 'Config Saved', description: `Form config saved for ${vertical}. Sellers will now see this form.` });
+            }
         } catch (err: any) {
             toast({ type: 'error', title: 'Save Failed', description: err?.response?.data?.error || 'Failed to save form config' });
         } finally {

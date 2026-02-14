@@ -37,9 +37,12 @@ const CONTACT_FIELDS: FormField[] = [
     { id: 'f_name', key: 'fullName', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
     { id: 'f_email', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'john@example.com' },
     { id: 'f_phone', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 123-4567' },
+    { id: 'f_zip', key: 'zip', label: 'ZIP / Postal Code', type: 'text', required: true, placeholder: '90210' },
+    { id: 'f_state', key: 'state', label: 'State / Region', type: 'text', required: true, placeholder: 'CA' },
+    { id: 'f_country', key: 'country', label: 'Country', type: 'select', required: true, options: ['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'BR', 'MX', 'IN', 'JP', 'Other'] },
 ];
 
-const CONTACT_STEP: FormStep = { id: 's_contact', label: 'Contact Info', fieldIds: ['f_name', 'f_email', 'f_phone'] };
+const CONTACT_STEP: FormStep = { id: 's_contact', label: 'Contact Info', fieldIds: ['f_name', 'f_email', 'f_phone', 'f_zip', 'f_state', 'f_country'] };
 
 const DEFAULT_GAMIFICATION = { showProgress: true, showNudges: true, confetti: true };
 
