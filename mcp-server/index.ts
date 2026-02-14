@@ -18,7 +18,7 @@ import { logAgentAction, generateRequestId, formatErrorResponse, ERROR_CODES } f
 //   API_KEY        - Agent API key for authentication
 //   MCP_PORT       - Port for this server (default: 3002)
 
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:3001';
+const API_BASE = process.env.API_BASE_URL || 'https://lead-engine-api-0jdu.onrender.com';
 const API_KEY = process.env.API_KEY || '';
 const PORT = parseInt(process.env.MCP_PORT || '3002');
 
