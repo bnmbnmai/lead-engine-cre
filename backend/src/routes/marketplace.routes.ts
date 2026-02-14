@@ -10,6 +10,7 @@ import { x402Service } from '../services/x402.service';
 import { marketplaceAsksCache } from '../lib/cache';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { redactLeadForPreview } from '../services/piiProtection';
+import { privacyService } from '../services/privacy.service';
 
 const router = Router();
 
@@ -319,6 +320,40 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
             console.log(`[MARKETPLACE] Auto-created seller profile ${seller.id} for user ${req.user!.id}`);
         }
 
+        // ── Server-side PII defense ──────────────────────────────────
+        // Strip PII fields from parameters so they never sit unencrypted.
+        // If the client already provided encryptedData, we just strip params.
+        // If not, we encrypt server-side as a fallback.
+        const PII_KEYS = new Set([
+            'firstName', 'lastName', 'name', 'fullName',
+            'email', 'emailAddress', 'phone', 'phoneNumber', 'mobile',
+            'address', 'streetAddress', 'street', 'apartment', 'unit',
+            'ssn', 'socialSecurity', 'taxId',
+            'dob', 'dateOfBirth', 'birthDate',
+            'ip', 'ipAddress', 'userAgent',
+        ]);
+
+        const piiData: Record<string, any> = {};
+        const safeParams: Record<string, any> = {};
+        const rawParams = (data.parameters || {}) as Record<string, any>;
+
+        for (const [key, value] of Object.entries(rawParams)) {
+            if (PII_KEYS.has(key)) {
+                piiData[key] = value;
+            } else {
+                safeParams[key] = value;
+            }
+        }
+
+        // Server-side encryption fallback if frontend didn't encrypt
+        let encryptedData: any = data.encryptedData;
+        let dataHash = data.dataHash || '';
+        if (!encryptedData && Object.keys(piiData).length > 0) {
+            const piiResult = privacyService.encryptLeadPII(piiData);
+            encryptedData = piiResult.encrypted;
+            dataHash = piiResult.dataHash;
+        }
+
         // Create lead
         const lead = await prisma.lead.create({
             data: {
@@ -326,13 +361,13 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
                 vertical: data.vertical,
                 geo: data.geo as any,
                 source: data.source as any,
-                parameters: data.parameters as any,
+                parameters: safeParams as any,    // PII stripped
                 adSource: data.adSource as any,
                 reservePrice: data.reservePrice,
                 tcpaConsentAt: data.tcpaConsentAt ? new Date(data.tcpaConsentAt) : null,
                 consentProof: data.consentProof,
-                encryptedData: data.encryptedData,
-                dataHash: data.dataHash,
+                encryptedData: encryptedData as any,
+                dataHash,
                 expiresAt: new Date(Date.now() + data.expiresInMinutes * 60 * 1000),
             },
         });
@@ -469,6 +504,38 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
             zip: parameters.zip || parameters.zipCode || parameters.zip_code || undefined,
         };
 
+        // ── PII Extraction & Encryption ──────────────────────────────
+        // Separate PII fields from safe parameters so raw PII never
+        // sits unencrypted in the database.
+        const PII_KEYS = new Set([
+            'firstName', 'lastName', 'name', 'fullName',
+            'email', 'emailAddress', 'phone', 'phoneNumber', 'mobile',
+            'address', 'streetAddress', 'street', 'apartment', 'unit',
+            'ssn', 'socialSecurity', 'taxId',
+            'dob', 'dateOfBirth', 'birthDate',
+            'ip', 'ipAddress', 'userAgent',
+        ]);
+
+        const piiData: Record<string, any> = {};
+        const safeParameters: Record<string, any> = {};
+
+        for (const [key, value] of Object.entries(parameters)) {
+            if (PII_KEYS.has(key)) {
+                piiData[key] = value;
+            } else {
+                safeParameters[key] = value;
+            }
+        }
+
+        // Encrypt PII via AES-256-GCM
+        let encryptedData: any = null;
+        let dataHash: string = '';
+        if (Object.keys(piiData).length > 0) {
+            const piiResult = privacyService.encryptLeadPII(piiData);
+            encryptedData = piiResult.encrypted;
+            dataHash = piiResult.dataHash;
+        }
+
         // Create the lead attributed to this seller
         const lead = await prisma.lead.create({
             data: {
@@ -476,7 +543,9 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
                 vertical,
                 geo: leadGeo as any,
                 source: source || 'PLATFORM',
-                parameters: parameters as any,
+                parameters: safeParameters as any,   // non-PII only
+                encryptedData: encryptedData as any,  // AES-256-GCM encrypted PII
+                dataHash,                             // keccak256 of plaintext PII
                 tcpaConsentAt: tcpaConsentAt ? new Date(tcpaConsentAt) : new Date(), // Default consent = now
                 expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min default
             },
