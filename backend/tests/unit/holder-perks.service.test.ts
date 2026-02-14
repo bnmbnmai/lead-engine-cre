@@ -20,7 +20,7 @@ jest.mock('../../src/lib/prisma', () => ({
 
 // Reset cache between tests
 import { nftOwnershipCache } from '../../src/lib/cache';
-import { applyHolderPerks, applyMultiplier } from '../../src/services/holder-perks.service';
+import { applyHolderPerks, applyMultiplier, PRE_PING_MIN, PRE_PING_MAX } from '../../src/services/holder-perks.service';
 import { prisma } from '../../src/lib/prisma';
 
 const mockFindUnique = prisma.vertical.findUnique as jest.Mock;
@@ -46,8 +46,8 @@ describe('applyHolderPerks', () => {
 
         expect(perks.isHolder).toBe(true);
         expect(perks.multiplier).toBe(1.2);
-        expect(perks.prePingSeconds).toBeGreaterThanOrEqual(5);
-        expect(perks.prePingSeconds).toBeLessThanOrEqual(10);
+        expect(perks.prePingSeconds).toBeGreaterThanOrEqual(PRE_PING_MIN);
+        expect(perks.prePingSeconds).toBeLessThanOrEqual(PRE_PING_MAX);
     });
 
     it('returns default perks for non-holder (address mismatch)', async () => {

@@ -353,12 +353,23 @@ describe('Docs RTB Section', () => {
 describe('Short Auctions', () => {
     const { AskCreateSchema } = require('../../src/utils/validation');
 
-    test('minimum auction duration is 60 seconds', () => {
+    test('minimum auction duration is 30 seconds (Hot preset)', () => {
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
             geoTargets: {},
             reservePrice: 50,
             auctionDuration: 30,
+        });
+        expect(result.success).toBe(true);
+        expect(result.data.auctionDuration).toBe(30);
+    });
+
+    test('below-minimum auction duration is rejected', () => {
+        const result = AskCreateSchema.safeParse({
+            vertical: 'solar',
+            geoTargets: {},
+            reservePrice: 50,
+            auctionDuration: 29,
         });
         expect(result.success).toBe(false);
     });
@@ -373,14 +384,14 @@ describe('Short Auctions', () => {
         expect(result.success).toBe(false);
     });
 
-    test('default auction duration is 300 seconds', () => {
+    test('default auction duration is 60 seconds (Standard preset)', () => {
         const result = AskCreateSchema.safeParse({
             vertical: 'solar',
             geoTargets: {},
             reservePrice: 50,
         });
         expect(result.success).toBe(true);
-        expect(result.data.auctionDuration).toBe(300);
+        expect(result.data.auctionDuration).toBe(60);
     });
 
     test('60-second auction is valid (minimum)', () => {

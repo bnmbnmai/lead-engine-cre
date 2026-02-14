@@ -287,7 +287,7 @@ describe('P5: Nonce Collision & Pre-Ping Determinism', () => {
         expect(a).toBe(b);
     });
 
-    test('computePrePing range is always 5-10 seconds', () => {
+    test('computePrePing range is always within configured bounds', () => {
         const { computePrePing, PRE_PING_MIN, PRE_PING_MAX } = require('../../src/services/holder-perks.service');
         const slugs = ['solar', 'mortgage', 'roofing', 'insurance', 'auto', 'hvac', 'plumbing', 'legal'];
         for (const slug of slugs) {
@@ -297,14 +297,21 @@ describe('P5: Nonce Collision & Pre-Ping Determinism', () => {
         }
     });
 
-    test('different nonces produce different windows for same slug', () => {
-        const { computePrePing } = require('../../src/services/holder-perks.service');
+    test('different nonces produce consistent values when range is fixed', () => {
+        const { computePrePing, PRE_PING_MIN, PRE_PING_MAX } = require('../../src/services/holder-perks.service');
         const results = new Set<number>();
         for (let i = 0; i < 20; i++) {
             results.add(computePrePing('mortgage', `nonce-${i}`));
         }
-        // Should produce multiple distinct values (at least 2 of the 6 possible)
-        expect(results.size).toBeGreaterThanOrEqual(2);
+        // When PRE_PING_MIN === PRE_PING_MAX, all values are the same (fixed window)
+        // When they differ, we expect at least 2 distinct values
+        const rangeSize = PRE_PING_MAX - PRE_PING_MIN + 1;
+        if (rangeSize <= 1) {
+            expect(results.size).toBe(1);
+            expect([...results][0]).toBe(PRE_PING_MIN);
+        } else {
+            expect(results.size).toBeGreaterThanOrEqual(2);
+        }
     });
 
     test('empty nonce equals no-nonce behavior', () => {

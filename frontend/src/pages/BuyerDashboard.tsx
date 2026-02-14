@@ -399,6 +399,9 @@ export function BuyerDashboard() {
                             <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
                                 {filteredPurchased.length} won
                             </Badge>
+                            <Button variant="ghost" size="sm" asChild>
+                                <Link to="/buyer/portfolio">View All</Link>
+                            </Button>
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -477,7 +480,7 @@ export function BuyerDashboard() {
                                             </Button>
                                             {bid.lead?.id && (
                                                 <Button variant="outline" size="sm" className="flex-1" asChild>
-                                                    <Link to={`/leads/${bid.lead.id}`}>
+                                                    <Link to={`/lead/${bid.lead.id}`}>
                                                         View Details <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
                                                     </Link>
                                                 </Button>

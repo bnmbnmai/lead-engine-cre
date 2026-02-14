@@ -28,6 +28,7 @@ import AdminNFTs from '@/pages/AdminNFTs';
 import AdminVerticals from '@/pages/AdminVerticals';
 import AskDetailPage from '@/pages/AskDetailPage';
 import LeadDetailPage from '@/pages/LeadDetailPage';
+import BuyerPortfolio from '@/pages/BuyerPortfolio';
 import AdConversions from '@/pages/AdConversions';
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';
@@ -87,6 +88,7 @@ function App() {
                                 <Route path="/buyer/bids" element={<ProtectedRoute role="BUYER"><BuyerBids /></ProtectedRoute>} />
                                 <Route path="/buyer/analytics" element={<ProtectedRoute role="BUYER"><BuyerAnalytics /></ProtectedRoute>} />
                                 <Route path="/buyer/preferences" element={<ProtectedRoute role="BUYER"><BuyerPreferences /></ProtectedRoute>} />
+                                <Route path="/buyer/portfolio" element={<ProtectedRoute role="BUYER"><BuyerPortfolio /></ProtectedRoute>} />
 
                                 {/* Seller Routes (auth + role required) */}
                                 <Route path="/seller" element={<ProtectedRoute role="SELLER"><SellerDashboard /></ProtectedRoute>} />

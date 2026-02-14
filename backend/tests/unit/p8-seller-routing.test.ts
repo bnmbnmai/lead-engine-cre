@@ -62,8 +62,10 @@ describe('Seller Routing', () => {
 describe('Lead Expiry', () => {
     test('validation.ts defaults expiresInMinutes to 5', () => {
         const src = readBackend('utils/validation.ts');
-        expect(src).toContain('.default(5)');
-        expect(src).not.toContain('.default(60)');
+        // Check expiresInMinutes specifically (file also has auctionDuration.default(60))
+        const expiresLine = src.split('\n').find((l: string) => l.includes('expiresInMinutes'));
+        expect(expiresLine).toBeDefined();
+        expect(expiresLine).toContain('.default(5)');
     });
 
     test('curl example uses expiresInMinutes: 5', () => {

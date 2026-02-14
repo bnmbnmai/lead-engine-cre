@@ -119,8 +119,8 @@ describe('Holder Perks Application', () => {
         expect(a).toBe(b);
     });
 
-    test('computePrePing produces different values for different slugs', () => {
-        // Not guaranteed, but very likely for different strings
+    test('computePrePing produces consistent values for different slugs', () => {
+        // When PRE_PING_MIN === PRE_PING_MAX, all slugs produce the same value
         const results = new Set([
             computePrePing('solar'),
             computePrePing('mortgage'),
@@ -129,8 +129,12 @@ describe('Holder Perks Application', () => {
             computePrePing('hvac'),
             computePrePing('plumbing'),
         ]);
-        // At least 2 different values
-        expect(results.size).toBeGreaterThanOrEqual(2);
+        const rangeSize = PRE_PING_MAX - PRE_PING_MIN + 1;
+        if (rangeSize <= 1) {
+            expect(results.size).toBe(1);
+        } else {
+            expect(results.size).toBeGreaterThanOrEqual(2);
+        }
     });
 
     test('isInPrePingWindow returns true when in window', () => {
@@ -476,9 +480,9 @@ describe('Constants and Configuration', () => {
         expect(HOLDER_MULTIPLIER).toBe(1.2);
     });
 
-    test('PRE_PING range is 5–10', () => {
-        expect(PRE_PING_MIN).toBe(5);
-        expect(PRE_PING_MAX).toBe(10);
+    test('PRE_PING range is 12–12 (fixed holder priority)', () => {
+        expect(PRE_PING_MIN).toBe(12);
+        expect(PRE_PING_MAX).toBe(12);
     });
 
     test('SPAM_THRESHOLD_BIDS_PER_MINUTE is 5', () => {
