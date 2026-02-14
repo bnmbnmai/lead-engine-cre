@@ -7,9 +7,10 @@ import "./interfaces/IVerticalNFT.sol";
 
 /**
  * @title VerticalAuction
- * @dev Simple sealed-bid auction for VerticalNFT tokens
+ * @dev Ascending auction for VerticalNFT tokens with holder-priority bidding
  * @notice Platform creates auctions for verticals it owns.
- *         Bidders compete during a time window. Highest bid wins.
+ *         Bidders compete during a time window. Highest effective bid wins.
+ *         NFT holders get a 1.2× bid multiplier and early-access pre-ping window.
  *         Settlement pays royalties via VerticalNFT.transferWithRoyalty.
  *
  * Auction lifecycle: CREATE → BID → SETTLE (or CANCEL if no bids)
