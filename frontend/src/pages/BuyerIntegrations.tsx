@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Webhook, Link2, Check, Copy, Bot, Sparkles, Terminal, FileText } from 'lucide-react';
+import { Webhook, Link2, Check, Copy, Bot, Sparkles, Terminal, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,8 @@ export function BuyerIntegrations() {
     const [mcpCopied, setMcpCopied] = useState(false);
     const [pythonCopied, setPythonCopied] = useState(false);
     const [chatOpen, setChatOpen] = useState(false);
+    const [crmOpen, setCrmOpen] = useState(false);
+    const [agentOpen, setAgentOpen] = useState(false);
 
     const token = localStorage.getItem('auth_token');
     const bearer = token ? token.slice(0, 12) + '…' : '<YOUR_JWT>';
@@ -129,129 +131,144 @@ export function BuyerIntegrations() {
 
                 {/* ────────── CRM Push ────────── */}
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Webhook className="h-5 w-5 text-amber-500" />
-                            CRM Push
+                    <CardHeader
+                        className="cursor-pointer select-none"
+                        onClick={() => setCrmOpen(!crmOpen)}
+                    >
+                        <CardTitle className="flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                                <Webhook className="h-5 w-5 text-amber-500" />
+                                CRM Push
+                            </span>
+                            {crmOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-5">
-                        <p className="text-sm text-muted-foreground">
-                            Push purchased leads directly to your CRM via webhook. Supports HubSpot, Zapier, and
-                            generic JSON payloads.
-                        </p>
-
-                        {/* Webhook registration */}
-                        <div className="p-4 rounded-xl border border-border space-y-4">
-                            <h4 className="text-sm font-semibold">Register Webhook</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
-                                <Input
-                                    placeholder="https://your-crm.com/webhook"
-                                    value={webhookUrl}
-                                    onChange={(e) => setWebhookUrl(e.target.value)}
-                                />
-                                <Select value={webhookFormat} onValueChange={setWebhookFormat}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="generic">Generic JSON</SelectItem>
-                                        <SelectItem value="hubspot">HubSpot</SelectItem>
-                                        <SelectItem value="zapier">Zapier</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <Button onClick={saveWebhook} disabled={!webhookUrl.trim()}>
-                                {webhookSaved ? (
-                                    <><Check className="h-4 w-4 mr-2" /> Saved</>
-                                ) : (
-                                    <><Link2 className="h-4 w-4 mr-2" /> Register Webhook</>
-                                )}
-                            </Button>
-                        </div>
-
-                        {/* API push example */}
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-semibold">Push via API</h4>
-                            <p className="text-xs text-muted-foreground">
-                                Alternatively, push specific leads programmatically using the CRM push endpoint:
+                    {crmOpen && (
+                        <CardContent className="space-y-5">
+                            <p className="text-sm text-muted-foreground">
+                                Push purchased leads directly to your CRM via webhook. Supports HubSpot, Zapier, and
+                                generic JSON payloads.
                             </p>
-                            <div className="relative">
-                                <pre className="p-4 rounded-xl bg-black/40 border border-border text-xs text-emerald-400 font-mono overflow-x-auto whitespace-pre leading-relaxed">
-                                    {pushCurl}
-                                </pre>
-                                <button
-                                    onClick={copyCurl}
-                                    className="absolute top-3 right-3 p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition text-white/60 hover:text-white"
-                                >
-                                    {curlCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                </button>
-                            </div>
-                        </div>
 
-                        {/* Info box */}
-                        <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground space-y-1">
-                            <p><strong>Formats:</strong> HubSpot (Contact + Deal), Zapier (catch hook), Generic (full lead JSON)</p>
-                            <p><strong>Rate limit:</strong> 60 fires / minute per webhook</p>
-                            <p><strong>Retries:</strong> 3 attempts with exponential backoff; circuit breaker after 5 consecutive failures</p>
-                        </div>
-                    </CardContent>
+                            {/* Webhook registration */}
+                            <div className="p-4 rounded-xl border border-border space-y-4">
+                                <h4 className="text-sm font-semibold">Register Webhook</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
+                                    <Input
+                                        placeholder="https://your-crm.com/webhook"
+                                        value={webhookUrl}
+                                        onChange={(e) => setWebhookUrl(e.target.value)}
+                                    />
+                                    <Select value={webhookFormat} onValueChange={setWebhookFormat}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="generic">Generic JSON</SelectItem>
+                                            <SelectItem value="hubspot">HubSpot</SelectItem>
+                                            <SelectItem value="zapier">Zapier</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button onClick={saveWebhook} disabled={!webhookUrl.trim()}>
+                                    {webhookSaved ? (
+                                        <><Check className="h-4 w-4 mr-2" /> Saved</>
+                                    ) : (
+                                        <><Link2 className="h-4 w-4 mr-2" /> Register Webhook</>
+                                    )}
+                                </Button>
+                            </div>
+
+                            {/* API push example */}
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-semibold">Push via API</h4>
+                                <p className="text-xs text-muted-foreground">
+                                    Alternatively, push specific leads programmatically using the CRM push endpoint:
+                                </p>
+                                <div className="relative">
+                                    <pre className="p-4 rounded-xl bg-black/40 border border-border text-xs text-emerald-400 font-mono overflow-x-auto whitespace-pre leading-relaxed">
+                                        {pushCurl}
+                                    </pre>
+                                    <button
+                                        onClick={copyCurl}
+                                        className="absolute top-3 right-3 p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition text-white/60 hover:text-white"
+                                    >
+                                        {curlCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Info box */}
+                            <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground space-y-1">
+                                <p><strong>Formats:</strong> HubSpot (Contact + Deal), Zapier (catch hook), Generic (full lead JSON)</p>
+                                <p><strong>Rate limit:</strong> 60 fires / minute per webhook</p>
+                                <p><strong>Retries:</strong> 3 attempts with exponential backoff; circuit breaker after 5 consecutive failures</p>
+                            </div>
+                        </CardContent>
+                    )}
                 </Card>
 
                 {/* ────────── LangChain Autonomous Bidding Agent ────────── */}
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <div className="p-1 rounded-lg bg-gradient-to-br from-violet-500/20 to-blue-500/20">
-                                <Bot className="h-5 w-5 text-violet-400" />
-                            </div>
-                            Autonomous Bidding Agent (LangChain)
+                    <CardHeader
+                        className="cursor-pointer select-none"
+                        onClick={() => setAgentOpen(!agentOpen)}
+                    >
+                        <CardTitle className="flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                                <div className="p-1 rounded-lg bg-gradient-to-br from-violet-500/20 to-blue-500/20">
+                                    <Bot className="h-5 w-5 text-violet-400" />
+                                </div>
+                                Autonomous Bidding Agent (LangChain)
+                            </span>
+                            {agentOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-5">
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                            Run a fully autonomous AI agent that discovers, evaluates, and bids on leads
-                            using our MCP tools. Connect via JSON-RPC or launch the interactive demo chat.
-                        </p>
+                    {agentOpen && (
+                        <CardContent className="space-y-5">
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                                Run a fully autonomous AI agent that discovers, evaluates, and bids on leads
+                                using our MCP tools. Connect via JSON-RPC or launch the interactive demo chat.
+                            </p>
 
-                        {/* MCP Endpoint */}
-                        <div className="p-4 rounded-xl border border-border space-y-3">
-                            <h4 className="text-sm font-semibold flex items-center gap-2">
-                                <Terminal className="h-4 w-4 text-muted-foreground" />
-                                MCP JSON-RPC Endpoint
-                            </h4>
-                            <div className="flex items-center gap-2">
-                                <code className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-border text-xs text-emerald-400 font-mono truncate">
-                                    {mcpEndpoint}
-                                </code>
-                                <Button variant="outline" size="sm" onClick={copyMcpEndpoint} className="flex-shrink-0">
-                                    {mcpCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                </Button>
+                            {/* MCP Endpoint */}
+                            <div className="p-4 rounded-xl border border-border space-y-3">
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Terminal className="h-4 w-4 text-muted-foreground" />
+                                    MCP JSON-RPC Endpoint
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-border text-xs text-emerald-400 font-mono truncate">
+                                        {mcpEndpoint}
+                                    </code>
+                                    <Button variant="outline" size="sm" onClick={copyMcpEndpoint} className="flex-shrink-0">
+                                        {mcpCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Available Tools */}
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-semibold">9 Available Tools</h4>
-                            <div className="flex flex-wrap gap-1.5">
-                                {[
-                                    'search_leads', 'place_bid', 'get_bid_floor',
-                                    'export_leads', 'get_preferences', 'set_auto_bid_rules',
-                                    'configure_crm_webhook', 'ping_lead', 'suggest_vertical',
-                                ].map((tool) => (
-                                    <span key={tool} className="px-2 py-0.5 rounded-md text-xs font-mono bg-violet-500/10 text-violet-400 border border-violet-500/20">
-                                        {tool}
-                                    </span>
-                                ))}
+                            {/* Available Tools */}
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-semibold">9 Available Tools</h4>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        'search_leads', 'place_bid', 'get_bid_floor',
+                                        'export_leads', 'get_preferences', 'set_auto_bid_rules',
+                                        'configure_crm_webhook', 'ping_lead', 'suggest_vertical',
+                                    ].map((tool) => (
+                                        <span key={tool} className="px-2 py-0.5 rounded-md text-xs font-mono bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                                            {tool}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Python Starter Code (collapsed preview + copy) */}
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-semibold">Python Starter Code</h4>
-                            <div className="relative">
-                                <pre className="p-4 rounded-xl bg-black/40 border border-border text-xs text-emerald-400 font-mono overflow-x-auto whitespace-pre leading-relaxed max-h-48 overflow-y-auto">
-                                    {`import httpx
+                            {/* Python Starter Code (collapsed preview + copy) */}
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-semibold">Python Starter Code</h4>
+                                <div className="relative">
+                                    <pre className="p-4 rounded-xl bg-black/40 border border-border text-xs text-emerald-400 font-mono overflow-x-auto whitespace-pre leading-relaxed max-h-48 overflow-y-auto">
+                                        {`import httpx
 
 MCP_URL = "${mcpEndpoint}"
 
@@ -269,47 +286,48 @@ floor = mcp_call("get_bid_floor", {"vertical": "solar"})
 mcp_call("set_auto_bid_rules", {
     "vertical": "solar", "autoBidAmount": 45, "dailyBudget": 500
 })`}
-                                </pre>
-                                <button
-                                    onClick={copyPython}
-                                    className="absolute top-3 right-3 p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition text-white/60 hover:text-white"
-                                >
-                                    {pythonCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                                </button>
+                                    </pre>
+                                    <button
+                                        onClick={copyPython}
+                                        className="absolute top-3 right-3 p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition text-white/60 hover:text-white"
+                                    >
+                                        {pythonCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Full starter code with all 9 tools is copied when you click the button above.
+                                </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                Full starter code with all 9 tools is copied when you click the button above.
-                            </p>
-                        </div>
 
-                        {/* Action buttons */}
-                        <div className="flex flex-wrap gap-3">
-                            <Button
-                                onClick={() => setChatOpen(true)}
-                                className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700"
-                            >
-                                <Sparkles className="h-4 w-4 mr-2" />
-                                Launch Demo Chat
-                            </Button>
-                            <Button variant="outline" asChild>
-                                <a
-                                    href="https://github.com/bnmbnmai/lead-engine-cre/tree/main/mcp-server"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                            {/* Action buttons */}
+                            <div className="flex flex-wrap gap-3">
+                                <Button
+                                    onClick={() => setChatOpen(true)}
+                                    className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700"
                                 >
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    View Full Documentation
-                                </a>
-                            </Button>
-                        </div>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    Launch Demo Chat
+                                </Button>
+                                <Button variant="outline" asChild>
+                                    <a
+                                        href="https://github.com/bnmbnmai/lead-engine-cre/tree/main/mcp-server"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        View Full Documentation
+                                    </a>
+                                </Button>
+                            </div>
 
-                        {/* Info box */}
-                        <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground space-y-1">
-                            <p><strong>Protocol:</strong> JSON-RPC 2.0 over HTTP</p>
-                            <p><strong>Auth:</strong> Bearer token in Authorization header</p>
-                            <p><strong>Rate limit:</strong> 60 requests/min per agent</p>
-                        </div>
-                    </CardContent>
+                            {/* Info box */}
+                            <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground space-y-1">
+                                <p><strong>Protocol:</strong> JSON-RPC 2.0 over HTTP</p>
+                                <p><strong>Auth:</strong> Bearer token in Authorization header</p>
+                                <p><strong>Rate limit:</strong> 60 requests/min per agent</p>
+                            </div>
+                        </CardContent>
+                    )}
                 </Card>
 
                 {/* Coming soon */}

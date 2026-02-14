@@ -66,7 +66,7 @@ const OPTIONAL_FIELDS = [
 ];
 
 export function SellerIntegrations() {
-    const [apiOpen, setApiOpen] = useState(true);
+    const [apiOpen, setApiOpen] = useState(false);
     const [webhookOpen, setWebhookOpen] = useState(false);
     const [webhookUrl, setWebhookUrl] = useState('');
     const [webhookFormat, setWebhookFormat] = useState('generic');
