@@ -376,15 +376,11 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
         const verification = await creService.verifyLead(lead.id);
 
         if (!verification.isValid) {
-            // Mark lead as invalid but keep it
-            await prisma.lead.update({
-                where: { id: lead.id },
-                data: { status: 'CANCELLED' },
-            });
+            // Delete the rejected lead — don't leave CANCELLED orphans
+            await prisma.lead.delete({ where: { id: lead.id } }).catch(() => { });
 
             res.status(400).json({
-                error: 'Lead verification failed',
-                reason: verification.reason,
+                error: `Lead rejected: ${verification.reason || 'failed quality check (CRE)'}`,
                 leadId: lead.id,
             });
             return;
@@ -557,14 +553,11 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         const verification = await creService.verifyLead(lead.id);
 
         if (!verification.isValid) {
-            await prisma.lead.update({
-                where: { id: lead.id },
-                data: { status: 'CANCELLED' },
-            });
-            // Still return 201 to the form submitter — they don't need to know about internal verification
-            console.warn(`[MARKETPLACE] Public lead ${lead.id} failed CRE verification: ${verification.reason}`);
-            res.status(201).json({
-                lead: { id: lead.id, vertical: lead.vertical, status: 'CANCELLED' },
+            // Delete the rejected lead — don't leave CANCELLED orphans
+            await prisma.lead.delete({ where: { id: lead.id } }).catch(() => { });
+            console.warn(`[MARKETPLACE] Public lead ${lead.id} rejected by CRE: ${verification.reason}`);
+            res.status(400).json({
+                error: `Lead rejected: ${verification.reason || 'failed quality check (CRE)'}`,
             });
             return;
         }

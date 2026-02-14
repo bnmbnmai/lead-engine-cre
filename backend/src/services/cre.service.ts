@@ -97,15 +97,23 @@ class CREService {
 
     private async verifyDataIntegrity(lead: any): Promise<VerificationResult> {
         if (lead.dataHash && lead.encryptedData) {
-            const computedHash = ethers.keccak256(ethers.toUtf8Bytes(lead.encryptedData));
-            if (computedHash !== lead.dataHash) {
-                await this.logCheck(lead.id, 'FRAUD_CHECK', 'FAILED', 'Data integrity mismatch');
-                return { isValid: false, reason: 'Data integrity verification failed' };
+            // dataHash = keccak256(plaintext PII JSON)
+            // encryptedData = JSON.stringify({ciphertext, iv, tag, commitment})
+            // We can't re-derive plaintext from encrypted data, so verify the encrypted
+            // payload is structurally valid (parseable with expected fields).
+            try {
+                const parsed = JSON.parse(lead.encryptedData);
+                if (!parsed.ciphertext || !parsed.iv || !parsed.tag) {
+                    await this.logCheck(lead.id, 'FRAUD_CHECK', 'FAILED', 'Encrypted data missing required fields');
+                    return { isValid: false, reason: 'Data integrity verification failed — malformed encrypted payload' };
+                }
+            } catch {
+                await this.logCheck(lead.id, 'FRAUD_CHECK', 'FAILED', 'Encrypted data is not valid JSON');
+                return { isValid: false, reason: 'Data integrity verification failed — invalid encrypted data' };
             }
         }
         return { isValid: true };
     }
-
     // ============================================
     // TCPA Consent Verification
     // ============================================
