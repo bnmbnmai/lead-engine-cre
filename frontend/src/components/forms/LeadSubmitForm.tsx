@@ -2,7 +2,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState, useEffect } from 'react';
-import { Send, FileText, Globe, Shield, ChevronDown, ChevronUp, Megaphone, Info, AlertTriangle } from 'lucide-react';
+import { Send, FileText, Globe, Shield, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -48,7 +48,7 @@ function getRegionOptions(country: string) {
     }
 }
 
-// Vertical-specific parameter definitions
+// Vertical-specific parameter definitions (fallback when no admin config saved)
 const VERTICAL_FIELDS: Record<string, { key: string; label: string; type: 'text' | 'select' | 'boolean'; options?: string[] }[]> = {
     roofing: [
         { key: 'roof_type', label: 'Roof Type', type: 'select', options: ['shingle', 'tile', 'metal', 'flat', 'slate', 'other'] },
@@ -117,13 +117,6 @@ const VERTICAL_FIELDS: Record<string, { key: string; label: string; type: 'text'
     ],
 };
 
-// Env-configurable lead expiry: default 5 minutes, max 10
-const LEAD_EXPIRY_DEFAULT = Math.min(
-    parseInt(import.meta.env.VITE_LEAD_EXPIRY_MINUTES || '5', 10) || 5,
-    10
-);
-const LEAD_EXPIRY_MAX = 10;
-
 const leadSchema = z.object({
     vertical: z.string().min(1, 'Select a vertical'),
     geo: z.object({
@@ -136,7 +129,6 @@ const leadSchema = z.object({
     source: z.enum(['PLATFORM', 'API', 'OFFSITE']).default('PLATFORM'),
     reservePrice: z.number().positive('Reserve price required'),
     tcpaConsentAt: z.string().optional(),
-    expiresInMinutes: z.number().min(1).max(LEAD_EXPIRY_MAX).default(LEAD_EXPIRY_DEFAULT),
     parameters: z.record(z.unknown()).optional(),
 });
 
@@ -153,10 +145,6 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     const [tcpaConsent, setTcpaConsent] = useState(false);
     const [customParams, setCustomParams] = useState<Record<string, unknown>>({});
     const [selectedCountry, setSelectedCountry] = useState('US');
-    // Ad tracking state
-    const [showAdTracking, setShowAdTracking] = useState(false);
-    const [showMoreUtm, setShowMoreUtm] = useState(false);
-    const [adSource, setAdSource] = useState<Record<string, string>>({});
     // Fraud warning checkbox
     const [fraudAcknowledged, setFraudAcknowledged] = useState(false);
     // Admin-configured fields from API
@@ -169,7 +157,6 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
         resolver: zodResolver(leadSchema),
         defaultValues: {
             source,
-            expiresInMinutes: LEAD_EXPIRY_DEFAULT,
             geo: { country: 'US' },
         },
     });
@@ -200,24 +187,6 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
     // Use admin-configured fields if available, otherwise fall back to hardcoded presets
     const verticalFields = adminVerticalFields || (verticalRoot ? (VERTICAL_FIELDS[verticalRoot] || []) : []);
 
-    // Auto-read UTM params from URL on mount
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'ad_id', 'ad_platform'];
-        const found: Record<string, string> = {};
-        let hasAny = false;
-        for (const key of utmKeys) {
-            const val = params.get(key);
-            if (val) { found[key] = val; hasAny = true; }
-        }
-        if (hasAny) {
-            setAdSource(found);
-            setShowAdTracking(true);
-        }
-    }, []);
-
-
-
     const updateParam = (key: string, value: unknown) => {
         setCustomParams((prev) => ({ ...prev, [key]: value }));
     };
@@ -245,10 +214,6 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                 ...data,
                 tcpaConsentAt: new Date().toISOString(),
                 parameters: Object.keys(nonEmptyParams).length > 0 ? nonEmptyParams : undefined,
-                // Ad tracking
-                adSource: Object.keys(adSource).filter(k => adSource[k]).length > 0
-                    ? Object.fromEntries(Object.entries(adSource).filter(([, v]) => v))
-                    : undefined,
             };
 
             const { data: result, error: apiError } = await api.submitLead(submitData);
@@ -443,131 +408,6 @@ export function LeadSubmitForm({ source = 'PLATFORM', onSuccess }: LeadSubmitFor
                             {...register('reservePrice', { valueAsNumber: true })}
                             error={errors.reservePrice?.message}
                         />
-                    </div>
-
-                    {/* Expiry */}
-                    <div>
-                        <label className="text-sm font-medium mb-2 block">Lead Expiry (minutes)</label>
-                        <Controller
-                            name="expiresInMinutes"
-                            control={control}
-                            render={({ field }) => (
-                                <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1">1 minute</SelectItem>
-                                        <SelectItem value="2">2 minutes</SelectItem>
-                                        <SelectItem value="3">3 minutes</SelectItem>
-                                        <SelectItem value="5">5 minutes</SelectItem>
-                                        <SelectItem value="7">7 minutes</SelectItem>
-                                        <SelectItem value="10">10 minutes</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">Max {LEAD_EXPIRY_MAX} minutes — leads must be fresh</p>
-                    </div>
-
-                    {/* Ad Tracking (Optional) */}
-                    <div className="border border-border rounded-xl overflow-hidden">
-                        <button
-                            type="button"
-                            className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
-                            onClick={() => setShowAdTracking(!showAdTracking)}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Megaphone className="h-4 w-4 text-orange-500" />
-                                <span className="text-sm font-medium">Ad Tracking (Optional)</span>
-                                <span className="text-xs text-muted-foreground" title="Track which ad campaign generated this lead for ROI analytics">
-                                    <Info className="h-3 w-3 inline" />
-                                </span>
-                            </div>
-                            {showAdTracking ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
-                        {showAdTracking && (
-                            <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div>
-                                        <label className="text-xs text-muted-foreground mb-1 block">UTM Source</label>
-                                        <Input
-                                            placeholder="google"
-                                            value={adSource.utm_source || ''}
-                                            onChange={(e) => setAdSource(s => ({ ...s, utm_source: e.target.value }))}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-muted-foreground mb-1 block">UTM Medium</label>
-                                        <Input
-                                            placeholder="cpc"
-                                            value={adSource.utm_medium || ''}
-                                            onChange={(e) => setAdSource(s => ({ ...s, utm_medium: e.target.value }))}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs text-muted-foreground mb-1 block">UTM Campaign</label>
-                                        <Input
-                                            placeholder="solar_q1"
-                                            value={adSource.utm_campaign || ''}
-                                            onChange={(e) => setAdSource(s => ({ ...s, utm_campaign: e.target.value }))}
-                                        />
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    className="text-xs text-primary hover:underline flex items-center gap-1"
-                                    onClick={() => setShowMoreUtm(!showMoreUtm)}
-                                >
-                                    {showMoreUtm ? 'Less' : 'More tracking fields'}
-                                    {showMoreUtm ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                </button>
-                                {showMoreUtm && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label className="text-xs text-muted-foreground mb-1 block">UTM Content</label>
-                                            <Input
-                                                placeholder="banner_v2"
-                                                value={adSource.utm_content || ''}
-                                                onChange={(e) => setAdSource(s => ({ ...s, utm_content: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-muted-foreground mb-1 block">UTM Term</label>
-                                            <Input
-                                                placeholder="solar panels"
-                                                value={adSource.utm_term || ''}
-                                                onChange={(e) => setAdSource(s => ({ ...s, utm_term: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-muted-foreground mb-1 block">Ad ID</label>
-                                            <Input
-                                                placeholder="ad_123456"
-                                                value={adSource.ad_id || ''}
-                                                onChange={(e) => setAdSource(s => ({ ...s, ad_id: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-muted-foreground mb-1 block">Ad Platform</label>
-                                            <select
-                                                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                                                value={adSource.ad_platform || ''}
-                                                onChange={(e) => setAdSource(s => ({ ...s, ad_platform: e.target.value }))}
-                                            >
-                                                <option value="">Select platform</option>
-                                                <option value="google">Google</option>
-                                                <option value="facebook">Facebook</option>
-                                                <option value="tiktok">TikTok</option>
-                                                <option value="linkedin">LinkedIn</option>
-                                                <option value="bing">Bing</option>
-                                                <option value="other">Other</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
 
                     {/* Fraud Warning */}
