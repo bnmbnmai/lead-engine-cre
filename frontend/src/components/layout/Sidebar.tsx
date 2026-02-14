@@ -14,6 +14,7 @@ import {
     Blocks,
     Zap,
     Briefcase,
+    Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +41,7 @@ const buyerItems: SidebarItem[] = [
     { href: '/buyer/portfolio', label: 'Portfolio', icon: <Briefcase className="h-5 w-5" /> },
     { href: '/buyer/analytics', label: 'Analytics', icon: <BarChart3 className="h-5 w-5" /> },
     { href: '/buyer/preferences', label: 'Auto Bidding', icon: <Settings className="h-5 w-5" /> },
+    { href: '/buyer/integrations', label: 'Integrations', icon: <Plug className="h-5 w-5" /> },
 ];
 
 const sellerItems: SidebarItem[] = [
@@ -48,6 +50,7 @@ const sellerItems: SidebarItem[] = [
     { href: '/seller/leads', label: 'My Leads', icon: <FileText className="h-5 w-5" /> },
     { href: '/seller/submit', label: 'Submit Lead', icon: <Send className="h-5 w-5" /> },
     { href: '/seller/analytics', label: 'Analytics', icon: <TrendingUp className="h-5 w-5" /> },
+    { href: '/seller/integrations', label: 'Integrations', icon: <Plug className="h-5 w-5" /> },
 ];
 
 const adminItems: SidebarItem[] = [

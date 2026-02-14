@@ -28,6 +28,8 @@ import AdminVerticals from '@/pages/AdminVerticals';
 import AskDetailPage from '@/pages/AskDetailPage';
 import HostedForm from '@/pages/HostedForm';
 import LeadDetailPage from '@/pages/LeadDetailPage';
+import SellerIntegrations from '@/pages/SellerIntegrations';
+import BuyerIntegrations from '@/pages/BuyerIntegrations';
 
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { Toaster } from '@/components/ui/Toaster';
@@ -91,6 +93,7 @@ function App() {
                                 <Route path="/buyer/analytics" element={<ProtectedRoute role="BUYER"><BuyerAnalytics /></ProtectedRoute>} />
                                 <Route path="/buyer/preferences" element={<ProtectedRoute role="BUYER"><BuyerPreferences /></ProtectedRoute>} />
                                 <Route path="/buyer/portfolio" element={<ProtectedRoute role="BUYER"><BuyerPortfolio /></ProtectedRoute>} />
+                                <Route path="/buyer/integrations" element={<ProtectedRoute role="BUYER"><BuyerIntegrations /></ProtectedRoute>} />
 
                                 {/* Seller Routes (auth + role required) */}
                                 <Route path="/seller" element={<ProtectedRoute role="SELLER"><SellerDashboard /></ProtectedRoute>} />
@@ -104,6 +107,7 @@ function App() {
                                 <Route path="/seller/templates" element={<Navigate to="/seller/funnels" replace />} />
                                 <Route path="/seller/submit" element={<ProtectedRoute role="SELLER"><SellerSubmit /></ProtectedRoute>} />
                                 <Route path="/seller/analytics" element={<ProtectedRoute role="SELLER"><SellerAnalytics /></ProtectedRoute>} />
+                                <Route path="/seller/integrations" element={<ProtectedRoute role="SELLER"><SellerIntegrations /></ProtectedRoute>} />
 
                                 {/* Admin Routes (auth + admin role required) */}
                                 <Route path="/admin/nfts" element={<ProtectedRoute role="ADMIN"><AdminNFTs /></ProtectedRoute>} />
