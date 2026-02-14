@@ -97,6 +97,7 @@ export const VERTICAL_PRESETS: Record<string, FormField[]> = {
         { id: '5', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Taylor Chen' },
         { id: '6', key: 'email', label: 'Work Email', type: 'email', required: true, placeholder: 'taylor@acme.com' },
         { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 111-2222' },
+        { id: '8', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '10001' },
     ],
     real_estate: [
         { id: '1', key: 'transaction_type', label: 'Transaction Type', type: 'select', required: true, options: ['Buy', 'Sell', 'Rent'] },
@@ -135,6 +136,7 @@ export const VERTICAL_PRESETS: Record<string, FormField[]> = {
         { id: '5', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Riley Thompson' },
         { id: '6', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'riley@email.com' },
         { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 999-0000' },
+        { id: '8', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '10001' },
     ],
 };
 

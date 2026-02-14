@@ -11,7 +11,7 @@ import { useState, useMemo, useEffect } from 'react';
 import useVerticals from '@/hooks/useVerticals';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
-    Sparkles, Shield, Plus, Send, Activity,
+    Sparkles, Shield, Plus, Send, Activity, AlertTriangle,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,6 +84,7 @@ export default function SellerTemplates() {
     const [configLoading, setConfigLoading] = useState(false);
     const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
     const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
+    const [hasActiveAsk, setHasActiveAsk] = useState<boolean | null>(null);
 
     // Conversion tracking — persisted server-side via SellerProfile
     const [conversionPixelUrl, setConversionPixelUrl] = useState('');
@@ -159,6 +160,12 @@ export default function SellerTemplates() {
         setCustomText(COLOR_SCHEMES[0].vars['--form-text']);
         setAdminFields(null);
         setAdminSteps(null);
+        setHasActiveAsk(null);
+
+        // Check if seller has an active ask for this vertical
+        api.listAsks({ vertical, status: 'ACTIVE', limit: '1' })
+            .then(res => setHasActiveAsk((res.data?.asks?.length ?? 0) > 0))
+            .catch(() => setHasActiveAsk(null));
 
         // Fetch admin-saved form config
         setConfigLoading(true);
@@ -693,6 +700,15 @@ export default function SellerTemplates() {
                                                 {copiedUrl ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                                             </Button>
                                         </div>
+                                        {hasActiveAsk === false && (
+                                            <div className="flex items-start gap-2 text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-lg px-3 py-2">
+                                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                                <span>
+                                                    <strong>No active ask for this vertical.</strong> Leads submitted through this form will auto-create an ask with $5 reserve price and 5-minute auctions.
+                                                    <a href="/seller/asks" className="underline ml-1">Create a custom ask →</a>
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 rounded-lg px-3 py-2">
                                             <Shield className="h-3.5 w-3.5 text-green-400 shrink-0" />
                                             Platform-hosted for TCPA, CCPA, and consent compliance

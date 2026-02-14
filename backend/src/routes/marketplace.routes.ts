@@ -411,7 +411,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         }
 
         // Find matching asks for this lead
-        const matchingAsks = await prisma.ask.findMany({
+        let matchingAsks = await prisma.ask.findMany({
             where: {
                 vertical,
                 status: 'ACTIVE',
@@ -419,6 +419,23 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
             orderBy: { reservePrice: 'desc' },
             take: 10,
         });
+
+        // If seller has no active ask for this vertical, auto-create one with defaults
+        if (matchingAsks.length === 0) {
+            const autoAsk = await prisma.ask.create({
+                data: {
+                    sellerId: seller.id,
+                    vertical,
+                    geoTargets: leadGeo.country ? [leadGeo.country] : ['US'],
+                    reservePrice: 5.0,
+                    auctionDuration: 300, // 5-minute auction
+                    revealWindow: 120,
+                    status: 'ACTIVE',
+                },
+            });
+            console.log(`[MARKETPLACE] Auto-created ask ${autoAsk.id} for seller ${seller.id} — vertical: ${vertical}, reserve: $5`);
+            matchingAsks = [autoAsk];
+        }
 
         // Start auction if we have matching asks
         if (matchingAsks.length > 0) {

@@ -15,8 +15,8 @@ export function genId(): string {
 export function autoGroupSteps(fields: FormField[]): FormStep[] {
     if (fields.length === 0) return [];
 
-    const CONTACT_KEYS = new Set(['name', 'first_name', 'last_name', 'email', 'phone', 'phone_number']);
-    const LOCATION_KEYS = new Set(['address', 'city', 'state', 'region', 'zip', 'zipcode', 'zip_code', 'country']);
+    const CONTACT_KEYS = new Set(['name', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'phone_number', 'zip', 'zipcode', 'zip_code']);
+    const LOCATION_KEYS = new Set(['address', 'city', 'state', 'region', 'country']);
 
     const contact: string[] = [];
     const location: string[] = [];
