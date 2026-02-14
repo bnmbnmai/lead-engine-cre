@@ -14,6 +14,7 @@ import { useAuction } from '@/hooks/useAuction';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
 
 export function AuctionPage() {
     const { leadId } = useParams<{ leadId: string }>();
@@ -56,6 +57,12 @@ export function AuctionPage() {
             fetchLead();
         }
     }, [leadId]);
+
+    // Refresh on marketplace-wide events (demo clear/reset/seed)
+    useSocketEvents(
+        { 'marketplace:refreshAll': () => { fetchLead(); } },
+        fetchLead,
+    );
 
     const handlePlaceBid = async (data: { amount?: number; commitment?: string }) => {
         setBidLoading(true);

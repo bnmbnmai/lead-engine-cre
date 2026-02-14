@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Tag, MapPin, Clock, ArrowUpRight, Plus } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -9,30 +9,35 @@ import { SkeletonTable } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
 
 export function SellerAsks() {
     const [asks, setAsks] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all');
 
-    useEffect(() => {
-        const fetchAsks = async () => {
-            setIsLoading(true);
-            try {
-                const params: Record<string, string> = {};
-                if (statusFilter !== 'all') params.status = statusFilter;
+    const fetchAsks = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const params: Record<string, string> = {};
+            if (statusFilter !== 'all') params.status = statusFilter;
 
-                const { data } = await api.listAsks(params);
-                setAsks(data?.asks || []);
-            } catch (error) {
-                console.error('Failed to fetch asks:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchAsks();
+            const { data } = await api.listAsks(params);
+            setAsks(data?.asks || []);
+        } catch (error) {
+            console.error('Failed to fetch asks:', error);
+        } finally {
+            setIsLoading(false);
+        }
     }, [statusFilter]);
+
+    useEffect(() => { fetchAsks(); }, [fetchAsks]);
+
+    // Real-time updates
+    useSocketEvents(
+        { 'marketplace:refreshAll': () => { fetchAsks(); } },
+        fetchAsks,
+    );
 
     return (
         <DashboardLayout>

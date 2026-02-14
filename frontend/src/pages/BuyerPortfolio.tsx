@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Briefcase,
@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
 
 // ─── Skeleton ───────────────────────────────
 
@@ -61,23 +62,28 @@ export function BuyerPortfolio() {
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
 
-    useEffect(() => {
-        const fetchPortfolio = async () => {
-            try {
-                const bidsRes = await api.getMyBids();
-                const allBids = bidsRes.data?.bids || [];
-                const won = allBids.filter(
-                    (b: any) => b.status === 'ACCEPTED' || b.status === 'WON',
-                );
-                setLeads(won);
-            } catch (error) {
-                console.error('Portfolio fetch error:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchPortfolio();
+    const fetchPortfolio = useCallback(async () => {
+        try {
+            const bidsRes = await api.getMyBids();
+            const allBids = bidsRes.data?.bids || [];
+            const won = allBids.filter(
+                (b: any) => b.status === 'ACCEPTED' || b.status === 'WON',
+            );
+            setLeads(won);
+        } catch (error) {
+            console.error('Portfolio fetch error:', error);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
+
+    useEffect(() => { fetchPortfolio(); }, [fetchPortfolio]);
+
+    // Real-time updates
+    useSocketEvents(
+        { 'marketplace:refreshAll': () => { fetchPortfolio(); } },
+        fetchPortfolio,
+    );
 
     // Search filter
     const q = debouncedSearch.toLowerCase();

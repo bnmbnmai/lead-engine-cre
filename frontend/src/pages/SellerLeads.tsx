@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, MapPin, Clock, ArrowUpRight, Plus, Download, CheckCircle, Send, Tag, Loader2, MessageSquare } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -11,6 +11,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
 
 export function SellerLeads() {
     const [leads, setLeads] = useState<any[]>([]);
@@ -74,24 +75,41 @@ export function SellerLeads() {
         }
     };
 
-    useEffect(() => {
-        const fetchLeads = async () => {
-            setIsLoading(true);
-            try {
-                const params: Record<string, string> = {};
-                if (statusFilter !== 'all') params.status = statusFilter;
+    const fetchLeads = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const params: Record<string, string> = {};
+            if (statusFilter !== 'all') params.status = statusFilter;
 
-                const { data } = await api.listLeads(params);
-                setLeads(data?.leads || []);
-            } catch (error) {
-                console.error('Failed to fetch leads:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchLeads();
+            const { data } = await api.listLeads(params);
+            setLeads(data?.leads || []);
+        } catch (error) {
+            console.error('Failed to fetch leads:', error);
+        } finally {
+            setIsLoading(false);
+        }
     }, [statusFilter]);
+
+    useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+    // Real-time updates
+    useSocketEvents(
+        {
+            'marketplace:refreshAll': () => { fetchLeads(); },
+            'marketplace:bid:update': (data: any) => {
+                if (data?.leadId) {
+                    setLeads((prev) =>
+                        prev.map((lead) =>
+                            lead.id === data.leadId
+                                ? { ...lead, _count: { ...lead._count, bids: data.bidCount } }
+                                : lead,
+                        ),
+                    );
+                }
+            },
+        },
+        fetchLeads,
+    );
 
     return (
         <DashboardLayout>

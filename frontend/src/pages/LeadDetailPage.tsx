@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
@@ -14,6 +14,7 @@ import { DynamicFieldRenderer } from '@/components/marketplace/DynamicFieldRende
 import { formatCurrency, getStatusColor, formatTimeRemaining } from '@/lib/utils';
 import useAuth from '@/hooks/useAuth';
 import api from '@/lib/api';
+import { useSocketEvents } from '@/hooks/useSocketEvents';
 
 // ─── Types ──────────────────────────────────
 
@@ -95,7 +96,7 @@ export default function LeadDetailPage() {
     const [buyError, setBuyError] = useState<string | null>(null);
     const [purchased, setPurchased] = useState(false);
 
-    useEffect(() => {
+    const fetchLead = useCallback(() => {
         if (!id) return;
         setLoading(true);
         setError(null);
@@ -110,6 +111,21 @@ export default function LeadDetailPage() {
             .catch(() => setError('Failed to load lead details'))
             .finally(() => setLoading(false));
     }, [id]);
+
+    useEffect(() => { fetchLead(); }, [fetchLead]);
+
+    // Real-time updates
+    useSocketEvents(
+        {
+            'marketplace:refreshAll': () => { fetchLead(); },
+            'marketplace:bid:update': (data: any) => {
+                if (data?.leadId === id && lead) {
+                    setLead((prev) => prev ? { ...prev, _count: { ...prev._count, bids: data.bidCount } } : prev);
+                }
+            },
+        },
+        fetchLead,
+    );
 
     const handleBuyNow = async () => {
         if (!lead) return;
