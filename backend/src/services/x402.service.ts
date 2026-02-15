@@ -83,61 +83,114 @@ class X402Service {
     ): Promise<PaymentResult> {
         const amountWei = BigInt(Math.floor(amountUSDC * 1e6));
 
-        if (this.escrowContract && this.signer) {
-            try {
-                const createTx = await this.escrowContract.createEscrow(
-                    sellerAddress, buyerAddress, amountWei, leadTokenId
-                );
-                const createReceipt = await createTx.wait();
-                const escrowId = createReceipt?.logs?.[0]?.topics?.[1] || '0';
-                const parsedEscrowId = escrowId.toString();
-
-                if (this.usdcContract) {
-                    const currentAllowance = await this.usdcContract.allowance(
-                        this.signer.address, ESCROW_CONTRACT_ADDRESS
-                    );
-                    if (currentAllowance < amountWei) {
-                        const approveTx = await this.usdcContract.approve(
-                            ESCROW_CONTRACT_ADDRESS, amountWei * 10n
-                        );
-                        await approveTx.wait();
-                    }
-
-                    const fundTx = await this.escrowContract.fundEscrow(parsedEscrowId);
-                    await fundTx.wait();
-                }
-
-                await prisma.transaction.update({
-                    where: { id: transactionId },
-                    data: {
-                        escrowId: parsedEscrowId,
-                        status: 'ESCROWED',
-                    },
-                });
-
-                return {
-                    success: true,
-                    escrowId: parsedEscrowId,
-                    txHash: createReceipt?.hash,
-                };
-            } catch (error: any) {
-                console.error('x402 createPayment on-chain failed:', error);
-                return { success: false, error: error.message };
-            }
+        // ── Guard: on-chain infra required ──
+        if (!this.escrowContract || !this.signer) {
+            const missing = [];
+            if (!ESCROW_CONTRACT_ADDRESS) missing.push('ESCROW_CONTRACT_ADDRESS');
+            if (!DEPLOYER_KEY) missing.push('DEPLOYER_PRIVATE_KEY');
+            const msg = `On-chain escrow not configured: missing ${missing.join(', ')}`;
+            console.error(`[x402] createPayment FAILED: ${msg}`);
+            return { success: false, error: msg };
         }
 
-        // Off-chain fallback
-        const escrowId = `offchain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-        await prisma.transaction.update({
-            where: { id: transactionId },
-            data: {
-                escrowId,
-                status: 'ESCROWED',
-            },
+        console.log(`[x402] createPayment START:`, {
+            seller: sellerAddress,
+            buyer: buyerAddress,
+            amountUSDC,
+            amountWei: amountWei.toString(),
+            leadTokenId,
+            transactionId,
+            signerAddress: this.signer.address,
+            escrowContract: ESCROW_CONTRACT_ADDRESS,
+            usdcContract: USDC_CONTRACT_ADDRESS || '(not set)',
         });
 
-        return { success: true, escrowId };
+        try {
+            // Step 1: Create escrow on-chain
+            console.log(`[x402] Step 1: createEscrow(${sellerAddress}, ${buyerAddress}, ${amountWei}, ${leadTokenId})`);
+            const createTx = await this.escrowContract.createEscrow(
+                sellerAddress, buyerAddress, amountWei, leadTokenId
+            );
+            console.log(`[x402] createEscrow tx sent: ${createTx.hash}`);
+            const createReceipt = await createTx.wait();
+            const escrowId = createReceipt?.logs?.[0]?.topics?.[1] || '0';
+            const parsedEscrowId = escrowId.toString();
+            console.log(`[x402] createEscrow confirmed — escrowId=${parsedEscrowId}, block=${createReceipt?.blockNumber}`);
+
+            // Step 2: Approve + Fund escrow
+            if (this.usdcContract) {
+                const currentAllowance = await this.usdcContract.allowance(
+                    this.signer.address, ESCROW_CONTRACT_ADDRESS
+                );
+                console.log(`[x402] Step 2a: USDC allowance check — current=${currentAllowance.toString()}, needed=${amountWei.toString()}`);
+
+                if (currentAllowance < amountWei) {
+                    console.log(`[x402] Step 2b: Approving USDC spend...`);
+                    const approveTx = await this.usdcContract.approve(
+                        ESCROW_CONTRACT_ADDRESS, amountWei * 10n
+                    );
+                    await approveTx.wait();
+                    console.log(`[x402] USDC approved: ${approveTx.hash}`);
+                }
+
+                console.log(`[x402] Step 2c: fundEscrow(${parsedEscrowId})`);
+                const fundTx = await this.escrowContract.fundEscrow(parsedEscrowId);
+                await fundTx.wait();
+                console.log(`[x402] fundEscrow confirmed: ${fundTx.hash}`);
+            } else {
+                console.warn(`[x402] USDC contract not configured — escrow created but NOT funded`);
+            }
+
+            // Step 3: Update DB
+            await prisma.transaction.update({
+                where: { id: transactionId },
+                data: {
+                    escrowId: parsedEscrowId,
+                    status: 'ESCROWED',
+                },
+            });
+
+            console.log(`[x402] createPayment COMPLETE — escrowId=${parsedEscrowId}, txHash=${createReceipt?.hash}`);
+            return {
+                success: true,
+                escrowId: parsedEscrowId,
+                txHash: createReceipt?.hash,
+            };
+        } catch (error: any) {
+            // ── Detailed error diagnostics ──
+            const errorInfo = {
+                message: error.message,
+                code: error.code,
+                reason: error.reason,
+                shortMessage: error.shortMessage,
+                transaction: error.transaction ? {
+                    to: error.transaction.to,
+                    from: error.transaction.from,
+                    data: error.transaction.data?.slice(0, 66) + '...',
+                } : undefined,
+                signerAddress: this.signer.address,
+                signerBalance: 'unknown',
+            };
+
+            // Check ETH balance for gas
+            try {
+                const balance = await this.provider.getBalance(this.signer.address);
+                errorInfo.signerBalance = ethers.formatEther(balance) + ' ETH';
+            } catch { /* ignore */ }
+
+            console.error(`[x402] createPayment FAILED:`, JSON.stringify(errorInfo, null, 2));
+            console.error(`[x402] Full stack:`, error.stack || error);
+
+            // Human-readable error
+            let userError = error.shortMessage || error.reason || error.message;
+            if (error.code === 'INSUFFICIENT_FUNDS') {
+                userError = `Deployer wallet has insufficient ETH for gas (${errorInfo.signerBalance}). Fund ${this.signer.address} on Sepolia.`;
+            } else if (error.code === 'CALL_EXCEPTION') {
+                userError = `Contract call reverted: ${error.reason || error.message}. Check that ESCROW_CONTRACT_ADDRESS is correct and deployed on Sepolia.`;
+            }
+
+            return { success: false, error: userError };
+        }
     }
 
     // ============================================
@@ -153,37 +206,38 @@ class X402Service {
             return { success: false, error: 'Transaction or escrow not found' };
         }
 
-        if (this.escrowContract && this.signer && !transaction.escrowId.startsWith('offchain-')) {
-            try {
-                const tx = await this.escrowContract.releaseEscrow(transaction.escrowId);
-                const receipt = await tx.wait();
-
-                await prisma.transaction.update({
-                    where: { id: transactionId },
-                    data: {
-                        status: 'RELEASED',
-                        escrowReleased: true,
-                        releasedAt: new Date(),
-                    },
-                });
-
-                return { success: true, txHash: receipt?.hash };
-            } catch (error: any) {
-                console.error('x402 settlePayment on-chain failed:', error);
-                return { success: false, error: error.message };
-            }
+        if (!this.escrowContract || !this.signer) {
+            return { success: false, error: 'On-chain escrow contract not configured' };
         }
 
-        await prisma.transaction.update({
-            where: { id: transactionId },
-            data: {
-                status: 'RELEASED',
-                escrowReleased: true,
-                releasedAt: new Date(),
-            },
-        });
+        console.log(`[x402] settlePayment START: txId=${transactionId}, escrowId=${transaction.escrowId}`);
 
-        return { success: true };
+        try {
+            const tx = await this.escrowContract.releaseEscrow(transaction.escrowId);
+            console.log(`[x402] releaseEscrow tx sent: ${tx.hash}`);
+            const receipt = await tx.wait();
+
+            await prisma.transaction.update({
+                where: { id: transactionId },
+                data: {
+                    status: 'RELEASED',
+                    escrowReleased: true,
+                    releasedAt: new Date(),
+                },
+            });
+
+            console.log(`[x402] settlePayment COMPLETE — txHash=${receipt?.hash}`);
+            return { success: true, txHash: receipt?.hash };
+        } catch (error: any) {
+            console.error(`[x402] settlePayment FAILED:`, {
+                message: error.message,
+                code: error.code,
+                reason: error.reason,
+                shortMessage: error.shortMessage,
+            });
+            console.error(`[x402] Full stack:`, error.stack || error);
+            return { success: false, error: error.shortMessage || error.reason || error.message };
+        }
     }
 
     // ============================================
