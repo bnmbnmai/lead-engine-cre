@@ -1100,28 +1100,41 @@ router.post('/settle', async (req: Request, res: Response) => {
             return;
         }
 
-        // 1. Find the most recent unsettled transaction
-        let transaction = await prisma.transaction.findFirst({
-            where: {
-                ...(leadId ? { leadId } : {}),
-                escrowReleased: false,
-            },
-            orderBy: { createdAt: 'desc' },
-            include: {
-                lead: {
-                    select: {
-                        id: true, vertical: true, status: true, nftTokenId: true,
-                        sellerId: true,
-                        seller: {
-                            select: {
-                                user: { select: { walletAddress: true } },
-                            },
+        // 1. Find the most recent unsettled transaction — prioritize those WITH escrowId (ready for release)
+        const txInclude = {
+            lead: {
+                select: {
+                    id: true, vertical: true, status: true, nftTokenId: true,
+                    sellerId: true,
+                    seller: {
+                        select: {
+                            user: { select: { walletAddress: true } },
                         },
                     },
                 },
-                buyer: { select: { id: true, walletAddress: true } },
             },
+            buyer: { select: { id: true, walletAddress: true } },
+        };
+        const txWhere = {
+            ...(leadId ? { leadId } : {}),
+            escrowReleased: false,
+        };
+
+        // First: find a transaction WITH escrowId (ready for immediate release)
+        let transaction = await prisma.transaction.findFirst({
+            where: { ...txWhere, escrowId: { not: null } },
+            orderBy: { createdAt: 'desc' },
+            include: txInclude,
         });
+
+        // Fallback: find any unsettled transaction (will need escrow creation/recovery)
+        if (!transaction) {
+            transaction = await prisma.transaction.findFirst({
+                where: txWhere,
+                orderBy: { createdAt: 'desc' },
+                include: txInclude,
+            });
+        }
 
         if (!transaction) {
             // ── Auto-create Transaction from winning bid ──

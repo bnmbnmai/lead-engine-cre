@@ -161,6 +161,52 @@ class X402Service {
                 txHash: createReceipt?.hash,
             };
         } catch (error: any) {
+            // ── Handle "Escrow exists for lead" — recover the existing escrow ──
+            if (error.reason === 'Escrow exists for lead' && this.escrowContract && this.signer) {
+                console.warn(`[x402] Escrow already exists for lead ${leadId} — scanning on-chain to recover escrowId`);
+                try {
+                    const existingEscrowId = await this.findEscrowByLeadId(leadId);
+                    if (existingEscrowId !== null) {
+                        const escrow = await this.escrowContract.getEscrow(existingEscrowId);
+                        const stateMap = ['PENDING', 'ESCROWED', 'RELEASED', 'REFUNDED', 'DISPUTED'] as const;
+                        const escrowState = stateMap[Number(escrow.state)] || 'PENDING';
+                        console.log(`[x402] Found existing escrow ${existingEscrowId} — state=${escrowState}`);
+
+                        // Fund if still in PENDING (created but not funded)
+                        if (escrowState === 'PENDING' && this.usdcContract) {
+                            console.log(`[x402] Funding existing escrow ${existingEscrowId}`);
+                            const currentAllowance = await this.usdcContract.allowance(
+                                this.signer.address, ESCROW_CONTRACT_ADDRESS
+                            );
+                            if (currentAllowance < amountWei) {
+                                const approveTx = await this.usdcContract.approve(
+                                    ESCROW_CONTRACT_ADDRESS, amountWei * 10n
+                                );
+                                await approveTx.wait();
+                            }
+                            const fundTx = await this.escrowContract.fundEscrow(existingEscrowId);
+                            await fundTx.wait();
+                            console.log(`[x402] fundEscrow confirmed for recovered escrow`);
+                        }
+
+                        // Update DB
+                        const parsedId = existingEscrowId.toString();
+                        await prisma.transaction.update({
+                            where: { id: transactionId },
+                            data: {
+                                escrowId: parsedId,
+                                status: escrowState === 'PENDING' ? 'ESCROWED' : escrowState,
+                            },
+                        });
+
+                        console.log(`[x402] Recovered existing escrow — escrowId=${parsedId}, state=${escrowState}`);
+                        return { success: true, escrowId: parsedId };
+                    }
+                } catch (recoveryErr: any) {
+                    console.error(`[x402] Escrow recovery scan failed:`, recoveryErr.message);
+                }
+            }
+
             // ── Detailed error diagnostics ──
             const errorInfo = {
                 message: error.message,
@@ -242,6 +288,29 @@ class X402Service {
             console.error(`[x402] Full stack:`, error.stack || error);
             return { success: false, error: error.shortMessage || error.reason || error.message };
         }
+    }
+
+    // ============================================
+    // Find existing escrow by leadId (scan on-chain)
+    // ============================================
+
+    private async findEscrowByLeadId(leadId: string): Promise<number | null> {
+        if (!this.escrowContract) return null;
+        // Scan recent escrow IDs (contract has sequential IDs starting from 1)
+        for (let id = 1; id <= 50; id++) {
+            try {
+                const escrow = await this.escrowContract.getEscrow(id);
+                if (escrow.leadId === leadId) {
+                    console.log(`[x402] Found escrow #${id} for lead ${leadId}`);
+                    return id;
+                }
+            } catch {
+                // getEscrow reverts for non-existent IDs — we've scanned all
+                break;
+            }
+        }
+        console.warn(`[x402] No existing escrow found for lead ${leadId} (scanned 1-50)`);
+        return null;
     }
 
     // ============================================

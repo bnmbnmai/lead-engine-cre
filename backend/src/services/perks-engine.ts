@@ -148,7 +148,7 @@ export async function getPerksOverview(
             try {
                 const [totalBids, wonBids] = await Promise.all([
                     prisma.bid.count({ where: { buyerId: userId } }),
-                    prisma.bid.count({ where: { buyerId: userId, status: 'WON' as any } }),
+                    prisma.bid.count({ where: { buyerId: userId, status: 'ACCEPTED' } }),
                 ]);
                 return { totalBids, wonBids, winRate: totalBids > 0 ? Math.round((wonBids / totalBids) * 100) : 0 };
             } catch (err) {
