@@ -41,6 +41,27 @@ const DEMO_WALLETS = {
     SELLER_KYC: '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',   // Verified seller (deployer)
 };
 
+// 10 faucet wallets for seller rotation (from faucet-wallets.txt)
+const FAUCET_WALLETS = [
+    '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9',
+    '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC',
+    '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
+    '0x424CaC929939377f221348af52d4cb1247fE4379',
+    '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d',
+    '0x089B6Bdb4824628c5535acF60aBF80683452e862',
+    '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE',
+    '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C',
+    '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf',
+    '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad',
+];
+
+let faucetWalletIndex = 0;
+function pickFaucetWallet(): string {
+    const wallet = FAUCET_WALLETS[faucetWalletIndex % FAUCET_WALLETS.length];
+    faucetWalletIndex++;
+    return wallet;
+}
+
 // In-memory toggle: when OFF, demo buyers will NOT place bids
 let demoBuyersEnabled = true;
 
@@ -55,9 +76,13 @@ export function getDemoBuyersEnabled(): boolean {
 
 router.post('/demo-login', async (req: Request, res: Response) => {
     try {
-        const { role } = req.body as { role?: string };
+        const { role, connectedWallet } = req.body as { role?: string; connectedWallet?: string };
         const isBuyer = role === 'BUYER';
-        const walletAddress = isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.PANEL_USER;
+        // If buyer and the frontend passes the user's connected MetaMask wallet, use it.
+        // This ensures bids are placed from the SIWE-authenticated wallet, not a demo wallet.
+        const walletAddress = isBuyer && connectedWallet
+            ? connectedWallet.toLowerCase()
+            : isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.PANEL_USER;
         const targetRole = isBuyer ? 'BUYER' : 'SELLER';
 
         // Find or create the demo user
@@ -620,7 +645,30 @@ router.post('/seed', async (req: Request, res: Response) => {
 
             const lead = await prisma.lead.create({
                 data: {
-                    sellerId: seller.id,
+                    // Rotate sellers through faucet wallets (each lead gets a different seller)
+                    sellerId: await (async () => {
+                        const faucetWallet = FAUCET_WALLETS[i % FAUCET_WALLETS.length];
+                        let faucetSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: faucetWallet } } });
+                        if (!faucetSeller) {
+                            let faucetUser = await prisma.user.findFirst({ where: { walletAddress: faucetWallet } });
+                            if (!faucetUser) {
+                                faucetUser = await prisma.user.create({
+                                    data: {
+                                        walletAddress: faucetWallet,
+                                        role: 'SELLER',
+                                        sellerProfile: { create: { companyName: `Demo Seller ${i + 1}`, verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
+                                    },
+                                    include: { sellerProfile: true },
+                                });
+                            } else {
+                                await prisma.sellerProfile.create({
+                                    data: { userId: faucetUser.id, companyName: `Demo Seller ${i + 1}`, verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+                                });
+                            }
+                            faucetSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: faucetWallet } } });
+                        }
+                        return faucetSeller!.id;
+                    })(),
                     vertical,
                     geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
                     source: 'PLATFORM',
@@ -732,17 +780,19 @@ router.post('/lead', async (req: Request, res: Response) => {
         const pr = priceFor(vertical);
         const price = rand(pr.min, pr.max);
 
+        // Pick a faucet wallet for the seller (cycles through the 10 wallets)
+        const sellerWalletAddr = pickFaucetWallet();
         let seller = await prisma.sellerProfile.findFirst({
-            where: { user: { walletAddress: DEMO_WALLETS.PANEL_USER } },
+            where: { user: { walletAddress: sellerWalletAddr } },
         });
 
         if (!seller) {
-            // Auto-create demo seller so inject works without prior seed
-            let demoUser = await prisma.user.findFirst({ where: { walletAddress: DEMO_WALLETS.PANEL_USER } });
-            if (!demoUser) {
-                demoUser = await prisma.user.create({
+            // Auto-create seller from faucet wallet
+            let sellerUser = await prisma.user.findFirst({ where: { walletAddress: sellerWalletAddr } });
+            if (!sellerUser) {
+                sellerUser = await prisma.user.create({
                     data: {
-                        walletAddress: DEMO_WALLETS.PANEL_USER,
+                        walletAddress: sellerWalletAddr,
                         role: 'SELLER',
                         sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
                     },
@@ -750,10 +800,10 @@ router.post('/lead', async (req: Request, res: Response) => {
                 });
             } else {
                 await prisma.sellerProfile.create({
-                    data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+                    data: { userId: sellerUser.id, companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
                 });
             }
-            seller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: DEMO_WALLETS.PANEL_USER } } });
+            seller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: sellerWalletAddr } } });
             if (!seller) {
                 res.status(500).json({ error: 'Failed to auto-create demo seller profile' });
                 return;

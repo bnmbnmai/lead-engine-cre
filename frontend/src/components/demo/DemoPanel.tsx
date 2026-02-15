@@ -11,6 +11,7 @@ import { setAuthToken, API_BASE_URL } from '@/lib/api';
 import { formatVerticalTitle } from '@/lib/utils';
 import socketClient from '@/lib/socket';
 import useAuth from '@/hooks/useAuth';
+import { useAccount } from 'wagmi';
 import {
     FlaskConical,
     X,
@@ -70,6 +71,7 @@ export function DemoPanel() {
 
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { address } = useAccount();
 
     // Imperative guard: prevents rapid double-clicks from firing duplicate API calls
     // (React batches setActions, so the ActionButton's disabled-while-loading check
@@ -231,7 +233,7 @@ export function DemoPanel() {
                 const resp = await fetch(`${apiBase}/api/v1/demo-panel/demo-login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ role }),
+                    body: JSON.stringify({ role, connectedWallet: address }),
                 });
                 const data = await resp.json();
                 if (data.token) {
