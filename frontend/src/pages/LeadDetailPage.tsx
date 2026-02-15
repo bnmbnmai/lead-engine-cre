@@ -589,12 +589,70 @@ export default function LeadDetailPage() {
                                                 </div>
                                             )}
 
+                                            {/* Etherscan tx link */}
+                                            {(lead as any)?.txHash && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">Escrow Tx</span>
+                                                    <a
+                                                        href={`https://sepolia.etherscan.io/tx/${(lead as any).txHash}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                                    >
+                                                        <ExternalLink className="h-3 w-3" />
+                                                        {(lead as any).txHash.slice(0, 10)}...{(lead as any).txHash.slice(-8)}
+                                                    </a>
+                                                </div>
+                                            )}
+
+                                            {(lead as any)?.escrowId && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">Escrow ID</span>
+                                                    <Badge variant="outline" className="text-blue-400 border-blue-400/30 text-xs">
+                                                        #{(lead as any).escrowId.length > 10
+                                                            ? `${(lead as any).escrowId.slice(-4)}`
+                                                            : (lead as any).escrowId}
+                                                    </Badge>
+                                                </div>
+                                            )}
+
                                             {lead.nftTokenId && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-muted-foreground">LeadNFT</span>
                                                     <Badge variant="outline" className="text-blue-400 border-blue-400/30 gap-1">
                                                         <ExternalLink className="h-3 w-3" /> #{lead.nftTokenId}
                                                     </Badge>
+                                                </div>
+                                            )}
+
+                                            {/* PII Contact Info */}
+                                            {(lead as any)?.pii && (
+                                                <div className="pt-3 border-t border-border/50 space-y-2">
+                                                    <h3 className="text-xs font-semibold text-green-400 uppercase tracking-wider">🔓 Decrypted Contact Info</h3>
+                                                    {(lead as any).pii.contactName && (
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs text-muted-foreground">Name</span>
+                                                            <span className="text-sm font-medium">{(lead as any).pii.contactName}</span>
+                                                        </div>
+                                                    )}
+                                                    {(lead as any).pii.contactEmail && (
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs text-muted-foreground">Email</span>
+                                                            <a href={`mailto:${(lead as any).pii.contactEmail}`} className="text-sm text-blue-400 hover:text-blue-300">{(lead as any).pii.contactEmail}</a>
+                                                        </div>
+                                                    )}
+                                                    {(lead as any).pii.contactPhone && (
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs text-muted-foreground">Phone</span>
+                                                            <a href={`tel:${(lead as any).pii.contactPhone}`} className="text-sm text-blue-400 hover:text-blue-300">{(lead as any).pii.contactPhone}</a>
+                                                        </div>
+                                                    )}
+                                                    {(lead as any).pii.propertyAddress && (
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs text-muted-foreground">Address</span>
+                                                            <span className="text-sm font-medium text-right max-w-[180px]">{(lead as any).pii.propertyAddress}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 

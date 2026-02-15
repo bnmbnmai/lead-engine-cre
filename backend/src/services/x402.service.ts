@@ -273,6 +273,8 @@ class X402Service {
                     status: 'RELEASED',
                     escrowReleased: true,
                     releasedAt: new Date(),
+                    txHash: receipt?.hash || tx.hash,
+                    chainId: 11155111, // Sepolia
                 },
             });
 

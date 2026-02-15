@@ -843,15 +843,47 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                 if (transaction?.escrowReleased) {
                     // Payment confirmed via x402 — PII can be decrypted
                     isBuyer = true;
+                    // Attach transaction details for Etherscan link
+                    (lead as any).txHash = transaction.txHash || null;
+                    (lead as any).escrowId = transaction.escrowId || null;
+                    (lead as any).chainId = transaction.chainId || 11155111; // default Sepolia
+                    (lead as any).escrowReleased = true;
+                    (lead as any).releasedAt = transaction.releasedAt || transaction.confirmedAt || null;
                 } else {
                     // Won auction but payment not yet settled
                     settlementPending = true;
+                    // Still expose txHash for the escrow creation tx
+                    (lead as any).txHash = transaction?.txHash || null;
+                    (lead as any).escrowId = transaction?.escrowId || null;
+                    (lead as any).chainId = transaction?.chainId || 11155111;
                 }
             }
         }
 
         if (isOwner || isBuyer) {
             // Seller or settled buyer sees full lead data (PII decrypted)
+            // Generate demo contact info for demo leads that lack encrypted PII
+            let contactInfo: Record<string, any> | null = null;
+            if (isBuyer && !lead.encryptedData) {
+                // Demo lead — synthesize demo PII
+                const geo = typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {};
+                contactInfo = {
+                    contactName: 'John Smith',
+                    contactEmail: 'john.smith@example.com',
+                    contactPhone: '(555) 867-5309',
+                    propertyAddress: `${Math.floor(Math.random() * 9000) + 1000} Main St, ${geo.city || 'Miami'}, ${geo.state || 'FL'} ${geo.zip || '33101'}`,
+                };
+            } else if (isBuyer && lead.encryptedData) {
+                // Real lead — decrypt PII
+                try {
+                    const { privacyService } = require('../services/privacy.service');
+                    const encrypted = typeof lead.encryptedData === 'string' ? JSON.parse(lead.encryptedData) : lead.encryptedData;
+                    contactInfo = privacyService.decryptLeadPII(encrypted);
+                } catch (err) {
+                    console.error('[LEAD DETAIL] PII decryption failed:', err);
+                }
+            }
+
             res.json({
                 lead: {
                     ...lead,
@@ -861,6 +893,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     settlementPending: false,
                     encryptedData: undefined,
                     dataHash: undefined,
+                    pii: contactInfo, // decrypted PII for settled buyer
                 },
             });
         } else {
