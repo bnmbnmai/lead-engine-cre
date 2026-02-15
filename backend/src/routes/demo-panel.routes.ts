@@ -44,6 +44,11 @@ const DEMO_WALLETS = {
 // In-memory toggle: when OFF, demo buyers will NOT place bids
 let demoBuyersEnabled = true;
 
+/** Read the current toggle state from other modules */
+export function getDemoBuyersEnabled(): boolean {
+    return demoBuyersEnabled;
+}
+
 // ============================================
 // Demo Login — returns a real JWT for demo personas
 // ============================================

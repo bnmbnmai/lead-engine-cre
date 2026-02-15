@@ -270,27 +270,33 @@ class RTBEngine {
         // ── Auto-Bid Evaluation ──
         // Trigger auto-bid rules so buyers with matching pref sets automatically
         // place bids during the auction window.
-        try {
-            const autoBidResult = await evaluateLeadForAutoBid({
-                id: leadId,
-                vertical: lead.vertical,
-                geo: {
-                    country: geoData?.country || 'US',
-                    state: geoData?.state,
-                    city: geoData?.city,
-                    zip: geoData?.zip,
-                },
-                source: lead.source as string,
-                qualityScore,
-                isVerified: lead.isVerified,
-                reservePrice: Number(lead.reservePrice ?? 0),
-            });
+        // Gated by the demo buyers toggle — when OFF, no auto-bids fire.
+        const { getDemoBuyersEnabled } = await import('../routes/demo-panel.routes');
+        if (!getDemoBuyersEnabled()) {
+            console.log(`[RTB] Auto-bid skipped for lead ${leadId} — demo buyers disabled`);
+        } else {
+            try {
+                const autoBidResult = await evaluateLeadForAutoBid({
+                    id: leadId,
+                    vertical: lead.vertical,
+                    geo: {
+                        country: geoData?.country || 'US',
+                        state: geoData?.state,
+                        city: geoData?.city,
+                        zip: geoData?.zip,
+                    },
+                    source: lead.source as string,
+                    qualityScore,
+                    isVerified: lead.isVerified,
+                    reservePrice: Number(lead.reservePrice ?? 0),
+                });
 
-            if (autoBidResult.bidsPlaced.length > 0) {
-                console.log(`[RTB] Auto-bid placed ${autoBidResult.bidsPlaced.length} bids for lead ${leadId}`);
+                if (autoBidResult.bidsPlaced.length > 0) {
+                    console.log(`[RTB] Auto-bid placed ${autoBidResult.bidsPlaced.length} bids for lead ${leadId}`);
+                }
+            } catch (err) {
+                console.error(`[RTB] Auto-bid evaluation failed for lead ${leadId}:`, err);
             }
-        } catch (err) {
-            console.error(`[RTB] Auto-bid evaluation failed for lead ${leadId}:`, err);
         }
     }
 
