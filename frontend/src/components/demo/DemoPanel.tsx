@@ -32,6 +32,8 @@ import {
     Shield,
     Layers,
     Banknote,
+    Users,
+    Wallet,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -63,6 +65,8 @@ export function DemoPanel() {
     const [actions, setActions] = useState<Record<string, ActionResult>>({});
     const [mockData, setMockData] = useState(() => localStorage.getItem('VITE_USE_MOCK_DATA') === 'true');
     const [expandedSection, setExpandedSection] = useState<string | null>('marketplace');
+    const [demoBuyersEnabled, setDemoBuyersEnabled] = useState(true);
+    const [demoSellerAddress, setDemoSellerAddress] = useState<string | null>(null);
 
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -83,7 +87,17 @@ export function DemoPanel() {
     }, []);
 
     useEffect(() => {
-        if (isOpen) refreshStatus();
+        if (isOpen) {
+            refreshStatus();
+            // Fetch demo buyers toggle state
+            api.demoBuyersStatus().then(({ data }) => {
+                if (data) setDemoBuyersEnabled(data.enabled);
+            }).catch(() => { });
+            // Fetch demo seller address
+            api.demoWallets().then(({ data }) => {
+                if (data) setDemoSellerAddress(data.seller);
+            }).catch(() => { });
+        }
     }, [isOpen, refreshStatus]);
 
     // Keyboard shortcut: Ctrl+Shift+D
@@ -170,8 +184,18 @@ export function DemoPanel() {
         await runAction('auction', async () => {
             const { data, error } = await api.demoStartAuction();
             if (error) throw new Error(error.message || error.error);
-            return `🔨 Auction started for lead ${data?.leadId?.slice(0, 8)}! 6 bids arriving over 30s`;
+            return `🔨 Auction started for lead ${data?.leadId?.slice(0, 8)}! ${data?.simulatedBids ?? 3} bids arriving${data?.demoBuyersEnabled === false ? ' (demo buyers OFF — no bot bids)' : ' over 30s'}`;
         });
+    }
+
+    async function handleToggleDemoBuyers() {
+        const next = !demoBuyersEnabled;
+        setDemoBuyersEnabled(next);
+        try {
+            await api.demoBuyersToggle(next);
+        } catch {
+            setDemoBuyersEnabled(!next); // revert on failure
+        }
     }
 
     async function handleSettle() {
@@ -483,8 +507,29 @@ export function DemoPanel() {
                                 variant="accent"
                             />
                             <p className="text-[11px] text-muted-foreground pl-1">
-                                Creates a 60s auction lead + simulates 6 bids arriving over 25 seconds.
+                                Creates a 60s auction lead{demoBuyersEnabled ? ' + simulates 3 bot bids over 30s' : ' (no bot bids — demo buyers disabled)'}.
                                 Click any IN_AUCTION lead on the Marketplace to watch bids arrive live.
+                            </p>
+
+                            {/* Demo Buyers toggle */}
+                            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm">Enable Demo Buyers</span>
+                                </div>
+                                <button
+                                    onClick={handleToggleDemoBuyers}
+                                    className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${demoBuyersEnabled ? 'bg-blue-500' : 'bg-muted'
+                                        }`}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${demoBuyersEnabled ? 'translate-x-5' : ''
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                {demoBuyersEnabled ? 'Bot buyers will place bids during auctions.' : 'No bot bids — only real users can bid.'}
                             </p>
                         </Section>
 
@@ -502,6 +547,17 @@ export function DemoPanel() {
                                 Triggers USDC transfer, marks escrowReleased=true, and unlocks PII for the buyer.
                                 Refresh the lead detail page after to see decrypted contact info.
                             </p>
+
+                            {/* Demo Seller Address */}
+                            {demoSellerAddress && (
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
+                                    <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <div className="min-w-0">
+                                        <span className="text-[10px] text-muted-foreground block">Demo Seller Address</span>
+                                        <span className="text-xs font-mono text-foreground truncate block">{demoSellerAddress}</span>
+                                    </div>
+                                </div>
+                            )}
                         </Section>
 
                         {/* Section 3: Analytics */}

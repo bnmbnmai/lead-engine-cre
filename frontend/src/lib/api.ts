@@ -276,10 +276,13 @@ export const api = {
     demoSeed: () => apiFetch<{ success: boolean; leads: number; bids: number; asks: number }>('/api/v1/demo-panel/seed', { method: 'POST' }),
     demoClear: () => apiFetch<{ success: boolean; deleted: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/clear', { method: 'POST' }),
     demoInjectLead: (vertical?: string) => apiFetch<{ success: boolean; lead: any }>('/api/v1/demo-panel/lead', { method: 'POST', body: JSON.stringify({ vertical }) }),
-    demoStartAuction: (vertical?: string) => apiFetch<{ success: boolean; leadId: string }>('/api/v1/demo-panel/auction', { method: 'POST', body: JSON.stringify({ vertical }) }),
+    demoStartAuction: (vertical?: string) => apiFetch<{ success: boolean; leadId: string; simulatedBids: number; demoBuyersEnabled: boolean }>('/api/v1/demo-panel/auction', { method: 'POST', body: JSON.stringify({ vertical }) }),
     demoReset: () => apiFetch<{ success: boolean; cleared: number; reseeded: { leads: number; bids: number; asks: number } }>('/api/v1/demo-panel/reset', { method: 'POST' }),
     demoSeedTemplates: () => apiFetch<{ success: boolean; templatesApplied: number; totalTemplates: number; message: string }>('/api/v1/demo-panel/seed-templates', { method: 'POST' }),
     demoSettle: (leadId?: string) => apiFetch<{ success: boolean; transactionId: string; leadId: string; buyerId: string; buyerWallet: string; amount: number; escrowId: string | null; txHash: string | null; escrowReleased: boolean; message: string }>('/api/v1/demo-panel/settle', { method: 'POST', body: JSON.stringify({ leadId }) }),
+    demoBuyersToggle: (enabled?: boolean) => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/demo-buyers-toggle', { method: 'POST', body: JSON.stringify({ enabled }) }),
+    demoBuyersStatus: () => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/demo-buyers-toggle'),
+    demoWallets: () => apiFetch<{ seller: string; deployer: string; buyers: string[] }>('/api/v1/demo-panel/demo-wallets'),
 
     // Vertical Auctions
     createVerticalAuction: (slug: string, reservePrice: number, durationSecs: number) =>

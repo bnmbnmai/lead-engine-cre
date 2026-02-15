@@ -41,6 +41,9 @@ const DEMO_WALLETS = {
     SELLER_KYC: '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',   // Verified seller (deployer)
 };
 
+// In-memory toggle: when OFF, demo buyers will NOT place bids
+let demoBuyersEnabled = true;
+
 // ============================================
 // Demo Login — returns a real JWT for demo personas
 // ============================================
@@ -349,6 +352,38 @@ const DEMO_BUYERS = [
 ];
 
 // ============================================
+// GET /demo-buyers-toggle — read current state
+// POST /demo-buyers-toggle — flip it
+// ============================================
+
+router.get('/demo-buyers-toggle', (_req: Request, res: Response) => {
+    res.json({ enabled: demoBuyersEnabled });
+});
+
+router.post('/demo-buyers-toggle', (req: Request, res: Response) => {
+    const { enabled } = req.body as { enabled?: boolean };
+    if (typeof enabled === 'boolean') {
+        demoBuyersEnabled = enabled;
+    } else {
+        demoBuyersEnabled = !demoBuyersEnabled;
+    }
+    console.log(`[DEMO] Demo buyers toggled → ${demoBuyersEnabled ? 'ON' : 'OFF'}`);
+    res.json({ enabled: demoBuyersEnabled });
+});
+
+// ============================================
+// GET /demo-wallets — return addresses for display
+// ============================================
+
+router.get('/demo-wallets', (_req: Request, res: Response) => {
+    res.json({
+        seller: DEMO_WALLETS.PANEL_USER,
+        deployer: DEMO_WALLETS.SELLER_KYC,
+        buyers: DEMO_BUYERS.map(b => b.wallet),
+    });
+});
+
+// ============================================
 // Seed Vertical table records — parents + hierarchical children
 // ============================================
 
@@ -615,7 +650,7 @@ router.post('/seed', async (req: Request, res: Response) => {
             // Create bids from different demo buyers (respects @@unique([leadId, buyerId]))
             const shuffledBuyers = [...buyerUserIds].sort(() => Math.random() - 0.5);
             // Only 1 bot bid per lead — conservative so the user can win
-            const numBidders = 1;
+            const numBidders = demoBuyersEnabled ? 1 : 0;
             const baseAmount = Number(lead.reservePrice || 20);
 
             for (let b = 0; b < numBidders; b++) {
@@ -850,7 +885,8 @@ router.post('/auction', async (req: Request, res: Response) => {
         }
 
         // Simulate bids arriving over auction window (conservative — user should outbid)
-        const bidIntervals = [5000, 15000, 30000]; // 3 bids at 5s, 15s, 30s
+        // Only if demo buyers are enabled
+        const bidIntervals = demoBuyersEnabled ? [5000, 15000, 30000] : []; // 3 bids at 5s, 15s, 30s
         let currentBid = reservePrice;
 
         bidIntervals.forEach((delay, index) => {
@@ -893,7 +929,8 @@ router.post('/auction', async (req: Request, res: Response) => {
             vertical,
             reservePrice,
             auctionEndsIn: '60 seconds',
-            simulatedBids: bidIntervals.length,  // 3 bids (was 6)
+            simulatedBids: bidIntervals.length,  // 0 if demo buyers off, 3 if on
+            demoBuyersEnabled,
         });
     } catch (error) {
         console.error('Demo auction error:', error);
