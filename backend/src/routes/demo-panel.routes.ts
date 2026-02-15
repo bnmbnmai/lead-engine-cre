@@ -966,8 +966,25 @@ router.post('/seed-templates', async (req: Request, res: Response) => {
 router.post('/settle', async (req: Request, res: Response) => {
     try {
         const { leadId } = req.body as { leadId?: string };
+        const { x402Service } = await import('../services/x402.service');
 
         console.log(`[DEMO SETTLE] Request received — leadId=${leadId || '(auto-detect)'}`);
+
+        // ── Guard: on-chain infra must be configured ──
+        if (!process.env.DEPLOYER_PRIVATE_KEY) {
+            res.status(503).json({
+                error: 'Server signer not configured',
+                hint: 'Set DEPLOYER_PRIVATE_KEY env var on Render',
+            });
+            return;
+        }
+        if (!process.env.ESCROW_CONTRACT_ADDRESS) {
+            res.status(503).json({
+                error: 'Escrow contract address not configured',
+                hint: 'Set ESCROW_CONTRACT_ADDRESS env var on Render',
+            });
+            return;
+        }
 
         // 1. Find the most recent unsettled transaction
         const transaction = await prisma.transaction.findFirst({
@@ -981,6 +998,11 @@ router.post('/settle', async (req: Request, res: Response) => {
                     select: {
                         id: true, vertical: true, status: true, nftTokenId: true,
                         sellerId: true,
+                        seller: {
+                            select: {
+                                user: { select: { walletAddress: true } },
+                            },
+                        },
                     },
                 },
                 buyer: { select: { id: true, walletAddress: true } },
@@ -998,85 +1020,75 @@ router.post('/settle', async (req: Request, res: Response) => {
             return;
         }
 
-        console.log(`[DEMO SETTLE] Found transaction ${transaction.id} | lead=${transaction.leadId} | amount=$${transaction.amount} | escrowId=${transaction.escrowId || '(none)'} | status=${transaction.status}`);
+        const buyerWallet = transaction.buyer?.walletAddress;
+        const sellerWallet = (transaction.lead as any)?.seller?.user?.walletAddress;
+        const amount = Number(transaction.amount);
+        const tokenId = parseInt(transaction.lead?.nftTokenId || '0', 10);
 
-        // 2. If transaction already has an escrowId, try the x402 release flow
-        if (transaction.escrowId && !transaction.escrowId.startsWith('offchain-')) {
-            console.log(`[DEMO SETTLE] On-chain escrow ${transaction.escrowId} — attempting release via x402`);
-            try {
-                const { x402Service } = await import('../services/x402.service');
-                const result = await x402Service.settlePayment(transaction.id);
+        console.log(`[DEMO SETTLE] Found tx=${transaction.id} | lead=${transaction.leadId} | $${amount} | escrowId=${transaction.escrowId || '(none)'} | buyer=${buyerWallet?.slice(0, 10)} | seller=${sellerWallet?.slice(0, 10)}`);
 
-                if (!result.success) {
-                    console.error(`[DEMO SETTLE] x402 release failed: ${result.error}`);
-                    res.status(500).json({
-                        error: 'On-chain settlement failed',
-                        details: result.error,
-                        hint: 'Check the Render logs for the exact x402 error',
-                    });
-                    return;
-                }
+        if (!buyerWallet || !sellerWallet) {
+            res.status(400).json({
+                error: 'Missing wallet addresses',
+                hint: `buyer=${buyerWallet || 'MISSING'}, seller=${sellerWallet || 'MISSING'}. Both must be connected.`,
+            });
+            return;
+        }
 
-                console.log(`[DEMO SETTLE] On-chain release succeeded — txHash=${result.txHash}`);
-                res.json({
-                    success: true,
-                    transactionId: transaction.id,
-                    leadId: transaction.leadId,
-                    buyerId: transaction.buyerId,
-                    buyerWallet: transaction.buyer?.walletAddress,
-                    amount: Number(transaction.amount),
-                    escrowId: transaction.escrowId,
-                    txHash: result.txHash || null,
-                    escrowReleased: true,
-                    message: `✅ On-chain settlement complete — txHash=${result.txHash?.slice(0, 14)}…`,
-                });
-                return;
-            } catch (err: any) {
-                console.error(`[DEMO SETTLE] x402 release threw:`, err);
+        // 2. If no escrow yet, create + fund on-chain escrow
+        if (!transaction.escrowId) {
+            console.log(`[DEMO SETTLE] No escrowId — creating on-chain escrow via x402Service.createPayment`);
+            const createResult = await x402Service.createPayment(
+                sellerWallet,
+                buyerWallet,
+                amount,
+                tokenId,
+                transaction.id,
+            );
+
+            if (!createResult.success) {
+                console.error(`[DEMO SETTLE] createPayment failed: ${createResult.error}`);
                 res.status(500).json({
-                    error: 'On-chain settlement threw an exception',
-                    details: err.message,
+                    error: 'Failed to create on-chain escrow',
+                    details: createResult.error,
                 });
                 return;
             }
+            console.log(`[DEMO SETTLE] Escrow created+funded — escrowId=${createResult.escrowId}, txHash=${createResult.txHash}`);
         }
 
-        // 3. No on-chain escrow — do a complete off-chain settlement
-        //    (the normal path for demo auctions that resolved without x402)
-        console.log(`[DEMO SETTLE] No on-chain escrow — performing off-chain settlement`);
+        // 3. Release the escrow on-chain
+        console.log(`[DEMO SETTLE] Releasing escrow via x402Service.settlePayment`);
+        const settleResult = await x402Service.settlePayment(transaction.id);
 
-        const offchainEscrowId = `offchain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        if (!settleResult.success) {
+            console.error(`[DEMO SETTLE] settlePayment failed: ${settleResult.error}`);
+            res.status(500).json({
+                error: 'On-chain escrow release failed',
+                details: settleResult.error,
+            });
+            return;
+        }
 
-        // Update transaction: mark as released
-        await prisma.transaction.update({
-            where: { id: transaction.id },
-            data: {
-                status: 'RELEASED',
-                escrowId: offchainEscrowId,
-                escrowReleased: true,
-                releasedAt: new Date(),
-            },
-        });
-        console.log(`[DEMO SETTLE] Transaction ${transaction.id} → RELEASED (escrowId=${offchainEscrowId})`);
-
-        // Update lead: mark as SOLD
+        // 4. Mark lead as SOLD
         await prisma.lead.update({
             where: { id: transaction.leadId },
-            data: { status: 'SOLD' },
+            data: { status: 'SOLD', soldAt: new Date() },
         });
         console.log(`[DEMO SETTLE] Lead ${transaction.leadId} → SOLD`);
 
+        console.log(`[DEMO SETTLE] ✅ Complete — txHash=${settleResult.txHash}`);
         res.json({
             success: true,
             transactionId: transaction.id,
             leadId: transaction.leadId,
             buyerId: transaction.buyerId,
-            buyerWallet: transaction.buyer?.walletAddress,
-            amount: Number(transaction.amount),
-            escrowId: offchainEscrowId,
-            txHash: null,
+            buyerWallet,
+            amount,
+            escrowId: transaction.escrowId,
+            txHash: settleResult.txHash || null,
             escrowReleased: true,
-            message: `✅ Settlement complete (off-chain) — PII is now decrypted for buyer ${transaction.buyer?.walletAddress?.slice(0, 10)}…`,
+            message: `✅ On-chain settlement complete — escrow released, USDC transferred, lead SOLD. txHash=${settleResult.txHash?.slice(0, 14)}…`,
         });
     } catch (error: any) {
         console.error('[DEMO SETTLE] Unexpected error:', error);
