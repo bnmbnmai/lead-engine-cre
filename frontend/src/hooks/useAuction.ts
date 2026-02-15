@@ -66,6 +66,23 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
             }
         });
 
+        // When auction ends with no valid bids, server converts to UNSOLD
+        // and emits lead:unsold instead of auction:resolved
+        const unsubUnsold = socketClient.on('lead:unsold', (event: any) => {
+            if (event.leadId === leadId) {
+                setState((prev) => (prev ? { ...prev, phase: 'RESOLVED' } : prev));
+                onResolvedRef.current?.(event);
+            }
+        });
+
+        // Catch-all: any lead status change away from IN_AUCTION
+        const unsubStatusChanged = socketClient.on('lead:status-changed', (event: any) => {
+            if (event.leadId === leadId && event.newStatus !== 'IN_AUCTION') {
+                setState((prev) => (prev ? { ...prev, phase: 'RESOLVED' } : prev));
+                onResolvedRef.current?.(event);
+            }
+        });
+
         const unsubError = socketClient.on('error', (data) => {
             setError(data.message);
         });
@@ -77,6 +94,8 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
             unsubPhase();
             unsubBid();
             unsubResolved();
+            unsubUnsold();
+            unsubStatusChanged();
             unsubError();
         };
     }, [leadId]); // Only depends on leadId now

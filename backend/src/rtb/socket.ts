@@ -289,6 +289,12 @@ class RTBSocketServer {
 
 
                     // Create sealed bid (commit-reveal)
+                    // Check if this is a new bid or update (for bidCount accuracy)
+                    const existingBid = await prisma.bid.findUnique({
+                        where: { leadId_buyerId: { leadId: data.leadId, buyerId: socket.userId! } },
+                    });
+                    const isNewBid = !existingBid;
+
                     const bid = await prisma.bid.upsert({
                         where: {
                             leadId_buyerId: { leadId: data.leadId, buyerId: socket.userId! },
@@ -307,8 +313,8 @@ class RTBSocketServer {
                         },
                     });
 
-                    // Update auction room bid count
-                    if (lead.auctionRoom) {
+                    // Update auction room bid count (only for NEW bids)
+                    if (lead.auctionRoom && isNewBid) {
                         await prisma.auctionRoom.update({
                             where: { id: lead.auctionRoom.id },
                             data: { bidCount: { increment: 1 } },

@@ -91,6 +91,17 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         skipped: [],
     };
 
+    // ── Gate: respect demo buyers toggle ──
+    try {
+        const { getDemoBuyersEnabled } = await import('../routes/demo-panel.routes');
+        if (!getDemoBuyersEnabled()) {
+            console.log(`[AUTO-BID] Skipped for lead ${lead.id} — demo buyers disabled`);
+            return result;
+        }
+    } catch {
+        // If demo-panel module unavailable, proceed normally
+    }
+
     // Find all active auto-bid preference sets matching this vertical (or wildcard)
     const matchingSets = await prisma.buyerPreferenceSet.findMany({
         where: {
