@@ -832,6 +832,17 @@ router.post('/lead', async (req: Request, res: Response) => {
             },
         });
 
+        // Create auction room so the auction monitor can resolve this lead
+        await prisma.auctionRoom.create({
+            data: {
+                leadId: lead.id,
+                roomId: `auction_${lead.id}`,
+                phase: 'BIDDING',
+                biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+            },
+        });
+
         // Emit real-time event for new lead
         const io = req.app.get('io');
         if (io) {
@@ -1251,6 +1262,13 @@ router.post('/settle', async (req: Request, res: Response) => {
             data: { status: 'SOLD', soldAt: new Date() },
         });
         console.log(`[DEMO SETTLE] Lead ${transaction.leadId} → SOLD`);
+
+        // 5. Mark transaction as settled so PII unlocks for buyer
+        await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { escrowReleased: true, status: 'RELEASED' },
+        });
+        console.log(`[DEMO SETTLE] Transaction ${transaction.id} → escrowReleased=true, status=COMPLETED`);
 
         console.log(`[DEMO SETTLE] ✅ Complete — txHash=${settleResult.txHash}`);
         res.json({

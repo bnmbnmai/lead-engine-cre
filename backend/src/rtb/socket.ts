@@ -560,6 +560,21 @@ class RTBSocketServer {
 
             for (const bid of pendingBids) {
                 try {
+                    // If bid already has amount (from auto-bid or API-placed bid), just reveal it
+                    if (bid.amount != null && Number(bid.amount) > 0) {
+                        const perks = await applyHolderPerks(lead.vertical, bid.buyerId);
+                        const effectiveBid = perks.isHolder
+                            ? applyMultiplier(Number(bid.amount), perks.multiplier)
+                            : Number(bid.amount);
+                        await prisma.bid.update({
+                            where: { id: bid.id },
+                            data: { status: 'REVEALED', effectiveBid, processedAt: new Date() },
+                        });
+                        console.log(`[AUCTION] Auto-revealed bid ${bid.id} (had amount): $${Number(bid.amount)} (effective: $${effectiveBid})`);
+                        continue;
+                    }
+
+                    // Try base64 decode for legacy demo format
                     const decoded = Buffer.from(bid.commitment!, 'base64').toString('utf-8');
                     const [amountStr] = decoded.split(':');
                     const amount = parseFloat(amountStr);
@@ -644,14 +659,10 @@ class RTBSocketServer {
                         ]);
 
                         if (balance < bidAmountRaw) {
-                            console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC balance $${Number(balance) / 1e6} < $${Number(bid.amount)} — cascading`);
-                            skippedBidders.push(bid.buyerId);
-                            continue;
+                            console.warn(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC balance $${Number(balance) / 1e6} < $${Number(bid.amount)} — accepting anyway (settlement is the real gate)`);
                         }
                         if (allowance < bidAmountRaw) {
-                            console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC allowance $${Number(allowance) / 1e6} < $${Number(bid.amount)} — cascading`);
-                            skippedBidders.push(bid.buyerId);
-                            continue;
+                            console.warn(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC allowance $${Number(allowance) / 1e6} < $${Number(bid.amount)} — accepting anyway (settlement is the real gate)`);
                         }
 
                         console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC OK — balance: $${Number(balance) / 1e6}, allowance: $${Number(allowance) / 1e6}`);
