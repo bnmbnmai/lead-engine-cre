@@ -819,8 +819,9 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
         // Check if requesting user is the lead's seller (owns the PII)
         const isOwner = req.user?.id && lead.seller?.userId === req.user.id;
 
-        // Check if requesting user is the auction winner (bought the lead)
+        // Check if requesting user is the auction winner AND payment is settled
         let isBuyer = false;
+        let settlementPending = false;
         if (req.user?.id && !isOwner) {
             const winningBid = await prisma.bid.findFirst({
                 where: {
@@ -829,23 +830,41 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     status: 'ACCEPTED',
                 },
             });
-            isBuyer = !!winningBid;
+            if (winningBid) {
+                // Check x402 escrow settlement status
+                const transaction = await prisma.transaction.findFirst({
+                    where: {
+                        leadId: lead.id,
+                        buyerId: req.user.id,
+                    },
+                    orderBy: { createdAt: 'desc' },
+                });
+
+                if (transaction?.escrowReleased) {
+                    // Payment confirmed via x402 — PII can be decrypted
+                    isBuyer = true;
+                } else {
+                    // Won auction but payment not yet settled
+                    settlementPending = true;
+                }
+            }
         }
 
         if (isOwner || isBuyer) {
-            // Seller or winner sees full lead data (they own/bought the PII)
+            // Seller or settled buyer sees full lead data (PII decrypted)
             res.json({
                 lead: {
                     ...lead,
                     qualityScore,
                     isOwner: isOwner || false,
                     isBuyer: isBuyer || false,
+                    settlementPending: false,
                     encryptedData: undefined,
                     dataHash: undefined,
                 },
             });
         } else {
-            // Everyone else gets PII-redacted preview
+            // Everyone else (including unsettled winners) gets PII-redacted preview
             const preview = redactLeadForPreview(lead as any);
             res.json({
                 lead: {
@@ -867,6 +886,9 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     createdAt: lead.createdAt,
                     qualityScore,
                     _count: (lead as any)._count,
+                    // Signal to frontend that this user won but payment hasn't cleared
+                    isBuyer: false,
+                    settlementPending,
                 },
             });
         }

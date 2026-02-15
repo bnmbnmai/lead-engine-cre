@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown, CheckCircle2, Hourglass } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -48,6 +48,7 @@ interface LeadDetail {
     _count: { bids: number };
     isBuyer?: boolean;
     isOwner?: boolean;
+    settlementPending?: boolean;
     winningBid?: number | null;
     soldAt?: string | null;
 }
@@ -240,6 +241,7 @@ export default function LeadDetailPage() {
     const isSold = lead?.status === 'SOLD';
     const isBuyerViewing = !!(lead as any)?.isBuyer;
     const isOwnerViewing = !!(lead as any)?.isOwner;
+    const isSettlementPending = !!(lead as any)?.settlementPending;
 
     return (
         <DashboardLayout>
@@ -432,8 +434,8 @@ export default function LeadDetailPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Privacy Notice — hidden for owners/buyers who already have PII */}
-                            {!isBuyerViewing && !isOwnerViewing && (
+                            {/* Privacy Notice — hidden for owners/buyers/pending settlement */}
+                            {!isBuyerViewing && !isOwnerViewing && !isSettlementPending && (
                                 <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
                                     <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via x402 escrow settlement.</p>
                                 </div>
@@ -603,8 +605,48 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
+                                {/* ── SOLD: Settlement pending (won but payment not confirmed) ── */}
+                                {isSold && isSettlementPending && (
+                                    <Card className="border-amber-500/30">
+                                        <CardContent className="p-6 space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                                                    <Hourglass className="h-5 w-5 text-amber-500 animate-pulse" />
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-lg font-bold text-amber-500">You Won — Awaiting Payment</h2>
+                                                    <p className="text-xs text-muted-foreground">x402 escrow settlement in progress</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                                                    <span>Auction won</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                                                    <span>Escrow created</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs text-amber-400">
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    <span>Payment confirmation pending</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
+                                                    <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30" />
+                                                    <span>PII decryption</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2 border-t border-border/50">
+                                                <p className="text-xs text-muted-foreground">Contact details will be decrypted automatically once the x402 escrow payment is confirmed on-chain.</p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
                                 {/* ── Generic SOLD/other for non-buyers ── */}
-                                {!isLive && !isUnsold && !(isSold && isBuyerViewing) && (
+                                {!isLive && !isUnsold && !(isSold && isBuyerViewing) && !(isSold && isSettlementPending) && (
                                     <Card>
                                         <CardContent className="p-5">
                                             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
