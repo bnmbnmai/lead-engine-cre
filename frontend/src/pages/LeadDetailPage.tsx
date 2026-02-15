@@ -7,7 +7,6 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { VerticalBreadcrumb } from '@/components/ui/VerticalBreadcrumb';
 import { DynamicFieldRenderer } from '@/components/marketplace/DynamicFieldRenderer';
@@ -384,64 +383,24 @@ export default function LeadDetailPage() {
                                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${previewOpen ? 'rotate-180' : ''}`} />
                                     </button>
                                     {previewOpen && (
-                                        <div className="px-5 pb-5 space-y-5 border-t border-border/50">
-                                            {/* Pricing snapshot */}
-                                            <div className="grid grid-cols-2 gap-4 pt-4">
-                                                {lead.reservePrice != null && (
+                                        <div className="px-5 pb-5 space-y-4 border-t border-border/50">
+                                            {/* Lead metadata */}
+                                            <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-4">
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Source</dt>
+                                                    <dd className="text-sm font-medium mt-0.5">{lead.source}</dd>
+                                                </div>
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Submitted</dt>
+                                                    <dd className="text-sm font-medium mt-0.5">{new Date(lead.createdAt).toLocaleDateString()}</dd>
+                                                </div>
+                                                {lead.nftTokenId && (
                                                     <div>
-                                                        <Tooltip content="Minimum bid amount set by the seller">
-                                                            <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve Price</span>
-                                                        </Tooltip>
-                                                        <div className={`text-lg font-bold mt-0.5 ${isUnsold ? 'line-through text-muted-foreground' : 'gradient-text'}`}>
-                                                            {formatCurrency(lead.reservePrice)}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {lead.buyNowPrice != null && (
-                                                    <div>
-                                                        <Tooltip content="Purchase this lead immediately — no bidding required">
-                                                            <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Buy Now Price</span>
-                                                        </Tooltip>
-                                                        <div className="text-2xl font-bold text-green-500 mt-0.5">
-                                                            {formatCurrency(lead.buyNowPrice)}
-                                                        </div>
+                                                        <dt className="text-xs text-muted-foreground">NFT Token</dt>
+                                                        <dd className="text-sm font-medium mt-0.5">#{lead.nftTokenId}</dd>
                                                     </div>
                                                 )}
                                             </div>
-
-                                            {/* Buy Now CTA (only for UNSOLD leads) */}
-                                            {isUnsold && (
-                                                <div className="space-y-2">
-                                                    {purchased ? (
-                                                        <div className="text-center py-3">
-                                                            <p className="font-semibold text-green-500">✓ Lead Purchased!</p>
-                                                            <p className="text-xs text-muted-foreground mt-1">Transaction processing via escrow.</p>
-                                                        </div>
-                                                    ) : isAuthenticated ? (
-                                                        <>
-                                                            {buyError && <p className="text-xs text-red-500 text-center">{buyError}</p>}
-                                                            <Button
-                                                                className={`w-full text-base py-5 transition-all ${confirming ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
-                                                                disabled={buying}
-                                                                onClick={handleBuyNow}
-                                                            >
-                                                                {buying ? (
-                                                                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
-                                                                ) : confirming ? (
-                                                                    'Click again to confirm'
-                                                                ) : (
-                                                                    <><ShoppingCart className="h-4 w-4 mr-2" />Buy Now — {formatCurrency(lead.buyNowPrice ?? 0)}</>
-                                                                )}
-                                                            </Button>
-                                                        </>
-                                                    ) : (
-                                                        <Button className="w-full py-5 gap-2" variant="glass" onClick={openConnectModal}>
-                                                            <Wallet className="h-4 w-4" />
-                                                            Connect Wallet to Purchase
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            )}
 
                                             {/* Lead ID */}
                                             <div className="text-xs text-muted-foreground/50 break-all pt-2 border-t border-border/30">
@@ -602,7 +561,7 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
-                                {socketError && (
+                                {isLive && socketError && (
                                     <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
                                         {socketError}
                                     </div>
