@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
-import { LeadPreview } from './LeadPreview';
 
 const bidSchema = z.object({
     amount: z.number().positive('Amount must be positive'),
@@ -16,7 +15,6 @@ const bidSchema = z.object({
 type BidFormData = z.infer<typeof bidSchema>;
 
 interface BidPanelProps {
-    leadId: string;
     reservePrice: number;
     highestBid?: number | null;
     phase: 'BIDDING' | 'REVEAL' | 'RESOLVED' | 'CANCELLED';
@@ -27,7 +25,6 @@ interface BidPanelProps {
 }
 
 export function BidPanel({
-    leadId,
     reservePrice,
     highestBid,
     phase,
@@ -151,9 +148,6 @@ export function BidPanel({
                         </div>
                     </div>
                 </div>
-
-                {/* Lead Preview (non-PII fields) */}
-                <LeadPreview leadId={leadId} />
 
                 {/* Bid Form */}
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

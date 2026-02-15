@@ -258,7 +258,6 @@ export function AuctionPage() {
                     {/* Bid Panel */}
                     <div className="space-y-6">
                         <BidPanel
-                            leadId={lead.id}
                             reservePrice={lead.reservePrice}
                             highestBid={displayHighestBid}
                             phase={phase as any}

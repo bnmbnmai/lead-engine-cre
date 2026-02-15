@@ -466,7 +466,6 @@ export default function LeadDetailPage() {
 
                                         {isAuthenticated && (
                                             <BidPanel
-                                                leadId={lead.id}
                                                 reservePrice={lead.reservePrice ?? 0}
                                                 highestBid={displayHighestBid}
                                                 phase={phase as any}
