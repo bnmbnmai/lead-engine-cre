@@ -12,12 +12,15 @@ const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.co
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
 const ESCROW_ABI = [
-    'function createEscrow(address seller, address buyer, uint256 amount, uint256 leadTokenId) returns (uint256 escrowId)',
+    'function createEscrow(string calldata leadId, address seller, address buyer, uint256 amount) returns (uint256)',
     'function fundEscrow(uint256 escrowId)',
     'function releaseEscrow(uint256 escrowId)',
     'function refundEscrow(uint256 escrowId)',
-    'function getEscrow(uint256 escrowId) view returns (tuple(address seller, address buyer, uint256 amount, uint256 leadTokenId, uint8 status, uint256 createdAt, uint256 releasedAt))',
+    'function getEscrow(uint256 escrowId) view returns (tuple(string leadId, address seller, address buyer, uint256 amount, uint256 platformFee, uint256 createdAt, uint256 releaseTime, uint8 state))',
     'function platformFeeBps() view returns (uint256)',
+    'function owner() view returns (address)',
+    'function authorizedCallers(address) view returns (bool)',
+    'function setAuthorizedCaller(address caller, bool authorized)',
 ];
 
 const ERC20_ABI = [
@@ -78,7 +81,7 @@ class X402Service {
         sellerAddress: string,
         buyerAddress: string,
         amountUSDC: number,
-        leadTokenId: number,
+        leadId: string,
         transactionId: string
     ): Promise<PaymentResult> {
         const amountWei = BigInt(Math.floor(amountUSDC * 1e6));
@@ -94,11 +97,11 @@ class X402Service {
         }
 
         console.log(`[x402] createPayment START:`, {
+            leadId,
             seller: sellerAddress,
             buyer: buyerAddress,
             amountUSDC,
             amountWei: amountWei.toString(),
-            leadTokenId,
             transactionId,
             signerAddress: this.signer.address,
             escrowContract: ESCROW_CONTRACT_ADDRESS,
@@ -107,9 +110,10 @@ class X402Service {
 
         try {
             // Step 1: Create escrow on-chain
-            console.log(`[x402] Step 1: createEscrow(${sellerAddress}, ${buyerAddress}, ${amountWei}, ${leadTokenId})`);
+            // Contract: createEscrow(string leadId, address seller, address buyer, uint256 amount)
+            console.log(`[x402] Step 1: createEscrow("${leadId}", ${sellerAddress}, ${buyerAddress}, ${amountWei})`);
             const createTx = await this.escrowContract.createEscrow(
-                sellerAddress, buyerAddress, amountWei, leadTokenId
+                leadId, sellerAddress, buyerAddress, amountWei
             );
             console.log(`[x402] createEscrow tx sent: ${createTx.hash}`);
             const createReceipt = await createTx.wait();

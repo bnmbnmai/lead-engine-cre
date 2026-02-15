@@ -1167,7 +1167,7 @@ router.post('/settle', async (req: Request, res: Response) => {
                 sellerWallet,
                 buyerWallet,
                 amount,
-                tokenId,
+                transaction.leadId,
                 transaction.id,
             );
 

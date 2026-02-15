@@ -1010,7 +1010,7 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
                     sellerUser.walletAddress,
                     req.user.walletAddress,
                     Number(result.transaction.amount),
-                    parseInt(result.lead.nftTokenId || '0'),
+                    result.lead.id,
                     result.transaction.id,
                 );
             }

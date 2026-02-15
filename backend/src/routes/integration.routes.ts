@@ -188,7 +188,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
             '0x0000000000000000000000000000000000000002', // demo seller address
             buyerAddress,
             bidAmount,
-            parseInt(mintResult.tokenId || '0') || 0,
+            transaction.leadId,
             transaction.id
         );
 
