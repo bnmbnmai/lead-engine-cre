@@ -1221,9 +1221,9 @@ router.post('/settle', async (req: Request, res: Response) => {
             return;
         }
 
-        // 2. If no escrow yet, create + fund on-chain escrow
+        // 2. If no escrow yet (recovery path — escrow should have been created at auction resolution)
         if (!transaction.escrowId) {
-            console.log(`[DEMO SETTLE] No escrowId — creating on-chain escrow via x402Service.createPayment`);
+            console.warn(`[DEMO SETTLE] No escrowId on tx=${transaction.id} — retrying createPayment (recovery path)`);
             const createResult = await x402Service.createPayment(
                 sellerWallet,
                 buyerWallet,
@@ -1237,10 +1237,13 @@ router.post('/settle', async (req: Request, res: Response) => {
                 res.status(500).json({
                     error: 'Failed to create on-chain escrow',
                     details: createResult.error,
+                    hint: 'Ensure DEPLOYER_PRIVATE_KEY has Sepolia ETH for gas and ESCROW_CONTRACT_ADDRESS is deployed.',
                 });
                 return;
             }
-            console.log(`[DEMO SETTLE] Escrow created+funded — escrowId=${createResult.escrowId}, txHash=${createResult.txHash}`);
+            console.log(`[DEMO SETTLE] Recovery: escrow created+funded — escrowId=${createResult.escrowId}, txHash=${createResult.txHash}`);
+        } else {
+            console.log(`[DEMO SETTLE] Escrow already exists — escrowId=${transaction.escrowId}, proceeding to release`);
         }
 
         // 3. Release the escrow on-chain

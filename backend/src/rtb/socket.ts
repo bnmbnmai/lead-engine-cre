@@ -10,35 +10,9 @@ import {
 } from '../services/holder-perks.service';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
-import { ethers } from 'ethers';
+import { x402Service } from '../services/x402.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
-
-// ── On-chain USDC settlement safety ──
-const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
-const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
-const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
-
-const ERC20_ABI = [
-    'function allowance(address owner, address spender) view returns (uint256)',
-    'function balanceOf(address account) view returns (uint256)',
-];
-
-async function getUsdcBalance(wallet: string): Promise<bigint> {
-    if (!USDC_CONTRACT_ADDRESS) return BigInt(2) ** BigInt(255); // Skip check when not configured
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
-    const bal = await usdc.balanceOf(wallet);
-    return BigInt(bal.toString());
-}
-
-async function getUsdcAllowance(owner: string, spender: string): Promise<bigint> {
-    if (!USDC_CONTRACT_ADDRESS) return BigInt(2) ** BigInt(255); // Skip check when not configured
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
-    const allow = await usdc.allowance(owner, spender);
-    return BigInt(allow.toString());
-}
 
 /** Per-user debounce map for notify-optin (prevents rapid toggling) */
 const NOTIFY_DEBOUNCE_MS = 10_000; // 10 seconds
@@ -636,59 +610,21 @@ class RTBSocketServer {
 
             const reservePrice = lead.reservePrice ? Number(lead.reservePrice) : 0;
 
-            // ── Find the first bidder who meets reserve AND has sufficient USDC ──
+            // ── Find the highest bidder who meets reserve ──
+            // No USDC pre-check: the escrow contract is the real enforcement point.
             let winningBid: typeof rankedBids[0] | null = null;
-            const skippedBidders: string[] = [];
 
             for (const bid of rankedBids) {
-                // Check reserve price
                 if (reservePrice > 0 && Number(bid.amount) < reservePrice) {
                     console.log(`Auction ${leadId}: bid $${Number(bid.amount).toFixed(2)} < reserve $${reservePrice.toFixed(2)} — skipping`);
                     continue;
                 }
-
-                // Check on-chain USDC balance + allowance using the buyer's
-                // User.walletAddress (set during SIWE auth — the MetaMask wallet)
-                const buyerWallet = bid.buyer?.walletAddress;
-                if (buyerWallet && USDC_CONTRACT_ADDRESS && ESCROW_CONTRACT_ADDRESS) {
-                    try {
-                        const bidAmountRaw = BigInt(Math.floor(Number(bid.amount) * 1e6));
-                        const [balance, allowance] = await Promise.all([
-                            getUsdcBalance(buyerWallet),
-                            getUsdcAllowance(buyerWallet, ESCROW_CONTRACT_ADDRESS),
-                        ]);
-
-                        if (balance < bidAmountRaw) {
-                            console.warn(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC balance $${Number(balance) / 1e6} < $${Number(bid.amount)} — accepting anyway (settlement is the real gate)`);
-                        }
-                        if (allowance < bidAmountRaw) {
-                            console.warn(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC allowance $${Number(allowance) / 1e6} < $${Number(bid.amount)} — accepting anyway (settlement is the real gate)`);
-                        }
-
-                        console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC OK — balance: $${Number(balance) / 1e6}, allowance: $${Number(allowance) / 1e6}`);
-                    } catch (err: any) {
-                        // Graceful fallback: don't block settlement on RPC errors
-                        console.warn(`[SETTLEMENT] USDC check failed for ${buyerWallet}: ${err.message}. Accepting bid anyway.`);
-                    }
-                }
-
-                // This bidder passes all checks
                 winningBid = bid;
                 break;
             }
 
-            // Mark skipped bids as INSUFFICIENT_FUNDS
-            if (skippedBidders.length > 0) {
-                await prisma.bid.updateMany({
-                    where: { leadId, buyerId: { in: skippedBidders }, status: 'REVEALED' },
-                    data: { status: 'OUTBID', processedAt: new Date() },
-                });
-                console.log(`[SETTLEMENT] ${skippedBidders.length} bidder(s) skipped due to insufficient USDC`);
-            }
-
-            // No valid bidder with sufficient funds → convert to Buy It Now
             if (!winningBid) {
-                console.log(`Auction ${leadId}: no bidder with sufficient USDC — converting to Buy It Now`);
+                console.log(`Auction ${leadId}: no bid meets reserve — converting to Buy It Now`);
                 await this.convertToUnsold(leadId, lead);
                 return;
             }
@@ -737,11 +673,50 @@ class RTBSocketServer {
                 }),
             ]);
 
+            console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);
+
+            // ── Create on-chain escrow immediately (x402 flow) ──
+            // The escrow contract locks the buyer's USDC. Settlement button only releases.
+            const buyerWallet = winningBid.buyer?.walletAddress;
+            const sellerData = await prisma.lead.findUnique({
+                where: { id: leadId },
+                select: { seller: { select: { user: { select: { walletAddress: true } } } } },
+            });
+            const sellerWallet = sellerData?.seller?.user?.walletAddress;
+
+            // Find the Transaction we just created
+            const txRecord = await prisma.transaction.findFirst({
+                where: { leadId, buyerId: winningBid.buyerId },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            if (buyerWallet && sellerWallet && txRecord) {
+                try {
+                    console.log(`[x402] Creating on-chain escrow: buyer=${buyerWallet.slice(0, 10)}, seller=${sellerWallet.slice(0, 10)}, amount=$${Number(winningBid.amount)}`);
+                    const escrowResult = await x402Service.createPayment(
+                        sellerWallet,
+                        buyerWallet,
+                        Number(winningBid.amount),
+                        leadId,
+                        txRecord.id,
+                    );
+                    if (escrowResult.success) {
+                        console.log(`[x402] Escrow created+funded — escrowId=${escrowResult.escrowId}, txHash=${escrowResult.txHash}`);
+                    } else {
+                        console.error(`[x402] Escrow creation failed (settle button can retry): ${escrowResult.error}`);
+                    }
+                } catch (err: any) {
+                    console.error(`[x402] Escrow creation error (settle button can retry):`, err.message);
+                }
+            } else {
+                console.warn(`[x402] Missing wallets for escrow — buyer=${buyerWallet || 'NONE'}, seller=${sellerWallet || 'NONE'}, tx=${txRecord?.id || 'NONE'}`);
+            }
+
             // Notify room
             this.io.to(`auction_${leadId}`).emit('auction:resolved', {
                 leadId,
                 winnerId: winningBid.buyerId,
-                winningAmount: Number(winningBid.amount), // Raw amount for settlement
+                winningAmount: Number(winningBid.amount),
                 effectiveBid: Number(winningBid.effectiveBid ?? winningBid.amount),
             });
 
@@ -751,8 +726,6 @@ class RTBSocketServer {
                 oldStatus: 'IN_AUCTION',
                 newStatus: 'SOLD',
             });
-
-            console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);
 
             // Push real-time analytics update to all connected dashboards
             this.io.emit('analytics:update', {

@@ -289,7 +289,7 @@ export default function LeadDetailPage() {
                                             <Badge className={getStatusColor(lead.status)}>{lead.status.replace('_', ' ')}</Badge>
                                             {myBidAmount && (
                                                 <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">
-                                                    Your bid: {formatCurrency(myBidAmount)}
+                                                    {phase === 'BIDDING' ? 'Sealed Bid ✓' : `Your bid: ${formatCurrency(myBidAmount)}`}
                                                 </Badge>
                                             )}
                                         </div>
@@ -483,7 +483,7 @@ export default function LeadDetailPage() {
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs text-muted-foreground">Your Bid</span>
                                                         <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">
-                                                            {formatCurrency(myBidAmount)}
+                                                            {phase === 'BIDDING' ? 'Sealed' : formatCurrency(myBidAmount)}
                                                         </Badge>
                                                     </div>
                                                 )}
