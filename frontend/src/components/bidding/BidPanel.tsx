@@ -18,7 +18,7 @@ interface BidPanelProps {
     reservePrice: number;
     highestBid?: number | null;
     phase: 'BIDDING' | 'REVEAL' | 'RESOLVED' | 'CANCELLED';
-    onPlaceBid: (data: { commitment: string }) => void;
+    onPlaceBid: (data: { commitment: string; amount?: number }) => void;
     onRevealBid?: (amount: number, salt: string) => void;
     myPendingBid?: { commitment: string };
     isLoading?: boolean;
@@ -51,7 +51,7 @@ export function BidPanel({
         const salt = crypto.randomUUID();
         const commitment = btoa(`${data.amount}:${salt}`); // Simplified for demo
         localStorage.setItem(`bid_salt_${commitment}`, JSON.stringify({ amount: data.amount, salt }));
-        onPlaceBid({ commitment });
+        onPlaceBid({ commitment, amount: data.amount });
         setBidSubmitted(true);
     };
 

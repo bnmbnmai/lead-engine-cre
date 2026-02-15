@@ -78,17 +78,19 @@ export function AuctionPage() {
                 if (!localHighestBid || data.amount > localHighestBid) {
                     setLocalHighestBid(data.amount);
                 }
+            }
+
+            if (data.commitment) {
+                toast({
+                    type: 'success',
+                    title: '🔒 Sealed Bid Committed',
+                    description: `Your ${data.amount ? formatCurrency(data.amount) + ' ' : ''}bid has been encrypted and submitted.`,
+                });
+            } else if (data.amount) {
                 toast({
                     type: 'success',
                     title: '✅ Bid Placed!',
                     description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
-                });
-            } else if (data.commitment) {
-                setMyBidAmount(lead?.reservePrice ?? null); // Show something for "Your Bid"
-                toast({
-                    type: 'success',
-                    title: 'Sealed Bid Committed',
-                    description: 'Your bid has been encrypted and submitted. Remember to reveal during the reveal phase!',
                 });
             }
         } finally {

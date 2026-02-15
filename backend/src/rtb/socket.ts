@@ -295,6 +295,13 @@ class RTBSocketServer {
                     });
                     const isNewBid = !existingBid;
 
+                    // When amount is sent alongside commitment, store it immediately
+                    // This ensures resolveAuction can find the bid even if auto-reveal fails
+                    const bidAmount = data.amount ?? null;
+                    const effectiveBid = bidAmount && perks.isHolder
+                        ? applyMultiplier(bidAmount, perks.multiplier)
+                        : bidAmount;
+
                     const bid = await prisma.bid.upsert({
                         where: {
                             leadId_buyerId: { leadId: data.leadId, buyerId: socket.userId! },
@@ -303,11 +310,15 @@ class RTBSocketServer {
                             leadId: data.leadId,
                             buyerId: socket.userId!,
                             commitment: data.commitment,
+                            amount: bidAmount,
+                            effectiveBid,
                             isHolder: perks.isHolder,
                             status: 'PENDING',
                         },
                         update: {
                             commitment: data.commitment,
+                            amount: bidAmount ?? undefined,
+                            effectiveBid: effectiveBid ?? undefined,
                             isHolder: perks.isHolder,
                             status: 'PENDING',
                         },

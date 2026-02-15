@@ -1065,17 +1065,18 @@ router.post('/settle', async (req: Request, res: Response) => {
         if (!transaction) {
             // ── Auto-create Transaction from winning bid ──
             // Demo/manual bids may resolve the auction without creating a Transaction record.
-            // Find a SOLD lead with an ACCEPTED bid and create the Transaction on the fly.
-            console.warn(`[DEMO SETTLE] No unsettled transaction found — attempting to create from winning bid`);
+            // Also handles leads incorrectly marked UNSOLD due to USDC check bug (bids marked OUTBID).
+            console.warn(`[DEMO SETTLE] No unsettled transaction found — attempting to create from bid data`);
 
-            const soldLead = await prisma.lead.findFirst({
+            const candidateLead = await prisma.lead.findFirst({
                 where: {
                     ...(leadId ? { id: leadId } : {}),
-                    status: 'SOLD',
+                    status: { in: ['SOLD', 'UNSOLD'] },
                 },
                 include: {
                     bids: {
-                        where: { status: 'ACCEPTED' },
+                        where: { status: { in: ['ACCEPTED', 'OUTBID', 'REVEALED', 'EXPIRED'] }, amount: { not: null } },
+                        orderBy: { amount: 'desc' },
                         take: 1,
                         include: { buyer: { select: { id: true, walletAddress: true } } },
                     },
@@ -1083,11 +1084,11 @@ router.post('/settle', async (req: Request, res: Response) => {
                         select: { user: { select: { walletAddress: true } } },
                     },
                 },
-                orderBy: { soldAt: 'desc' },
+                orderBy: { createdAt: 'desc' },
             });
 
-            if (!soldLead || soldLead.bids.length === 0) {
-                console.warn(`[DEMO SETTLE] No SOLD lead with ACCEPTED bid found (leadId=${leadId || 'any'})`);
+            if (!candidateLead || candidateLead.bids.length === 0) {
+                console.warn(`[DEMO SETTLE] No settleable lead with valid bid found (leadId=${leadId || 'any'})`);
                 res.status(404).json({
                     error: 'No unsettled transaction found',
                     hint: leadId
@@ -1097,16 +1098,32 @@ router.post('/settle', async (req: Request, res: Response) => {
                 return;
             }
 
-            const winningBid = soldLead.bids[0];
-            const amount = Number(winningBid.amount ?? 0);
+            const topBid = candidateLead.bids[0];
+            const bidAmount = Number(topBid.amount ?? 0);
+
+            // Fix incorrect statuses from USDC check bug
+            if (candidateLead.status === 'UNSOLD') {
+                await prisma.lead.update({
+                    where: { id: candidateLead.id },
+                    data: { status: 'SOLD', winningBid: topBid.amount, soldAt: new Date() },
+                });
+                console.log(`[DEMO SETTLE] Corrected lead ${candidateLead.id} UNSOLD → SOLD`);
+            }
+            if (topBid.status !== 'ACCEPTED') {
+                await prisma.bid.update({
+                    where: { id: topBid.id },
+                    data: { status: 'ACCEPTED', processedAt: new Date() },
+                });
+                console.log(`[DEMO SETTLE] Corrected bid ${topBid.id} ${topBid.status} → ACCEPTED`);
+            }
 
             // Create the missing Transaction record
             transaction = await prisma.transaction.create({
                 data: {
-                    leadId: soldLead.id,
-                    buyerId: winningBid.buyerId,
-                    amount: winningBid.amount!,
-                    platformFee: amount * 0.025,
+                    leadId: candidateLead.id,
+                    buyerId: topBid.buyerId,
+                    amount: topBid.amount!,
+                    platformFee: bidAmount * 0.025,
                     status: 'PENDING',
                     escrowReleased: false,
                 },
@@ -1125,7 +1142,7 @@ router.post('/settle', async (req: Request, res: Response) => {
                     buyer: { select: { id: true, walletAddress: true } },
                 },
             });
-            console.log(`[DEMO SETTLE] Auto-created Transaction ${transaction.id} for lead ${soldLead.id}`);
+            console.log(`[DEMO SETTLE] Auto-created Transaction ${transaction.id} for lead ${candidateLead.id} ($${bidAmount})`);
         }
 
         const buyerWallet = transaction.buyer?.walletAddress;
