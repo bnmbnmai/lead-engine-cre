@@ -342,11 +342,10 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
 
 
 
-// Demo buyer profiles for multi-user bid simulation
+// Demo buyer profiles for multi-user bid simulation (kept small so user can outbid)
 const DEMO_BUYERS = [
     { wallet: DEMO_WALLETS.BUYER_1, company: 'SolarPro Acquisitions' },
     { wallet: DEMO_WALLETS.BUYER_2, company: 'FinanceLead Partners' },
-    { wallet: DEMO_WALLETS.BUYER_3, company: 'InsureTech Direct' },
 ];
 
 // ============================================
@@ -615,7 +614,8 @@ router.post('/seed', async (req: Request, res: Response) => {
         for (const lead of auctionLeads) {
             // Create bids from different demo buyers (respects @@unique([leadId, buyerId]))
             const shuffledBuyers = [...buyerUserIds].sort(() => Math.random() - 0.5);
-            const numBidders = rand(1, Math.min(3, shuffledBuyers.length));
+            // Only 1 bot bid per lead — conservative so the user can win
+            const numBidders = 1;
             const baseAmount = Number(lead.reservePrice || 20);
 
             for (let b = 0; b < numBidders; b++) {
@@ -623,7 +623,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     data: {
                         leadId: lead.id,
                         buyerId: shuffledBuyers[b],
-                        amount: baseAmount + rand(1, 30) + (b * rand(2, 8)),
+                        amount: baseAmount + rand(1, 8),
                         status: 'REVEALED',
                         source: 'MANUAL',
                     },
@@ -849,14 +849,14 @@ router.post('/auction', async (req: Request, res: Response) => {
             });
         }
 
-        // Simulate bids arriving over 30s (fire-and-forget)
-        const bidIntervals = [3000, 6000, 10000, 15000, 20000, 25000]; // all within 60s auction window
+        // Simulate bids arriving over auction window (conservative — user should outbid)
+        const bidIntervals = [5000, 15000, 30000]; // 3 bids at 5s, 15s, 30s
         let currentBid = reservePrice;
 
         bidIntervals.forEach((delay, index) => {
             setTimeout(async () => {
                 try {
-                    currentBid += rand(2, 10);
+                    currentBid += rand(1, 4);  // small increments — easy to outbid
                     const bidderId = bidderIds[index % bidderIds.length];
                     await prisma.bid.create({
                         data: {
@@ -893,7 +893,7 @@ router.post('/auction', async (req: Request, res: Response) => {
             vertical,
             reservePrice,
             auctionEndsIn: '60 seconds',
-            simulatedBids: bidIntervals.length,
+            simulatedBids: bidIntervals.length,  // 3 bids (was 6)
         });
     } catch (error) {
         console.error('Demo auction error:', error);
