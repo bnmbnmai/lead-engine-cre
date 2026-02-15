@@ -87,6 +87,19 @@ export const USDC_ABI = [
     'function transfer(address to, uint256 amount) external returns (bool)',
 ] as const;
 
+export const ESCROW_ABI = [
+    'function createEscrow(address seller, address buyer, uint256 amount, uint256 leadTokenId) returns (uint256 escrowId)',
+    'function fundEscrow(uint256 escrowId) external',
+    'function releaseEscrow(uint256 escrowId) external',
+    'function refundEscrow(uint256 escrowId) external',
+    'function getEscrow(uint256 escrowId) view returns (tuple(address seller, address buyer, uint256 amount, uint256 leadTokenId, uint8 status, uint256 createdAt, uint256 releasedAt))',
+    'function platformFeeBps() view returns (uint256)',
+    'event EscrowCreated(uint256 indexed escrowId, address indexed seller, address indexed buyer, uint256 amount)',
+    'event EscrowFunded(uint256 indexed escrowId)',
+    'event EscrowReleased(uint256 indexed escrowId)',
+    'event EscrowRefunded(uint256 indexed escrowId)',
+] as const;
+
 // ============================================
 // Helper to get addresses for current chain
 // ============================================

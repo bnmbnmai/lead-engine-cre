@@ -959,4 +959,66 @@ router.post('/seed-templates', async (req: Request, res: Response) => {
     }
 });
 
+// ============================================
+// Settle (x402 Escrow Release) — on-chain settlement
+// ============================================
+
+router.post('/settle', async (req: Request, res: Response) => {
+    try {
+        const { leadId } = req.body as { leadId?: string };
+        const { x402Service } = await import('../services/x402.service');
+
+        // Find the most recent unsettled transaction
+        const transaction = await prisma.transaction.findFirst({
+            where: {
+                ...(leadId ? { leadId } : {}),
+                escrowReleased: false,
+            },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                lead: { select: { id: true, vertical: true, status: true, nftTokenId: true } },
+                buyer: { select: { id: true, walletAddress: true } },
+            },
+        });
+
+        if (!transaction) {
+            res.status(404).json({
+                error: 'No unsettled transaction found',
+                hint: leadId
+                    ? `No pending transaction for lead ${leadId}`
+                    : 'Run an auction first, then settle it',
+            });
+            return;
+        }
+
+        console.log(`[DEMO] Settling transaction ${transaction.id} for lead ${transaction.leadId} (escrowId: ${transaction.escrowId || 'offchain'})`);
+
+        // Call x402 service — handles both on-chain and off-chain escrow
+        const result = await x402Service.settlePayment(transaction.id);
+
+        if (!result.success) {
+            res.status(500).json({ error: 'Settlement failed', details: result.error });
+            return;
+        }
+
+        console.log(`[DEMO] Settlement complete: txHash=${result.txHash || 'offchain'}, escrowReleased=true`);
+
+        res.json({
+            success: true,
+            transactionId: transaction.id,
+            leadId: transaction.leadId,
+            buyerId: transaction.buyerId,
+            buyerWallet: transaction.buyer?.walletAddress,
+            amount: Number(transaction.amount),
+            escrowId: transaction.escrowId,
+            txHash: result.txHash || null,
+            escrowReleased: true,
+            message: `✅ Settlement complete — PII is now decrypted for buyer ${transaction.buyer?.walletAddress?.slice(0, 10)}…`,
+        });
+    } catch (error: any) {
+        console.error('[DEMO] Settlement error:', error);
+        res.status(500).json({ error: 'Settlement failed', details: error.message });
+    }
+});
+
 export default router;

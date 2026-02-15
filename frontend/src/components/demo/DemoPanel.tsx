@@ -31,6 +31,7 @@ import {
     RefreshCw,
     Shield,
     Layers,
+    Banknote,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -170,6 +171,15 @@ export function DemoPanel() {
             const { data, error } = await api.demoStartAuction();
             if (error) throw new Error(error.message || error.error);
             return `🔨 Auction started for lead ${data?.leadId?.slice(0, 8)}! 6 bids arriving over 30s`;
+        });
+    }
+
+    async function handleSettle() {
+        await runAction('settle', async () => {
+            const { data, error } = await api.demoSettle();
+            if (error) throw new Error(error.message || error.error);
+            const txInfo = data?.txHash ? ` (tx: ${data.txHash.slice(0, 10)}…)` : ' (off-chain)';
+            return `💰 Settled lead ${data?.leadId?.slice(0, 8)}… → $${data?.amount?.toFixed(2)} USDC${txInfo}\nPII now decrypted for buyer ${data?.buyerWallet?.slice(0, 10)}…`;
         });
     }
 
@@ -475,6 +485,22 @@ export function DemoPanel() {
                             <p className="text-[11px] text-muted-foreground pl-1">
                                 Creates a 60s auction lead + simulates 6 bids arriving over 25 seconds.
                                 Click any IN_AUCTION lead on the Marketplace to watch bids arrive live.
+                            </p>
+                        </Section>
+
+                        {/* Section 2b: On-Chain Settlement */}
+                        <Section id="settlement" title="On-Chain Settlement">
+                            <ActionButton
+                                actionKey="settle"
+                                label="Complete Settlement on Testnet"
+                                icon={Banknote}
+                                onClick={handleSettle}
+                                variant="accent"
+                            />
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                Calls x402 escrow release on the most recent won auction.
+                                Triggers USDC transfer, marks escrowReleased=true, and unlocks PII for the buyer.
+                                Refresh the lead detail page after to see decrypted contact info.
                             </p>
                         </Section>
 
