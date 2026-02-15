@@ -456,76 +456,144 @@ export default function LeadDetailPage() {
                             </div>
                         </div>
 
-                        {/* ─── Sidebar (1/3) — auction status + bidding only ─── */}
+                        {/* ─── Sidebar (1/3) ─── */}
                         <div className="space-y-5">
                             <div className="sticky top-6 space-y-5">
-                                {/* Auction Timer */}
+
+                                {/* ── IN_AUCTION: bidding sidebar ── */}
                                 {isLive && (
-                                    <AuctionTimer
-                                        phase={phase as any}
-                                        biddingEndsAt={auctionState?.biddingEndsAt || lead.auctionEndAt || undefined}
-                                        revealEndsAt={auctionState?.revealEndsAt}
-                                    />
+                                    <>
+                                        <AuctionTimer
+                                            phase={phase as any}
+                                            biddingEndsAt={auctionState?.biddingEndsAt || lead.auctionEndAt || undefined}
+                                            revealEndsAt={auctionState?.revealEndsAt}
+                                        />
+
+                                        <Card>
+                                            <CardContent className="p-5 space-y-4">
+                                                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Auction Status</h2>
+
+                                                {lead.reservePrice != null && (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs text-muted-foreground">Reserve</span>
+                                                        <span className="text-sm font-bold gradient-text">{formatCurrency(lead.reservePrice)}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">Bids</span>
+                                                    <span className="text-sm font-semibold">{displayBidCount}</span>
+                                                </div>
+
+                                                {displayHighestBid != null && (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs text-muted-foreground">Highest Bid</span>
+                                                        <span className="text-sm font-bold text-green-500">{formatCurrency(displayHighestBid)}</span>
+                                                    </div>
+                                                )}
+
+                                                {myBidAmount && (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs text-muted-foreground">Your Bid</span>
+                                                        <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">
+                                                            {formatCurrency(myBidAmount)}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+
+                                        {isAuthenticated && (
+                                            <BidPanel
+                                                leadId={lead.id}
+                                                reservePrice={lead.reservePrice ?? 0}
+                                                highestBid={displayHighestBid}
+                                                phase={phase as any}
+                                                onPlaceBid={handlePlaceBid}
+                                                isLoading={bidLoading}
+                                            />
+                                        )}
+                                    </>
                                 )}
 
-                                {/* Compact auction status card */}
-                                <Card>
-                                    <CardContent className="p-5 space-y-4">
-                                        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Auction Status</h2>
-
-                                        {/* Reserve Price */}
-                                        {lead.reservePrice != null && (
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs text-muted-foreground">Reserve</span>
-                                                <span className="text-sm font-bold gradient-text">{formatCurrency(lead.reservePrice)}</span>
+                                {/* ── UNSOLD: Buy It Now sidebar ── */}
+                                {isUnsold && (
+                                    <Card className="border-green-500/30">
+                                        <CardContent className="p-6 space-y-5">
+                                            <div>
+                                                <h2 className="text-sm font-semibold text-amber-400 uppercase tracking-wider">Auction Ended</h2>
+                                                <p className="text-xs text-muted-foreground mt-1">Buy It Now Available</p>
                                             </div>
-                                        )}
 
-                                        {/* Bid count */}
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-muted-foreground">Bids</span>
-                                            <span className="text-sm font-semibold">{displayBidCount}</span>
-                                        </div>
+                                            {lead.reservePrice != null && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">Reserve Price</span>
+                                                    <span className="text-sm font-bold line-through text-muted-foreground">{formatCurrency(lead.reservePrice)}</span>
+                                                </div>
+                                            )}
 
-                                        {/* Highest bid */}
-                                        {displayHighestBid != null && (
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs text-muted-foreground">Highest Bid</span>
-                                                <span className="text-sm font-bold text-green-500">{formatCurrency(displayHighestBid)}</span>
-                                            </div>
-                                        )}
+                                            {lead.buyNowPrice != null && (
+                                                <div>
+                                                    <span className="text-xs text-muted-foreground">Buy Now Price</span>
+                                                    <div className="text-3xl font-bold text-green-500 mt-1">{formatCurrency(lead.buyNowPrice)}</div>
+                                                </div>
+                                            )}
 
-                                        {/* Your bid badge */}
-                                        {myBidAmount && (
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs text-muted-foreground">Your Bid</span>
-                                                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">
-                                                    {formatCurrency(myBidAmount)}
-                                                </Badge>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-
-                                {/* Bid Panel — only for live auctions */}
-                                {isLive && isAuthenticated && (
-                                    <BidPanel
-                                        leadId={lead.id}
-                                        reservePrice={lead.reservePrice ?? 0}
-                                        highestBid={displayHighestBid}
-                                        phase={phase as any}
-                                        onPlaceBid={handlePlaceBid}
-                                        isLoading={bidLoading}
-                                    />
+                                            {purchased ? (
+                                                <div className="text-center py-3">
+                                                    <p className="font-semibold text-green-500">✓ Lead Purchased!</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">Transaction processing via escrow.</p>
+                                                </div>
+                                            ) : isAuthenticated ? (
+                                                <div className="space-y-3">
+                                                    {buyError && <p className="text-xs text-red-500 text-center">{buyError}</p>}
+                                                    <Button
+                                                        className={`w-full text-base py-6 transition-all ${confirming ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                                                        disabled={buying}
+                                                        onClick={handleBuyNow}
+                                                    >
+                                                        {buying ? (
+                                                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
+                                                        ) : confirming ? (
+                                                            'Click again to confirm'
+                                                        ) : (
+                                                            <><ShoppingCart className="h-5 w-5 mr-2" />Buy Now — {formatCurrency(lead.buyNowPrice ?? 0)}</>
+                                                        )}
+                                                    </Button>
+                                                    <p className="text-xs text-muted-foreground text-center">Instant USDC settlement after purchase</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <Button className="w-full py-6 gap-2" variant="glass" onClick={openConnectModal}>
+                                                        <Wallet className="h-4 w-4" />
+                                                        Connect Wallet to Purchase
+                                                    </Button>
+                                                    <p className="text-xs text-muted-foreground text-center">PII is revealed only after payment</p>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
                                 )}
 
-                                {/* Connect wallet CTA for unauthenticated */}
-                                {!isAuthenticated && (
+                                {/* ── Fallback for other statuses (SOLD, etc.) ── */}
+                                {!isLive && !isUnsold && (
+                                    <Card>
+                                        <CardContent className="p-5">
+                                            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                                                {lead.status === 'SOLD' ? 'Lead Sold' : 'Auction Closed'}
+                                            </h2>
+                                            <p className="text-xs text-muted-foreground mt-2">This lead is no longer available for purchase.</p>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* Connect wallet CTA — only for live auctions when not authenticated */}
+                                {isLive && !isAuthenticated && (
                                     <Card>
                                         <CardContent className="p-5">
                                             <Button className="w-full py-5 gap-2" variant="glass" onClick={openConnectModal}>
                                                 <Wallet className="h-4 w-4" />
-                                                Connect Wallet to {isLive ? 'Bid' : 'Purchase'}
+                                                Connect Wallet to Bid
                                             </Button>
                                             <p className="text-xs text-muted-foreground text-center mt-2">PII is revealed only after payment</p>
                                         </CardContent>
