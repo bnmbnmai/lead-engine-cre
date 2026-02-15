@@ -116,7 +116,7 @@ export function BuyerPortfolio() {
                             My Portfolio
                         </h1>
                         <p className="text-muted-foreground mt-1">
-                            All purchased LeadNFTs with full lead data, resale options, and on-chain provenance
+                            All purchased LeadNFTs with full lead data and on-chain provenance
                         </p>
                     </div>
                     <Button asChild>
@@ -247,14 +247,6 @@ export function BuyerPortfolio() {
                                                     <Link to={`/lead/${lead.id}`}>
                                                         View Full Lead
                                                         <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
-                                                    </Link>
-                                                </Button>
-                                            )}
-                                            {lead?.id && (
-                                                <Button variant="outline" size="sm" className="flex-1" asChild>
-                                                    <Link to={`/lead/${lead.id}`}>
-                                                        Resell / List
-                                                        <Tag className="h-3.5 w-3.5 ml-1" />
                                                     </Link>
                                                 </Button>
                                             )}

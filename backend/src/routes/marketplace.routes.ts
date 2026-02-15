@@ -819,12 +819,27 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
         // Check if requesting user is the lead's seller (owns the PII)
         const isOwner = req.user?.id && lead.seller?.userId === req.user.id;
 
-        if (isOwner) {
-            // Seller sees full lead data (they own the PII)
+        // Check if requesting user is the auction winner (bought the lead)
+        let isBuyer = false;
+        if (req.user?.id && !isOwner) {
+            const winningBid = await prisma.bid.findFirst({
+                where: {
+                    leadId: lead.id,
+                    buyerId: req.user.id,
+                    status: 'ACCEPTED',
+                },
+            });
+            isBuyer = !!winningBid;
+        }
+
+        if (isOwner || isBuyer) {
+            // Seller or winner sees full lead data (they own/bought the PII)
             res.json({
                 lead: {
                     ...lead,
                     qualityScore,
+                    isOwner: isOwner || false,
+                    isBuyer: isBuyer || false,
                     encryptedData: undefined,
                     dataHash: undefined,
                 },

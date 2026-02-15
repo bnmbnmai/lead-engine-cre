@@ -289,8 +289,8 @@ export function NFTCard({
                                 )}
                             </div>
                             <span className={`text-xs font-mono flex items-center gap-1 ${urgency === 'critical' ? 'text-red-500 animate-pulse font-bold' :
-                                    urgency === 'warning' ? 'text-amber-500 font-semibold' :
-                                        'text-muted-foreground'
+                                urgency === 'warning' ? 'text-amber-500 font-semibold' :
+                                    'text-muted-foreground'
                                 }`}>
                                 <Timer className="h-3 w-3" />
                                 {timeLeft}
@@ -394,7 +394,7 @@ export function NFTCard({
                             ) : (
                                 <>
                                     <Gem className="h-4 w-4" />
-                                    Buy / Resell
+                                    Buy
                                 </>
                             )}
                         </Button>
