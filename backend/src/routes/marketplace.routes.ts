@@ -916,9 +916,8 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                 }
             }
 
-            // Extract nftMintTxHash from parameters (stored during settlement, no migration needed)
-            const leadParams = (lead.parameters as Record<string, any>) || {};
-            const nftMintTxHash = leadParams.nftMintTxHash || null;
+            // nftMintTxHash is a proper field on the lead, set during settlement
+            const nftMintTxHash = (lead as any).nftMintTxHash || null;
 
             res.json({
                 lead: {

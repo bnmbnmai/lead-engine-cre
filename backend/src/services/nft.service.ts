@@ -1,14 +1,17 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
-import { privacyService } from './privacy.service';
 
 // ============================================
 // NFT Service — LeadNFTv2 Integration
 // ============================================
 
-const LEAD_NFT_ADDRESS = process.env.LEAD_NFT_ADDRESS || '';
+// Read contract address — backend .env uses LEAD_NFT_CONTRACT_ADDRESS
+const LEAD_NFT_ADDRESS = process.env.LEAD_NFT_CONTRACT_ADDRESS || process.env.LEAD_NFT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+
+// Startup diagnostics
+console.log(`[NFT SERVICE] LEAD_NFT_ADDRESS=${LEAD_NFT_ADDRESS ? LEAD_NFT_ADDRESS.slice(0, 10) + '…' : '(empty)'}, DEPLOYER_KEY=${DEPLOYER_KEY ? 'set' : '(empty)'}, RPC=${RPC_URL.slice(0, 40)}`);
 
 const LEAD_NFT_ABI = [
     'function tokenURI(uint256 tokenId) view returns (string)',
@@ -111,6 +114,7 @@ class NFTService {
                     data: {
                         nftTokenId: tokenId,
                         nftContractAddr: LEAD_NFT_ADDRESS,
+                        nftMintTxHash: receipt?.hash || null,
                     },
                 });
 

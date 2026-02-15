@@ -1297,13 +1297,11 @@ router.post('/settle', async (req: Request, res: Response) => {
                 nftMintTxHash = mintResult.txHash || null;
                 console.log(`[DEMO SETTLE] LeadNFT minted — tokenId=${nftTokenId}, txHash=${nftMintTxHash?.slice(0, 14)}…`);
 
-                // Persist nftMintTxHash in the lead's parameters JSON (no migration needed)
+                // Persist nftMintTxHash in the lead record
                 if (nftMintTxHash) {
-                    const currentLead = await prisma.lead.findUnique({ where: { id: transaction.leadId } });
-                    const params = (currentLead?.parameters as Record<string, any>) || {};
                     await prisma.lead.update({
                         where: { id: transaction.leadId },
-                        data: { parameters: { ...params, nftMintTxHash } as any },
+                        data: { nftMintTxHash },
                     });
                 }
 

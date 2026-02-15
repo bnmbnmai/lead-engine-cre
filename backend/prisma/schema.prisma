@@ -359,6 +359,7 @@ model Lead {
   // NFT tokenization
   nftTokenId      String?     @unique
   nftContractAddr String?
+  nftMintTxHash   String?     // Tx hash of the on-chain LeadNFT mint
   
   // Compliance
   tcpaConsentAt   DateTime?
