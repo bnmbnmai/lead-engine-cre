@@ -30,6 +30,17 @@ router.use(devOnly);
 
 const DEMO_TAG = 'DEMO_PANEL';  // Tag for identifying demo data
 
+// Real Sepolia wallet addresses for demo personas (replaces old 0xDEMO_ placeholders)
+const DEMO_WALLETS = {
+    PANEL_USER: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Demo seller / panel user
+    ADMIN: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Admin (same as panel user)
+    BUYER: '0x424CaC929939377f221348af52d4cb1247fE4379',   // Demo buyer
+    BUYER_1: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Auction bidder 1
+    BUYER_2: '0x424CaC929939377f221348af52d4cb1247fE4379',   // Auction bidder 2
+    BUYER_3: '0x089B6Bdb4824628c5535acF60aBF80683452e862',   // Auction bidder 3
+    SELLER_KYC: '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',   // Verified seller (deployer)
+};
+
 // ============================================
 // Demo Login — returns a real JWT for demo personas
 // ============================================
@@ -38,7 +49,7 @@ router.post('/demo-login', async (req: Request, res: Response) => {
     try {
         const { role } = req.body as { role?: string };
         const isBuyer = role === 'BUYER';
-        const walletAddress = isBuyer ? '0xDEMO_BUYER' : '0xDEMO_PANEL_USER';
+        const walletAddress = isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.PANEL_USER;
         const targetRole = isBuyer ? 'BUYER' : 'SELLER';
 
         // Find or create the demo user
@@ -89,7 +100,7 @@ router.post('/demo-admin-login', async (req: Request, res: Response) => {
             return;
         }
 
-        const walletAddress = '0xDEMO_ADMIN';
+        const walletAddress = DEMO_WALLETS.ADMIN;
 
         // Find or create the demo admin user
         let user = await prisma.user.findFirst({ where: { walletAddress } });
@@ -333,9 +344,9 @@ function buildVerticalDemoParams(vertical: string): Record<string, string | bool
 
 // Demo buyer profiles for multi-user bid simulation
 const DEMO_BUYERS = [
-    { wallet: '0xDEMO_BUYER_1', company: 'SolarPro Acquisitions' },
-    { wallet: '0xDEMO_BUYER_2', company: 'FinanceLead Partners' },
-    { wallet: '0xDEMO_BUYER_3', company: 'InsureTech Direct' },
+    { wallet: DEMO_WALLETS.BUYER_1, company: 'SolarPro Acquisitions' },
+    { wallet: DEMO_WALLETS.BUYER_2, company: 'FinanceLead Partners' },
+    { wallet: DEMO_WALLETS.BUYER_3, company: 'InsureTech Direct' },
 ];
 
 // ============================================
@@ -456,11 +467,11 @@ router.post('/seed', async (req: Request, res: Response) => {
         }
 
         // Find or create a demo user + profiles
-        let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
+        let demoUser = await prisma.user.findFirst({ where: { walletAddress: DEMO_WALLETS.PANEL_USER } });
         if (!demoUser) {
             demoUser = await prisma.user.create({
                 data: {
-                    walletAddress: '0xDEMO_PANEL_USER',
+                    walletAddress: DEMO_WALLETS.PANEL_USER,
                     role: 'SELLER',
                     sellerProfile: {
                         create: {
@@ -682,16 +693,16 @@ router.post('/lead', async (req: Request, res: Response) => {
         const price = rand(pr.min, pr.max);
 
         let seller = await prisma.sellerProfile.findFirst({
-            where: { user: { walletAddress: '0xDEMO_PANEL_USER' } },
+            where: { user: { walletAddress: DEMO_WALLETS.PANEL_USER } },
         });
 
         if (!seller) {
             // Auto-create demo seller so inject works without prior seed
-            let demoUser = await prisma.user.findFirst({ where: { walletAddress: '0xDEMO_PANEL_USER' } });
+            let demoUser = await prisma.user.findFirst({ where: { walletAddress: DEMO_WALLETS.PANEL_USER } });
             if (!demoUser) {
                 demoUser = await prisma.user.create({
                     data: {
-                        walletAddress: '0xDEMO_PANEL_USER',
+                        walletAddress: DEMO_WALLETS.PANEL_USER,
                         role: 'SELLER',
                         sellerProfile: { create: { companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
                     },
@@ -702,7 +713,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                     data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: FALLBACK_VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
                 });
             }
-            seller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: '0xDEMO_PANEL_USER' } } });
+            seller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: DEMO_WALLETS.PANEL_USER } } });
             if (!seller) {
                 res.status(500).json({ error: 'Failed to auto-create demo seller profile' });
                 return;
@@ -769,11 +780,11 @@ router.post('/auction', async (req: Request, res: Response) => {
         const reservePrice = rand(pr.min, pr.max);
 
         const seller = await prisma.sellerProfile.findFirst({
-            where: { user: { walletAddress: '0xDEMO_PANEL_USER' } },
+            where: { user: { walletAddress: DEMO_WALLETS.PANEL_USER } },
         });
 
         const demoUser = await prisma.user.findFirst({
-            where: { walletAddress: '0xDEMO_PANEL_USER' },
+            where: { walletAddress: DEMO_WALLETS.PANEL_USER },
         });
 
         // Gather all demo buyer IDs for multi-user bids

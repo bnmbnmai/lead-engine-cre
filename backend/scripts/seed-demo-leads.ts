@@ -18,7 +18,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // Demo data prefix
-const DEMO_PREFIX = '0xDEMO';
+const DEMO_PREFIX = '0x88DDA5D4';  // Prefix for identifying demo data (real Sepolia addr prefix)
 
 const VERTICALS = [
     'solar', 'mortgage', 'roofing', 'insurance', 'home_services',

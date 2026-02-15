@@ -222,7 +222,7 @@ export function DemoPanel() {
                     // Fall back to localStorage-only persona
                     localStorage.setItem('le_auth_user', JSON.stringify({
                         id: `demo-${persona}`,
-                        walletAddress: persona === 'buyer' ? '0xDEMO_BUYER' : '0xDEMO_SELLER_KYC',
+                        walletAddress: persona === 'buyer' ? '0x424CaC929939377f221348af52d4cb1247fE4379' : '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',
                         role,
                         kycStatus: 'VERIFIED',
                     }));

@@ -352,7 +352,7 @@ router.post('/auto-kyc', async (req: Request, res: Response) => {
 
 router.post('/privacy-test', async (req: Request, res: Response) => {
     try {
-        const { amount = 25.00, buyerAddress = '0xdemo' } = req.body;
+        const { amount = 25.00, buyerAddress = '0x424CaC929939377f221348af52d4cb1247fE4379' } = req.body;
 
         // Encrypt a bid
         const bidCommitment = privacyService.encryptBid(amount, buyerAddress);
@@ -407,11 +407,11 @@ router.get('/nft/:tokenId', async (req: Request, res: Response) => {
 // ============================================
 
 async function getOrCreateDemoSeller(): Promise<string> {
-    let user = await prisma.user.findFirst({ where: { walletAddress: '0xdemoseller' } });
+    let user = await prisma.user.findFirst({ where: { walletAddress: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58' } });
     if (!user) {
         user = await prisma.user.create({
             data: {
-                walletAddress: '0xdemoseller',
+                walletAddress: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
                 role: 'SELLER',
                 nonce: Math.random().toString(36).slice(2),
             },
