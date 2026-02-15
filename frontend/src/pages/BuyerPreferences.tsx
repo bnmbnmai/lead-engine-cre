@@ -1,5 +1,6 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { PreferencesForm } from '@/components/forms/PreferencesForm';
+import { UsdcAllowanceCard } from '@/components/wallet/UsdcAllowanceCard';
 import { useState } from 'react';
 import { Info, X, CheckCircle } from 'lucide-react';
 
@@ -53,6 +54,11 @@ export function BuyerPreferences() {
                         </button>
                     </div>
                 )}
+
+                {/* USDC allowance for offline auto-bidding */}
+                <div className="mb-6">
+                    <UsdcAllowanceCard />
+                </div>
 
                 <PreferencesForm
                     onSuccess={() => {
