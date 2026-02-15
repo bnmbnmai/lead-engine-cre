@@ -10,8 +10,35 @@ import {
 } from '../services/holder-perks.service';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
+import { ethers } from 'ethers';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+
+// ── On-chain USDC settlement safety ──
+const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
+const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
+const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+
+const ERC20_ABI = [
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+];
+
+async function getUsdcBalance(wallet: string): Promise<bigint> {
+    if (!USDC_CONTRACT_ADDRESS) return BigInt(0);
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
+    const bal = await usdc.balanceOf(wallet);
+    return BigInt(bal.toString());
+}
+
+async function getUsdcAllowance(owner: string, spender: string): Promise<bigint> {
+    if (!USDC_CONTRACT_ADDRESS) return BigInt(0);
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
+    const allow = await usdc.allowance(owner, spender);
+    return BigInt(allow.toString());
+}
 
 /** Per-user debounce map for notify-optin (prevents rapid toggling) */
 const NOTIFY_DEBOUNCE_MS = 10_000; // 10 seconds
@@ -554,7 +581,7 @@ class RTBSocketServer {
 
             // Fallback ordering: effectiveBid DESC → isHolder DESC (tie-breaker) → amount DESC → createdAt ASC
             // Holders win ties; at equal everything, first bidder wins
-            const winningBid = await prisma.bid.findFirst({
+            const rankedBids = await prisma.bid.findMany({
                 where: {
                     leadId,
                     status: 'REVEALED',
@@ -570,15 +597,67 @@ class RTBSocketServer {
             });
 
             // No valid bids → convert to Buy It Now
-            if (!winningBid) {
+            if (rankedBids.length === 0) {
                 await this.convertToUnsold(leadId, lead);
                 return;
             }
 
-            // Highest bid is below reserve → also convert to Buy It Now
             const reservePrice = lead.reservePrice ? Number(lead.reservePrice) : 0;
-            if (reservePrice > 0 && Number(winningBid.amount) < reservePrice) {
-                console.log(`Auction ${leadId}: highest bid $${Number(winningBid.amount).toFixed(2)} < reserve $${reservePrice.toFixed(2)} → UNSOLD`);
+
+            // ── Find the first bidder who meets reserve AND has sufficient USDC ──
+            let winningBid: typeof rankedBids[0] | null = null;
+            const skippedBidders: string[] = [];
+
+            for (const bid of rankedBids) {
+                // Check reserve price
+                if (reservePrice > 0 && Number(bid.amount) < reservePrice) {
+                    console.log(`Auction ${leadId}: bid $${Number(bid.amount).toFixed(2)} < reserve $${reservePrice.toFixed(2)} — skipping`);
+                    continue;
+                }
+
+                // Check on-chain USDC balance + allowance
+                const buyerWallet = bid.buyer?.walletAddress;
+                if (buyerWallet && USDC_CONTRACT_ADDRESS && ESCROW_CONTRACT_ADDRESS) {
+                    try {
+                        const bidAmountRaw = BigInt(Math.floor(Number(bid.amount) * 1e6));
+                        const [balance, allowance] = await Promise.all([
+                            getUsdcBalance(buyerWallet),
+                            getUsdcAllowance(buyerWallet, ESCROW_CONTRACT_ADDRESS),
+                        ]);
+
+                        if (balance < bidAmountRaw) {
+                            console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… has insufficient USDC balance: $${Number(balance) / 1e6} < $${Number(bid.amount)} — cascading to next bidder`);
+                            skippedBidders.push(bid.buyerId);
+                            continue;
+                        }
+                        if (allowance < bidAmountRaw) {
+                            console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… has insufficient USDC allowance: $${Number(allowance) / 1e6} < $${Number(bid.amount)} — cascading to next bidder`);
+                            skippedBidders.push(bid.buyerId);
+                            continue;
+                        }
+                    } catch (err: any) {
+                        // Graceful fallback: don't block settlement on RPC errors
+                        console.warn(`[SETTLEMENT] USDC check failed for ${buyerWallet}: ${err.message}. Accepting bid anyway.`);
+                    }
+                }
+
+                // This bidder passes all checks
+                winningBid = bid;
+                break;
+            }
+
+            // Mark skipped bids as INSUFFICIENT_FUNDS
+            if (skippedBidders.length > 0) {
+                await prisma.bid.updateMany({
+                    where: { leadId, buyerId: { in: skippedBidders }, status: 'REVEALED' },
+                    data: { status: 'OUTBID', processedAt: new Date() },
+                });
+                console.log(`[SETTLEMENT] ${skippedBidders.length} bidder(s) skipped due to insufficient USDC`);
+            }
+
+            // No valid bidder with sufficient funds → convert to Buy It Now
+            if (!winningBid) {
+                console.log(`Auction ${leadId}: no bidder with sufficient USDC — converting to Buy It Now`);
                 await this.convertToUnsold(leadId, lead);
                 return;
             }
