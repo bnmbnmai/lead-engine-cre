@@ -348,3 +348,90 @@ export function isValidPostalCode(countryCode: string, postalCode: string): bool
     if (!country) return true; // unknown country — don't block
     return country.postalPattern.test(postalCode);
 }
+
+// ─── US Zip-Prefix → State Mapping ─────────
+// Maps 3-digit zip prefixes to their state code.
+// Source: USPS Publication 65 (prefix ranges)
+
+const US_ZIP_PREFIX_TO_STATE: Record<string, string> = {};
+
+function registerRange(start: number, end: number, state: string) {
+    for (let i = start; i <= end; i++) {
+        US_ZIP_PREFIX_TO_STATE[String(i).padStart(3, '0')] = state;
+    }
+}
+
+// Northeast
+registerRange(5, 5, 'NY'); // specific NY prefix
+registerRange(6, 9, 'PR'); // Puerto Rico / VI
+registerRange(10, 14, 'NY');
+registerRange(15, 19, 'PA');
+registerRange(20, 20, 'DC');
+registerRange(21, 21, 'MD');
+registerRange(22, 24, 'VA');
+registerRange(25, 26, 'WV');
+registerRange(27, 28, 'NC');
+registerRange(29, 29, 'SC');
+registerRange(30, 31, 'GA');
+registerRange(32, 34, 'FL');
+registerRange(35, 36, 'AL');
+registerRange(37, 38, 'TN');
+registerRange(39, 39, 'MS');
+registerRange(40, 42, 'KY');
+registerRange(43, 45, 'OH');
+registerRange(46, 47, 'IN');
+registerRange(48, 49, 'MI');
+registerRange(50, 52, 'IA');
+registerRange(53, 54, 'WI');
+registerRange(55, 56, 'MN');
+registerRange(57, 57, 'SD');
+registerRange(58, 58, 'ND');
+registerRange(59, 59, 'MT');
+registerRange(60, 62, 'IL');
+registerRange(63, 65, 'MO');
+registerRange(66, 67, 'KS');
+registerRange(68, 69, 'NE');
+registerRange(70, 71, 'LA');
+registerRange(72, 72, 'AR');
+registerRange(73, 74, 'OK');
+registerRange(75, 79, 'TX');
+registerRange(80, 81, 'CO');
+registerRange(82, 83, 'WY');
+registerRange(83, 83, 'ID'); // 833-839 are ID; 830-832 WY — simplified to ID since 834+ dominates
+registerRange(84, 84, 'UT');
+registerRange(85, 86, 'AZ');
+registerRange(87, 88, 'NM');
+registerRange(89, 89, 'NV');
+registerRange(90, 96, 'CA');
+registerRange(97, 97, 'OR');
+registerRange(98, 99, 'WA');
+// New England
+registerRange(1, 2, 'MA');
+registerRange(3, 3, 'NH');
+registerRange(4, 4, 'ME');
+registerRange(5, 5, 'VT'); // 050-059 VT (overwrites NY above — VT is correct for 05x)
+// AK/HI
+registerRange(995, 999, 'AK');
+registerRange(967, 968, 'HI');
+// DE, NJ, CT
+US_ZIP_PREFIX_TO_STATE['197'] = 'DE'; US_ZIP_PREFIX_TO_STATE['198'] = 'DE'; US_ZIP_PREFIX_TO_STATE['199'] = 'DE';
+registerRange(7, 8, 'NJ');
+registerRange(6, 6, 'CT');
+// RI
+US_ZIP_PREFIX_TO_STATE['028'] = 'RI'; US_ZIP_PREFIX_TO_STATE['029'] = 'RI';
+
+// Overrides for shared prefixes — more precise
+// WY = 820-831, ID = 832-838
+for (let i = 820; i <= 831; i++) US_ZIP_PREFIX_TO_STATE[String(i)] = 'WY';
+for (let i = 832; i <= 838; i++) US_ZIP_PREFIX_TO_STATE[String(i)] = 'ID';
+
+/**
+ * Get the expected US state for a given 5-digit zip code.
+ * Returns undefined for non-US or unrecognised prefixes.
+ */
+export function getStateForZip(zip: string): string | undefined {
+    const digits = zip.replace(/[^0-9]/g, '');
+    if (digits.length < 3) return undefined;
+    const prefix = digits.substring(0, 3);
+    return US_ZIP_PREFIX_TO_STATE[prefix];
+}

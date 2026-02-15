@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { zkService } from './zk.service';
-import { isValidRegion, getAllCountryCodes, isValidPostalCode } from '../lib/geo-registry';
+import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } from '../lib/geo-registry';
 
 // ============================================
 // CRE Verification Service
@@ -170,6 +170,21 @@ class CREService {
         if (geo.zip && !isValidPostalCode(country, geo.zip)) {
             console.warn(`CRE: invalid postal code "${geo.zip}" for ${country} — lead ${lead.id}`);
             await this.logCheck(lead.id, 'GEO_VALIDATION', 'PASSED', `Invalid postal format "${geo.zip}" for ${country} — allowed`);
+        }
+
+        // Cross-validate state ↔ zip for US leads
+        if (country === 'US' && geo.state && geo.zip) {
+            const expectedState = getStateForZip(geo.zip);
+            if (expectedState && expectedState !== geo.state.toUpperCase()) {
+                await this.logCheck(
+                    lead.id, 'GEO_VALIDATION', 'FAILED',
+                    `Zip ${geo.zip} belongs to ${expectedState}, not ${geo.state.toUpperCase()}`
+                );
+                return {
+                    isValid: false,
+                    reason: `Geographic mismatch: zip ${geo.zip} does not match state "${geo.state}" (expected ${expectedState})`,
+                };
+            }
         }
 
         await this.logCheck(lead.id, 'GEO_VALIDATION', 'PASSED');
