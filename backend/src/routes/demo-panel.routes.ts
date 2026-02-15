@@ -1040,7 +1040,7 @@ router.post('/settle', async (req: Request, res: Response) => {
         }
 
         // 1. Find the most recent unsettled transaction
-        const transaction = await prisma.transaction.findFirst({
+        let transaction = await prisma.transaction.findFirst({
             where: {
                 ...(leadId ? { leadId } : {}),
                 escrowReleased: false,
@@ -1063,14 +1063,69 @@ router.post('/settle', async (req: Request, res: Response) => {
         });
 
         if (!transaction) {
-            console.warn(`[DEMO SETTLE] No unsettled transaction found (leadId=${leadId || 'any'})`);
-            res.status(404).json({
-                error: 'No unsettled transaction found',
-                hint: leadId
-                    ? `No pending transaction for lead ${leadId}. Is the auction resolved?`
-                    : 'Run an auction first, then settle it',
+            // ── Auto-create Transaction from winning bid ──
+            // Demo/manual bids may resolve the auction without creating a Transaction record.
+            // Find a SOLD lead with an ACCEPTED bid and create the Transaction on the fly.
+            console.warn(`[DEMO SETTLE] No unsettled transaction found — attempting to create from winning bid`);
+
+            const soldLead = await prisma.lead.findFirst({
+                where: {
+                    ...(leadId ? { id: leadId } : {}),
+                    status: 'SOLD',
+                },
+                include: {
+                    bids: {
+                        where: { status: 'ACCEPTED' },
+                        take: 1,
+                        include: { buyer: { select: { id: true, walletAddress: true } } },
+                    },
+                    seller: {
+                        select: { user: { select: { walletAddress: true } } },
+                    },
+                },
+                orderBy: { soldAt: 'desc' },
             });
-            return;
+
+            if (!soldLead || soldLead.bids.length === 0) {
+                console.warn(`[DEMO SETTLE] No SOLD lead with ACCEPTED bid found (leadId=${leadId || 'any'})`);
+                res.status(404).json({
+                    error: 'No unsettled transaction found',
+                    hint: leadId
+                        ? `No pending transaction for lead ${leadId}. Is the auction resolved?`
+                        : 'Run an auction first, then settle it',
+                });
+                return;
+            }
+
+            const winningBid = soldLead.bids[0];
+            const amount = Number(winningBid.amount ?? 0);
+
+            // Create the missing Transaction record
+            transaction = await prisma.transaction.create({
+                data: {
+                    leadId: soldLead.id,
+                    buyerId: winningBid.buyerId,
+                    amount: winningBid.amount!,
+                    platformFee: amount * 0.025,
+                    status: 'PENDING',
+                    escrowReleased: false,
+                },
+                include: {
+                    lead: {
+                        select: {
+                            id: true, vertical: true, status: true, nftTokenId: true,
+                            sellerId: true,
+                            seller: {
+                                select: {
+                                    user: { select: { walletAddress: true } },
+                                },
+                            },
+                        },
+                    },
+                    buyer: { select: { id: true, walletAddress: true } },
+                },
+            });
+            console.log(`[DEMO SETTLE] Auto-created Transaction ${transaction.id} for lead ${soldLead.id}`);
         }
 
         const buyerWallet = transaction.buyer?.walletAddress;
