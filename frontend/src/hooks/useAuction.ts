@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import socketClient, { AuctionState, BidEvent, AuctionResolvedEvent } from '@/lib/socket';
 
 interface UseAuctionOptions {
@@ -12,8 +12,17 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Stabilize callbacks with refs to avoid re-running the effect
+    const onBidPlacedRef = useRef(onBidPlaced);
+    onBidPlacedRef.current = onBidPlaced;
+    const onResolvedRef = useRef(onResolved);
+    onResolvedRef.current = onResolved;
+
     useEffect(() => {
         if (!leadId) return;
+
+        // Reset error when leadId changes
+        setError(null);
 
         // Connect and join auction room
         socketClient.connect();
@@ -46,14 +55,14 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
                         }
                         : prev
                 );
-                onBidPlaced?.(event);
+                onBidPlacedRef.current?.(event);
             }
         });
 
         const unsubResolved = socketClient.on('auction:resolved', (event) => {
             if (event.leadId === leadId) {
                 setState((prev) => (prev ? { ...prev, phase: 'RESOLVED' } : prev));
-                onResolved?.(event);
+                onResolvedRef.current?.(event);
             }
         });
 
@@ -70,7 +79,7 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
             unsubResolved();
             unsubError();
         };
-    }, [leadId, onBidPlaced, onResolved]);
+    }, [leadId]); // Only depends on leadId now
 
     const placeBid = useCallback(
         (data: { commitment?: string; amount?: number }) => {

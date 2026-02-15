@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown } from 'lucide-react';
+import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -46,6 +46,10 @@ interface LeadDetail {
         isVerified: boolean;
     } | null;
     _count: { bids: number };
+    isBuyer?: boolean;
+    isOwner?: boolean;
+    winningBid?: number | null;
+    soldAt?: string | null;
 }
 
 // ─── Quality Score Bar ──────────────────────
@@ -233,6 +237,9 @@ export default function LeadDetailPage() {
     const phase = auctionState?.phase || 'BIDDING';
     const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0;
     const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead?.highestBidAmount ?? null;
+    const isSold = lead?.status === 'SOLD';
+    const isBuyerViewing = !!(lead as any)?.isBuyer;
+    const isOwnerViewing = !!(lead as any)?.isOwner;
 
     return (
         <DashboardLayout>
@@ -425,10 +432,12 @@ export default function LeadDetailPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Privacy Notice */}
-                            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
-                                <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via x402 escrow settlement.</p>
-                            </div>
+                            {/* Privacy Notice — hidden for owners/buyers who already have PII */}
+                            {!isBuyerViewing && !isOwnerViewing && (
+                                <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
+                                    <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via x402 escrow settlement.</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* ─── Sidebar (1/3) ─── */}
@@ -550,8 +559,52 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
-                                {/* ── Fallback for other statuses (SOLD, etc.) ── */}
-                                {!isLive && !isUnsold && (
+                                {/* ── SOLD: Winner view OR generic ── */}
+                                {isSold && isBuyerViewing && (
+                                    <Card className="border-green-500/30">
+                                        <CardContent className="p-6 space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-lg font-bold text-green-500">You Won This Lead</h2>
+                                                    <p className="text-xs text-muted-foreground">Full contact details are now unlocked</p>
+                                                </div>
+                                            </div>
+
+                                            {(lead as any)?.winningBid != null && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">Winning Bid</span>
+                                                    <span className="text-sm font-bold text-green-500">{formatCurrency(Number((lead as any).winningBid))}</span>
+                                                </div>
+                                            )}
+
+                                            {(lead as any)?.soldAt && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">Purchased</span>
+                                                    <span className="text-sm font-medium">{new Date((lead as any).soldAt).toLocaleDateString()}</span>
+                                                </div>
+                                            )}
+
+                                            {lead.nftTokenId && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">LeadNFT</span>
+                                                    <Badge variant="outline" className="text-blue-400 border-blue-400/30 gap-1">
+                                                        <ExternalLink className="h-3 w-3" /> #{lead.nftTokenId}
+                                                    </Badge>
+                                                </div>
+                                            )}
+
+                                            <div className="pt-2 border-t border-border/50">
+                                                <p className="text-xs text-muted-foreground">All PII is shown in the lead parameters above. Contact details are now fully decrypted.</p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* ── Generic SOLD/other for non-buyers ── */}
+                                {!isLive && !isUnsold && !(isSold && isBuyerViewing) && (
                                     <Card>
                                         <CardContent className="p-5">
                                             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
