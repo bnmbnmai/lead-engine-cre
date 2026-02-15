@@ -627,4 +627,62 @@ router.post('/auto-bid/evaluate', authMiddleware, async (req: AuthenticatedReque
     }
 });
 
+// ============================================
+// USDC Allowance Status (for auto-bid escrow)
+// ============================================
+
+const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
+const ESCROW_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
+const RPC_SEPOLIA = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+
+const USDC_READ_ABI = [
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+];
+
+router.get('/buyer/usdc-allowance', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.user!.id },
+            select: { walletAddress: true },
+        });
+
+        if (!user?.walletAddress) {
+            res.status(400).json({ error: 'No wallet address on file' });
+            return;
+        }
+
+        if (!USDC_ADDRESS || !ESCROW_ADDRESS) {
+            // Off-chain mode — return zero allowance
+            res.json({
+                allowance: '0',
+                balance: '0',
+                escrowAddress: ESCROW_ADDRESS || null,
+                usdcAddress: USDC_ADDRESS || null,
+                offChain: true,
+            });
+            return;
+        }
+
+        const provider = new ethers.JsonRpcProvider(RPC_SEPOLIA);
+        const usdc = new ethers.Contract(USDC_ADDRESS, USDC_READ_ABI, provider);
+
+        const [allowanceRaw, balanceRaw] = await Promise.all([
+            usdc.allowance(user.walletAddress, ESCROW_ADDRESS),
+            usdc.balanceOf(user.walletAddress),
+        ]);
+
+        res.json({
+            allowance: ethers.formatUnits(allowanceRaw, 6),
+            balance: ethers.formatUnits(balanceRaw, 6),
+            escrowAddress: ESCROW_ADDRESS,
+            usdcAddress: USDC_ADDRESS,
+            offChain: false,
+        });
+    } catch (error: any) {
+        console.error('USDC allowance check error:', error);
+        res.status(500).json({ error: 'Failed to check USDC allowance', details: error.message });
+    }
+});
+
 export default router;

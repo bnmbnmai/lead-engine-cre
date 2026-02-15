@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { API_BASE_URL } from '@/lib/api';
 import { AgentChatModal } from '@/components/integrations/AgentChatModal';
+import { UsdcAllowanceCard } from '@/components/wallet/UsdcAllowanceCard';
 
 // ── Python starter code for LangChain + MCP ──
 
@@ -207,6 +208,9 @@ export function BuyerIntegrations() {
                         </CardContent>
                     )}
                 </Card>
+
+                {/* ────────── USDC Auto-Bid Allowance ────────── */}
+                <UsdcAllowanceCard />
 
                 {/* ────────── LangChain Autonomous Bidding Agent ────────── */}
                 <Card>

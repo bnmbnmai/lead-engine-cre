@@ -18,6 +18,31 @@ import { prisma } from '../lib/prisma';
 import { ethers } from 'ethers';
 
 // ============================================
+// On-chain config for USDC allowance checks
+// ============================================
+
+const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
+const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
+const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+
+const ERC20_ABI = [
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function balanceOf(address account) view returns (uint256)',
+];
+
+/**
+ * Read on-chain USDC allowance for a buyer → escrow contract.
+ * Returns allowance in raw wei (6 decimals for USDC).
+ */
+async function getUsdcAllowance(ownerAddress: string, spenderAddress: string): Promise<bigint> {
+    if (!USDC_CONTRACT_ADDRESS) return BigInt(0);
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
+    const allowance = await usdc.allowance(ownerAddress, spenderAddress);
+    return BigInt(allowance.toString());
+}
+
+// ============================================
 // Types
 // ============================================
 
@@ -160,6 +185,26 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             if (todaySpend + bidAmount > budget) {
                 result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Daily budget exceeded: $${todaySpend} + $${bidAmount} > $${budget}` });
                 continue;
+            }
+        }
+
+        // ── 8b. On-chain USDC allowance check ──
+        const buyerWallet = prefSet.buyerProfile.user?.walletAddress;
+        if (buyerWallet && ESCROW_CONTRACT_ADDRESS) {
+            try {
+                const allowance = await getUsdcAllowance(buyerWallet, ESCROW_CONTRACT_ADDRESS);
+                const bidAmountWei = BigInt(Math.floor(bidAmount * 1e6));
+                if (allowance < bidAmountWei) {
+                    result.skipped.push({
+                        buyerId,
+                        preferenceSetId: setId,
+                        reason: `Insufficient USDC allowance: $${Number(allowance) / 1e6} < $${bidAmount}`,
+                    });
+                    continue;
+                }
+            } catch (err: any) {
+                // Graceful fallback: don't block auto-bids on RPC errors
+                console.warn(`[AUTO-BID] Allowance check failed for ${buyerWallet}: ${err.message}. Proceeding anyway.`);
             }
         }
 
