@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -98,6 +98,7 @@ export default function LeadDetailPage() {
     // Buy Now flow state
     const [confirming, setConfirming] = useState(false);
     const [buying, setBuying] = useState(false);
+    const [previewOpen, setPreviewOpen] = useState(true);
     const [buyError, setBuyError] = useState<string | null>(null);
     const [purchased, setPurchased] = useState(false);
 
@@ -370,81 +371,51 @@ export default function LeadDetailPage() {
                                 </Card>
                             ) : null}
 
-                            {/* Privacy Notice */}
-                            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
-                                <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via x402 escrow settlement.</p>
-                            </div>
-                        </div>
-
-                        {/* ─── Sidebar (1/3) — sticky auction + bid UI ─── */}
-                        <div className="space-y-5">
-                            <div className="sticky top-6 space-y-5">
-                                {/* Auction Timer — always visible for live auctions */}
-                                {isLive && (
-                                    <AuctionTimer
-                                        phase={phase as any}
-                                        biddingEndsAt={auctionState?.biddingEndsAt || lead.auctionEndAt || undefined}
-                                        revealEndsAt={auctionState?.revealEndsAt}
-                                    />
-                                )}
-
-                                {/* Bidding Panel — always visible for live auctions */}
-                                {isLive && isAuthenticated && (
-                                    <BidPanel
-                                        leadId={lead.id}
-                                        reservePrice={lead.reservePrice ?? 0}
-                                        highestBid={displayHighestBid}
-                                        phase={phase as any}
-                                        onPlaceBid={handlePlaceBid}
-                                        isLoading={bidLoading}
-                                    />
-                                )}
-
-                                {socketError && (
-                                    <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
-                                        {socketError}
-                                    </div>
-                                )}
-
-                                {/* Pricing Card — visible for unsold (Buy Now) or unauthenticated */}
-                                {(!isLive || !isAuthenticated) && (
-                                    <Card className={isUnsold ? 'border-green-500/30' : ''}>
-                                        <CardContent className="p-6 space-y-5">
-                                            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Pricing</h2>
-
-                                            {/* Reserve */}
-                                            {lead.reservePrice != null && (
-                                                <div>
-                                                    <Tooltip content="Minimum bid amount set by the seller">
-                                                        <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve Price</span>
-                                                    </Tooltip>
-                                                    <div className={`text-lg font-bold mt-0.5 ${isUnsold ? 'line-through text-muted-foreground' : 'gradient-text'}`}>
-                                                        {formatCurrency(lead.reservePrice)}
+                            {/* ─── Lead Details Preview (collapsible) ─── */}
+                            <Card>
+                                <CardContent className="p-0">
+                                    <button
+                                        className="w-full flex items-center justify-between p-5 cursor-pointer hover:bg-muted/30 transition rounded-xl"
+                                        onClick={() => setPreviewOpen(v => !v)}
+                                    >
+                                        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Lead Details Preview</h2>
+                                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${previewOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {previewOpen && (
+                                        <div className="px-5 pb-5 space-y-5 border-t border-border/50">
+                                            {/* Pricing snapshot */}
+                                            <div className="grid grid-cols-2 gap-4 pt-4">
+                                                {lead.reservePrice != null && (
+                                                    <div>
+                                                        <Tooltip content="Minimum bid amount set by the seller">
+                                                            <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve Price</span>
+                                                        </Tooltip>
+                                                        <div className={`text-lg font-bold mt-0.5 ${isUnsold ? 'line-through text-muted-foreground' : 'gradient-text'}`}>
+                                                            {formatCurrency(lead.reservePrice)}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-
-                                            {/* Buy Now Price */}
-                                            {lead.buyNowPrice != null && (
-                                                <div>
-                                                    <Tooltip content="Purchase this lead immediately — no bidding required">
-                                                        <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Buy Now Price</span>
-                                                    </Tooltip>
-                                                    <div className="text-3xl font-bold text-green-500 mt-0.5">
-                                                        {formatCurrency(lead.buyNowPrice)}
+                                                )}
+                                                {lead.buyNowPrice != null && (
+                                                    <div>
+                                                        <Tooltip content="Purchase this lead immediately — no bidding required">
+                                                            <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Buy Now Price</span>
+                                                        </Tooltip>
+                                                        <div className="text-2xl font-bold text-green-500 mt-0.5">
+                                                            {formatCurrency(lead.buyNowPrice)}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
 
-                                            {/* CTA */}
-                                            {purchased ? (
-                                                <div className="text-center py-3">
-                                                    <p className="font-semibold text-green-500">✓ Lead Purchased!</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">Transaction processing via escrow.</p>
-                                                </div>
-                                            ) : isAuthenticated ? (
+                                            {/* Buy Now CTA (only for UNSOLD leads) */}
+                                            {isUnsold && (
                                                 <div className="space-y-2">
-                                                    {isUnsold && (
+                                                    {purchased ? (
+                                                        <div className="text-center py-3">
+                                                            <p className="font-semibold text-green-500">✓ Lead Purchased!</p>
+                                                            <p className="text-xs text-muted-foreground mt-1">Transaction processing via escrow.</p>
+                                                        </div>
+                                                    ) : isAuthenticated ? (
                                                         <>
                                                             {buyError && <p className="text-xs text-red-500 text-center">{buyError}</p>}
                                                             <Button
@@ -461,25 +432,111 @@ export default function LeadDetailPage() {
                                                                 )}
                                                             </Button>
                                                         </>
+                                                    ) : (
+                                                        <Button className="w-full py-5 gap-2" variant="glass" onClick={openConnectModal}>
+                                                            <Wallet className="h-4 w-4" />
+                                                            Connect Wallet to Purchase
+                                                        </Button>
                                                     )}
                                                 </div>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                    <Button className="w-full py-5 gap-2" variant="glass" onClick={openConnectModal}>
-                                                        <Wallet className="h-4 w-4" />
-                                                        Connect Wallet to {isLive ? 'Place a Bid' : 'Purchase'}
-                                                    </Button>
-                                                    <p className="text-xs text-muted-foreground text-center">PII is revealed only after payment</p>
-                                                </div>
                                             )}
+
+                                            {/* Lead ID */}
+                                            <div className="text-xs text-muted-foreground/50 break-all pt-2 border-t border-border/30">
+                                                Lead ID: {lead.id}
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Privacy Notice */}
+                            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
+                                <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via x402 escrow settlement.</p>
+                            </div>
+                        </div>
+
+                        {/* ─── Sidebar (1/3) — auction status + bidding only ─── */}
+                        <div className="space-y-5">
+                            <div className="sticky top-6 space-y-5">
+                                {/* Auction Timer */}
+                                {isLive && (
+                                    <AuctionTimer
+                                        phase={phase as any}
+                                        biddingEndsAt={auctionState?.biddingEndsAt || lead.auctionEndAt || undefined}
+                                        revealEndsAt={auctionState?.revealEndsAt}
+                                    />
+                                )}
+
+                                {/* Compact auction status card */}
+                                <Card>
+                                    <CardContent className="p-5 space-y-4">
+                                        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Auction Status</h2>
+
+                                        {/* Reserve Price */}
+                                        {lead.reservePrice != null && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground">Reserve</span>
+                                                <span className="text-sm font-bold gradient-text">{formatCurrency(lead.reservePrice)}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Bid count */}
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">Bids</span>
+                                            <span className="text-sm font-semibold">{displayBidCount}</span>
+                                        </div>
+
+                                        {/* Highest bid */}
+                                        {displayHighestBid != null && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground">Highest Bid</span>
+                                                <span className="text-sm font-bold text-green-500">{formatCurrency(displayHighestBid)}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Your bid badge */}
+                                        {myBidAmount && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground">Your Bid</span>
+                                                <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30 text-xs">
+                                                    {formatCurrency(myBidAmount)}
+                                                </Badge>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Bid Panel — only for live auctions */}
+                                {isLive && isAuthenticated && (
+                                    <BidPanel
+                                        leadId={lead.id}
+                                        reservePrice={lead.reservePrice ?? 0}
+                                        highestBid={displayHighestBid}
+                                        phase={phase as any}
+                                        onPlaceBid={handlePlaceBid}
+                                        isLoading={bidLoading}
+                                    />
+                                )}
+
+                                {/* Connect wallet CTA for unauthenticated */}
+                                {!isAuthenticated && (
+                                    <Card>
+                                        <CardContent className="p-5">
+                                            <Button className="w-full py-5 gap-2" variant="glass" onClick={openConnectModal}>
+                                                <Wallet className="h-4 w-4" />
+                                                Connect Wallet to {isLive ? 'Bid' : 'Purchase'}
+                                            </Button>
+                                            <p className="text-xs text-muted-foreground text-center mt-2">PII is revealed only after payment</p>
                                         </CardContent>
                                     </Card>
                                 )}
 
-                                {/* Lead ID */}
-                                <div className="text-xs text-muted-foreground/50 text-center break-all">
-                                    Lead ID: {lead.id}
-                                </div>
+                                {socketError && (
+                                    <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+                                        {socketError}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
