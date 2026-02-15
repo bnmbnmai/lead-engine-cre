@@ -11,6 +11,7 @@ import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
 import { generateToken } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
+import { nftService } from '../services/nft.service';
 
 const router = Router();
 
@@ -1286,6 +1287,42 @@ router.post('/settle', async (req: Request, res: Response) => {
         });
         console.log(`[DEMO SETTLE] Transaction ${transaction.id} → escrowReleased=true, status=COMPLETED`);
 
+        // 6. Mint LeadNFT on-chain + record sale to buyer
+        let nftTokenId: string | null = null;
+        let nftMintTxHash: string | null = null;
+        try {
+            const mintResult = await nftService.mintLeadNFT(transaction.leadId);
+            if (mintResult.success) {
+                nftTokenId = mintResult.tokenId || null;
+                nftMintTxHash = mintResult.txHash || null;
+                console.log(`[DEMO SETTLE] LeadNFT minted — tokenId=${nftTokenId}, txHash=${nftMintTxHash?.slice(0, 14)}…`);
+
+                // Persist nftMintTxHash in the lead's parameters JSON (no migration needed)
+                if (nftMintTxHash) {
+                    const currentLead = await prisma.lead.findUnique({ where: { id: transaction.leadId } });
+                    const params = (currentLead?.parameters as Record<string, any>) || {};
+                    await prisma.lead.update({
+                        where: { id: transaction.leadId },
+                        data: { parameters: { ...params, nftMintTxHash } as any },
+                    });
+                }
+
+                // Record the sale on-chain (transfers NFT ownership to buyer)
+                if (nftTokenId && buyerWallet) {
+                    const saleResult = await nftService.recordSaleOnChain(nftTokenId, buyerWallet, amount);
+                    if (saleResult.success) {
+                        console.log(`[DEMO SETTLE] NFT sale recorded on-chain — buyer=${buyerWallet.slice(0, 10)}`);
+                    } else {
+                        console.warn(`[DEMO SETTLE] NFT recordSale failed (non-fatal): ${saleResult.error}`);
+                    }
+                }
+            } else {
+                console.warn(`[DEMO SETTLE] LeadNFT mint failed (non-fatal): ${mintResult.error}`);
+            }
+        } catch (nftErr: any) {
+            console.warn(`[DEMO SETTLE] NFT minting error (non-fatal):`, nftErr.message);
+        }
+
         console.log(`[DEMO SETTLE] ✅ Complete — txHash=${settleResult.txHash}`);
         res.json({
             success: true,
@@ -1297,7 +1334,9 @@ router.post('/settle', async (req: Request, res: Response) => {
             escrowId: transaction.escrowId,
             txHash: settleResult.txHash || null,
             escrowReleased: true,
-            message: `✅ On-chain settlement complete — escrow released, USDC transferred, lead SOLD. txHash=${settleResult.txHash?.slice(0, 14)}…`,
+            nftTokenId,
+            nftMintTxHash,
+            message: `✅ On-chain settlement complete — escrow released, USDC transferred, lead SOLD, NFT minted. txHash=${settleResult.txHash?.slice(0, 14)}…`,
         });
     } catch (error: any) {
         console.error('[DEMO SETTLE] Unexpected error:', error);

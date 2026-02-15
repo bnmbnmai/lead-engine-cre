@@ -916,6 +916,10 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                 }
             }
 
+            // Extract nftMintTxHash from parameters (stored during settlement, no migration needed)
+            const leadParams = (lead.parameters as Record<string, any>) || {};
+            const nftMintTxHash = leadParams.nftMintTxHash || null;
+
             res.json({
                 lead: {
                     ...lead,
@@ -925,6 +929,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     settlementPending: false,
                     encryptedData: undefined,
                     dataHash: undefined,
+                    nftMintTxHash,
                     pii: contactInfo, // decrypted + normalized PII
                 },
             });

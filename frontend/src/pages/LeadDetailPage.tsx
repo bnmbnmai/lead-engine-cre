@@ -55,6 +55,8 @@ interface LeadDetail {
     escrowId?: string | null;
     chainId?: number | null;
     escrowReleased?: boolean;
+    nftContractAddr?: string | null;
+    nftMintTxHash?: string | null;
     pii?: {
         contactName?: string;
         contactEmail?: string;
@@ -635,9 +637,35 @@ export default function LeadDetailPage() {
                                             {lead.nftTokenId && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-muted-foreground">LeadNFT</span>
-                                                    <Badge variant="outline" className="text-blue-400 border-blue-400/30 gap-1">
-                                                        <ExternalLink className="h-3 w-3" /> #{lead.nftTokenId}
-                                                    </Badge>
+                                                    {lead.nftContractAddr && !lead.nftTokenId.startsWith('offchain-') ? (
+                                                        <a
+                                                            href={`https://sepolia.etherscan.io/nft/${lead.nftContractAddr}/${lead.nftTokenId}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                                        >
+                                                            <ExternalLink className="h-3 w-3" /> Token #{lead.nftTokenId}
+                                                        </a>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-blue-400 border-blue-400/30 gap-1">
+                                                            <ExternalLink className="h-3 w-3" /> #{lead.nftTokenId}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {(lead as any)?.nftMintTxHash && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">NFT Mint Tx</span>
+                                                    <a
+                                                        href={`https://sepolia.etherscan.io/tx/${(lead as any).nftMintTxHash}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                                    >
+                                                        <ExternalLink className="h-3 w-3" />
+                                                        {(lead as any).nftMintTxHash.slice(0, 10)}...{(lead as any).nftMintTxHash.slice(-8)}
+                                                    </a>
                                                 </div>
                                             )}
 
