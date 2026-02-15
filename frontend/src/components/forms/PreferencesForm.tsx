@@ -37,6 +37,7 @@ function createDefaultSet(vertical: string, verticalLabel: string, priority: num
         acceptOffSite: true,
         requireVerified: false,
         isActive: true,
+        fieldFilters: {},
     };
 }
 

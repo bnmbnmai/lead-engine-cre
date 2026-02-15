@@ -21,7 +21,9 @@ export function BuyerPreferences() {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold">Auto Bidding</h1>
                     <p className="text-muted-foreground">
-                        Configure auto-bid rules — when matching leads appear, bids fire instantly. Set budgets, quality gates, and geo targeting per vertical.
+                        Configure auto-bid rules per vertical — set budgets, quality gates, geo targeting, and field-level
+                        filters. Approve USDC via the allowance card below, then close your browser. The server bids and
+                        settles 24/7 using your on-chain allowance.
                     </p>
                 </div>
 

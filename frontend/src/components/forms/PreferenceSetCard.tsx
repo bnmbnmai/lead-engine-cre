@@ -1,13 +1,19 @@
-import { ArrowUp, ArrowDown, Trash2, Zap, Info, Shield, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, Trash2, Zap, Info, Shield, X, Filter, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { LabeledSwitch } from '@/components/ui/switch';
 import { GeoFilter } from '@/components/marketplace/GeoFilter';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 
 // ============================================
 // Types
 // ============================================
+
+export interface FieldFilter {
+    op: '>=' | '<=' | '==' | 'includes';
+    value: string;
+}
 
 export interface PreferenceSetData {
     id?: string;
@@ -28,6 +34,7 @@ export interface PreferenceSetData {
     acceptOffSite: boolean;
     requireVerified: boolean;
     isActive: boolean;
+    fieldFilters?: Record<string, FieldFilter>;
 }
 
 
@@ -61,6 +68,33 @@ export function PreferenceSetCard({
     onDelete,
 }: PreferenceSetCardProps) {
     const [showAutoBidTip, setShowAutoBidTip] = useState(false);
+    const [verticalFields, setVerticalFields] = useState<any[]>([]);
+    const [loadingFields, setLoadingFields] = useState(false);
+
+    // Fetch vertical-specific form fields when vertical changes
+    useEffect(() => {
+        if (!set.vertical) { setVerticalFields([]); return; }
+        let cancelled = false;
+        (async () => {
+            setLoadingFields(true);
+            try {
+                const { data } = await api.getFormConfig(set.vertical);
+                if (!cancelled && data?.formConfig?.fields) {
+                    // Only show filterable fields (select/number), exclude contact fields
+                    const CONTACT_KEYS = new Set(['fullName', 'email', 'phone', 'zip', 'state', 'country']);
+                    const filterable = data.formConfig.fields.filter(
+                        (f: any) => !CONTACT_KEYS.has(f.key) && (f.type === 'select' || f.type === 'number' || f.type === 'boolean')
+                    );
+                    setVerticalFields(filterable);
+                }
+            } catch {
+                // Fail silently — fields just won't appear
+            } finally {
+                if (!cancelled) setLoadingFields(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [set.vertical]);
 
     const BUDGET_MAX = 99999999.99;
 
@@ -228,6 +262,176 @@ export function PreferenceSetCard({
                     </div>
                 </div>
             </div>
+
+            {/* Vertical-Specific Filters */}
+            {verticalFields.length > 0 && (
+                <div className="space-y-4">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                        <Filter className="h-4 w-4 text-violet-500" />
+                        Vertical Filters
+                    </h4>
+                    <p className="text-xs text-muted-foreground -mt-2">
+                        Filter leads by vertical-specific fields. Only leads matching ALL filters will be bid on.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {verticalFields.map((field: any) => {
+                            const currentFilter = set.fieldFilters?.[field.key];
+                            const isActive = !!currentFilter;
+
+                            if (field.type === 'select' && field.options?.length) {
+                                return (
+                                    <div key={field.id} className={cn(
+                                        'p-3 rounded-lg border transition-colors',
+                                        isActive ? 'border-violet-500/40 bg-violet-500/5' : 'border-border'
+                                    )}>
+                                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                                            {field.label}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                                value={currentFilter?.value || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const filters = { ...set.fieldFilters };
+                                                    if (!val) {
+                                                        delete filters[field.key];
+                                                    } else {
+                                                        filters[field.key] = { op: '==', value: val };
+                                                    }
+                                                    update({ fieldFilters: filters });
+                                                }}
+                                            >
+                                                <option value="">Any</option>
+                                                {field.options.map((opt: string) => (
+                                                    <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                            </select>
+                                            {isActive && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const filters = { ...set.fieldFilters };
+                                                        delete filters[field.key];
+                                                        update({ fieldFilters: filters });
+                                                    }}
+                                                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
+                                                    title="Clear filter"
+                                                >
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            if (field.type === 'number') {
+                                return (
+                                    <div key={field.id} className={cn(
+                                        'p-3 rounded-lg border transition-colors',
+                                        isActive ? 'border-violet-500/40 bg-violet-500/5' : 'border-border'
+                                    )}>
+                                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                                            {field.label}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                className="w-20 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                                value={currentFilter?.op || '>='}
+                                                onChange={(e) => {
+                                                    const op = e.target.value as FieldFilter['op'];
+                                                    const filters = { ...set.fieldFilters };
+                                                    filters[field.key] = { op, value: currentFilter?.value || '' };
+                                                    update({ fieldFilters: filters });
+                                                }}
+                                            >
+                                                <option value=">=">≥</option>
+                                                <option value="<=">≤</option>
+                                                <option value="==">=</option>
+                                            </select>
+                                            <Input
+                                                type="number"
+                                                placeholder={field.placeholder || '0'}
+                                                className="flex-1"
+                                                value={currentFilter?.value || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const filters = { ...set.fieldFilters };
+                                                    if (!val) {
+                                                        delete filters[field.key];
+                                                    } else {
+                                                        filters[field.key] = { op: (currentFilter?.op || '>=') as FieldFilter['op'], value: val };
+                                                    }
+                                                    update({ fieldFilters: filters });
+                                                }}
+                                            />
+                                            {isActive && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const filters = { ...set.fieldFilters };
+                                                        delete filters[field.key];
+                                                        update({ fieldFilters: filters });
+                                                    }}
+                                                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
+                                                    title="Clear filter"
+                                                >
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            if (field.type === 'boolean') {
+                                return (
+                                    <div key={field.id} className={cn(
+                                        'p-3 rounded-lg border transition-colors',
+                                        isActive ? 'border-violet-500/40 bg-violet-500/5' : 'border-border'
+                                    )}>
+                                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                                            {field.label}
+                                        </label>
+                                        <select
+                                            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                            value={currentFilter?.value || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                const filters = { ...set.fieldFilters };
+                                                if (!val) {
+                                                    delete filters[field.key];
+                                                } else {
+                                                    filters[field.key] = { op: '==', value: val };
+                                                }
+                                                update({ fieldFilters: filters });
+                                            }}
+                                        >
+                                            <option value="">Any</option>
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                );
+                            }
+
+                            return null;
+                        })}
+                    </div>
+                    {set.fieldFilters && Object.keys(set.fieldFilters).length > 0 && (
+                        <p className="text-xs text-violet-400">
+                            {Object.keys(set.fieldFilters).length} filter{Object.keys(set.fieldFilters).length !== 1 ? 's' : ''} active
+                        </p>
+                    )}
+                </div>
+            )}
+            {loadingFields && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading vertical filters…
+                </div>
+            )}
 
             {/* Auto-Bid */}
             <div className="space-y-3">
