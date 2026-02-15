@@ -102,24 +102,15 @@ class NFTService {
                     ? BigInt(transferLog.topics[3]).toString()
                     : (await this.contract!.totalSupply()).toString();
 
-                // Encrypt metadata for privacy
-                const { publicMetadata, encryptedFields } = privacyService.encryptTokenMetadata({
-                    vertical: lead.vertical,
-                    geoState: geo?.state || '',
-                    qualityScore: 5000,
-                    source: lead.source,
-                    parameters: lead.parameters as Record<string, any>,
-                });
-
-                // Update database with tokenId
+                // Update database with tokenId — NEVER overwrite encryptedData (PII).
+                // The on-chain mint already used only verticalHash/geoHash/dataHash
+                // (no PII). The original AES-256-GCM PII in encryptedData must be
+                // preserved so the settled buyer can decrypt it later.
                 await prisma.lead.update({
                     where: { id: leadId },
                     data: {
                         nftTokenId: tokenId,
                         nftContractAddr: LEAD_NFT_ADDRESS,
-                        encryptedData: encryptedFields
-                            ? JSON.stringify({ ...publicMetadata, encrypted: encryptedFields })
-                            : lead.encryptedData,
                     },
                 });
 

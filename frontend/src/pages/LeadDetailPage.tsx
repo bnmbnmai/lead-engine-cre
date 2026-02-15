@@ -51,6 +51,22 @@ interface LeadDetail {
     settlementPending?: boolean;
     winningBid?: number | null;
     soldAt?: string | null;
+    txHash?: string | null;
+    escrowId?: string | null;
+    chainId?: number | null;
+    escrowReleased?: boolean;
+    pii?: {
+        contactName?: string;
+        contactEmail?: string;
+        contactPhone?: string;
+        propertyAddress?: string;
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        [key: string]: any;
+    } | null;
 }
 
 // ─── Quality Score Bar ──────────────────────
@@ -626,31 +642,31 @@ export default function LeadDetailPage() {
                                             )}
 
                                             {/* PII Contact Info */}
-                                            {(lead as any)?.pii && (
+                                            {lead?.pii && (
                                                 <div className="pt-3 border-t border-border/50 space-y-2">
                                                     <h3 className="text-xs font-semibold text-green-400 uppercase tracking-wider">🔓 Decrypted Contact Info</h3>
-                                                    {(lead as any).pii.contactName && (
+                                                    {(lead.pii.contactName || lead.pii.firstName) && (
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-muted-foreground">Name</span>
-                                                            <span className="text-sm font-medium">{(lead as any).pii.contactName}</span>
+                                                            <span className="text-sm font-medium">{lead.pii.contactName || [lead.pii.firstName, lead.pii.lastName].filter(Boolean).join(' ')}</span>
                                                         </div>
                                                     )}
-                                                    {(lead as any).pii.contactEmail && (
+                                                    {(lead.pii.contactEmail || lead.pii.email) && (
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-muted-foreground">Email</span>
-                                                            <a href={`mailto:${(lead as any).pii.contactEmail}`} className="text-sm text-blue-400 hover:text-blue-300">{(lead as any).pii.contactEmail}</a>
+                                                            <a href={`mailto:${lead.pii.contactEmail || lead.pii.email}`} className="text-sm text-blue-400 hover:text-blue-300">{lead.pii.contactEmail || lead.pii.email}</a>
                                                         </div>
                                                     )}
-                                                    {(lead as any).pii.contactPhone && (
+                                                    {(lead.pii.contactPhone || lead.pii.phone) && (
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-muted-foreground">Phone</span>
-                                                            <a href={`tel:${(lead as any).pii.contactPhone}`} className="text-sm text-blue-400 hover:text-blue-300">{(lead as any).pii.contactPhone}</a>
+                                                            <a href={`tel:${lead.pii.contactPhone || lead.pii.phone}`} className="text-sm text-blue-400 hover:text-blue-300">{lead.pii.contactPhone || lead.pii.phone}</a>
                                                         </div>
                                                     )}
-                                                    {(lead as any).pii.propertyAddress && (
+                                                    {(lead.pii.propertyAddress || lead.pii.address) && (
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs text-muted-foreground">Address</span>
-                                                            <span className="text-sm font-medium text-right max-w-[180px]">{(lead as any).pii.propertyAddress}</span>
+                                                            <span className="text-sm font-medium text-right max-w-[180px]">{lead.pii.propertyAddress || lead.pii.address}</span>
                                                         </div>
                                                     )}
                                                 </div>

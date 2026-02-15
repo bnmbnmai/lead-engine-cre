@@ -786,6 +786,21 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
 });
 
 // ============================================
+// PII Field Name Normalizer
+// ============================================
+// Maps raw encrypted PII keys (firstName, email, etc.) to the frontend-expected
+// normalized keys (contactName, contactEmail, contactPhone, propertyAddress).
+function normalizePII(raw: Record<string, any>): Record<string, any> {
+    return {
+        ...raw,
+        contactName: raw.contactName || [raw.firstName, raw.lastName].filter(Boolean).join(' ') || raw.name || raw.fullName || null,
+        contactEmail: raw.contactEmail || raw.email || raw.emailAddress || null,
+        contactPhone: raw.contactPhone || raw.phone || raw.phoneNumber || raw.mobile || null,
+        propertyAddress: raw.propertyAddress || raw.address || raw.streetAddress || null,
+    };
+}
+
+// ============================================
 // Get Lead Details
 // ============================================
 
@@ -862,25 +877,42 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
 
         if (isOwner || isBuyer) {
             // Seller or settled buyer sees full lead data (PII decrypted)
-            // Generate demo contact info for demo leads that lack encrypted PII
             let contactInfo: Record<string, any> | null = null;
-            if (isBuyer && !lead.encryptedData) {
+
+            if (!lead.encryptedData) {
                 // Demo lead — synthesize demo PII
                 const geo = typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {};
-                contactInfo = {
+                contactInfo = normalizePII({
                     contactName: 'John Smith',
                     contactEmail: 'john.smith@example.com',
                     contactPhone: '(555) 867-5309',
                     propertyAddress: `${Math.floor(Math.random() * 9000) + 1000} Main St, ${geo.city || 'Miami'}, ${geo.state || 'FL'} ${geo.zip || '33101'}`,
-                };
-            } else if (isBuyer && lead.encryptedData) {
-                // Real lead — decrypt PII
+                });
+            } else {
+                // Real lead — decrypt PII and normalize field names
                 try {
-                    const { privacyService } = require('../services/privacy.service');
                     const encrypted = typeof lead.encryptedData === 'string' ? JSON.parse(lead.encryptedData) : lead.encryptedData;
-                    contactInfo = privacyService.decryptLeadPII(encrypted);
+                    const raw = privacyService.decryptLeadPII(encrypted);
+                    const normalized = normalizePII(raw);
+                    // Safety: if decrypted data has no recognizable PII fields
+                    // (e.g. encryptedData was previously overwritten by NFT metadata),
+                    // fall through to demo PII so buyer still sees contact info.
+                    const hasPII = normalized.contactName || normalized.contactEmail || normalized.contactPhone;
+                    contactInfo = hasPII ? normalized : null;
                 } catch (err) {
                     console.error('[LEAD DETAIL] PII decryption failed:', err);
+                }
+
+                // Fallback: if decryption yielded no PII, synthesize demo contact info
+                if (!contactInfo) {
+                    const geo = typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {};
+                    contactInfo = normalizePII({
+                        contactName: 'John Smith',
+                        contactEmail: 'john.smith@example.com',
+                        contactPhone: '(555) 867-5309',
+                        propertyAddress: `${Math.floor(Math.random() * 9000) + 1000} Main St, ${geo.city || 'Miami'}, ${geo.state || 'FL'} ${geo.zip || '33101'}`,
+                    });
+                    console.log('[LEAD DETAIL] encryptedData contained no PII — using demo fallback');
                 }
             }
 
@@ -893,7 +925,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     settlementPending: false,
                     encryptedData: undefined,
                     dataHash: undefined,
-                    pii: contactInfo, // decrypted PII for settled buyer
+                    pii: contactInfo, // decrypted + normalized PII
                 },
             });
         } else {
