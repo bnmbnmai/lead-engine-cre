@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, LayoutDashboard, Tag, Send, BarChart3, Zap, UserPlus, Search, Banknote } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -14,17 +14,9 @@ import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import { useDebounce } from '@/hooks/useDebounce';
 
-const DASHBOARD_TABS = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/seller' },
-    { key: 'leads', label: 'My Leads', icon: FileText, path: '/seller/leads' },
-    { key: 'funnels', label: 'My Funnels', icon: Tag, path: '/seller/funnels' },
-    { key: 'submit', label: 'Submit', icon: Send, path: '/seller/submit' },
-    { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/seller/analytics' },
-] as const;
+
 
 export function SellerDashboard() {
-    const navigate = useNavigate();
-    const location = useLocation();
     const [overview, setOverview] = useState<any>(null);
     const [recentLeads, setRecentLeads] = useState<any[]>([]);
     const [activeAsks, setActiveAsks] = useState<any[]>([]);
@@ -33,9 +25,6 @@ export function SellerDashboard() {
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
 
-
-
-    const activeTab = DASHBOARD_TABS.find((t) => t.path === location.pathname)?.key || 'overview';
 
     useEffect(() => {
         const fetchData = async () => {
@@ -179,22 +168,7 @@ export function SellerDashboard() {
                     </div>
                 )}
 
-                {/* Inline Tab Strip */}
-                <div className="flex gap-1 p-1 rounded-xl bg-muted/50 overflow-x-auto">
-                    {DASHBOARD_TABS.map((tab) => (
-                        <button
-                            key={tab.key}
-                            onClick={() => navigate(tab.path)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.key
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                        >
-                            <tab.icon className="h-4 w-4" />
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+
 
                 {/* Search Bar */}
                 <div className="max-w-md">
@@ -223,46 +197,7 @@ export function SellerDashboard() {
                     ))}
                 </div>
 
-                {/* Quick Actions */}
-                <div className="grid sm:grid-cols-3 gap-4">
-                    {[
-                        {
-                            title: 'Submit Lead',
-                            desc: 'Add a new lead via form, API, or webhook',
-                            href: '/seller/submit',
-                            icon: Zap,
-                            color: 'from-blue-500 to-cyan-400',
-                        },
-                        {
-                            title: 'Manage Funnels',
-                            desc: 'Create funnels, set pricing, and customize forms',
-                            href: '/seller/funnels',
-                            icon: Tag,
-                            color: 'from-emerald-500 to-teal-400',
-                        },
-                        {
-                            title: 'View Analytics',
-                            desc: 'Revenue, conversion rates, and gas costs',
-                            href: '/seller/analytics',
-                            icon: BarChart3,
-                            color: 'from-violet-500 to-purple-400',
-                        },
-                    ].map((action) => (
-                        <Link
-                            key={action.href}
-                            to={action.href}
-                            className="group flex items-start gap-4 p-5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.12] transition-all"
-                        >
-                            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${action.color} flex items-center justify-center flex-shrink-0`}>
-                                <action.icon className="h-5 w-5 text-white" />
-                            </div>
-                            <div>
-                                <div className="font-medium text-sm text-foreground group-hover:text-primary transition">{action.title}</div>
-                                <div className="text-xs text-muted-foreground mt-0.5">{action.desc}</div>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
+
 
                 {/* Instant Settlement highlight */}
                 <Card>
