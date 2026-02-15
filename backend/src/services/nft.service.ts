@@ -13,16 +13,27 @@ const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 // Startup diagnostics
 console.log(`[NFT SERVICE] LEAD_NFT_ADDRESS=${LEAD_NFT_ADDRESS ? LEAD_NFT_ADDRESS.slice(0, 10) + '…' : '(empty)'}, DEPLOYER_KEY=${DEPLOYER_KEY ? 'set' : '(empty)'}, RPC=${RPC_URL.slice(0, 40)}`);
 
+// LeadNFTv2 ABI — matches deployed contract at LEAD_NFT_CONTRACT_ADDRESS
 const LEAD_NFT_ABI = [
     'function tokenURI(uint256 tokenId) view returns (string)',
     'function ownerOf(uint256 tokenId) view returns (address)',
-    'function getLeadMetadata(uint256 tokenId) view returns (tuple(bytes32 vertical, bytes32 geoHash, bytes32 dataHash, address seller, uint96 reservePrice, uint40 createdAt, uint16 qualityScore, bool isVerified))',
     'function totalSupply() view returns (uint256)',
-    'function mintLead(address to, bytes32 vertical, bytes32 geoHash, bytes32 dataHash, uint96 reservePrice) returns (uint256 tokenId)',
-    'function recordSale(uint256 tokenId, address buyer, uint96 salePrice)',
-    'function updateQualityScore(uint256 tokenId, uint16 score)',
-    'function setTokenURI(uint256 tokenId, string uri)',
+    'function authorizedMinters(address) view returns (bool)',
+    'function owner() view returns (address)',
+    // v2 mintLead: 10 params (source is uint8 enum: 0=PLATFORM, 1=API, 2=OFFSITE)
+    'function mintLead(address to, bytes32 platformLeadId, bytes32 vertical, bytes32 geoHash, bytes32 piiHash, uint96 reservePrice, uint40 expiresAt, uint8 source, bool tcpaConsent, string uri) returns (uint256)',
+    // v2 recordSale: price is uint256
+    'function recordSale(uint256 tokenId, address buyer, uint256 price)',
+    'function setAuthorizedMinter(address minter, bool authorized)',
+    'function verifyLead(uint256 tokenId)',
 ];
+
+// LeadSource enum values (mirrors ILeadNFT.sol)
+const LEAD_SOURCE_MAP: Record<string, number> = {
+    'PLATFORM': 0,
+    'API': 1,
+    'OFFSITE': 2,
+};
 
 interface MintResult {
     success: boolean;
@@ -62,7 +73,7 @@ class NFTService {
     }
 
     // ============================================
-    // Mint Lead NFT
+    // Mint Lead NFT (LeadNFTv2)
     // ============================================
 
     async mintLeadNFT(leadId: string): Promise<MintResult> {
@@ -81,21 +92,74 @@ class NFTService {
         }
 
         const geo = lead.geo as any;
+        const sellerAddress = lead.seller?.user?.walletAddress || ethers.ZeroAddress;
+
+        // v2 parameters
+        const platformLeadId = ethers.keccak256(ethers.toUtf8Bytes(leadId));
         const verticalHash = ethers.keccak256(ethers.toUtf8Bytes(lead.vertical));
         const geoHash = ethers.keccak256(ethers.toUtf8Bytes(geo?.state || ''));
-        const dataHash = lead.dataHash
+        const piiHash = lead.dataHash
             ? lead.dataHash
             : ethers.keccak256(ethers.toUtf8Bytes(JSON.stringify(lead.parameters || {})));
         const reservePrice = Math.floor(Number(lead.reservePrice || 0) * 1e6);
-        const sellerAddress = lead.seller?.user?.walletAddress || ethers.ZeroAddress;
+        // Expiry: at least 1 hour from now (contract requires future timestamp)
+        const expiresAt = lead.expiresAt
+            ? Math.max(Math.floor(new Date(lead.expiresAt).getTime() / 1000), Math.floor(Date.now() / 1000) + 3600)
+            : Math.floor(Date.now() / 1000) + 3600;
+        const sourceEnum = LEAD_SOURCE_MAP[lead.source] ?? 0;
+        const tcpaConsent = !!lead.tcpaConsentAt;
+        const uri = ''; // no off-chain metadata URI for now
 
         // On-chain mint
         if (this.contract && this.signer) {
             try {
+                // Pre-flight diagnostics
+                const signerAddr = await this.signer.getAddress();
+                let contractOwner = 'unknown';
+                let isMinterAuthorized = false;
+                try {
+                    contractOwner = await this.contract.owner();
+                    isMinterAuthorized = await this.contract.authorizedMinters(signerAddr);
+                } catch (e: any) {
+                    console.warn('[NFT MINT] Could not read owner/authorizedMinters:', e.message);
+                }
+
+                console.log('[NFT MINT] ──── PRE-FLIGHT ────');
+                console.log('[NFT MINT] Contract:', LEAD_NFT_ADDRESS);
+                console.log('[NFT MINT] Signer:', signerAddr);
+                console.log('[NFT MINT] Contract Owner:', contractOwner);
+                console.log('[NFT MINT] Is Authorized Minter:', isMinterAuthorized);
+                console.log('[NFT MINT] Is Owner:', signerAddr.toLowerCase() === contractOwner.toLowerCase());
+                console.log('[NFT MINT] Params:', JSON.stringify({
+                    to: sellerAddress,
+                    platformLeadId,
+                    vertical: verticalHash,
+                    geoHash,
+                    piiHash,
+                    reservePrice,
+                    expiresAt,
+                    source: sourceEnum,
+                    tcpaConsent,
+                    uri,
+                }, null, 2));
+
+                // Mint with explicit gas limit to bypass estimateGas issues
                 const tx = await this.contract.mintLead(
-                    sellerAddress, verticalHash, geoHash, dataHash, reservePrice
+                    sellerAddress,
+                    platformLeadId,
+                    verticalHash,
+                    geoHash,
+                    piiHash,
+                    reservePrice,
+                    expiresAt,
+                    sourceEnum,
+                    tcpaConsent,
+                    uri,
+                    { gasLimit: 500_000 }
                 );
+                console.log('[NFT MINT] Tx sent:', tx.hash);
                 const receipt = await tx.wait();
+                console.log('[NFT MINT] Tx confirmed, block:', receipt?.blockNumber);
 
                 // Extract tokenId from Transfer event
                 const transferLog = receipt?.logs?.find(
@@ -106,9 +170,6 @@ class NFTService {
                     : (await this.contract!.totalSupply()).toString();
 
                 // Update database with tokenId — NEVER overwrite encryptedData (PII).
-                // The on-chain mint already used only verticalHash/geoHash/dataHash
-                // (no PII). The original AES-256-GCM PII in encryptedData must be
-                // preserved so the settled buyer can decrypt it later.
                 await prisma.lead.update({
                     where: { id: leadId },
                     data: {
@@ -118,14 +179,27 @@ class NFTService {
                     },
                 });
 
+                console.log(`[NFT MINT] ✅ Success — tokenId=${tokenId}, txHash=${receipt?.hash}`);
                 return { success: true, tokenId, txHash: receipt?.hash };
             } catch (error: any) {
-                console.error('NFT mintLeadNFT on-chain failed:', error);
-                return { success: false, error: error.message };
+                console.error('[NFT MINT] ❌ On-chain mint FAILED:', error);
+                // Surface the full error info
+                const errorDetails = {
+                    message: error.message,
+                    code: error.code,
+                    reason: error.reason,
+                    data: error.data,
+                    transaction: error.transaction,
+                    revert: error.revert,
+                    info: error.info,
+                };
+                console.error('[NFT MINT] Error details:', JSON.stringify(errorDetails, null, 2));
+                return { success: false, error: JSON.stringify(errorDetails) };
             }
         }
 
         // Off-chain fallback: generate pseudo-tokenId
+        console.warn('[NFT MINT] No contract/signer available — using offchain fallback');
         const offchainTokenId = `offchain-${Date.now()}`;
 
         await prisma.lead.update({
@@ -151,11 +225,13 @@ class NFTService {
 
         if (this.contract && this.signer && !nftTokenId.startsWith('offchain-')) {
             try {
-                const tx = await this.contract.recordSale(nftTokenId, buyerAddress, salePriceWei);
+                console.log(`[NFT SALE] Recording sale — tokenId=${nftTokenId}, buyer=${buyerAddress}, price=${salePriceWei}`);
+                const tx = await this.contract.recordSale(nftTokenId, buyerAddress, salePriceWei, { gasLimit: 200_000 });
                 const receipt = await tx.wait();
+                console.log(`[NFT SALE] ✅ Sale recorded — txHash=${receipt?.hash}`);
                 return { success: true, txHash: receipt?.hash };
             } catch (error: any) {
-                console.error('NFT recordSale on-chain failed:', error);
+                console.error('[NFT SALE] ❌ recordSale failed:', error.message);
                 return { success: false, error: error.message };
             }
         }
