@@ -18,6 +18,7 @@ import useAuth from '@/hooks/useAuth';
 import api from '@/lib/api';
 import { toast } from '@/hooks/useToast';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
+import socketClient from '@/lib/socket';
 
 // ─── Types ──────────────────────────────────
 
@@ -110,10 +111,11 @@ export default function LeadDetailPage() {
     const [localBidCount, setLocalBidCount] = useState<number | null>(null);
 
     // Auction hook — only active for IN_AUCTION leads
+    // Pass empty string when not IN_AUCTION to prevent socket join + error emission
+    const auctionLeadId = lead?.status === 'IN_AUCTION' ? id! : '';
     const { state: auctionState, placeBid, error: socketError } = useAuction({
-        leadId: id!,
+        leadId: auctionLeadId,
         onBidPlaced: (event) => {
-            setLocalHighestBid(event.highestBid);
             setLocalBidCount(event.bidCount);
             fetchLead();
         },
@@ -153,6 +155,15 @@ export default function LeadDetailPage() {
         fetchLead,
     );
 
+    // Listen for bid:confirmed to stop loading spinner
+    useEffect(() => {
+        if (!auctionLeadId) return;
+        const unsub = socketClient.on('bid:confirmed', () => {
+            setBidLoading(false);
+        });
+        return unsub;
+    }, [auctionLeadId]);
+
     const handleBuyNow = async () => {
         if (!lead) return;
         if (confirming) {
@@ -183,9 +194,11 @@ export default function LeadDetailPage() {
         setBidLoading(true);
         try {
             placeBid(data);
+            // Increment bid count immediately for local feedback
+            setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
+
             if (data.amount) {
                 setMyBidAmount(data.amount);
-                setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
                 if (!localHighestBid || data.amount > localHighestBid) {
                     setLocalHighestBid(data.amount);
                 }
@@ -197,12 +210,13 @@ export default function LeadDetailPage() {
             } else if (data.commitment) {
                 toast({
                     type: 'success',
-                    title: 'Sealed Bid Committed',
-                    description: 'Your bid has been encrypted and submitted.',
+                    title: '🔒 Sealed Bid Committed',
+                    description: 'Your bid has been encrypted and submitted. It will be revealed automatically when the auction ends.',
                 });
             }
         } finally {
-            setTimeout(() => setBidLoading(false), 600);
+            // Release loading state after a brief delay
+            setTimeout(() => setBidLoading(false), 800);
         }
     };
 
@@ -442,11 +456,12 @@ export default function LeadDetailPage() {
                                                 )}
 
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-xs text-muted-foreground">Bids</span>
+                                                    <span className="text-xs text-muted-foreground">Total Bids</span>
                                                     <span className="text-sm font-semibold">{displayBidCount}</span>
                                                 </div>
 
-                                                {displayHighestBid != null && (
+                                                {/* Only show highest bid after reveal phase — sealed during BIDDING */}
+                                                {phase !== 'BIDDING' && displayHighestBid != null && (
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs text-muted-foreground">Highest Bid</span>
                                                         <span className="text-sm font-bold text-green-500">{formatCurrency(displayHighestBid)}</span>

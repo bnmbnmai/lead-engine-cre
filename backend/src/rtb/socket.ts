@@ -506,6 +506,52 @@ class RTBSocketServer {
                 return;
             }
 
+            // ── Auto-reveal PENDING sealed bids ──
+            // In the commit-reveal demo flow, bids are committed with a base64
+            // commitment of "amount:salt". At auction end we decode and reveal
+            // them so the standard resolution logic can find a winner.
+            const pendingBids = await prisma.bid.findMany({
+                where: { leadId, status: 'PENDING', commitment: { not: null } },
+            });
+
+            for (const bid of pendingBids) {
+                try {
+                    const decoded = Buffer.from(bid.commitment!, 'base64').toString('utf-8');
+                    const [amountStr] = decoded.split(':');
+                    const amount = parseFloat(amountStr);
+                    if (isNaN(amount) || amount <= 0) {
+                        await prisma.bid.update({
+                            where: { id: bid.id },
+                            data: { status: 'EXPIRED', processedAt: new Date() },
+                        });
+                        continue;
+                    }
+
+                    // Apply holder multiplier if applicable
+                    const perks = await applyHolderPerks(lead.vertical, bid.buyerId);
+                    const effectiveBid = perks.isHolder
+                        ? applyMultiplier(amount, perks.multiplier)
+                        : amount;
+
+                    await prisma.bid.update({
+                        where: { id: bid.id },
+                        data: {
+                            status: 'REVEALED',
+                            amount,
+                            effectiveBid,
+                            processedAt: new Date(),
+                        },
+                    });
+                    console.log(`[AUCTION] Auto-revealed bid ${bid.id}: $${amount} (effective: $${effectiveBid})`);
+                } catch (err: any) {
+                    console.warn(`[AUCTION] Failed to auto-reveal bid ${bid.id}:`, err.message);
+                    await prisma.bid.update({
+                        where: { id: bid.id },
+                        data: { status: 'EXPIRED', processedAt: new Date() },
+                    });
+                }
+            }
+
             // Fallback ordering: effectiveBid DESC → isHolder DESC (tie-breaker) → amount DESC → createdAt ASC
             // Holders win ties; at equal everything, first bidder wins
             const winningBid = await prisma.bid.findFirst({

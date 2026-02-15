@@ -34,6 +34,7 @@ export function BidPanel({
     isLoading,
 }: BidPanelProps) {
     const [revealData, setRevealData] = useState({ amount: '', salt: '' });
+    const [bidSubmitted, setBidSubmitted] = useState(false);
 
     const { register, handleSubmit, formState: { errors }, watch } = useForm<BidFormData>({
         resolver: zodResolver(bidSchema),
@@ -51,6 +52,7 @@ export function BidPanel({
         const commitment = btoa(`${data.amount}:${salt}`); // Simplified for demo
         localStorage.setItem(`bid_salt_${commitment}`, JSON.stringify({ amount: data.amount, salt }));
         onPlaceBid({ commitment });
+        setBidSubmitted(true);
     };
 
     const handleReveal = () => {
@@ -127,56 +129,82 @@ export function BidPanel({
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                {/* Sealed bid explanation */}
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border border-border">
-                    <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                        Sealed Bid — your bid is encrypted until the reveal phase. Prevents front-running and protects your strategy.
-                    </p>
-                </div>
-
-                {/* Price Info */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 rounded-xl bg-muted/50">
-                        <div className="text-xs text-muted-foreground">Reserve</div>
-                        <div className="font-semibold">{formatCurrency(reservePrice)}</div>
-                    </div>
-                    <div className="p-3 rounded-xl bg-muted/50">
-                        <div className="text-xs text-muted-foreground">Bids</div>
-                        <div className="font-semibold text-muted-foreground">
-                            Sealed
+                {bidSubmitted ? (
+                    /* ── Bid submitted confirmation ── */
+                    <div className="text-center space-y-3 py-2">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-500/10 border border-green-500/30">
+                            <Lock className="h-5 w-5 text-green-500" />
                         </div>
-                    </div>
-                </div>
-
-                {/* Bid Form */}
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    <div>
-                        <label className="text-sm font-medium mb-2 block">Your Bid (USDC)</label>
-                        <Input
-                            type="number"
-                            step="0.01"
-                            {...register('amount', { valueAsNumber: true })}
-                            error={errors.amount?.message}
-                        />
-                    </div>
-
-                    {/* Validation Feedback */}
-                    <div className="space-y-1 text-sm">
-                        <div className={meetReserve ? 'text-green-500' : 'text-red-500'}>
-                            {meetReserve ? '✓' : '✗'} Meets reserve price
+                        <div>
+                            <p className="font-semibold text-green-500">✓ Sealed Bid Submitted</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Your bid is encrypted and will be revealed automatically when the auction ends.
+                            </p>
                         </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setBidSubmitted(false)}
+                            className="mt-2"
+                        >
+                            Place Another Bid
+                        </Button>
                     </div>
+                ) : (
+                    /* ── Bid form ── */
+                    <>
+                        {/* Sealed bid explanation */}
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+                            <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Sealed Bid — your bid is encrypted until the reveal phase. Prevents front-running and protects your strategy.
+                            </p>
+                        </div>
 
-                    <Button type="submit" loading={isLoading} className="w-full" size="lg">
-                        <Lock className="h-4 w-4 mr-2" />
-                        Submit Sealed Bid
-                    </Button>
+                        {/* Price Info */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-3 rounded-xl bg-muted/50">
+                                <div className="text-xs text-muted-foreground">Reserve</div>
+                                <div className="font-semibold">{formatCurrency(reservePrice)}</div>
+                            </div>
+                            <div className="p-3 rounded-xl bg-muted/50">
+                                <div className="text-xs text-muted-foreground">Bids</div>
+                                <div className="font-semibold text-muted-foreground">
+                                    Sealed
+                                </div>
+                            </div>
+                        </div>
 
-                    <p className="text-xs text-muted-foreground text-center">
-                        Your bid amount will be hidden until the reveal phase. Save your salt!
-                    </p>
-                </form>
+                        {/* Bid Form */}
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                            <div>
+                                <label className="text-sm font-medium mb-2 block">Your Bid (USDC)</label>
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    {...register('amount', { valueAsNumber: true })}
+                                    error={errors.amount?.message}
+                                />
+                            </div>
+
+                            {/* Validation Feedback */}
+                            <div className="space-y-1 text-sm">
+                                <div className={meetReserve ? 'text-green-500' : 'text-red-500'}>
+                                    {meetReserve ? '✓' : '✗'} Meets reserve price
+                                </div>
+                            </div>
+
+                            <Button type="submit" loading={isLoading} className="w-full" size="lg">
+                                <Lock className="h-4 w-4 mr-2" />
+                                Submit Sealed Bid
+                            </Button>
+
+                            <p className="text-xs text-muted-foreground text-center">
+                                Your bid amount will be hidden until the reveal phase. Save your salt!
+                            </p>
+                        </form>
+                    </>
+                )}
             </CardContent>
         </Card>
     );
