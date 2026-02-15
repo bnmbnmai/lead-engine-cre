@@ -632,12 +632,34 @@ class RTBSocketServer {
                     continue;
                 }
 
-                // NOTE: USDC balance/allowance pre-check disabled.
-                // Actual enforcement happens at the escrow contract level when
-                // the buyer funds the escrow. Pre-checking here blocks demo/test
-                // flows where test wallets may not have sufficient Sepolia USDC.
-                // The on-chain escrow.fundEscrow() call will revert if the buyer
-                // truly can't pay, which is a more reliable enforcement point.
+                // Check on-chain USDC balance + allowance using the buyer's
+                // User.walletAddress (set during SIWE auth — the MetaMask wallet)
+                const buyerWallet = bid.buyer?.walletAddress;
+                if (buyerWallet && USDC_CONTRACT_ADDRESS && ESCROW_CONTRACT_ADDRESS) {
+                    try {
+                        const bidAmountRaw = BigInt(Math.floor(Number(bid.amount) * 1e6));
+                        const [balance, allowance] = await Promise.all([
+                            getUsdcBalance(buyerWallet),
+                            getUsdcAllowance(buyerWallet, ESCROW_CONTRACT_ADDRESS),
+                        ]);
+
+                        if (balance < bidAmountRaw) {
+                            console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC balance $${Number(balance) / 1e6} < $${Number(bid.amount)} — cascading`);
+                            skippedBidders.push(bid.buyerId);
+                            continue;
+                        }
+                        if (allowance < bidAmountRaw) {
+                            console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC allowance $${Number(allowance) / 1e6} < $${Number(bid.amount)} — cascading`);
+                            skippedBidders.push(bid.buyerId);
+                            continue;
+                        }
+
+                        console.log(`[SETTLEMENT] Bidder ${buyerWallet.slice(0, 10)}… USDC OK — balance: $${Number(balance) / 1e6}, allowance: $${Number(allowance) / 1e6}`);
+                    } catch (err: any) {
+                        // Graceful fallback: don't block settlement on RPC errors
+                        console.warn(`[SETTLEMENT] USDC check failed for ${buyerWallet}: ${err.message}. Accepting bid anyway.`);
+                    }
+                }
 
                 // This bidder passes all checks
                 winningBid = bid;
