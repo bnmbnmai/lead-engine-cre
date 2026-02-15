@@ -585,20 +585,27 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
             take: 10,
         });
 
-        // If seller has no active ask for this vertical, auto-create one with defaults
+        // If seller has no active ask for this vertical, auto-create one
+        // Use seller's own ask reserve price if they have one, otherwise default $5
         if (matchingAsks.length === 0) {
+            // Check if seller has their own ask for this vertical with a custom reserve
+            const sellerAsk = await prisma.ask.findFirst({
+                where: { sellerId: seller.id, vertical },
+                orderBy: { createdAt: 'desc' },
+            });
+            const sellerReserve = sellerAsk?.reservePrice ? Number(sellerAsk.reservePrice) : 5.0;
+
             const autoAsk = await prisma.ask.create({
                 data: {
                     sellerId: seller.id,
                     vertical,
                     geoTargets: leadGeo.country ? [leadGeo.country] : ['US'],
-                    reservePrice: 5.0,
-                    auctionDuration: 60, // 60-second auction
-
+                    reservePrice: sellerReserve,
+                    auctionDuration: sellerAsk?.auctionDuration ?? 60,
                     status: 'ACTIVE',
                 },
             });
-            console.log(`[MARKETPLACE] Auto-created ask ${autoAsk.id} for seller ${seller.id} — vertical: ${vertical}, reserve: $5`);
+            console.log(`[MARKETPLACE] Auto-created ask ${autoAsk.id} for seller ${seller.id} — vertical: ${vertical}, reserve: $${sellerReserve}`);
             matchingAsks = [autoAsk];
         }
 

@@ -437,7 +437,7 @@ class RTBSocketServer {
             } catch (error) {
                 console.error('Auction monitor error:', error);
             }
-        }, 5000); // Check every 5 seconds
+        }, 2000); // Check every 2 seconds (keeps "Processing..." brief)
     }
 
     // ============================================

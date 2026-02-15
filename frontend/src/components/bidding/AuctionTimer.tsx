@@ -109,8 +109,12 @@ export function AuctionTimer({ phase, biddingEndsAt, revealEndsAt, onPhaseChange
             )}
 
             {phase !== 'RESOLVED' && phase !== 'CANCELLED' && timeRemaining === 0 && (
-                <div className="text-center text-muted-foreground">
-                    Processing...
+                <div className="text-center space-y-1">
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <Clock className="h-4 w-4 animate-spin" />
+                        <span>Resolving auction…</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/60">Revealing sealed bids & determining winner</p>
                 </div>
             )}
         </div>

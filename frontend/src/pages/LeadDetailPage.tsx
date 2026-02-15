@@ -222,19 +222,25 @@ export default function LeadDetailPage() {
 
             if (data.amount) {
                 setMyBidAmount(data.amount);
-                if (!localHighestBid || data.amount > localHighestBid) {
-                    setLocalHighestBid(data.amount);
+                // Don't set localHighestBid during BIDDING phase — sealed bids must stay hidden
+                if (phase !== 'BIDDING') {
+                    if (!localHighestBid || data.amount > localHighestBid) {
+                        setLocalHighestBid(data.amount);
+                    }
                 }
-                toast({
-                    type: 'success',
-                    title: '✅ Bid Placed!',
-                    description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
-                });
-            } else if (data.commitment) {
+            }
+
+            if (data.commitment) {
                 toast({
                     type: 'success',
                     title: '🔒 Sealed Bid Committed',
                     description: 'Your bid has been encrypted and submitted. It will be revealed automatically when the auction ends.',
+                });
+            } else if (data.amount) {
+                toast({
+                    type: 'success',
+                    title: '✅ Bid Placed!',
+                    description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
                 });
             }
         } finally {
@@ -384,6 +390,44 @@ export default function LeadDetailPage() {
                                     )}
                                 </CardContent>
                             </Card>
+
+                            {/* ── Decrypted Contact Information (buyer-only, after settlement) ── */}
+                            {isSold && isBuyerViewing && lead?.pii && (
+                                <Card className="border-green-500/30">
+                                    <CardContent className="p-6 space-y-4">
+                                        <div className="flex items-center gap-2">
+                                            <Shield className="h-5 w-5 text-green-500" />
+                                            <h2 className="text-sm font-semibold text-green-400 uppercase tracking-wider">Decrypted Contact Information</h2>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                                            {(lead.pii.contactName || lead.pii.firstName) && (
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Name</dt>
+                                                    <dd className="text-sm font-medium mt-0.5">{lead.pii.contactName || [lead.pii.firstName, lead.pii.lastName].filter(Boolean).join(' ')}</dd>
+                                                </div>
+                                            )}
+                                            {(lead.pii.contactEmail || lead.pii.email) && (
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Email</dt>
+                                                    <dd className="text-sm font-medium mt-0.5"><a href={`mailto:${lead.pii.contactEmail || lead.pii.email}`} className="text-blue-400 hover:text-blue-300">{lead.pii.contactEmail || lead.pii.email}</a></dd>
+                                                </div>
+                                            )}
+                                            {(lead.pii.contactPhone || lead.pii.phone) && (
+                                                <div>
+                                                    <dt className="text-xs text-muted-foreground">Phone</dt>
+                                                    <dd className="text-sm font-medium mt-0.5"><a href={`tel:${lead.pii.contactPhone || lead.pii.phone}`} className="text-blue-400 hover:text-blue-300">{lead.pii.contactPhone || lead.pii.phone}</a></dd>
+                                                </div>
+                                            )}
+                                            {(lead.pii.propertyAddress || lead.pii.address) && (
+                                                <div className="col-span-2">
+                                                    <dt className="text-xs text-muted-foreground">Address</dt>
+                                                    <dd className="text-sm font-medium mt-0.5">{lead.pii.propertyAddress || lead.pii.address}</dd>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Lead Parameters / Preview Steps */}
                             {lead.formSteps && lead.formSteps.length > 0 ? (
@@ -669,40 +713,7 @@ export default function LeadDetailPage() {
                                                 </div>
                                             )}
 
-                                            {/* PII Contact Info */}
-                                            {lead?.pii && (
-                                                <div className="pt-3 border-t border-border/50 space-y-2">
-                                                    <h3 className="text-xs font-semibold text-green-400 uppercase tracking-wider">🔓 Decrypted Contact Info</h3>
-                                                    {(lead.pii.contactName || lead.pii.firstName) && (
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs text-muted-foreground">Name</span>
-                                                            <span className="text-sm font-medium">{lead.pii.contactName || [lead.pii.firstName, lead.pii.lastName].filter(Boolean).join(' ')}</span>
-                                                        </div>
-                                                    )}
-                                                    {(lead.pii.contactEmail || lead.pii.email) && (
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs text-muted-foreground">Email</span>
-                                                            <a href={`mailto:${lead.pii.contactEmail || lead.pii.email}`} className="text-sm text-blue-400 hover:text-blue-300">{lead.pii.contactEmail || lead.pii.email}</a>
-                                                        </div>
-                                                    )}
-                                                    {(lead.pii.contactPhone || lead.pii.phone) && (
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs text-muted-foreground">Phone</span>
-                                                            <a href={`tel:${lead.pii.contactPhone || lead.pii.phone}`} className="text-sm text-blue-400 hover:text-blue-300">{lead.pii.contactPhone || lead.pii.phone}</a>
-                                                        </div>
-                                                    )}
-                                                    {(lead.pii.propertyAddress || lead.pii.address) && (
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs text-muted-foreground">Address</span>
-                                                            <span className="text-sm font-medium text-right max-w-[180px]">{lead.pii.propertyAddress || lead.pii.address}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
 
-                                            <div className="pt-2 border-t border-border/50">
-                                                <p className="text-xs text-muted-foreground">All PII is shown in the lead parameters above. Contact details are now fully decrypted.</p>
-                                            </div>
                                         </CardContent>
                                     </Card>
                                 )}

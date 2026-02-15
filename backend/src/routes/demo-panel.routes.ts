@@ -1322,6 +1322,19 @@ router.post('/settle', async (req: Request, res: Response) => {
         }
 
         console.log(`[DEMO SETTLE] ✅ Complete — txHash=${settleResult.txHash}`);
+
+        // Emit socket events so the main lead page auto-refreshes
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('marketplace:refreshAll', { reason: 'settlement' });
+            io.emit('lead:status-changed', {
+                leadId: transaction.leadId,
+                oldStatus: 'SOLD',
+                newStatus: 'SOLD',
+                escrowReleased: true,
+            });
+        }
+
         res.json({
             success: true,
             transactionId: transaction.id,
