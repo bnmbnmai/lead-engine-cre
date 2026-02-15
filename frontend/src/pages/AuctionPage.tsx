@@ -69,10 +69,12 @@ export function AuctionPage() {
         try {
             placeBid(data);
 
+            // Always increment bid count — works for both sealed and open bids
+            setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
+
             if (data.amount) {
                 // Optimistic UI updates — don't wait for socket roundtrip
                 setMyBidAmount(data.amount);
-                setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
                 if (!localHighestBid || data.amount > localHighestBid) {
                     setLocalHighestBid(data.amount);
                 }
@@ -82,6 +84,7 @@ export function AuctionPage() {
                     description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
                 });
             } else if (data.commitment) {
+                setMyBidAmount(lead?.reservePrice ?? null); // Show something for "Your Bid"
                 toast({
                     type: 'success',
                     title: 'Sealed Bid Committed',

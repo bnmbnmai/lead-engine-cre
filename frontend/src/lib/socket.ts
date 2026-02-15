@@ -101,6 +101,9 @@ class SocketClient {
             'marketplace:bid:update',
             'marketplace:auction:resolved',
             'marketplace:refreshAll',
+            // Auction end events (no-winner paths)
+            'lead:unsold',
+            'lead:status-changed',
             'analytics:update',
         ];
 

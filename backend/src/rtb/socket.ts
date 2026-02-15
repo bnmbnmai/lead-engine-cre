@@ -25,7 +25,7 @@ const ERC20_ABI = [
 ];
 
 async function getUsdcBalance(wallet: string): Promise<bigint> {
-    if (!USDC_CONTRACT_ADDRESS) return BigInt(0);
+    if (!USDC_CONTRACT_ADDRESS) return BigInt(2) ** BigInt(255); // Skip check when not configured
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
     const bal = await usdc.balanceOf(wallet);
@@ -33,7 +33,7 @@ async function getUsdcBalance(wallet: string): Promise<bigint> {
 }
 
 async function getUsdcAllowance(owner: string, spender: string): Promise<bigint> {
-    if (!USDC_CONTRACT_ADDRESS) return BigInt(0);
+    if (!USDC_CONTRACT_ADDRESS) return BigInt(2) ** BigInt(255); // Skip check when not configured
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);
     const allow = await usdc.allowance(owner, spender);
