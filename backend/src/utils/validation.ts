@@ -185,7 +185,7 @@ export const PreferenceSetSchema = z.object({
     dailyBudget: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
     autoBidEnabled: z.boolean().default(false),
     autoBidAmount: z.number().positive().max(99999999.99, 'Exceeds Decimal(10,2) limit').optional(),
-    minQualityScore: z.number().int().min(0).max(10000).optional(),
+    minQualityScore: z.number().int().min(0).max(100).optional(),
     excludedSellerIds: z.array(z.string().min(1).max(50)).max(100).default([])
         .refine((arr) => new Set(arr).size === arr.length, { message: 'Duplicate seller IDs in excludedSellerIds' }),
     preferredSellerIds: z.array(z.string().min(1).max(50)).max(100).default([])

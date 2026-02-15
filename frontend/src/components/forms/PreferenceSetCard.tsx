@@ -398,7 +398,7 @@ export function PreferenceSetCard({
                         <span>100%</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                        On-chain reputation score (0–10,000 basis points). Only bid on sellers with score ≥ this threshold.
+                        On-chain reputation score (displayed as %). Only bid on sellers with score ≥ this threshold.
                     </p>
                 </div>
 

@@ -114,11 +114,13 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         }
 
         // ── 3. Quality score gate ──
+        // Buyer sets minQualityScore on 0-100 scale; internal score is 0-10,000
         const prefMinScore = (prefSet as any).minQualityScore;
         if (prefMinScore != null && prefMinScore > 0) {
             const leadScore = lead.qualityScore ?? 0;
-            if (leadScore < prefMinScore) {
-                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Quality ${leadScore} < min ${prefMinScore}` });
+            const internalThreshold = prefMinScore * 100; // 0-100 → 0-10,000
+            if (leadScore < internalThreshold) {
+                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Quality ${Math.floor(leadScore / 100)}/100 < min ${prefMinScore}/100` });
                 continue;
             }
         }

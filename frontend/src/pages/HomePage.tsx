@@ -324,7 +324,7 @@ export function HomePage() {
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">
                                 Buyers no longer have to take sellers&rsquo; word for it. Every lead carries a
-                                Chainlink CRE + ZK fraud-proof quality score (0&ndash;10,000) that cryptographically
+                                Chainlink CRE + ZK fraud-proof quality score (0&ndash;100) that cryptographically
                                 proves the lead was not botted, stuffed, or generated from junk data. Sellers are
                                 protected by immutable on-chain evidence.
                             </p>

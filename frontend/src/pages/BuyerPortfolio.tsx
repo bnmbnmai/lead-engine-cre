@@ -41,15 +41,15 @@ function SkeletonCard() {
 // ─── Quality Score Badge ────────────────────
 
 function QualityBadge({ score }: { score: number }) {
-    const pct = (score / 10000) * 100;
+    const displayed = Math.floor(score / 100); // 0-10,000 → 0-100
     const color =
-        pct >= 80 ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' :
-            pct >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
+        displayed >= 70 ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' :
+            displayed >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
                 'text-red-400 bg-red-500/15 border-red-500/30';
     return (
         <Badge variant="outline" className={`text-xs ${color}`}>
             <Shield className="h-3 w-3 mr-1" />
-            {pct.toFixed(0)}%
+            {displayed}/100
         </Badge>
     );
 }

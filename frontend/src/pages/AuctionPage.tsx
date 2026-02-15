@@ -225,7 +225,7 @@ export function AuctionPage() {
                                     </div>
                                     <div>
                                         <div className="text-sm text-muted-foreground">Quality Score</div>
-                                        <div className="font-medium">{lead.qualityScore || 'N/A'}/10,000</div>
+                                        <div className={`font-medium ${lead.qualityScore ? (Math.floor(lead.qualityScore / 100) >= 70 ? 'text-emerald-500' : Math.floor(lead.qualityScore / 100) >= 50 ? 'text-amber-500' : 'text-red-500') : ''}`}>{lead.qualityScore ? `${Math.floor(lead.qualityScore / 100)} / 100` : 'N/A'}</div>
                                     </div>
                                     <div>
                                         <div className="text-sm text-muted-foreground">Seller</div>

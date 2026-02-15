@@ -51,7 +51,7 @@ mcp_call("set_auto_bid_rules", {
     "vertical": "solar",
     "autoBidEnabled": True,
     "autoBidAmount": 45,
-    "minQualityScore": 7500,
+    "minQualityScore": 75,
     "dailyBudget": 500,
     "geoInclude": ["CA", "FL", "TX"],
 })

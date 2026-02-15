@@ -51,13 +51,15 @@ interface LeadDetail {
 // ─── Quality Score Bar ──────────────────────
 
 function QualityBar({ score }: { score: number }) {
-    const pct = Math.min(Math.max((score / 10000) * 100, 0), 100);
-    const color = pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-500' : 'bg-red-500';
+    const displayed = Math.floor(score / 100); // 0-10,000 → 0-100
+    const pct = Math.min(displayed, 100);
+    const color = pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+    const textColor = pct >= 70 ? 'text-emerald-500' : pct >= 50 ? 'text-amber-500' : 'text-red-500';
     return (
         <div>
             <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-muted-foreground">CRE Quality Score</span>
-                <span className="text-sm font-semibold">{score.toLocaleString()} / 10,000</span>
+                <span className={`text-sm font-semibold ${textColor}`}>{displayed} <span className="text-xs text-muted-foreground font-normal">/ 100</span></span>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />

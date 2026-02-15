@@ -72,7 +72,7 @@ const MCP_TOOLS = [
                     vertical: { type: 'string', description: 'Lead vertical' },
                     autoBidEnabled: { type: 'boolean', default: true },
                     autoBidAmount: { type: 'number', description: 'Bid amount in USDC' },
-                    minQualityScore: { type: 'number', description: 'Min quality score 0-10000' },
+                    minQualityScore: { type: 'number', description: 'Min quality score 0-100' },
                     dailyBudget: { type: 'number', description: 'Daily budget cap in USDC' },
                     geoInclude: { type: 'array', items: { type: 'string' }, description: 'State codes to include' },
                 },
