@@ -16,6 +16,7 @@
 
 import { prisma } from '../lib/prisma';
 import { ethers } from 'ethers';
+import { evaluateFieldFilters, FieldFilterRule } from './field-filter.service';
 
 // ============================================
 // On-chain config for USDC allowance checks
@@ -59,6 +60,7 @@ export interface LeadData {
     qualityScore: number | null;
     isVerified: boolean;
     reservePrice: number;
+    parameters?: Record<string, any> | null; // Field-level data for autobid matching
 }
 
 export interface AutoBidResult {
@@ -116,6 +118,10 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                     user: { select: { id: true, walletAddress: true } },
                 },
             },
+            fieldFilters: {
+                where: { isActive: true },
+                include: { verticalField: { select: { key: true, isBiddable: true, isPii: true } } },
+            },
         },
         orderBy: { priority: 'asc' },
     });
@@ -157,6 +163,30 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             const internalThreshold = prefMinScore * 100; // 0-100 → 0-10,000
             if (leadScore < internalThreshold) {
                 result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Quality ${Math.floor(leadScore / 100)}/100 < min ${prefMinScore}/100` });
+                continue;
+            }
+        }
+
+        // ── 3.5. Field-level filter rules ──
+        const activeFilters = ((prefSet as any).fieldFilters || []) as Array<{
+            operator: string;
+            value: string;
+            verticalField: { key: string; isBiddable: boolean; isPii: boolean };
+        }>;
+        // Only evaluate biddable, non-PII fields (security gate)
+        const biddableRules: FieldFilterRule[] = activeFilters
+            .filter(f => f.verticalField.isBiddable && !f.verticalField.isPii)
+            .map(f => ({
+                fieldKey: f.verticalField.key,
+                operator: f.operator as any,
+                value: f.value,
+            }));
+
+        if (biddableRules.length > 0) {
+            const filterResult = evaluateFieldFilters(lead.parameters, biddableRules);
+            if (!filterResult.pass) {
+                const failedKeys = filterResult.failedRules.map(r => r.fieldKey).join(', ');
+                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Field filter failed: ${failedKeys}` });
                 continue;
             }
         }
@@ -326,6 +356,7 @@ export async function batchEvaluateLeads(leadIds: string[]): Promise<AutoBidResu
             qualityScore: (lead as any).qualityScore ?? null,
             isVerified: lead.isVerified ?? false,
             reservePrice: Number(lead.reservePrice ?? 0),
+            parameters: (lead as any).parameters ?? null,
         });
         results.push(result);
     }

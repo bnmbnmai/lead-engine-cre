@@ -13,6 +13,7 @@ import { fireConversionEvents, ConversionPayload } from '../services/conversion-
 import { redactLeadForPreview } from '../services/piiProtection';
 import { privacyService } from '../services/privacy.service';
 import { calculateFees } from '../lib/fees';
+import { evaluateFieldFilters, FieldFilterRule, FilterOperator } from '../services/field-filter.service';
 
 const router = Router();
 
@@ -791,6 +792,188 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
     } catch (error) {
         console.error('List leads error:', error);
         res.status(500).json({ error: 'Failed to list leads' });
+    }
+});
+
+// ============================================
+// Field-Level Lead Search
+// ============================================
+//
+// POST /leads/search — Advanced search with field-level filters.
+// Buyers provide fieldFilters alongside macro filters (vertical, geo, etc.)
+// Field filters are validated against VerticalField security flags:
+//   - Only isFilterable=true fields are allowed
+//   - isPii=true fields are REJECTED
+//
+// Body: { vertical, state?, status?, fieldFilters: [{ fieldKey, operator, value }], limit?, offset? }
+
+const VALID_OPERATORS: Set<string> = new Set([
+    'EQUALS', 'NOT_EQUALS', 'IN', 'NOT_IN',
+    'GT', 'GTE', 'LT', 'LTE', 'BETWEEN',
+    'CONTAINS', 'STARTS_WITH',
+]);
+
+router.post('/leads/search', generalLimiter, optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const {
+            vertical,
+            state,
+            status,
+            fieldFilters,
+            limit = 20,
+            offset = 0,
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+        } = req.body;
+
+        // ── Validate basic inputs ──
+        if (!vertical || typeof vertical !== 'string') {
+            res.status(400).json({ error: 'vertical is required (string)' });
+            return;
+        }
+        if (limit < 1 || limit > 100) {
+            res.status(400).json({ error: 'limit must be 1-100' });
+            return;
+        }
+
+        // ── Validate fieldFilters structure ──
+        const rules: FieldFilterRule[] = [];
+        if (fieldFilters && Array.isArray(fieldFilters)) {
+            for (const f of fieldFilters) {
+                if (!f.fieldKey || typeof f.fieldKey !== 'string') {
+                    res.status(400).json({ error: `Invalid fieldFilter: missing fieldKey` });
+                    return;
+                }
+                if (!VALID_OPERATORS.has(f.operator)) {
+                    res.status(400).json({ error: `Invalid operator '${f.operator}'. Valid: ${[...VALID_OPERATORS].join(', ')}` });
+                    return;
+                }
+                if (f.value === undefined || f.value === null) {
+                    res.status(400).json({ error: `fieldFilter '${f.fieldKey}' requires a value` });
+                    return;
+                }
+                rules.push({
+                    fieldKey: f.fieldKey,
+                    operator: f.operator as FilterOperator,
+                    value: typeof f.value === 'string' ? f.value : JSON.stringify(f.value),
+                });
+            }
+        }
+
+        // ── Security gate: validate filter keys against VerticalField ──
+        if (rules.length > 0) {
+            const verticalRecord = await prisma.vertical.findUnique({
+                where: { slug: vertical },
+                select: { id: true },
+            });
+            if (!verticalRecord) {
+                res.status(404).json({ error: `Vertical '${vertical}' not found` });
+                return;
+            }
+
+            // Fetch allowed field keys from VerticalField table
+            const allowedFields = await (prisma as any).verticalField.findMany({
+                where: {
+                    verticalId: verticalRecord.id,
+                    isFilterable: true,
+                    isPii: false,
+                },
+                select: { key: true },
+            });
+            const allowedKeys = new Set(allowedFields.map((f: any) => f.key));
+
+            // Reject any filter targeting a non-filterable or PII field
+            for (const rule of rules) {
+                if (!allowedKeys.has(rule.fieldKey)) {
+                    res.status(403).json({
+                        error: `Field '${rule.fieldKey}' is not filterable for vertical '${vertical}'`,
+                        hint: `Allowed filterable fields: [${[...allowedKeys].join(', ')}]`,
+                    });
+                    return;
+                }
+            }
+        }
+
+        // ── Build base Prisma WHERE clause (macro filters) ──
+        const where: any = {
+            vertical,
+            status: status || 'IN_AUCTION',
+        };
+        if (state) {
+            where.geo = { path: ['state'], equals: state.toUpperCase() };
+        }
+
+        // ── Fetch leads with parameters ──
+        // If we have field filters, we need `parameters` for in-memory evaluation
+        // Prisma can't natively query JSON keys with complex operators, so we:
+        //   1. Fetch a larger candidate set from DB (macro-filtered)
+        //   2. Apply field filters in-memory
+        //   3. Paginate the results
+        const needsFieldFiltering = rules.length > 0;
+        const fetchLimit = needsFieldFiltering ? Math.min(limit * 5, 500) : limit;
+
+        const candidates = await prisma.lead.findMany({
+            where,
+            orderBy: { [sortBy]: sortOrder },
+            take: fetchLimit,
+            skip: needsFieldFiltering ? 0 : offset,
+            select: {
+                id: true,
+                vertical: true,
+                geo: true,
+                source: true,
+                status: true,
+                reservePrice: true,
+                buyNowPrice: true,
+                isVerified: true,
+                auctionEndAt: true,
+                expiresAt: true,
+                createdAt: true,
+                parameters: true,
+                _count: { select: { bids: true } },
+                seller: {
+                    select: {
+                        id: true,
+                        companyName: true,
+                        reputationScore: true,
+                        isVerified: true,
+                    },
+                },
+            },
+        });
+
+        // ── Apply field filters in-memory ──
+        let filtered = candidates;
+        if (needsFieldFiltering) {
+            filtered = candidates.filter(lead => {
+                const params = (lead as any).parameters as Record<string, any> | null;
+                const evalResult = evaluateFieldFilters(params, rules);
+                return evalResult.pass;
+            });
+        }
+
+        // ── Paginate results ──
+        const total = filtered.length;
+        const paged = needsFieldFiltering
+            ? filtered.slice(offset, offset + limit)
+            : filtered;
+
+        // ── Strip parameters from response (don't leak to non-owners) ──
+        const leads = paged.map(({ parameters: _params, ...rest }: any) => rest);
+
+        res.json({
+            leads,
+            pagination: {
+                total,
+                limit,
+                offset,
+                hasMore: offset + leads.length < total,
+            },
+            filtersApplied: rules.length,
+        });
+    } catch (error) {
+        console.error('Lead search error:', error);
+        res.status(500).json({ error: 'Failed to search leads' });
     }
 });
 

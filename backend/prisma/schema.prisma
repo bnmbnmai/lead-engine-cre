@@ -63,7 +63,7 @@ model Vertical {
 
   // Metadata
   attributes  Json?          // { compliance: ["TCPA"], budget: ">10K", icon: "wrench" }
-  formConfig  Json?          // Admin form builder config: { fields, steps, gamification }
+  formConfig  Json?          // Admin form builder config: { fields, steps, gamification } — KEPT for rendering
   aliases     String[]       // ["plumber", "pipe_repair"] for overlap/search
   status      VerticalStatus @default(PROPOSED)
 
@@ -85,12 +85,70 @@ model Vertical {
   parent   Vertical?  @relation("VerticalHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children Vertical[] @relation("VerticalHierarchy")
   auctions VerticalAuction[]
+  fields   VerticalField[] // Structured field definitions (mirrors formConfig fields)
 
   @@index([parentId])
   @@index([status])
   @@index([slug])
   @@index([depth, status])
   @@index([nftTokenId])
+}
+
+// ============================================
+// Vertical Field Definitions (Option B)
+// ============================================
+//
+// Promotes formConfig field definitions to first-class DB entities.
+// formConfig JSON is KEPT for form rendering; VerticalField is the
+// queryable, indexable source of truth for search & autobid filters.
+//
+// Privacy: contact/PII fields (fullName, email, phone) are created
+// with isPii=true, isFilterable=false, isBiddable=false so they
+// can never leak into buyer-facing filters or autobid rules.
+
+enum FieldType {
+  TEXT
+  SELECT
+  BOOLEAN
+  NUMBER
+  TEXTAREA
+  EMAIL
+  PHONE
+  // Future: DATE, RANGE, MULTI_SELECT, FILE_UPLOAD, ADDRESS
+}
+
+model VerticalField {
+  id           String    @id @default(cuid())
+  verticalId   String
+  key          String               // "creditScore", "propertyType" — must match formConfig field.key
+  label        String               // Human-readable: "Credit Score"
+  fieldType    FieldType            // TEXT, SELECT, BOOLEAN, etc.
+  required     Boolean   @default(false)
+  options      String[]             // For SELECT fields: ["Excellent","Good","Fair","Poor"]
+  placeholder  String?              // Form placeholder text
+  sortOrder    Int       @default(0) // Display order within the vertical's form
+
+  // Search & Autobid flags
+  isFilterable Boolean   @default(true)   // Can buyers filter marketplace search on this field?
+  isBiddable   Boolean   @default(false)  // Can buyers set autobid rules targeting this field?
+  isPii        Boolean   @default(false)  // True for contact fields — never exposed to buyers
+
+  // Metadata for future use
+  description  String?              // Tooltip/help text for admin UI
+  validationPattern String?         // Optional regex for input validation
+  defaultValue String?              // Default value for new leads
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  vertical     Vertical  @relation(fields: [verticalId], references: [id], onDelete: Cascade)
+  fieldFilters BuyerFieldFilter[]
+
+  @@unique([verticalId, key])                // One field per key per vertical
+  @@index([verticalId, sortOrder])           // Form rendering order
+  @@index([verticalId, isFilterable])        // Search filter queries
+  @@index([verticalId, isBiddable])          // Autobid configuration queries
 }
 
 model VerticalAuction {
@@ -241,9 +299,58 @@ model BuyerPreferenceSet {
   updatedAt       DateTime @updatedAt
 
   buyerProfile BuyerProfile @relation(fields: [buyerProfileId], references: [id], onDelete: Cascade)
+  fieldFilters BuyerFieldFilter[] // Granular field-level autobid rules
 
   @@index([buyerProfileId, priority])
   @@index([vertical, isActive])
+}
+
+// ============================================
+// Field-Level Autobid Filters
+// ============================================
+//
+// Each BuyerFieldFilter targets a specific VerticalField with
+// an operator and value. During autobid evaluation, all filters
+// for a preference set must pass (AND logic) for the bid to fire.
+//
+// Example rules:
+//   creditScore IN ["Excellent","Good"]         → operator=IN, value=["Excellent","Good"]
+//   electricBill >= "$200-$300"                 → operator=GTE, value="$200-$300"
+//   roofAge NOT_IN ["New (0-5 years)"]          → operator=NOT_IN, value=["New (0-5 years)"]
+//   existingSolar EQUALS true                   → operator=EQUALS, value="true"
+
+enum FilterOperator {
+  EQUALS        // Exact match (string or number)
+  NOT_EQUALS    // Inverse of EQUALS
+  IN            // Value is in the provided list (for SELECT fields)
+  NOT_IN        // Value is NOT in the provided list
+  GT            // Greater than (NUMBER fields)
+  GTE           // Greater than or equal
+  LT            // Less than
+  LTE           // Less than or equal
+  BETWEEN       // Between two values (NUMBER fields, value = JSON [min, max])
+  CONTAINS      // Substring match (TEXT fields)
+  STARTS_WITH   // Prefix match
+}
+
+model BuyerFieldFilter {
+  id                String         @id @default(cuid())
+  preferenceSetId   String
+  verticalFieldId   String
+  operator          FilterOperator // EQUALS, IN, GT, LT, BETWEEN, etc.
+  value             String         // JSON-encoded value: "\"Excellent\"" or "[\"Good\",\"Fair\"]" or "200"
+  isActive          Boolean        @default(true)
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // Relations
+  preferenceSet     BuyerPreferenceSet @relation(fields: [preferenceSetId], references: [id], onDelete: Cascade)
+  verticalField     VerticalField      @relation(fields: [verticalFieldId], references: [id], onDelete: Cascade)
+
+  @@unique([preferenceSetId, verticalFieldId]) // One filter per field per preference set
+  @@index([preferenceSetId, isActive])         // Autobid evaluation: fetch all active filters for a set
+  @@index([verticalFieldId])                   // Admin: "which buyers filter on this field?"
 }
 
 model SellerProfile {

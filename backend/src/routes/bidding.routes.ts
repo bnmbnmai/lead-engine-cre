@@ -435,37 +435,66 @@ router.get('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
             include: {
                 preferenceSets: {
                     orderBy: { priority: 'asc' },
+                    include: {
+                        fieldFilters: {
+                            where: { isActive: true },
+                            include: { verticalField: { select: { key: true } } },
+                        },
+                    },
                 },
             },
-        });
+        } as any);
 
         if (!profile) {
             res.json({ sets: [] });
             return;
         }
 
+        // Map BuyerFieldFilter rows → frontend-friendly Record<fieldKey, {op, value}>
+        const OP_REVERSE: Record<string, string> = {
+            EQUALS: '==', NOT_EQUALS: '!=', IN: 'includes', NOT_IN: '!includes',
+            GT: '>', GTE: '>=', LT: '<', LTE: '<=',
+            BETWEEN: 'between', CONTAINS: 'contains', STARTS_WITH: 'startsWith',
+        };
+
         res.json({
-            sets: profile.preferenceSets.map((s) => ({
-                id: s.id,
-                label: s.label,
-                vertical: s.vertical,
-                priority: s.priority,
-                geoCountries: s.geoCountries,
-                geoInclude: s.geoInclude,
-                geoExclude: s.geoExclude,
-                maxBidPerLead: s.maxBidPerLead ? Number(s.maxBidPerLead) : undefined,
-                dailyBudget: s.dailyBudget ? Number(s.dailyBudget) : undefined,
-                autoBidEnabled: s.autoBidEnabled,
-                autoBidAmount: s.autoBidAmount ? Number(s.autoBidAmount) : undefined,
-                minQualityScore: s.minQualityScore ?? undefined,
-                excludedSellerIds: s.excludedSellerIds,
-                preferredSellerIds: s.preferredSellerIds,
-                minSellerReputation: s.minSellerReputation ?? undefined,
-                requireVerifiedSeller: s.requireVerifiedSeller,
-                acceptOffSite: s.acceptOffSite,
-                requireVerified: s.requireVerified,
-                isActive: s.isActive,
-            })),
+            sets: (profile as any).preferenceSets.map((s: any) => {
+                // Build fieldFilters hash from DB rows
+                const fieldFilters: Record<string, { op: string; value: string }> = {};
+                if (s.fieldFilters) {
+                    for (const ff of s.fieldFilters) {
+                        const key = ff.verticalField?.key;
+                        if (key) {
+                            fieldFilters[key] = {
+                                op: OP_REVERSE[ff.operator] || '==',
+                                value: ff.value,
+                            };
+                        }
+                    }
+                }
+                return {
+                    id: s.id,
+                    label: s.label,
+                    vertical: s.vertical,
+                    priority: s.priority,
+                    geoCountries: s.geoCountries,
+                    geoInclude: s.geoInclude,
+                    geoExclude: s.geoExclude,
+                    maxBidPerLead: s.maxBidPerLead ? Number(s.maxBidPerLead) : undefined,
+                    dailyBudget: s.dailyBudget ? Number(s.dailyBudget) : undefined,
+                    autoBidEnabled: s.autoBidEnabled,
+                    autoBidAmount: s.autoBidAmount ? Number(s.autoBidAmount) : undefined,
+                    minQualityScore: s.minQualityScore ?? undefined,
+                    excludedSellerIds: s.excludedSellerIds,
+                    preferredSellerIds: s.preferredSellerIds,
+                    minSellerReputation: s.minSellerReputation ?? undefined,
+                    requireVerifiedSeller: s.requireVerifiedSeller,
+                    acceptOffSite: s.acceptOffSite,
+                    requireVerified: s.requireVerified,
+                    isActive: s.isActive,
+                    fieldFilters,
+                };
+            }),
         });
     } catch (error) {
         console.error('Get preference sets error:', error);
@@ -501,9 +530,17 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
         const incomingIds = new Set(preferenceSets.filter((s) => s.id).map((s) => s.id!));
         const idsToDelete = [...existingIds].filter((id) => !incomingIds.has(id));
 
+        // Map frontend operators to Prisma FilterOperator enum
+        const OP_MAP: Record<string, string> = {
+            '==': 'EQUALS', '!=': 'NOT_EQUALS',
+            'includes': 'IN', '!includes': 'NOT_IN',
+            '>': 'GT', '>=': 'GTE', '<': 'LT', '<=': 'LTE',
+            'between': 'BETWEEN', 'contains': 'CONTAINS', 'startsWith': 'STARTS_WITH',
+        };
+
         // Run upserts + deletes in a transaction
         await prisma.$transaction(async (tx) => {
-            // Delete removed sets
+            // Delete removed sets (cascades to BuyerFieldFilter)
             if (idsToDelete.length > 0) {
                 await tx.buyerPreferenceSet.deleteMany({
                     where: { id: { in: idsToDelete } },
@@ -512,54 +549,85 @@ router.put('/preferences/v2', authMiddleware, requireBuyer, async (req: Authenti
 
             // Upsert each set
             for (const set of preferenceSets) {
+                const setData = {
+                    label: set.label,
+                    vertical: set.vertical,
+                    priority: set.priority,
+                    geoCountries: set.geoCountries,
+                    geoInclude: set.geoInclude,
+                    geoExclude: set.geoExclude,
+                    maxBidPerLead: set.maxBidPerLead,
+                    dailyBudget: set.dailyBudget,
+                    autoBidEnabled: set.autoBidEnabled,
+                    autoBidAmount: set.autoBidAmount,
+                    minQualityScore: set.minQualityScore,
+                    excludedSellerIds: set.excludedSellerIds,
+                    preferredSellerIds: set.preferredSellerIds,
+                    minSellerReputation: set.minSellerReputation,
+                    requireVerifiedSeller: set.requireVerifiedSeller,
+                    acceptOffSite: set.acceptOffSite,
+                    requireVerified: set.requireVerified,
+                    isActive: set.isActive,
+                };
+
+                let prefSetId: string;
                 if (set.id && existingIds.has(set.id)) {
                     await tx.buyerPreferenceSet.update({
                         where: { id: set.id },
-                        data: {
-                            label: set.label,
-                            vertical: set.vertical,
-                            priority: set.priority,
-                            geoCountries: set.geoCountries,
-                            geoInclude: set.geoInclude,
-                            geoExclude: set.geoExclude,
-                            maxBidPerLead: set.maxBidPerLead,
-                            dailyBudget: set.dailyBudget,
-                            autoBidEnabled: set.autoBidEnabled,
-                            autoBidAmount: set.autoBidAmount,
-                            minQualityScore: set.minQualityScore,
-                            excludedSellerIds: set.excludedSellerIds,
-                            preferredSellerIds: set.preferredSellerIds,
-                            minSellerReputation: set.minSellerReputation,
-                            requireVerifiedSeller: set.requireVerifiedSeller,
-                            acceptOffSite: set.acceptOffSite,
-                            requireVerified: set.requireVerified,
-                            isActive: set.isActive,
-                        },
+                        data: setData,
                     });
+                    prefSetId = set.id;
                 } else {
-                    await tx.buyerPreferenceSet.create({
-                        data: {
-                            buyerProfileId: profile.id,
-                            label: set.label,
-                            vertical: set.vertical,
-                            priority: set.priority,
-                            geoCountries: set.geoCountries,
-                            geoInclude: set.geoInclude,
-                            geoExclude: set.geoExclude,
-                            maxBidPerLead: set.maxBidPerLead,
-                            dailyBudget: set.dailyBudget,
-                            autoBidEnabled: set.autoBidEnabled,
-                            autoBidAmount: set.autoBidAmount,
-                            minQualityScore: set.minQualityScore,
-                            excludedSellerIds: set.excludedSellerIds,
-                            preferredSellerIds: set.preferredSellerIds,
-                            minSellerReputation: set.minSellerReputation,
-                            requireVerifiedSeller: set.requireVerifiedSeller,
-                            acceptOffSite: set.acceptOffSite,
-                            requireVerified: set.requireVerified,
-                            isActive: set.isActive,
-                        },
+                    const created = await tx.buyerPreferenceSet.create({
+                        data: { buyerProfileId: profile.id, ...setData },
                     });
+                    prefSetId = created.id;
+                }
+
+                // ── Sync BuyerFieldFilter rows ──
+                // Frontend sends: fieldFilters: { [fieldKey]: { op, value } }
+                const fieldFilters = (set as any).fieldFilters as Record<string, { op: string; value: string }> | undefined;
+
+                // Delete all existing filters for this set, then recreate
+                await (tx as any).buyerFieldFilter.deleteMany({
+                    where: { preferenceSetId: prefSetId },
+                });
+
+                if (fieldFilters && Object.keys(fieldFilters).length > 0) {
+                    // Resolve field keys → VerticalField IDs
+                    const vertical = await tx.vertical.findUnique({
+                        where: { slug: set.vertical },
+                        select: { id: true },
+                    });
+
+                    if (vertical) {
+                        const vFields = await (tx as any).verticalField.findMany({
+                            where: {
+                                verticalId: vertical.id,
+                                key: { in: Object.keys(fieldFilters) },
+                                isBiddable: true,
+                                isPii: false,
+                            },
+                            select: { id: true, key: true },
+                        });
+                        const keyToId = new Map(vFields.map((f: any) => [f.key, f.id]));
+
+                        for (const [fieldKey, filter] of Object.entries(fieldFilters)) {
+                            const verticalFieldId = keyToId.get(fieldKey);
+                            if (!verticalFieldId) continue; // Skip unknown/non-biddable fields
+
+                            const operator = OP_MAP[filter.op] || 'EQUALS';
+                            await (tx as any).buyerFieldFilter.create({
+                                data: {
+                                    preferenceSetId: prefSetId,
+                                    verticalFieldId,
+                                    operator,
+                                    value: filter.value,
+                                    isActive: true,
+                                },
+                            });
+                        }
+                    }
                 }
             }
 

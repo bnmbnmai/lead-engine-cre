@@ -43,7 +43,7 @@ Fraud is cryptographically prevented **before** any buyer sees the lead.
 | **Trust**        | Limited verification                 | CRE quality score (0–10,000) + ZK proofs |
 | **Privacy**      | Full PII on submit                   | Non-PII previews → full data only after purchase |
 | **Compliance**   | Manual reviews                       | ACE auto-KYC & jurisdiction rules |
-| **Automation**   | Basic rules                          | LangChain autonomous bidding agent |
+| **Automation**   | Basic rules                          | Field-level auto-bid rules + LangChain autonomous agent |
 | **Provenance**   | No audit trail                       | ERC-721 LeadNFT with full history |
 
 ### How a Lead Moves Through the System
@@ -146,13 +146,14 @@ Atomic escrow → release on win or Buy-It-Now. No wires, no chargebacks, no 30�
 - Real-time 1-minute sealed-bid auctions with WebSocket streaming
 - Non-PII previews (per-vertical redaction)
 - Every lead minted as `LeadNFTv2.sol` (ERC-721)
-- Auto-bid engine (8 criteria: vertical, geo, quality gate, daily budget, etc.)
+- Auto-bid engine with field-level rules (vertical, geo, quality, budget + granular field filters like roof_condition, system_size)
+- Field-level rule builder UI (multi-select chips, operator dropdowns, boolean toggles)
 - CRM webhooks (HubSpot, Zapier, custom)
 - 10 seeded verticals + AI dynamic vertical creation
 
 ### Advanced
 
-- **MCP Agent Server** (port 3002) — 9 JSON-RPC tools + full LangChain ReAct autonomous bidding agent example. Buyers can run (or write their own) agents that watch the live non-PII stream and bid automatically.
+- **MCP Agent Server** (port 3002) — 12 JSON-RPC tools + full LangChain ReAct autonomous bidding agent example. Buyers can run (or write their own) agents that watch the live non-PII stream and bid automatically.
 - Off-site fraud toggles + anomaly detection
 - Mock data seeding for instant demos
 

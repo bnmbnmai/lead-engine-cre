@@ -20,6 +20,7 @@ import * as verticalNFTService from '../services/vertical-nft.service';
 import * as auctionService from '../services/auction.service';
 import { z } from 'zod';
 import { NFT_FEATURES_ENABLED } from '../config/perks.env';
+import { syncVerticalFields, FormConfigField } from '../services/vertical-field.service';
 
 const router = Router();
 
@@ -440,14 +441,27 @@ router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
             );
         }
 
-        const updated = await prisma.vertical.update({
-            where: { slug },
-            data: { formConfig: validation.data as any },
+        // Save formConfig JSON + sync VerticalField rows in a single transaction
+        const { updated, fieldsSynced } = await prisma.$transaction(async (tx) => {
+            const vert = await tx.vertical.update({
+                where: { slug },
+                data: { formConfig: validation.data as any },
+            });
+
+            // Sync VerticalField rows from the validated fields
+            const syncResult = await syncVerticalFields(
+                vert.id,
+                validation.data.fields as FormConfigField[],
+                tx
+            );
+
+            return { updated: vert, fieldsSynced: syncResult.synced };
         });
 
         res.json({
-            message: `Form config saved for '${updated.name}'`,
+            message: `Form config saved for '${updated.name}' (${fieldsSynced} fields synced)`,
             formConfig: updated.formConfig,
+            fieldsSynced,
             ...(warnings.length > 0 ? { warnings } : {}),
         });
     } catch (error) {
@@ -819,6 +833,110 @@ router.get('/auctions', generalLimiter, async (_req: AuthenticatedRequest, res: 
     } catch (error) {
         console.error('List auctions error:', error);
         res.status(500).json({ error: 'Failed to list auctions' });
+    }
+});
+
+// ============================================
+// GET /:slug/fields — Biddable fields for a vertical (Public)
+// ============================================
+// Returns only fields that are biddable and non-PII.
+// Used by MCP get_vertical_fields tool and buyer preference UI.
+// Falls back to form config when VerticalField table is empty (pre-migration).
+
+router.get('/:slug/fields', generalLimiter, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { slug } = req.params;
+        const vertical = await prisma.vertical.findUnique({
+            where: { slug },
+            select: { id: true, slug: true, name: true, formConfig: true },
+        });
+
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        // Try VerticalField table first (post-migration)
+        try {
+            const dbFields = await (prisma as any).verticalField.findMany({
+                where: {
+                    verticalId: vertical.id,
+                    isBiddable: true,
+                    isPii: false,
+                },
+                orderBy: { sortOrder: 'asc' },
+                select: {
+                    id: true,
+                    key: true,
+                    label: true,
+                    fieldType: true,
+                    options: true,
+                    placeholder: true,
+                    isFilterable: true,
+                    isBiddable: true,
+                },
+            });
+
+            if (dbFields.length > 0) {
+                res.json({
+                    vertical: { slug: vertical.slug, name: vertical.name },
+                    fields: dbFields.map((f: any) => ({
+                        id: f.id,
+                        key: f.key,
+                        label: f.label,
+                        type: f.fieldType?.toLowerCase() || 'text',
+                        options: f.options || [],
+                        placeholder: f.placeholder,
+                        isFilterable: f.isFilterable,
+                        isBiddable: f.isBiddable,
+                    })),
+                    source: 'verticalField',
+                });
+                return;
+            }
+        } catch {
+            // VerticalField table doesn't exist yet — fall through to formConfig
+        }
+
+        // Fallback: derive from formConfig JSON
+        const formConfig = vertical.formConfig as any;
+        if (!formConfig?.fields) {
+            res.json({
+                vertical: { slug: vertical.slug, name: vertical.name },
+                fields: [],
+                source: 'none',
+            });
+            return;
+        }
+
+        const PII_KEYS = new Set(['email', 'phone', 'name', 'full_name', 'first_name', 'last_name', 'address', 'ssn']);
+        const BIDDABLE_TYPES = new Set(['select', 'number', 'boolean', 'radio']);
+
+        const fields = formConfig.fields
+            .filter((f: any) =>
+                BIDDABLE_TYPES.has(f.type) &&
+                !PII_KEYS.has(f.key) &&
+                !f.key.startsWith('contact_')
+            )
+            .map((f: any) => ({
+                id: f.id || f.key,
+                key: f.key,
+                label: f.label,
+                type: f.type,
+                options: f.options || [],
+                placeholder: f.placeholder,
+                isFilterable: true,
+                isBiddable: true,
+            }));
+
+        res.json({
+            vertical: { slug: vertical.slug, name: vertical.name },
+            fields,
+            source: 'formConfig',
+        });
+    } catch (error) {
+        console.error('Get vertical fields error:', error);
+        res.status(500).json({ error: 'Failed to get vertical fields' });
     }
 });
 

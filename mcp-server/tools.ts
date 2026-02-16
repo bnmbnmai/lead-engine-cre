@@ -76,7 +76,7 @@ export const TOOLS: ToolDefinition[] = [
     },
     {
         name: 'get_preferences',
-        description: 'Get the current buyer preference sets (per-vertical auto-bid, geo filters, budgets).',
+        description: 'Get the current buyer preference sets including field-level rules (per-vertical auto-bid, geo filters, budgets, and granular field filters like roof_condition=Excellent or system_size>=10).',
         inputSchema: {
             type: 'object',
             properties: {},
@@ -85,8 +85,21 @@ export const TOOLS: ToolDefinition[] = [
         method: 'GET',
     },
     {
+        name: 'get_vertical_fields',
+        description: 'Get biddable fields for a vertical. Returns field definitions (key, label, type, options) that can be used as fieldFilters in set_auto_bid_rules. Only fields marked as biddable and non-PII are returned.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                vertical: { type: 'string', description: 'Vertical slug (e.g., solar, mortgage, roofing)' },
+            },
+            required: ['vertical'],
+        },
+        handler: '/api/v1/verticals/{vertical}/fields',
+        method: 'GET',
+    },
+    {
         name: 'set_auto_bid_rules',
-        description: 'Configure auto-bid rules for a vertical. The engine automatically places sealed commit-reveal bids on matching leads based on vertical, geo, quality score, and budget constraints. Commitments are generated server-side; agents do not need to compute hashes.',
+        description: 'Configure auto-bid rules for a vertical, including granular field-level filters. The engine automatically places sealed commit-reveal bids on matching leads. Use get_vertical_fields first to discover available filter fields for a vertical.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -101,11 +114,54 @@ export const TOOLS: ToolDefinition[] = [
                 geoExclude: { type: 'array', items: { type: 'string' }, description: 'State/region codes to exclude' },
                 acceptOffSite: { type: 'boolean', description: 'Accept off-site leads', default: true },
                 requireVerified: { type: 'boolean', description: 'Only bid on verified leads', default: false },
+                fieldFilters: {
+                    type: 'object',
+                    description: 'Granular field-level filters. Keys are field keys from get_vertical_fields (e.g., "roof_condition", "system_size"). Values are {op, value} objects.',
+                    additionalProperties: {
+                        type: 'object',
+                        properties: {
+                            op: { type: 'string', enum: ['==', '!=', '>=', '<=', '>', '<', 'includes', '!includes', 'between', 'contains', 'startsWith'], description: 'Filter operator' },
+                            value: { type: 'string', description: 'Filter value. For "includes"/"!includes" use JSON array string e.g. \'["Good","Excellent"]\'. For "between" use JSON array e.g. \'[10, 50]\'.' },
+                        },
+                        required: ['op', 'value'],
+                    },
+                },
             },
             required: ['vertical', 'autoBidAmount'],
         },
         handler: '/api/v1/bids/preferences/v2',
         method: 'PUT',
+    },
+    {
+        name: 'search_leads_advanced',
+        description: 'Advanced lead search with field-level filters. Search leads by vertical, geo, pricing filters AND granular field-level rules (e.g., roof_condition=Excellent, system_size>=10). Use get_vertical_fields to discover available filter fields.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                vertical: { type: 'string', description: 'Lead vertical to search in' },
+                state: { type: 'string', description: 'US state code (e.g., CA, FL)' },
+                minPrice: { type: 'number', description: 'Minimum reserve price in USDC' },
+                maxPrice: { type: 'number', description: 'Maximum reserve price in USDC' },
+                filterRules: {
+                    type: 'array',
+                    description: 'Field-level filter rules',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            fieldKey: { type: 'string', description: 'Field key from get_vertical_fields' },
+                            operator: { type: 'string', enum: ['EQUALS', 'NOT_EQUALS', 'IN', 'NOT_IN', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'CONTAINS', 'STARTS_WITH'] },
+                            value: { type: 'string', description: 'Filter value (JSON-encoded for arrays)' },
+                        },
+                        required: ['fieldKey', 'operator', 'value'],
+                    },
+                },
+                limit: { type: 'number', default: 20, maximum: 100 },
+                offset: { type: 'number', default: 0 },
+            },
+            required: ['vertical'],
+        },
+        handler: '/api/v1/marketplace/leads/search',
+        method: 'POST',
     },
     {
         name: 'configure_crm_webhook',

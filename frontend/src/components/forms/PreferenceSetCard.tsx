@@ -263,50 +263,69 @@ export function PreferenceSetCard({
                 </div>
             </div>
 
-            {/* Vertical-Specific Filters */}
+            {/* Vertical-Specific Field Filters */}
             {verticalFields.length > 0 && (
                 <div className="space-y-4">
-                    <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                        <Filter className="h-4 w-4 text-violet-500" />
-                        Vertical Filters
-                    </h4>
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                            <Filter className="h-4 w-4 text-violet-500" />
+                            Field-Level Rules
+                        </h4>
+                        {set.fieldFilters && Object.keys(set.fieldFilters).length > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-violet-500/15 text-violet-400 border border-violet-500/25 animate-in fade-in duration-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                                {Object.keys(set.fieldFilters).length} active
+                            </span>
+                        )}
+                    </div>
                     <p className="text-xs text-muted-foreground -mt-2">
-                        Filter leads by vertical-specific fields. Only leads matching ALL filters will be bid on.
+                        Only leads matching <strong>all</strong> rules qualify for auto-bid. Choose values to narrow your targeting.
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                         {verticalFields.map((field: any) => {
                             const currentFilter = set.fieldFilters?.[field.key];
                             const isActive = !!currentFilter;
 
+                            // ── Select fields: multi-select chip cloud ──
                             if (field.type === 'select' && field.options?.length) {
+                                // Parse selected values (supports both single and multi-select via "includes" op)
+                                const selectedValues: string[] = (() => {
+                                    if (!currentFilter) return [];
+                                    if (currentFilter.op === 'includes') {
+                                        try { return JSON.parse(currentFilter.value); } catch { return [currentFilter.value]; }
+                                    }
+                                    return [currentFilter.value];
+                                })();
+
+                                const toggleOption = (opt: string) => {
+                                    const filters = { ...set.fieldFilters };
+                                    let next: string[];
+                                    if (selectedValues.includes(opt)) {
+                                        next = selectedValues.filter(v => v !== opt);
+                                    } else {
+                                        next = [...selectedValues, opt];
+                                    }
+                                    if (next.length === 0) {
+                                        delete filters[field.key];
+                                    } else if (next.length === 1) {
+                                        filters[field.key] = { op: '==', value: next[0] };
+                                    } else {
+                                        filters[field.key] = { op: 'includes', value: JSON.stringify(next) };
+                                    }
+                                    update({ fieldFilters: filters });
+                                };
+
                                 return (
                                     <div key={field.id} className={cn(
-                                        'p-3 rounded-lg border transition-colors',
-                                        isActive ? 'border-violet-500/40 bg-violet-500/5' : 'border-border'
+                                        'p-3 rounded-xl border transition-all duration-200',
+                                        isActive
+                                            ? 'border-violet-500/40 bg-gradient-to-br from-violet-500/5 to-violet-600/10 shadow-sm shadow-violet-500/5'
+                                            : 'border-border hover:border-muted-foreground/20'
                                     )}>
-                                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                                            {field.label}
-                                        </label>
-                                        <div className="flex gap-2">
-                                            <select
-                                                className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                                value={currentFilter?.value || ''}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    const filters = { ...set.fieldFilters };
-                                                    if (!val) {
-                                                        delete filters[field.key];
-                                                    } else {
-                                                        filters[field.key] = { op: '==', value: val };
-                                                    }
-                                                    update({ fieldFilters: filters });
-                                                }}
-                                            >
-                                                <option value="">Any</option>
-                                                {field.options.map((opt: string) => (
-                                                    <option key={opt} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-medium text-muted-foreground">
+                                                {field.label}
+                                            </label>
                                             {isActive && (
                                                 <button
                                                     type="button"
@@ -315,29 +334,72 @@ export function PreferenceSetCard({
                                                         delete filters[field.key];
                                                         update({ fieldFilters: filters });
                                                     }}
-                                                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
-                                                    title="Clear filter"
+                                                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                                                 >
-                                                    <X className="h-3.5 w-3.5" />
+                                                    Clear
                                                 </button>
                                             )}
                                         </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {field.options.map((opt: string) => {
+                                                const selected = selectedValues.includes(opt);
+                                                return (
+                                                    <button
+                                                        key={opt}
+                                                        type="button"
+                                                        onClick={() => toggleOption(opt)}
+                                                        className={cn(
+                                                            'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150',
+                                                            selected
+                                                                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-sm'
+                                                                : 'bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted hover:border-border'
+                                                        )}
+                                                    >
+                                                        {selected && <span className="text-violet-400">✓</span>}
+                                                        {opt}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        {selectedValues.length > 1 && (
+                                            <p className="text-[10px] text-violet-400/70 mt-2">
+                                                Matches any of {selectedValues.length} selected values
+                                            </p>
+                                        )}
                                     </div>
                                 );
                             }
 
+                            // ── Number fields: operator + input + optional range hint ──
                             if (field.type === 'number') {
                                 return (
                                     <div key={field.id} className={cn(
-                                        'p-3 rounded-lg border transition-colors',
-                                        isActive ? 'border-violet-500/40 bg-violet-500/5' : 'border-border'
+                                        'p-3 rounded-xl border transition-all duration-200',
+                                        isActive
+                                            ? 'border-violet-500/40 bg-gradient-to-br from-violet-500/5 to-violet-600/10 shadow-sm shadow-violet-500/5'
+                                            : 'border-border hover:border-muted-foreground/20'
                                     )}>
-                                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                                            {field.label}
-                                        </label>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-medium text-muted-foreground">
+                                                {field.label}
+                                            </label>
+                                            {isActive && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const filters = { ...set.fieldFilters };
+                                                        delete filters[field.key];
+                                                        update({ fieldFilters: filters });
+                                                    }}
+                                                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                                >
+                                                    Clear
+                                                </button>
+                                            )}
+                                        </div>
                                         <div className="flex gap-2">
                                             <select
-                                                className="w-20 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                                className="w-[72px] h-9 rounded-lg border border-input bg-background px-2 text-sm font-mono"
                                                 value={currentFilter?.op || '>='}
                                                 onChange={(e) => {
                                                     const op = e.target.value as FieldFilter['op'];
@@ -348,7 +410,7 @@ export function PreferenceSetCard({
                                             >
                                                 <option value=">=">≥</option>
                                                 <option value="<=">≤</option>
-                                                <option value="==">=</option>
+                                                <option value="==">＝</option>
                                             </select>
                                             <Input
                                                 type="number"
@@ -366,52 +428,59 @@ export function PreferenceSetCard({
                                                     update({ fieldFilters: filters });
                                                 }}
                                             />
-                                            {isActive && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const filters = { ...set.fieldFilters };
-                                                        delete filters[field.key];
-                                                        update({ fieldFilters: filters });
-                                                    }}
-                                                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
-                                                    title="Clear filter"
-                                                >
-                                                    <X className="h-3.5 w-3.5" />
-                                                </button>
-                                            )}
                                         </div>
+                                        {isActive && currentFilter?.value && (
+                                            <p className="text-[10px] text-violet-400/70 mt-1.5">
+                                                {currentFilter.op === '>=' && `Only leads with ${field.label.toLowerCase()} ≥ ${currentFilter.value}`}
+                                                {currentFilter.op === '<=' && `Only leads with ${field.label.toLowerCase()} ≤ ${currentFilter.value}`}
+                                                {currentFilter.op === '==' && `Only leads with ${field.label.toLowerCase()} exactly ${currentFilter.value}`}
+                                            </p>
+                                        )}
                                     </div>
                                 );
                             }
 
+                            // ── Boolean fields: pretty toggle buttons ──
                             if (field.type === 'boolean') {
                                 return (
                                     <div key={field.id} className={cn(
-                                        'p-3 rounded-lg border transition-colors',
-                                        isActive ? 'border-violet-500/40 bg-violet-500/5' : 'border-border'
+                                        'p-3 rounded-xl border transition-all duration-200',
+                                        isActive
+                                            ? 'border-violet-500/40 bg-gradient-to-br from-violet-500/5 to-violet-600/10 shadow-sm shadow-violet-500/5'
+                                            : 'border-border hover:border-muted-foreground/20'
                                     )}>
-                                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                                        <label className="text-xs font-medium text-muted-foreground mb-2 block">
                                             {field.label}
                                         </label>
-                                        <select
-                                            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                            value={currentFilter?.value || ''}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                const filters = { ...set.fieldFilters };
-                                                if (!val) {
-                                                    delete filters[field.key];
-                                                } else {
-                                                    filters[field.key] = { op: '==', value: val };
-                                                }
-                                                update({ fieldFilters: filters });
-                                            }}
-                                        >
-                                            <option value="">Any</option>
-                                            <option value="true">Yes</option>
-                                            <option value="false">No</option>
-                                        </select>
+                                        <div className="flex gap-2">
+                                            {[
+                                                { label: 'Any', value: '' },
+                                                { label: 'Yes', value: 'true' },
+                                                { label: 'No', value: 'false' },
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const filters = { ...set.fieldFilters };
+                                                        if (!opt.value) {
+                                                            delete filters[field.key];
+                                                        } else {
+                                                            filters[field.key] = { op: '==', value: opt.value };
+                                                        }
+                                                        update({ fieldFilters: filters });
+                                                    }}
+                                                    className={cn(
+                                                        'flex-1 py-1.5 px-3 rounded-lg text-xs font-medium transition-all duration-150 border',
+                                                        (currentFilter?.value === opt.value) || (!currentFilter && !opt.value)
+                                                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                                                            : 'bg-muted/30 text-muted-foreground border-transparent hover:bg-muted hover:border-border'
+                                                    )}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 );
                             }
@@ -419,11 +488,6 @@ export function PreferenceSetCard({
                             return null;
                         })}
                     </div>
-                    {set.fieldFilters && Object.keys(set.fieldFilters).length > 0 && (
-                        <p className="text-xs text-violet-400">
-                            {Object.keys(set.fieldFilters).length} filter{Object.keys(set.fieldFilters).length !== 1 ? 's' : ''} active
-                        </p>
-                    )}
                 </div>
             )}
             {loadingFields && (
