@@ -143,13 +143,13 @@ describe('CREService', () => {
     // ─── getQualityScore (on-chain only) ──────────
 
     describe('getQualityScore', () => {
-        it('should return 0 for non-existent lead', async () => {
+        it('should return null for non-existent lead', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue(null);
             const score = await creService.getQualityScore('nonexistent');
-            expect(score).toBe(0);
+            expect(score).toBeNull();
         });
 
-        it('should return 0 without tokenId (on-chain only)', async () => {
+        it('should return null without tokenId (on-chain only)', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
                 id: 'lead-1',
                 isVerified: true,
@@ -158,9 +158,9 @@ describe('CREService', () => {
                 parameters: { creditScore: 720 },
             });
 
-            // No tokenId → on-chain not possible → returns 0
+            // No tokenId → on-chain not possible → returns null
             const score = await creService.getQualityScore('lead-1');
-            expect(score).toBe(0);
+            expect(score).toBeNull();
         });
     });
 

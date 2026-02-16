@@ -192,15 +192,15 @@ class CREService {
     }
 
     // ============================================
-    // Quality Score (hybrid on-chain + off-chain)
+    // Quality Score (on-chain only — no fallback)
     // ============================================
 
     /**
      * Get CRE quality score from on-chain CREVerifier ONLY.
-     * Returns 0 if no tokenId, no contract, or on-chain call fails.
-     * For the badge: use the stored lead.qualityScore from the database.
+     * Returns null if no tokenId, no contract, or on-chain call fails.
+     * null = "Pending CRE" — never returns a fake 0.
      */
-    async getQualityScore(leadId: string, tokenId?: number): Promise<number> {
+    async getQualityScore(leadId: string, tokenId?: number): Promise<number | null> {
         if (tokenId && this.contract) {
             try {
                 const onChainScore = await this.contract.getLeadQualityScore(tokenId);
@@ -210,7 +210,7 @@ class CREService {
             }
         }
 
-        return 0; // No on-chain score available
+        return null; // No on-chain score available → "Pending CRE"
     }
 
 
