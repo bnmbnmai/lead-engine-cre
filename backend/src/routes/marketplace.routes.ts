@@ -7,6 +7,7 @@ import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
 import { x402Service } from '../services/x402.service';
+import { nftService } from '../services/nft.service';
 import { marketplaceAsksCache } from '../lib/cache';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { redactLeadForPreview } from '../services/piiProtection';
@@ -1268,6 +1269,44 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
             res.status(400).json({ error: result.error });
             return;
         }
+
+        // Mint LeadNFT on-chain (fire-and-forget — don't block the response)
+        // The mint saves nftTokenId, nftContractAddr, nftMintTxHash to the lead record.
+        const mintAndRecord = async () => {
+            try {
+                const mintResult = await nftService.mintLeadNFT(leadId);
+                if (mintResult.success && mintResult.tokenId) {
+                    console.log(`[CONFIRM-ESCROW] LeadNFT minted — tokenId=${mintResult.tokenId}, txHash=${mintResult.txHash}`);
+
+                    // Record sale on-chain (transfer ownership to buyer)
+                    const buyer = await prisma.user.findUnique({ where: { id: req.user!.id } });
+                    if (buyer?.walletAddress && mintResult.tokenId) {
+                        const saleResult = await nftService.recordSaleOnChain(
+                            mintResult.tokenId,
+                            buyer.walletAddress,
+                            Number(transaction.amount),
+                        );
+                        if (saleResult.success) {
+                            console.log(`[CONFIRM-ESCROW] Sale recorded on-chain — txHash=${saleResult.txHash}`);
+                        } else {
+                            console.warn(`[CONFIRM-ESCROW] recordSaleOnChain failed: ${saleResult.error}`);
+                        }
+                    }
+                } else {
+                    console.warn(`[CONFIRM-ESCROW] NFT mint failed: ${mintResult.error}`);
+                }
+            } catch (err: any) {
+                console.error('[CONFIRM-ESCROW] NFT mint/record error:', err.message);
+            }
+
+            // Emit a follow-up socket event so the UI refreshes with NFT data
+            const io2 = req.app.get('io');
+            if (io2) {
+                io2.emit('lead:escrow-confirmed', { leadId });
+            }
+        };
+        // Don't await — let it run in background so the buyer gets a fast response
+        mintAndRecord();
 
         // Emit socket event so UI updates
         const io = req.app.get('io');
