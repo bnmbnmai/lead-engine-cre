@@ -99,6 +99,22 @@ export function HomePage() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [matchCount, setMatchCount] = useState<number | null>(null);
 
+    // ── Reusable client-side filter guard ──
+    // Matches the same logic as the backend vertical expansion.
+    // Applied to EVERY code path that updates the leads array.
+    const shouldIncludeLead = useCallback((lead: any): boolean => {
+        if (!lead) return false;
+        const geo = typeof lead.geo === 'object' && lead.geo ? lead.geo : {} as any;
+        // Vertical guard (startsWith supports parent.child hierarchy)
+        if (vertical !== 'all' && !lead.vertical?.startsWith(vertical)) return false;
+        // Geo guards
+        if (country !== 'ALL' && geo.country !== country) return false;
+        if (region !== 'All' && geo.state !== region) return false;
+        // Search guard
+        if (debouncedSearch && !JSON.stringify(lead).toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
+        return true;
+    }, [vertical, country, region, debouncedSearch]);
+
     const regionConfig = country !== 'ALL' ? getRegions(country) : null;
 
     // Debounce search input
@@ -154,7 +170,8 @@ export function HomePage() {
                     if (vertical === 'all') {
                         // Fallback to basic listLeads when no vertical selected
                         const { data } = view === 'buyNow' ? await api.listBuyNowLeads(params) : await api.listLeads(params);
-                        const resultLeads = data?.leads || [];
+                        const resultLeads = (data?.leads || []).filter(shouldIncludeLead);
+                        console.log('[setLeads:useEffect:basic] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
                         view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
                         setMatchCount(data?.pagination?.total || resultLeads.length);
                     } else {
@@ -185,7 +202,8 @@ export function HomePage() {
                             limit: 50,
                         });
 
-                        const resultLeads = data?.leads || [];
+                        const resultLeads = (data?.leads || []).filter(shouldIncludeLead);
+                        console.log('[setLeads:useEffect:advanced] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
                         view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
                         setMatchCount(data?.total ?? resultLeads.length);
                     }
@@ -199,7 +217,7 @@ export function HomePage() {
         };
 
         fetchData();
-    }, [view, vertical, country, region, debouncedSearch, sellerName, fieldFilters, qualityScore, minPrice, maxPrice, sortBy, sortOrder]);
+    }, [view, vertical, country, region, debouncedSearch, sellerName, fieldFilters, qualityScore, minPrice, maxPrice, sortBy, sortOrder, shouldIncludeLead]);
 
     // Wrap fetchData for polling fallback
     const refetchData = useCallback(() => {
@@ -219,14 +237,17 @@ export function HomePage() {
                     setBuyNowLeads(data?.leads || []);
                 } else {
                     const { data } = await api.listLeads(params);
-                    setLeads(data?.leads || []);
+                    const allLeads = data?.leads || [];
+                    const filteredLeads = allLeads.filter(shouldIncludeLead);
+                    console.log('[setLeads:refetchData] setting', filteredLeads.length, 'leads (filtered from', allLeads.length, ')');
+                    setLeads(filteredLeads);
                 }
             } catch (error) {
                 console.error('Poll fetch error:', error);
             }
         };
         fetchData();
-    }, [view, vertical, country, region, debouncedSearch]);
+    }, [view, vertical, country, region, debouncedSearch, shouldIncludeLead]);
 
     // Real-time socket listeners
     const leadsRef = useRef(leads);
@@ -237,31 +258,17 @@ export function HomePage() {
             'marketplace:lead:new': (data: any) => {
                 if (view === 'leads' && data?.lead) {
                     const lead = data.lead;
-                    const geo = typeof lead.geo === 'object' && lead.geo ? lead.geo : {};
 
                     // ── DEBUG: log filter state + incoming lead ──
                     console.log('[socket:lead:new] Current filters:', { vertical, country, region, debouncedSearch });
                     console.log('[socket:lead:new] Incoming lead:', { id: lead.id, vertical: lead.vertical, geo: lead.geo });
 
-                    // Filter guards — only prepend if lead matches all active filters
-                    if (vertical !== 'all' && !lead.vertical?.startsWith(vertical)) {
-                        console.log('[socket:lead:new] BLOCKED by vertical guard:', lead.vertical, 'does not start with', vertical);
-                        return;
-                    }
-                    if (country !== 'ALL' && geo?.country !== country) {
-                        console.log('[socket:lead:new] BLOCKED by country guard:', geo?.country, '!==', country);
-                        return;
-                    }
-                    if (region !== 'All' && geo?.state !== region) {
-                        console.log('[socket:lead:new] BLOCKED by region guard:', geo?.state, '!==', region);
-                        return;
-                    }
-                    if (debouncedSearch && !JSON.stringify(lead).toLowerCase().includes(debouncedSearch.toLowerCase())) {
-                        console.log('[socket:lead:new] BLOCKED by search guard');
+                    if (!shouldIncludeLead(lead)) {
+                        console.log('[socket:lead:new] BLOCKED by shouldIncludeLead');
                         return;
                     }
 
-                    console.log('[socket:lead:new] PASSED all guards, prepending lead');
+                    console.log('[setLeads:socket:lead:new] PASSED all guards, prepending lead');
                     setLeads((prev) => [data.lead, ...prev]);
                     toast({
                         type: 'info',
@@ -288,6 +295,7 @@ export function HomePage() {
                 }
             },
             'marketplace:refreshAll': () => {
+                console.log('[setLeads:refreshAll] marketplace:refreshAll received, calling refetchData');
                 refetchData();
                 toast({ type: 'info', title: 'Marketplace Updated', description: 'Data has been refreshed' });
             },
@@ -305,6 +313,7 @@ export function HomePage() {
             'marketplace:new-bin': (data: any) => {
                 // Always refresh Buy It Now data so it's ready when user switches tabs
                 if (data?.leadId) {
+                    console.log('[setLeads:new-bin] marketplace:new-bin received, calling refetchData');
                     refetchData();
                     if (view === 'buyNow') {
                         toast({
@@ -322,10 +331,12 @@ export function HomePage() {
             },
             'lead:status-changed': (data: any) => {
                 if (data?.leadId) {
+                    console.log('[setLeads:status-changed] lead:status-changed:', data.leadId, '->', data.newStatus);
                     // Remove from Live Leads when a lead is no longer active
                     setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
                     // Always refresh Buy It Now data when a lead moves to UNSOLD
                     if (data.newStatus === 'UNSOLD') {
+                        console.log('[setLeads:status-changed] UNSOLD, calling refetchData');
                         refetchData();
                     }
                 }
