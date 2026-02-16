@@ -688,6 +688,18 @@ export default function LeadDetailPage() {
                                                 </div>
                                             )}
 
+                                            {(lead as any)?.convenienceFee != null && Number((lead as any).convenienceFee) > 0 && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Convenience Fee
+                                                        <span className="text-amber-400/70 ml-1">
+                                                            ({(lead as any).convenienceFeeType === 'AUTOBID' ? 'auto-bid' : 'API'})
+                                                        </span>
+                                                    </span>
+                                                    <span className="text-sm font-medium text-amber-400">{formatCurrency(Number((lead as any).convenienceFee))}</span>
+                                                </div>
+                                            )}
+
                                             {(lead as any)?.soldAt && (
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-muted-foreground">Purchased</span>
@@ -779,8 +791,9 @@ export default function LeadDetailPage() {
                                             {/* Step progress */}
                                             <div className="space-y-2">
                                                 <EscrowStepIndicator label="Auction won" done />
-                                                <EscrowStepIndicator label="USDC approval" done={(['creating', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'approving'} />
-                                                <EscrowStepIndicator label="Create escrow" done={(['confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'creating'} />
+                                                <EscrowStepIndicator label="USDC approval" done={(['creating', 'transferring-fee', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'approving'} />
+                                                <EscrowStepIndicator label="Create escrow" done={(['transferring-fee', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'creating'} />
+                                                <EscrowStepIndicator label="Convenience fee" done={(['confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'transferring-fee'} />
                                                 <EscrowStepIndicator label="Confirm on-chain" done={escrow.step === 'done'} active={escrow.step === 'confirming'} />
                                                 <EscrowStepIndicator label="PII decryption" done={escrow.step === 'done'} />
                                             </div>

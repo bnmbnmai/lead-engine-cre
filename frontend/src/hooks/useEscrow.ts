@@ -17,10 +17,11 @@ import { api } from '@/lib/api';
 // Safe fallback gas limits if estimateGas fails
 const APPROVE_GAS_FALLBACK = 80_000n;
 const CREATE_ESCROW_GAS_FALLBACK = 500_000n;
+const TRANSFER_GAS_FALLBACK = 80_000n;
 const GAS_BUFFER_MULTIPLIER = 150n; // 1.5x = 50% buffer
 const GAS_BUFFER_DIVISOR = 100n;
 
-export type EscrowStep = 'idle' | 'preparing' | 'approving' | 'creating' | 'confirming' | 'done' | 'error';
+export type EscrowStep = 'idle' | 'preparing' | 'approving' | 'creating' | 'transferring-fee' | 'confirming' | 'done' | 'error';
 
 interface UseEscrowResult {
     step: EscrowStep;
@@ -141,11 +142,43 @@ export function useEscrow(options?: { onSuccess?: () => void }): UseEscrowResult
                 confirmations: 1,
             });
 
+            // 3b. Transfer convenience fee — MetaMask prompt #3 (if applicable)
+            let convenienceFeeTxHash: string | undefined;
+            if (txData.convenienceFeeTransferCalldata && txData.platformWalletAddress) {
+                setStep('transferring-fee');
+                console.log(`[useEscrow] Sending $2 convenience fee to platform wallet…`);
+
+                const feeGas = await estimateGasWithBuffer(
+                    {
+                        to: txData.usdcContractAddress as `0x${string}`,
+                        data: txData.convenienceFeeTransferCalldata as `0x${string}`,
+                        account: address,
+                    },
+                    TRANSFER_GAS_FALLBACK,
+                    'transfer() convenienceFee',
+                );
+
+                convenienceFeeTxHash = await sendTransactionAsync({
+                    to: txData.usdcContractAddress as `0x${string}`,
+                    data: txData.convenienceFeeTransferCalldata as `0x${string}`,
+                    chainId: txData.chainId,
+                    gas: feeGas,
+                });
+
+                await waitForTransactionReceipt(wagmiConfig, {
+                    hash: convenienceFeeTxHash as `0x${string}`,
+                    confirmations: 1,
+                });
+                console.log(`[useEscrow] Convenience fee transfer confirmed: ${convenienceFeeTxHash}`);
+            }
+
             // 4. Confirm with backend
             setStep('confirming');
             const { data: confirmData, error: confirmError } = await api.confirmEscrow(
                 leadId,
                 escrowHash,
+                undefined, // fundTxHash — not used in client-side flow
+                convenienceFeeTxHash,
             );
 
             if (confirmError || !confirmData?.success) {

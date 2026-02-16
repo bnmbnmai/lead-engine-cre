@@ -507,6 +507,8 @@ model Transaction {
   buyerId         String
   amount          Decimal           @db.Decimal(10, 2)
   platformFee     Decimal?          @db.Decimal(10, 2)
+  convenienceFee  Decimal?          @db.Decimal(10, 2)  // $2 for AUTO_BID/AGENT wins
+  convenienceFeeType String?        // 'AUTOBID' | 'API' | null
   currency        String            @default("USDC")
   status          TransactionStatus @default(PENDING)
   

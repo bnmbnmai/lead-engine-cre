@@ -7,6 +7,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
+import { calculateFees, type BidSourceType } from '../lib/fees';
 import { getConfig, setConfig } from '../lib/config';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
@@ -1200,13 +1201,17 @@ router.post('/settle', async (req: Request, res: Response) => {
                 console.log(`[DEMO SETTLE] Corrected bid ${topBid.id} ${topBid.status} → ACCEPTED`);
             }
 
+            const topBidFees = calculateFees(bidAmount, ((topBid as any).source || 'MANUAL') as BidSourceType);
+
             // Create the missing Transaction record
             transaction = await prisma.transaction.create({
                 data: {
                     leadId: candidateLead.id,
                     buyerId: topBid.buyerId,
                     amount: topBid.amount!,
-                    platformFee: bidAmount * 0.025,
+                    platformFee: topBidFees.platformFee,
+                    convenienceFee: topBidFees.convenienceFee || undefined,
+                    convenienceFeeType: topBidFees.convenienceFeeType,
                     status: 'PENDING',
                     escrowReleased: false,
                 },

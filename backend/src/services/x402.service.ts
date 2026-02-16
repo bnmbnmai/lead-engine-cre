@@ -10,6 +10,7 @@ const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA
 const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+const PLATFORM_WALLET_ADDRESS = process.env.PLATFORM_WALLET_ADDRESS || process.env.DEPLOYER_ADDRESS || '';
 
 const ESCROW_ABI = [
     'function createEscrow(string calldata leadId, address seller, address buyer, uint256 amount) returns (uint256)',
@@ -27,6 +28,7 @@ const ERC20_ABI = [
     'function approve(address spender, uint256 amount) returns (bool)',
     'function allowance(address owner, address spender) view returns (uint256)',
     'function balanceOf(address account) view returns (uint256)',
+    'function transfer(address to, uint256 amount) returns (bool)',
 ];
 
 interface PaymentResult {
@@ -54,6 +56,10 @@ interface PreparedEscrowTx {
     /** Transaction ID in our DB */
     transactionId: string;
     leadId: string;
+    /** Optional: USDC transfer calldata for $2 convenience fee */
+    convenienceFeeTransferCalldata?: string;
+    convenienceFeeAmountWei?: string;
+    platformWalletAddress?: string;
 }
 
 interface PaymentStatus {
@@ -166,7 +172,22 @@ class X402Service {
                 console.warn(`[x402] USDC contract not configured — escrow created but NOT funded`);
             }
 
-            // Step 3: Update DB
+            // Step 3: Transfer convenience fee to platform wallet (if applicable)
+            const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
+            const convFee = (transaction as any)?.convenienceFee ? Number((transaction as any).convenienceFee) : 0;
+            if (convFee > 0 && this.usdcContract && PLATFORM_WALLET_ADDRESS) {
+                try {
+                    const feeWei = BigInt(Math.floor(convFee * 1e6));
+                    console.log(`[x402] Step 3: Transferring $${convFee} convenience fee → ${PLATFORM_WALLET_ADDRESS.slice(0, 10)}…`);
+                    const feeTx = await this.usdcContract.transfer(PLATFORM_WALLET_ADDRESS, feeWei);
+                    await feeTx.wait();
+                    console.log(`[x402] Convenience fee transfer confirmed: ${feeTx.hash}`);
+                } catch (feeErr: any) {
+                    console.error(`[x402] Convenience fee transfer FAILED (non-fatal):`, feeErr.message);
+                }
+            }
+
+            // Step 4: Update DB
             await prisma.transaction.update({
                 where: { id: transactionId },
                 data: {
@@ -457,6 +478,27 @@ class X402Service {
 
         console.log(`[x402] prepareEscrowTx: lead=${leadId}, buyer=${buyerAddress}, amount=$${amountUSDC} (${amountWei} wei)`);
 
+        // Look up convenience fee from the Transaction record
+        let convenienceFeeFields: Pick<PreparedEscrowTx, 'convenienceFeeTransferCalldata' | 'convenienceFeeAmountWei' | 'platformWalletAddress'> = {};
+        try {
+            const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
+            const convFee = (transaction as any)?.convenienceFee ? Number((transaction as any).convenienceFee) : 0;
+            if (convFee > 0 && PLATFORM_WALLET_ADDRESS) {
+                const feeWei = BigInt(Math.floor(convFee * 1e6));
+                const transferCalldata = erc20Iface.encodeFunctionData('transfer', [
+                    PLATFORM_WALLET_ADDRESS, feeWei,
+                ]);
+                convenienceFeeFields = {
+                    convenienceFeeTransferCalldata: transferCalldata,
+                    convenienceFeeAmountWei: feeWei.toString(),
+                    platformWalletAddress: PLATFORM_WALLET_ADDRESS,
+                };
+                console.log(`[x402] Convenience fee: $${convFee} (${feeWei} wei) → ${PLATFORM_WALLET_ADDRESS.slice(0, 10)}…`);
+            }
+        } catch (err) {
+            console.warn(`[x402] Could not look up convenience fee for tx=${transactionId}:`, err);
+        }
+
         return {
             success: true,
             data: {
@@ -469,6 +511,7 @@ class X402Service {
                 chainId: 84532, // Base Sepolia
                 transactionId,
                 leadId,
+                ...convenienceFeeFields,
             },
         };
     }
@@ -482,9 +525,10 @@ class X402Service {
     async confirmEscrowTx(
         transactionId: string,
         escrowTxHash: string,
-        fundTxHash?: string
+        fundTxHash?: string,
+        convenienceFeeTxHash?: string
     ): Promise<PaymentResult> {
-        console.log(`[x402] confirmEscrowTx START: txId=${transactionId}, escrowTxHash=${escrowTxHash}`);
+        console.log(`[x402] confirmEscrowTx START: txId=${transactionId}, escrowTxHash=${escrowTxHash}${convenienceFeeTxHash ? `, convFeeTx=${convenienceFeeTxHash}` : ''}`);
 
         try {
             // 1. Wait for createEscrow tx receipt
@@ -518,6 +562,20 @@ class X402Service {
                 const fundReceipt = await this.provider.waitForTransaction(fundTxHash, 1, 60_000);
                 if (!fundReceipt || fundReceipt.status !== 1) {
                     console.warn(`[x402] fundEscrow tx failed (hash=${fundTxHash}), escrow created but not funded`);
+                }
+            }
+
+            // 3b. If convenience fee transfer was sent, verify it (best-effort)
+            if (convenienceFeeTxHash) {
+                try {
+                    const feeReceipt = await this.provider.waitForTransaction(convenienceFeeTxHash, 1, 60_000);
+                    if (feeReceipt && feeReceipt.status === 1) {
+                        console.log(`[x402] Convenience fee transfer confirmed: ${convenienceFeeTxHash}`);
+                    } else {
+                        console.warn(`[x402] Convenience fee transfer failed (hash=${convenienceFeeTxHash}) — fee not collected`);
+                    }
+                } catch (feeErr) {
+                    console.warn(`[x402] Convenience fee transfer verification failed:`, feeErr);
                 }
             }
 

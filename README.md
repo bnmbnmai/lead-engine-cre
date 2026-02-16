@@ -75,9 +75,19 @@ sequenceDiagram
     RTB->>RTB: Verify commitment, pick winner
 
     B->>X: Winner pays USDC
-    X->>S: Instant settlement (minus 2.5%)
+    X->>S: Instant settlement (minus 2.5% + $2 if auto-bid/API)
     X->>B: Decrypted lead + mint LeadNFT
 ```
+
+## 💰 Pricing & Fees
+
+| Purchase Channel | Platform Fee | Convenience Fee | Total |
+|---|---|---|---|
+| Manual (browser bid / Buy It Now) | 2.5% | — | 2.5% |
+| Auto-bid engine | 2.5% | $2.00 | 2.5% + $2 |
+| API / MCP agent | 2.5% | $2.00 | 2.5% + $2 |
+
+The $2 convenience fee covers gas and platform costs for server-side (non-MetaMask) purchases. Manual browser bids only pay the 2.5% platform fee.
 
 ---
 

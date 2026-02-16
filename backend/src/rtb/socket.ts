@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import { calculateFees, type BidSourceType } from '../lib/fees';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
@@ -629,7 +630,10 @@ class RTBSocketServer {
                 return;
             }
 
-            // Mark winner and losers
+            // Calculate fees based on how the winning bid was placed
+            const winAmount = Number(winningBid.amount);
+            const fees = calculateFees(winAmount, (winningBid.source || 'MANUAL') as BidSourceType);
+
             await prisma.$transaction([
                 prisma.bid.update({
                     where: { id: winningBid.id },
@@ -667,7 +671,9 @@ class RTBSocketServer {
                         leadId,
                         buyerId: winningBid.buyerId,
                         amount: winningBid.amount!,
-                        platformFee: Number(winningBid.amount) * 0.025, // 2.5% fee
+                        platformFee: fees.platformFee,
+                        convenienceFee: fees.convenienceFee || undefined,
+                        convenienceFeeType: fees.convenienceFeeType,
                         status: 'PENDING',
                     },
                 }),
@@ -742,8 +748,8 @@ class RTBSocketServer {
                 const convPayload: ConversionPayload = {
                     event: 'lead_sold',
                     lead_id: leadId,
-                    sale_amount: Number(winningBid.amount),
-                    platform_fee: Number(winningBid.amount) * 0.025,
+                    sale_amount: winAmount,
+                    platform_fee: fees.platformFee,
                     vertical: fullLead.vertical,
                     geo: geo ? `${geo.country || 'US'}-${geo.state || ''}` : 'US',
                     quality_score: 0,

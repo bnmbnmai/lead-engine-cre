@@ -6,6 +6,7 @@ import { privacyService } from '../services/privacy.service';
 import { nftService } from '../services/nft.service';
 import { zkService } from '../services/zk.service';
 import { prisma } from '../lib/prisma';
+import { calculateFees } from '../lib/fees';
 
 const router = Router();
 
@@ -175,11 +176,15 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
 
         // ─── Step 8: x402 Settlement ───────────────
         stepStart = Date.now();
+        const e2eFees = calculateFees(bidAmount, 'AGENT');
         const transaction = await prisma.transaction.create({
             data: {
                 leadId: lead.id,
                 buyerId: (await getOrCreateDemoBuyer(buyerAddress)),
                 amount: bidAmount,
+                platformFee: e2eFees.platformFee,
+                convenienceFee: e2eFees.convenienceFee || undefined,
+                convenienceFeeType: e2eFees.convenienceFeeType,
                 currency: 'USDC',
                 status: 'PENDING',
             },

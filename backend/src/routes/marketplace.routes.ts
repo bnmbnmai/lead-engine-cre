@@ -12,6 +12,7 @@ import { marketplaceAsksCache } from '../lib/cache';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { redactLeadForPreview } from '../services/piiProtection';
 import { privacyService } from '../services/privacy.service';
+import { calculateFees } from '../lib/fees';
 
 const router = Router();
 
@@ -872,6 +873,9 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     (lead as any).chainId = transaction.chainId || 84532; // default Base Sepolia
                     (lead as any).escrowReleased = true;
                     (lead as any).releasedAt = transaction.releasedAt || transaction.confirmedAt || null;
+                    // Attach convenience fee details for UI display
+                    (lead as any).convenienceFee = (transaction as any).convenienceFee || null;
+                    (lead as any).convenienceFeeType = (transaction as any).convenienceFeeType || null;
                 } else {
                     // Won auction but payment not yet settled
                     settlementPending = true;
@@ -1034,7 +1038,7 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
             if (lead.expiresAt && lead.expiresAt < new Date()) throw { status: 410, message: 'Buy It Now listing has expired' };
 
             const buyNowAmount = Number(lead.buyNowPrice);
-            const platformFee = buyNowAmount * 0.025; // 2.5%
+            const fees = calculateFees(buyNowAmount, 'MANUAL');
 
             // Mark as SOLD
             const updatedLead = await tx.lead.update({
@@ -1052,7 +1056,9 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
                     leadId: lead.id,
                     buyerId: req.user!.id,
                     amount: lead.buyNowPrice,
-                    platformFee,
+                    platformFee: fees.platformFee,
+                    convenienceFee: fees.convenienceFee || undefined,
+                    convenienceFeeType: fees.convenienceFeeType,
                     status: 'PENDING',
                 },
             });
@@ -1066,7 +1072,7 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
                     userId: req.user!.id,
                     metadata: {
                         buyNowPrice: buyNowAmount,
-                        platformFee,
+                        platformFee: fees.platformFee,
                         sellerId: lead.seller.id,
                         vertical: lead.vertical,
                     },
@@ -1237,7 +1243,7 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
 router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const leadId = req.params.id;
-        const { escrowTxHash, fundTxHash } = req.body as { escrowTxHash: string; fundTxHash?: string };
+        const { escrowTxHash, fundTxHash, convenienceFeeTxHash } = req.body as { escrowTxHash: string; fundTxHash?: string; convenienceFeeTxHash?: string };
 
         if (!escrowTxHash) {
             res.status(400).json({ error: 'escrowTxHash is required' });
@@ -1263,6 +1269,7 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
             transaction.id,
             escrowTxHash,
             fundTxHash,
+            convenienceFeeTxHash,
         );
 
         if (!result.success) {

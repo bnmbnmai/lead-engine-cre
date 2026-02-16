@@ -487,6 +487,9 @@ export function PreferenceSetCard({
                                 ? ` Capped at your max of $${set.maxBidPerLead}.`
                                 : ' Set a max bid above to enforce a ceiling.'}
                         </p>
+                        <p className="text-xs text-amber-400/80 mt-1">
+                            ⚡ A $2 convenience fee applies to each auto-bid win (covers gas &amp; platform costs).
+                        </p>
                     </div>
                 )}
             </div>

@@ -351,13 +351,16 @@ export const api = {
             chainId: number;
             transactionId: string;
             leadId: string;
+            convenienceFeeTransferCalldata?: string;
+            convenienceFeeAmountWei?: string;
+            platformWalletAddress?: string;
         }>(`/api/v1/leads/${leadId}/prepare-escrow`, { method: 'POST' }),
 
-    confirmEscrow: (leadId: string, escrowTxHash: string, fundTxHash?: string) =>
+    confirmEscrow: (leadId: string, escrowTxHash: string, fundTxHash?: string, convenienceFeeTxHash?: string) =>
         apiFetch<{ success: boolean; escrowId: string; txHash: string }>(
             `/api/v1/leads/${leadId}/confirm-escrow`, {
             method: 'POST',
-            body: JSON.stringify({ escrowTxHash, fundTxHash }),
+            body: JSON.stringify({ escrowTxHash, fundTxHash, convenienceFeeTxHash }),
         }),
 
     requalifyLead: (leadId: string) =>
