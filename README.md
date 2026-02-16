@@ -4,7 +4,7 @@
 ![Tests](https://img.shields.io/badge/tests-1288%20passing-brightgreen)
 ![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)
 ![Chainlink ACE](https://img.shields.io/badge/Chainlink-ACE-blue)
-![x402](https://img.shields.io/badge/x402-Used-orange)
+![RTBEscrow](https://img.shields.io/badge/RTBEscrow-USDC%20Settlement-orange)
 
 ### Decentralized Real-Time Bidding for the $200B+ Lead Marketplace
 
@@ -18,7 +18,7 @@ Every purchased lead is minted as an **ERC-721 LeadNFT** — immutable quality s
 ### Key Differentiators
 - PII never touches the blockchain or the NFT (non-PII previews only)
 - Sealed-bid commit-reveal auctions for fairness
-- Real on-chain escrow + instant USDC settlement (client-side signing + x402 for convenience fees)
+- Real on-chain escrow + instant USDC settlement (client-side RTBEscrow signing)
 - LeadNFT as immutable provenance and royalty-bearing asset
 - **Field-Level Filtering & Granular Autobidding**  
   Buyers can filter and auto-bid on specific attributes (credit score ranges, ZIP codes, roof condition, system size, etc.).  
@@ -50,7 +50,7 @@ Fraud is cryptographically prevented **before** any buyer sees the lead.
 
 | Problem          | Legacy Marketplaces                  | Lead Engine |
 |------------------|--------------------------------------|-------------|
-| **Speed**        | 7–30 day payouts                     | Instant USDC via x402 |
+| **Speed**        | 7–30 day payouts                     | Instant USDC via on-chain escrow |
 | **Trust**        | Limited verification                 | CRE quality score (0–10,000) + ZK proofs |
 | **Privacy**      | Full PII on submit                   | Non-PII previews → full data only after purchase |
 | **Compliance**   | Manual reviews                       | ACE auto-KYC & jurisdiction rules |
@@ -67,7 +67,7 @@ sequenceDiagram
     participant ACE as 🔵 Chainlink ACE
     participant RTB as 🟪 RTB Engine
     participant B as 👤 Buyer
-    participant X as 🟩 x402 Escrow
+    participant X as 🟩 RTBEscrow
 
     S->>API: Submit lead
     API->>CRE: Quality + ZK fraud check
@@ -120,7 +120,7 @@ The $2 convenience fee covers gas and platform costs for server-side (non-MetaMa
 
 ### Other Chainlink Services
 
-- **x402** → atomic USDC escrow + Buy-It-Now flow
+- **RTBEscrow** → atomic USDC escrow + Buy-It-Now flow
 - **Privacy Suite** → AES-256-GCM + commit-reveal bidding
 - **DECO / Data Streams / Confidential Compute** → stub-ready (full integration planned post-hackathon)
 
@@ -144,7 +144,7 @@ Only KYC'd, jurisdiction-compliant wallets can submit or bid. Multi-account farm
 
 Every purchased lead becomes an ERC-721 NFT with immutable quality proof and ownership history. Bad sellers lose reputation and future buyers; good sellers earn royalties on resale.
 
-### Instant, Chargeback-Proof Settlement (x402)
+### Instant, Chargeback-Proof Settlement (RTBEscrow)
 
 Atomic escrow → release on win or Buy-It-Now. No wires, no chargebacks, no 30–60 day waits.
 
@@ -194,7 +194,7 @@ New verticals are created instantly in the admin dashboard and become live selle
 | `LeadNFTv2.sol` | Tokenized leads |
 | `ACECompliance.sol` | KYC & jurisdiction |
 | `CREVerifier.sol` | Quality + ZK proofs |
-| `RTBEscrow.sol` | x402 settlement |
+| `RTBEscrow.sol` | USDC escrow settlement |
 | `VerticalNFT.sol` + `VerticalAuction.sol` | Optional vertical NFTs |
 | `CustomLeadFeed.sol` | Public metrics feed |
 
@@ -230,7 +230,7 @@ We contribute back by publishing anonymized market metrics as a public custom da
 
 1. Seller submits lead → CRE scores + ACE clears
 2. Buyers (or LangChain agent) receive non-PII preview via WebSocket
-3. Auction ends → winner pays USDC via x402 → lead minted as NFT
+3. Auction ends → winner pays USDC via RTBEscrow → lead minted as NFT
 
 **Live demo:** https://lead-engine-cre-frontend.vercel.app  
 **Repo:** https://github.com/bnmbnmai/lead-engine-cre
