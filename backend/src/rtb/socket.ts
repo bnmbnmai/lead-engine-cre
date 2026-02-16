@@ -675,41 +675,23 @@ class RTBSocketServer {
 
             console.log(`Auction ${leadId} resolved. Winner: ${winningBid.buyerId}`);
 
-            // ── Create on-chain escrow immediately (x402 flow) ──
-            // The escrow contract locks the buyer's USDC. Settlement button only releases.
+            // ── Escrow creation deferred to buyer's MetaMask (TD-01) ──
+            // Instead of using the deployer wallet here, we let the buyer
+            // sign the escrow tx from their own wallet when they view the won lead.
+            // The Transaction record is already status='PENDING' — the buyer
+            // will call /prepare-escrow → sign with MetaMask → /confirm-escrow.
             const buyerWallet = winningBid.buyer?.walletAddress;
-            const sellerData = await prisma.lead.findUnique({
-                where: { id: leadId },
-                select: { seller: { select: { user: { select: { walletAddress: true } } } } },
-            });
-            const sellerWallet = sellerData?.seller?.user?.walletAddress;
 
-            // Find the Transaction we just created
-            const txRecord = await prisma.transaction.findFirst({
-                where: { leadId, buyerId: winningBid.buyerId },
-                orderBy: { createdAt: 'desc' },
-            });
-
-            if (buyerWallet && sellerWallet && txRecord) {
-                try {
-                    console.log(`[x402] Creating on-chain escrow: buyer=${buyerWallet.slice(0, 10)}, seller=${sellerWallet.slice(0, 10)}, amount=$${Number(winningBid.amount)}`);
-                    const escrowResult = await x402Service.createPayment(
-                        sellerWallet,
-                        buyerWallet,
-                        Number(winningBid.amount),
-                        leadId,
-                        txRecord.id,
-                    );
-                    if (escrowResult.success) {
-                        console.log(`[x402] Escrow created+funded — escrowId=${escrowResult.escrowId}, txHash=${escrowResult.txHash}`);
-                    } else {
-                        console.error(`[x402] Escrow creation failed (settle button can retry): ${escrowResult.error}`);
-                    }
-                } catch (err: any) {
-                    console.error(`[x402] Escrow creation error (settle button can retry):`, err.message);
-                }
+            if (buyerWallet) {
+                console.log(`[x402] Escrow deferred to buyer's wallet — buyer=${buyerWallet.slice(0, 10)}, lead=${leadId}`);
+                this.io.emit('lead:escrow-required', {
+                    leadId,
+                    buyerId: winningBid.buyerId,
+                    buyerWallet,
+                    amount: Number(winningBid.amount),
+                });
             } else {
-                console.warn(`[x402] Missing wallets for escrow — buyer=${buyerWallet || 'NONE'}, seller=${sellerWallet || 'NONE'}, tx=${txRecord?.id || 'NONE'}`);
+                console.warn(`[x402] Buyer wallet missing — escrow must be created manually, lead=${leadId}`);
             }
 
             // Notify room

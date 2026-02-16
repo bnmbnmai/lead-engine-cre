@@ -336,9 +336,29 @@ export const api = {
         ),
 
     buyNow: (leadId: string) =>
-        apiFetch<{ lead: any; transaction: any; escrow: any }>(
+        apiFetch<{ lead: any; transaction: any; escrowAction: string | null; escrowTxData: any }>(
             `/api/v1/leads/${leadId}/buy-now`, { method: 'POST' },
         ),
+
+    prepareEscrow: (leadId: string) =>
+        apiFetch<{
+            escrowContractAddress: string;
+            usdcContractAddress: string;
+            createEscrowCalldata: string;
+            approveCalldata: string;
+            amountWei: string;
+            amountUSDC: number;
+            chainId: number;
+            transactionId: string;
+            leadId: string;
+        }>(`/api/v1/leads/${leadId}/prepare-escrow`, { method: 'POST' }),
+
+    confirmEscrow: (leadId: string, escrowTxHash: string, fundTxHash?: string) =>
+        apiFetch<{ success: boolean; escrowId: string; txHash: string }>(
+            `/api/v1/leads/${leadId}/confirm-escrow`, {
+            method: 'POST',
+            body: JSON.stringify({ escrowTxHash, fundTxHash }),
+        }),
 
     requalifyLead: (leadId: string) =>
         apiFetch<{ preview: string; estimatedDelivery: string; status: string; note: string }>(
