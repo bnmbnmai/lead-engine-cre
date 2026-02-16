@@ -66,10 +66,11 @@ export function useSocketEvents(
         // Subscribe to each event
         const unsubscribers: (() => void)[] = [];
 
-        Object.entries(handlersRef.current).forEach(([event, handler]) => {
+        Object.entries(handlersRef.current).forEach(([event]) => {
             const wrappedHandler = (...args: any[]) => {
                 setLastEvent(event);
-                handler(...args);
+                // Always read the latest handler from the ref to avoid stale closures
+                handlersRef.current[event]?.(...args);
             };
             const unsub = socketClient.on(event as any, wrappedHandler as any);
             unsubscribers.push(unsub);

@@ -238,11 +238,30 @@ export function HomePage() {
                 if (view === 'leads' && data?.lead) {
                     const lead = data.lead;
                     const geo = typeof lead.geo === 'object' && lead.geo ? lead.geo : {};
+
+                    // ── DEBUG: log filter state + incoming lead ──
+                    console.log('[socket:lead:new] Current filters:', { vertical, country, region, debouncedSearch });
+                    console.log('[socket:lead:new] Incoming lead:', { id: lead.id, vertical: lead.vertical, geo: lead.geo });
+
                     // Filter guards — only prepend if lead matches all active filters
-                    if (vertical !== 'all' && !lead.vertical?.startsWith(vertical)) return;
-                    if (country !== 'ALL' && geo?.country !== country) return;
-                    if (region !== 'All' && geo?.state !== region) return;
-                    if (debouncedSearch && !JSON.stringify(lead).toLowerCase().includes(debouncedSearch.toLowerCase())) return;
+                    if (vertical !== 'all' && !lead.vertical?.startsWith(vertical)) {
+                        console.log('[socket:lead:new] BLOCKED by vertical guard:', lead.vertical, 'does not start with', vertical);
+                        return;
+                    }
+                    if (country !== 'ALL' && geo?.country !== country) {
+                        console.log('[socket:lead:new] BLOCKED by country guard:', geo?.country, '!==', country);
+                        return;
+                    }
+                    if (region !== 'All' && geo?.state !== region) {
+                        console.log('[socket:lead:new] BLOCKED by region guard:', geo?.state, '!==', region);
+                        return;
+                    }
+                    if (debouncedSearch && !JSON.stringify(lead).toLowerCase().includes(debouncedSearch.toLowerCase())) {
+                        console.log('[socket:lead:new] BLOCKED by search guard');
+                        return;
+                    }
+
+                    console.log('[socket:lead:new] PASSED all guards, prepending lead');
                     setLeads((prev) => [data.lead, ...prev]);
                     toast({
                         type: 'info',
