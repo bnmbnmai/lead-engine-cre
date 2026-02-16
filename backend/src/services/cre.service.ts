@@ -213,29 +213,6 @@ class CREService {
         return 0; // No on-chain score available
     }
 
-    /**
-     * Internal quality assessment for lead admission gating (NOT for badge display).
-     * Used by: hosted lander quality gate, RTB engine ping payload.
-     * This is the same formula CREVerifier runs on-chain, computed off-chain
-     * for leads that don't have an NFT token yet.
-     */
-    async assessLeadQuality(leadId: string): Promise<number> {
-        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-        if (!lead) return 0;
-
-        let score = 5000;
-        if (lead.isVerified) score += 1000;
-        if (lead.tcpaConsentAt) score += 500;
-
-        const geo = lead.geo as any;
-        if (geo?.state && geo?.zip) score += 500;
-
-        if (lead.parameters && Object.keys(lead.parameters as any).length > 0) {
-            score += Math.min(500, Object.keys(lead.parameters as any).length * 100);
-        }
-
-        return Math.min(10000, score);
-    }
 
     // ============================================
     // Parameter Matching

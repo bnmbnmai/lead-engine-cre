@@ -585,18 +585,8 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
             return;
         }
 
-        // Check minimum quality score (60/100 = 6000 internal)
-        const qualityScore = await creService.assessLeadQuality(lead.id);
-        const MIN_QUALITY_SCORE = 6000; // 60 on the 0-100 display scale
-        if (qualityScore < MIN_QUALITY_SCORE) {
-            await prisma.lead.delete({ where: { id: lead.id } }).catch(() => { });
-            const displayScore = Math.floor(qualityScore / 100);
-            console.warn(`[MARKETPLACE] Public lead ${lead.id} rejected: quality score ${displayScore}/100 < 60/100`);
-            res.status(400).json({
-                error: `Lead rejected: quality score too low (${displayScore}/100, minimum 60)`,
-            });
-            return;
-        }
+        // Quality score is null until the lead is minted as an NFT and scored by CREVerifier on-chain.
+        // The CRE verifyLead check above is the real admission gate.
 
         // Find matching asks for this lead
         let matchingAsks = await prisma.ask.findMany({

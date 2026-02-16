@@ -174,8 +174,8 @@ class RTBEngine {
 
         if (!lead) return;
 
-        // ── Fetch internal quality assessment (not CRE badge — leads have no NFT yet) ──
-        const qualityScore = await creService.assessLeadQuality(leadId);
+        // ── Read stored CRE quality score (null for pre-NFT leads = "Pending CRE") ──
+        const qualityScore = (lead as any).qualityScore ?? null;
 
         // ── Fetch seller ACE compliance attestation ──
         const aceAttestation = await aceService.canTransact(
