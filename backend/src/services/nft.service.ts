@@ -40,6 +40,7 @@ interface MintResult {
     tokenId?: string;
     txHash?: string;
     error?: string;
+    offChain?: boolean;
 }
 
 interface TokenMetadata {
@@ -69,6 +70,8 @@ class NFTService {
 
         if (LEAD_NFT_ADDRESS && this.signer) {
             this.contract = new ethers.Contract(LEAD_NFT_ADDRESS, LEAD_NFT_ABI, this.signer);
+        } else {
+            console.warn('[NFT SERVICE] ⚠️  Contract/signer not configured — NFT operations will use off-chain fallback');
         }
     }
 
@@ -209,7 +212,7 @@ class NFTService {
             },
         });
 
-        return { success: true, tokenId: offchainTokenId };
+        return { success: true, tokenId: offchainTokenId, offChain: true };
     }
 
     // ============================================
@@ -220,7 +223,7 @@ class NFTService {
         nftTokenId: string,
         buyerAddress: string,
         salePrice: number
-    ): Promise<{ success: boolean; txHash?: string; error?: string }> {
+    ): Promise<{ success: boolean; txHash?: string; error?: string; offChain?: boolean }> {
         const salePriceWei = Math.floor(salePrice * 1e6);
 
         if (this.contract && this.signer && !nftTokenId.startsWith('offchain-')) {
@@ -236,8 +239,8 @@ class NFTService {
             }
         }
 
-        console.log(`NFT sale recorded off-chain: token=${nftTokenId}, buyer=${buyerAddress}, price=${salePrice}`);
-        return { success: true };
+        console.warn(`[NFT SALE] ⚠️  Off-chain fallback: token=${nftTokenId}, buyer=${buyerAddress}, price=${salePrice}`);
+        return { success: true, offChain: true };
     }
 
     // ============================================
@@ -299,7 +302,7 @@ class NFTService {
     async updateQualityScoreOnChain(
         nftTokenId: string,
         score: number
-    ): Promise<{ success: boolean; error?: string }> {
+    ): Promise<{ success: boolean; error?: string; offChain?: boolean }> {
         if (this.contract && this.signer && !nftTokenId.startsWith('offchain-')) {
             try {
                 const tx = await this.contract.updateQualityScore(nftTokenId, score);
@@ -311,7 +314,7 @@ class NFTService {
             }
         }
 
-        return { success: true };
+        return { success: true, offChain: true };
     }
 }
 

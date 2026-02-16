@@ -34,6 +34,7 @@ interface PaymentResult {
     escrowId?: string;
     txHash?: string;
     error?: string;
+    offChain?: boolean;
 }
 
 interface PreparedEscrowTx {
@@ -64,6 +65,7 @@ interface PaymentStatus {
     createdAt: Date;
     releasedAt?: Date;
     platformFee?: string;
+    offChain?: boolean;
 }
 
 class X402Service {
@@ -347,29 +349,30 @@ class X402Service {
             return { success: false, error: 'Transaction or escrow not found' };
         }
 
-        if (this.escrowContract && this.signer && !transaction.escrowId.startsWith('offchain-')) {
-            try {
-                const tx = await this.escrowContract.refundEscrow(transaction.escrowId);
-                const receipt = await tx.wait();
-
-                await prisma.transaction.update({
-                    where: { id: transactionId },
-                    data: { status: 'REFUNDED' },
-                });
-
-                return { success: true, txHash: receipt?.hash };
-            } catch (error: any) {
-                console.error('x402 refundPayment on-chain failed:', error);
-                return { success: false, error: error.message };
-            }
+        // Off-chain / unconfigured: DB-only refund
+        if (!this.escrowContract || !this.signer || transaction.escrowId.startsWith('offchain-')) {
+            console.warn(`[x402] ⚠️  Off-chain refund for tx=${transactionId} (escrowId=${transaction.escrowId})`);
+            await prisma.transaction.update({
+                where: { id: transactionId },
+                data: { status: 'REFUNDED' },
+            });
+            return { success: true, offChain: true };
         }
 
-        await prisma.transaction.update({
-            where: { id: transactionId },
-            data: { status: 'REFUNDED' },
-        });
+        try {
+            const tx = await this.escrowContract.refundEscrow(transaction.escrowId);
+            const receipt = await tx.wait();
 
-        return { success: true };
+            await prisma.transaction.update({
+                where: { id: transactionId },
+                data: { status: 'REFUNDED' },
+            });
+
+            return { success: true, txHash: receipt?.hash };
+        } catch (error: any) {
+            console.error('x402 refundPayment on-chain failed:', error);
+            return { success: false, error: error.message };
+        }
     }
 
     // ============================================
@@ -414,6 +417,7 @@ class X402Service {
             status: transaction.status as any,
             createdAt: transaction.createdAt,
             releasedAt: transaction.releasedAt || undefined,
+            offChain: true,
         };
     }
 
