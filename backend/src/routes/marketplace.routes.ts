@@ -435,6 +435,25 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
                 metadata: { vertical: data.vertical, source: data.source },
             },
         });
+        // Emit real-time event for new marketplace lead
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('marketplace:lead:new', {
+                lead: {
+                    id: lead.id,
+                    vertical: lead.vertical,
+                    status: lead.status,
+                    reservePrice: data.reservePrice,
+                    geo: data.geo,
+                    isVerified: verification.isValid,
+                    sellerId: seller.id,
+                    auctionStartAt: lead.auctionStartAt?.toISOString(),
+                    auctionEndAt: lead.auctionEndAt?.toISOString(),
+                    parameters: safeParams,
+                    _count: { bids: 0 },
+                },
+            });
+        }
 
         res.status(201).json({
             lead: {
@@ -657,12 +676,19 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         // Emit real-time events
         const io = req.app.get('io');
         if (io) {
-            io.emit('lead:new', {
-                leadId: lead.id,
-                vertical,
-                sellerId: seller.id,
-                status: matchingAsks.length > 0 ? 'IN_AUCTION' : 'PENDING_AUCTION',
-                timestamp: new Date().toISOString(),
+            const updatedLead = await prisma.lead.findUnique({
+                where: { id: lead.id },
+                select: { id: true, vertical: true, status: true, reservePrice: true, geo: true, isVerified: true, auctionStartAt: true, auctionEndAt: true },
+            });
+            io.emit('marketplace:lead:new', {
+                lead: {
+                    ...(updatedLead || {}),
+                    sellerId: seller.id,
+                    parameters: safeParameters,
+                    auctionStartAt: updatedLead?.auctionStartAt?.toISOString(),
+                    auctionEndAt: updatedLead?.auctionEndAt?.toISOString(),
+                    _count: { bids: 0 },
+                },
             });
         }
 

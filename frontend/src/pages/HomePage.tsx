@@ -249,6 +249,19 @@ export function HomePage() {
         fetchData();
     }, [view, vertical, country, region, debouncedSearch, shouldIncludeLead]);
 
+    // Aggressive polling when the current view has no leads (catch missed socket events)
+    useEffect(() => {
+        const currentLeads = view === 'buyNow' ? buyNowLeads : view === 'asks' ? asks : leads;
+        if (currentLeads.length > 0 || isLoading) return;
+
+        console.log('[empty-state-poll] No leads in view, polling every 8s');
+        const interval = setInterval(() => {
+            console.log('[empty-state-poll] firing refetchData');
+            refetchData();
+        }, 8_000);
+        return () => clearInterval(interval);
+    }, [view, leads.length, buyNowLeads.length, asks.length, isLoading, refetchData]);
+
     // Real-time socket listeners
     const leadsRef = useRef(leads);
     leadsRef.current = leads;
