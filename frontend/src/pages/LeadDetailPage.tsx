@@ -144,8 +144,25 @@ export default function LeadDetailPage() {
     const [buyError, setBuyError] = useState<string | null>(null);
     const [purchased, setPurchased] = useState(false);
 
+    // fetchLead must be declared before useEscrow so it can be passed as onSuccess
+    const fetchLead = useCallback(() => {
+        if (!id) return;
+        setLoading(true);
+        setError(null);
+        api.getLead(id)
+            .then((res) => {
+                if (res.error) {
+                    setError(res.error.error || 'Lead not found');
+                } else {
+                    setLead((res.data as any)?.lead ?? null);
+                }
+            })
+            .catch(() => setError('Failed to load lead details'))
+            .finally(() => setLoading(false));
+    }, [id]);
+
     // Escrow signing flow (TD-01: buyer signs with MetaMask)
-    const escrow = useEscrow();
+    const escrow = useEscrow({ onSuccess: fetchLead });
 
     // Bidding state
     const [bidLoading, setBidLoading] = useState(false);
@@ -167,28 +184,25 @@ export default function LeadDetailPage() {
         },
     });
 
-    const fetchLead = useCallback(() => {
-        if (!id) return;
-        setLoading(true);
-        setError(null);
-        api.getLead(id)
-            .then((res) => {
-                if (res.error) {
-                    setError(res.error.error || 'Lead not found');
-                } else {
-                    setLead((res.data as any)?.lead ?? null);
-                }
-            })
-            .catch(() => setError('Failed to load lead details'))
-            .finally(() => setLoading(false));
-    }, [id]);
-
     useEffect(() => { fetchLead(); }, [fetchLead]);
 
     // Auto-refresh lead details when escrow completes (TD-01)
+    // (Primary refresh now happens via onSuccess callback in useEscrow;
+    //  this is a fallback if the callback didn't fire for some reason)
     useEffect(() => {
         if (escrow.step === 'done') fetchLead();
     }, [escrow.step, fetchLead]);
+
+    // Listen for server-side escrow-confirmed event
+    useEffect(() => {
+        const unsub = socketClient.on('lead:escrow-confirmed', (data: any) => {
+            if (data?.leadId === id) {
+                console.log('[LeadDetail] lead:escrow-confirmed received, refreshing');
+                fetchLead();
+            }
+        });
+        return unsub;
+    }, [id, fetchLead]);
 
     // Real-time updates
     useSocketEvents(
@@ -295,6 +309,7 @@ export default function LeadDetailPage() {
     const isBuyerViewing = !!(lead as any)?.isBuyer;
     const isOwnerViewing = !!(lead as any)?.isOwner;
     const isSettlementPending = !!(lead as any)?.settlementPending;
+    const isEscrowReleased = !!(lead as any)?.escrowReleased;
 
     return (
         <DashboardLayout>
@@ -421,7 +436,7 @@ export default function LeadDetailPage() {
                             </Card>
 
                             {/* ── Decrypted Contact Information (buyer-only, after settlement) ── */}
-                            {isSold && isBuyerViewing && lead?.pii && (
+                            {isSold && (isBuyerViewing || isEscrowReleased) && lead?.pii && (
                                 <Card className="border-green-500/30">
                                     <CardContent className="p-6 space-y-4">
                                         <div className="flex items-center gap-2">
@@ -652,8 +667,8 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
-                                {/* ── SOLD: Winner view OR generic ── */}
-                                {isSold && isBuyerViewing && (
+                                {/* ── SOLD: Winner view (escrow released or buyer confirmed) ── */}
+                                {isSold && (isBuyerViewing || isEscrowReleased) && !isSettlementPending && (
                                     <Card className="border-green-500/30">
                                         <CardContent className="p-6 space-y-4">
                                             <div className="flex items-center gap-3">

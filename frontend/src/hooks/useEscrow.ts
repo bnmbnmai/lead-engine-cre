@@ -31,7 +31,7 @@ interface UseEscrowResult {
     reset: () => void;
 }
 
-export function useEscrow(): UseEscrowResult {
+export function useEscrow(options?: { onSuccess?: () => void }): UseEscrowResult {
     const { address, isConnected } = useAccount();
     const { sendTransactionAsync } = useSendTransaction();
     const publicClient = usePublicClient();
@@ -154,6 +154,9 @@ export function useEscrow(): UseEscrowResult {
 
             setEscrowId(confirmData.escrowId);
             setStep('done');
+
+            // Trigger caller's refresh callback (e.g. fetchLead)
+            options?.onSuccess?.();
         } catch (err: any) {
             console.error('[useEscrow] Error:', err);
             // User rejected the MetaMask prompt

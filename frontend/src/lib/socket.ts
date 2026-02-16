@@ -47,6 +47,8 @@ type AuctionEventHandler = {
     'lead:status-changed': (data: { leadId: string; oldStatus: string; newStatus: string }) => void;
     // Analytics real-time updates
     'analytics:update': (data: { type: string; leadId: string; buyerId: string; amount: number; vertical: string; timestamp: string }) => void;
+    // Escrow lifecycle
+    'lead:escrow-confirmed': (data: { leadId: string }) => void;
 };
 
 // ============================================
@@ -105,6 +107,7 @@ class SocketClient {
             'lead:unsold',
             'lead:status-changed',
             'analytics:update',
+            'lead:escrow-confirmed',
         ];
 
         events.forEach((event) => {
