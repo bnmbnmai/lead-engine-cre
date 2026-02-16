@@ -952,14 +952,34 @@ router.post('/leads/search', generalLimiter, optionalAuthMiddleware, async (req:
             });
         }
 
+        // ── Apply quality score filtering ──
+        const { minQualityScore, maxQualityScore } = req.body;
+        if (minQualityScore !== undefined || maxQualityScore !== undefined) {
+            filtered = filtered.filter(lead => {
+                const score = (lead as any).qualityScore || 0;
+                if (minQualityScore !== undefined && score < minQualityScore) return false;
+                if (maxQualityScore !== undefined && score > maxQualityScore) return false;
+                return true;
+            });
+        }
+
+        // ── Apply price filtering ──
+        const { minPrice, maxPrice } = req.body;
+        if (minPrice !== undefined || maxPrice !== undefined) {
+            filtered = filtered.filter(lead => {
+                const price = lead.reservePrice || 0;
+                if (minPrice !== undefined && price < minPrice) return false;
+                if (maxPrice !== undefined && price > maxPrice) return false;
+                return true;
+            });
+        }
+
         // ── Paginate results ──
         const total = filtered.length;
-        const paged = needsFieldFiltering
-            ? filtered.slice(offset, offset + limit)
-            : filtered;
+        const paginated = filtered.slice(offset, offset + limit);
 
         // ── Strip parameters from response (don't leak to non-owners) ──
-        const leads = paged.map(({ parameters: _params, ...rest }: any) => rest);
+        const leads = paginated.map(({ parameters: _params, ...rest }: any) => rest);
 
         res.json({
             leads,

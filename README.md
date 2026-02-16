@@ -137,6 +137,18 @@ Every purchased lead becomes an ERC-721 NFT with immutable quality proof and own
 
 Atomic escrow → release on win or Buy-It-Now. No wires, no chargebacks, no 30–60 day waits.
 
+### Field-Level Filtering & Granular Autobidding
+
+Buyers can now filter and auto-bid on specific lead attributes (credit score ranges, ZIP codes, roof condition, system size, etc.).
+- Powered by the new VerticalField schema (automatically synced from admin-created verticals)
+- Live "X leads match" counter on the marketplace
+- Quality score filtering (0–100) via live Chainlink CREVerifier
+- Works for both manual browsing and MCP autonomous agents
+
+### Dynamic Verticals – Horizontal Scaling
+
+New verticals are created instantly in the admin dashboard and become live seller templates with no code changes. VerticalNFT auctions let the community launch and own new verticals with 2% royalties.
+
 ---
 
 ## ⚡ Features

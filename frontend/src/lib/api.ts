@@ -245,8 +245,29 @@ export const api = {
             `/api/v1/verticals/${slug}/resale`, {
             method: 'POST',
             body: JSON.stringify({ buyerAddress, salePrice }),
-        }
-        ),
+        }),
+
+    getVerticalFields: (slug: string) =>
+        apiFetch<{ fields: any[] }>(`/api/v1/verticals/${slug}/fields`),
+
+    searchLeadsAdvanced: (params: {
+        vertical: string;
+        state?: string;
+        status?: string;
+        fieldFilters?: Array<{ fieldKey: string; operator: string; value: string }>;
+        minQualityScore?: number;
+        maxQualityScore?: number;
+        minPrice?: number;
+        maxPrice?: number;
+        sortBy?: string;
+        sortOrder?: 'asc' | 'desc';
+        limit?: number;
+        offset?: number;
+    }) =>
+        apiFetch<{ leads: any[]; total: number; pagination: any }>('/api/v1/leads/search', {
+            method: 'POST',
+            body: JSON.stringify(params),
+        }),
 
     getVerticalNFTs: (params?: Record<string, string>) => {
         const query = params ? `?${new URLSearchParams(params)}` : '';

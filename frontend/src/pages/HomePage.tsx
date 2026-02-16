@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import NFTMarketplace from '@/components/marketplace/NFTMarketplace';
 import { BrowseSellers } from '@/components/marketplace/BrowseSellers';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,6 +12,7 @@ import { LeadCard } from '@/components/marketplace/LeadCard';
 import { BuyNowCard } from '@/components/marketplace/BuyNowCard';
 import { VerticalSelector } from '@/components/marketplace/VerticalSelector';
 import { SuggestVerticalModal } from '@/components/marketplace/SuggestVerticalModal';
+import { DynamicFieldFilter } from '@/components/marketplace/DynamicFieldFilter';
 
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -87,6 +89,15 @@ export function HomePage() {
     const [showSellerDropdown, setShowSellerDropdown] = useState(false);
     const sellerDropdownRef = useRef<HTMLDivElement>(null);
 
+    // Field-level filters + quality score + price range + sort
+    const [fieldFilters, setFieldFilters] = useState<Record<string, { op: string; value: string }>>({});
+    const [qualityScore, setQualityScore] = useState<[number, number]>([0, 100]);
+    const [minPrice, setMinPrice] = useState('');
+    const [maxPrice, setMaxPrice] = useState('');
+    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [matchCount, setMatchCount] = useState<number | null>(null);
+
     const regionConfig = country !== 'ALL' ? getRegions(country) : null;
 
     // Debounce search input
@@ -127,31 +138,67 @@ export function HomePage() {
             setIsLoading(true);
             try {
                 const params: Record<string, string> = {};
-                if (vertical !== 'all') params.vertical = vertical;
                 if (country !== 'ALL') params.country = country;
                 if (region !== 'All') params.state = region;
                 if (debouncedSearch) params.search = debouncedSearch;
                 if (sellerName) params.sellerName = sellerName;
 
                 if (view === 'asks') {
+                    if (vertical !== 'all') params.vertical = vertical;
                     const { data } = await api.listAsks(params);
                     setAsks(data?.asks || []);
-                } else if (view === 'buyNow') {
-                    const { data } = await api.listBuyNowLeads(params);
-                    setBuyNowLeads(data?.leads || []);
-                } else {
-                    const { data } = await api.listLeads(params);
-                    setLeads(data?.leads || []);
+                    setMatchCount(data?.pagination?.total || data?.asks?.length || 0);
+                } else if (view === 'leads' || view === 'buyNow') {
+                    // Use advanced search for leads (supports field filters, quality score, price range)
+                    if (vertical === 'all') {
+                        // Fallback to basic listLeads when no vertical selected
+                        const { data } = view === 'buyNow' ? await api.listBuyNowLeads(params) : await api.listLeads(params);
+                        const resultLeads = data?.leads || [];
+                        view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
+                        setMatchCount(data?.pagination?.total || resultLeads.length);
+                    } else {
+                        // Advanced search with field filters
+                        const fieldFilterArray = Object.keys(fieldFilters).map(fieldKey => ({
+                            fieldKey,
+                            operator: fieldFilters[fieldKey].op === '==' ? 'EQUALS' :
+                                fieldFilters[fieldKey].op === '!=' ? 'NOT_EQUALS' :
+                                    fieldFilters[fieldKey].op === '>=' ? 'GTE' :
+                                        fieldFilters[fieldKey].op === '<=' ? 'LTE' :
+                                            fieldFilters[fieldKey].op === '>' ? 'GT' :
+                                                fieldFilters[fieldKey].op === '<' ? 'LT' :
+                                                    fieldFilters[fieldKey].op === 'includes' ? 'IN' : 'EQUALS',
+                            value: fieldFilters[fieldKey].value,
+                        }));
+
+                        const { data } = await api.searchLeadsAdvanced({
+                            vertical,
+                            state: region !== 'All' ? region : undefined,
+                            status: view === 'buyNow' ? 'UNSOLD' : 'IN_AUCTION',
+                            fieldFilters: fieldFilterArray.length > 0 ? fieldFilterArray : undefined,
+                            minQualityScore: qualityScore[0] > 0 ? qualityScore[0] : undefined,
+                            maxQualityScore: qualityScore[1] < 100 ? qualityScore[1] : undefined,
+                            minPrice: minPrice ? parseFloat(minPrice) : undefined,
+                            maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+                            sortBy,
+                            sortOrder,
+                            limit: 50,
+                        });
+
+                        const resultLeads = data?.leads || [];
+                        view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
+                        setMatchCount(data?.total ?? resultLeads.length);
+                    }
                 }
             } catch (error) {
                 console.error('Fetch error:', error);
+                setMatchCount(0);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, [view, vertical, country, region, debouncedSearch, sellerName]);
+    }, [view, vertical, country, region, debouncedSearch, sellerName, fieldFilters, qualityScore, minPrice, maxPrice, sortBy, sortOrder]);
 
     // Wrap fetchData for polling fallback
     const refetchData = useCallback(() => {
@@ -258,7 +305,9 @@ export function HomePage() {
         { autoConnect: false }, // Don't require auth for marketplace
     );
 
-    const hasFilters = vertical !== 'all' || country !== 'ALL' || region !== 'All' || sellerName !== '';
+    const hasFilters = vertical !== 'all' || country !== 'ALL' || region !== 'All' || sellerName !== '' ||
+        Object.keys(fieldFilters).length > 0 || qualityScore[0] > 0 || qualityScore[1] < 100 ||
+        minPrice !== '' || maxPrice !== '';
 
     const clearFilters = () => {
         setVertical('all');
@@ -266,6 +315,10 @@ export function HomePage() {
         setRegion('All');
         setSellerName('');
         setSellerInput('');
+        setFieldFilters({});
+        setQualityScore([0, 100]);
+        setMinPrice('');
+        setMaxPrice('');
     };
 
 
@@ -506,41 +559,162 @@ export function HomePage() {
                             </div>
                         </div>
 
-                        {/* Active Filters */}
+                        {/* Quality Score + Price Range + Sort (only for leads/buyNow with vertical) */}
+                        {(view === 'leads' || view === 'buyNow') && vertical !== 'all' && (
+                            <div className="flex flex-col gap-3 pt-4 border-t border-border">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Quality Score */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium flex items-center gap-1.5">
+                                            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                                            Quality Score: {qualityScore[0]}-{qualityScore[1]}
+                                        </label>
+                                        <Slider
+                                            value={qualityScore}
+                                            onValueChange={(val) => setQualityScore(val as [number, number])}
+                                            min={0}
+                                            max={100}
+                                            step={5}
+                                            className="w-full"
+                                        />
+                                    </div>
+
+                                    {/* Price Range */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium flex items-center gap-1.5">
+                                            <DollarSign className="h-3.5 w-3.5" />
+                                            Price Range
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="number"
+                                                value={minPrice}
+                                                onChange={(e) => setMinPrice(e.target.value)}
+                                                placeholder="Min"
+                                                className="h-8 text-xs"
+                                            />
+                                            <Input
+                                                type="number"
+                                                value={maxPrice}
+                                                onChange={(e) => setMaxPrice(e.target.value)}
+                                                placeholder="Max"
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Sort */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium flex items-center gap-1.5">
+                                            <TrendingUp className="h-3.5 w-3.5" />
+                                            Sort By
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <Select value={sortBy} onValueChange={setSortBy}>
+                                                <SelectTrigger className="h-8 text-xs flex-1">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="createdAt">Newest</SelectItem>
+                                                    <SelectItem value="reservePrice">Price</SelectItem>
+                                                    <SelectItem value="auctionEndAt">Ending Soon</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as 'asc' | 'desc')}>
+                                                <SelectTrigger className="h-8 text-xs w-24">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="desc">↓</SelectItem>
+                                                    <SelectItem value="asc">↑</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Field-Level Filters */}
+                        {(view === 'leads' || view === 'buyNow') && vertical !== 'all' && (
+                            <div className="pt-4 border-t border-border">
+                                <DynamicFieldFilter
+                                    vertical={vertical}
+                                    filters={fieldFilters}
+                                    onChange={setFieldFilters}
+                                    disabled={isLoading}
+                                />
+                            </div>
+                        )}
+
+                        {/* Active Filters + Match Counter */}
                         {hasFilters && (
-                            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border">
-                                <span className="text-sm text-muted-foreground">Filters:</span>
-                                {country !== 'ALL' && (
-                                    <Badge variant="secondary" className="gap-1">
-                                        {COUNTRIES.find((c) => c.code === country)?.label || country}
-                                        <button onClick={() => { setCountry('ALL'); setRegion('All'); }}>
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    </Badge>
-                                )}
-                                {region !== 'All' && (
-                                    <Badge variant="secondary" className="gap-1">
-                                        {region}
-                                        <button onClick={() => setRegion('All')}>
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    </Badge>
-                                )}
-                                {vertical !== 'all' && (
-                                    <Badge variant="secondary" className="gap-1 capitalize">
-                                        {vertical.replace('_', ' ')}
-                                        <button onClick={() => setVertical('all')}>
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    </Badge>
-                                )}
-                                {sellerName && (
-                                    <Badge variant="secondary" className="gap-1">
-                                        <Users className="h-3 w-3" />
-                                        {sellerName}
-                                        <button onClick={() => { setSellerName(''); setSellerInput(''); }}>
-                                            <X className="h-3 w-3" />
-                                        </button>
+                            <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-border">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm text-muted-foreground">Filters:</span>
+                                    {country !== 'ALL' && (
+                                        <Badge variant="secondary" className="gap-1">
+                                            {COUNTRIES.find((c) => c.code === country)?.label || country}
+                                            <button onClick={() => { setCountry('ALL'); setRegion('All'); }}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {region !== 'All' && (
+                                        <Badge variant="secondary" className="gap-1">
+                                            {region}
+                                            <button onClick={() => setRegion('All')}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {vertical !== 'all' && (
+                                        <Badge variant="secondary" className="gap-1 capitalize">
+                                            {vertical.replace('_', ' ')}
+                                            <button onClick={() => setVertical('all')}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {sellerName && (
+                                        <Badge variant="secondary" className="gap-1">
+                                            <Users className="h-3 w-3" />
+                                            {sellerName}
+                                            <button onClick={() => { setSellerName(''); setSellerInput(''); }}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {Object.keys(fieldFilters).length > 0 && (
+                                        <Badge variant="secondary" className="gap-1">
+                                            {Object.keys(fieldFilters).length} field filter{Object.keys(fieldFilters).length > 1 ? 's' : ''}
+                                            <button onClick={() => setFieldFilters({})}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {(qualityScore[0] > 0 || qualityScore[1] < 100) && (
+                                        <Badge variant="secondary" className="gap-1">
+                                            Quality {qualityScore[0]}-{qualityScore[1]}
+                                            <button onClick={() => setQualityScore([0, 100])}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {(minPrice || maxPrice) && (
+                                        <Badge variant="secondary" className="gap-1">
+                                            ${minPrice || '0'} - ${maxPrice || '∞'}
+                                            <button onClick={() => { setMinPrice(''); setMaxPrice(''); }}>
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                {/* Live Match Counter */}
+                                {matchCount !== null && (
+                                    <Badge variant="outline" className="text-xs font-semibold">
+                                        {matchCount} lead{matchCount !== 1 ? 's' : ''} match
                                     </Badge>
                                 )}
                             </div>
@@ -571,9 +745,11 @@ export function HomePage() {
                             {asks.length === 0 ? (
                                 <EmptyState
                                     icon={Search}
-                                    title="No asks match your filters"
-                                    description="Try broadening your search or adjusting vertical and geo filters."
-                                    action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
+                                    title={hasFilters ? "No asks match your filters" : "No seller offers available"}
+                                    description={hasFilters
+                                        ? "Try selecting a different vertical or clearing some filters to see more asks."
+                                        : "Sellers haven't created any open offers yet. Check back soon or switch to Live Leads to bid on individual leads."}
+                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
                                 />
                             ) : (
                                 asks.map((ask) => <AskCard key={ask.id} ask={ask} isAuthenticated={isAuthenticated} />)
@@ -584,9 +760,13 @@ export function HomePage() {
                             {buyNowLeads.length === 0 ? (
                                 <EmptyState
                                     icon={Tag}
-                                    title="No Buy It Now leads available"
-                                    description="Buy It Now leads appear when auctions end without a winner. Check back soon."
-                                    action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
+                                    title={hasFilters ? "No Buy It Now leads match" : "No Buy It Now leads available"}
+                                    description={hasFilters
+                                        ? vertical !== 'all'
+                                            ? `No ${vertical} leads currently available for instant purchase. Try adjusting quality score, price range, or field filters.`
+                                            : "No leads match your current filters. Try selecting a vertical or broadening your criteria."
+                                        : "Buy It Now leads appear when auctions end without a winner, or when sellers offer instant purchase. Check back soon or browse Live Leads."}
+                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
                                 />
                             ) : (
                                 buyNowLeads.map((lead) => (
@@ -603,9 +783,13 @@ export function HomePage() {
                             {leads.length === 0 ? (
                                 <EmptyState
                                     icon={Search}
-                                    title="No active leads found"
-                                    description="There are no leads matching your current filters. Try adjusting or check back soon."
-                                    action={hasFilters ? { label: 'Clear Filters', onClick: clearFilters } : undefined}
+                                    title={hasFilters ? "No leads match your criteria" : "No active leads"}
+                                    description={hasFilters
+                                        ? vertical !== 'all'
+                                            ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
+                                            : "Select a vertical to unlock field-level filtering and see available leads."
+                                        : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
+                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
                                 />
                             ) : (
                                 leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} />)
