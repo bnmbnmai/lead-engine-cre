@@ -724,8 +724,18 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             where.expiresAt = { gt: new Date() };
         }
 
-        // Apply user-supplied query filters
-        if (vertical) where.vertical = vertical;
+        // Apply user-supplied query filters — expand parent→child verticals
+        if (vertical) {
+            const childVerticals = await prisma.vertical.findMany({
+                where: { parent: { slug: vertical } },
+                select: { slug: true },
+            });
+            if (childVerticals.length > 0) {
+                where.vertical = { in: [vertical, ...childVerticals.map((c: any) => c.slug)] };
+            } else {
+                where.vertical = vertical;
+            }
+        }
         if (status && !buyNow) where.status = status;  // buyNow overrides status
         if (state) where.geo = { path: ['state'], equals: state };
         if (country) where.geo = { ...where.geo, path: ['country'], equals: country };
@@ -895,8 +905,15 @@ router.post('/leads/search', generalLimiter, optionalAuthMiddleware, async (req:
         }
 
         // ── Build base Prisma WHERE clause (macro filters) ──
+        // Expand parent→child verticals for hierarchical matching
+        const childVerticals = await prisma.vertical.findMany({
+            where: { parent: { slug: vertical } },
+            select: { slug: true },
+        });
         const where: any = {
-            vertical,
+            vertical: childVerticals.length > 0
+                ? { in: [vertical, ...childVerticals.map((c: any) => c.slug)] }
+                : vertical,
             status: status || 'IN_AUCTION',
         };
         if (state) {

@@ -99,7 +99,7 @@ describe('Auto-Bid Service', () => {
                 makePrefSet({ minQualityScore: 80 }),
             ]);
 
-            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 90 }));
+            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 9000 }));
 
             expect(result.bidsPlaced).toHaveLength(1);
             expect(result.bidsPlaced[0].amount).toBe(120);
@@ -111,7 +111,7 @@ describe('Auto-Bid Service', () => {
                 makePrefSet({ minQualityScore: 80 }),
             ]);
 
-            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 75 }));
+            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 7500 }));
 
             expect(result.bidsPlaced).toHaveLength(0);
             expect(result.skipped).toHaveLength(1);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -83,6 +83,7 @@ export function HomePage() {
     const [isLoading, setIsLoading] = useState(true);
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [sellerName, setSellerName] = useState('');
     const [sellerInput, setSellerInput] = useState('');
     const [sellerSuggestions, setSellerSuggestions] = useState<any[]>([]);
@@ -235,6 +236,13 @@ export function HomePage() {
         {
             'marketplace:lead:new': (data: any) => {
                 if (view === 'leads' && data?.lead) {
+                    const lead = data.lead;
+                    const geo = typeof lead.geo === 'object' && lead.geo ? lead.geo : {};
+                    // Filter guards — only prepend if lead matches all active filters
+                    if (vertical !== 'all' && !lead.vertical?.startsWith(vertical)) return;
+                    if (country !== 'ALL' && geo?.country !== country) return;
+                    if (region !== 'All' && geo?.state !== region) return;
+                    if (debouncedSearch && !JSON.stringify(lead).toLowerCase().includes(debouncedSearch.toLowerCase())) return;
                     setLeads((prev) => [data.lead, ...prev]);
                     toast({
                         type: 'info',
@@ -276,13 +284,16 @@ export function HomePage() {
                 }
             },
             'marketplace:new-bin': (data: any) => {
-                if (view === 'buyNow' && data?.leadId) {
+                // Always refresh Buy It Now data so it's ready when user switches tabs
+                if (data?.leadId) {
                     refetchData();
-                    toast({
-                        type: 'info',
-                        title: 'New Buy It Now Lead',
-                        description: `A ${data.vertical || ''} lead is now available for instant purchase.`,
-                    });
+                    if (view === 'buyNow') {
+                        toast({
+                            type: 'info',
+                            title: 'New Buy It Now Lead',
+                            description: `A ${data.vertical || ''} lead is now available for instant purchase.`,
+                        });
+                    }
                 }
             },
             'lead:buy-now-sold': (data: any) => {
@@ -294,8 +305,8 @@ export function HomePage() {
                 if (data?.leadId) {
                     // Remove from Live Leads when a lead is no longer active
                     setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
-                    // If the lead moved to UNSOLD and we're on Buy Now, refresh
-                    if (view === 'buyNow' && data.newStatus === 'UNSOLD') {
+                    // Always refresh Buy It Now data when a lead moves to UNSOLD
+                    if (data.newStatus === 'UNSOLD') {
                         refetchData();
                     }
                 }
@@ -559,9 +570,23 @@ export function HomePage() {
                             </div>
                         </div>
 
-                        {/* Quality Score + Price Range + Sort (only for leads/buyNow with vertical) */}
+                        {/* Advanced Filters Toggle (only for leads/buyNow with vertical) */}
                         {(view === 'leads' || view === 'buyNow') && vertical !== 'all' && (
-                            <div className="flex flex-col gap-3 pt-4 border-t border-border">
+                            <div className="pt-3 border-t border-border">
+                                <button
+                                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    <Filter className="h-3.5 w-3.5" />
+                                    Advanced Filters
+                                    {showAdvancedFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Quality Score + Price Range + Sort (collapsible) */}
+                        {showAdvancedFilters && (view === 'leads' || view === 'buyNow') && vertical !== 'all' && (
+                            <div className="flex flex-col gap-3 pt-3">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {/* Quality Score */}
                                     <div className="space-y-2">
@@ -635,9 +660,9 @@ export function HomePage() {
                             </div>
                         )}
 
-                        {/* Field-Level Filters */}
-                        {(view === 'leads' || view === 'buyNow') && vertical !== 'all' && (
-                            <div className="pt-4 border-t border-border">
+                        {/* Field-Level Filters (collapsible) */}
+                        {showAdvancedFilters && (view === 'leads' || view === 'buyNow') && vertical !== 'all' && (
+                            <div className="pt-3">
                                 <DynamicFieldFilter
                                     vertical={vertical}
                                     filters={fieldFilters}

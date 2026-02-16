@@ -32,48 +32,29 @@ describe('X402Service', () => {
     // ─── createPayment (off-chain fallback) ──────
 
     describe('createPayment', () => {
-        it('should create off-chain escrow when no contract configured', async () => {
-            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
-
+        it('should fail when no on-chain escrow contract is configured', async () => {
             const result = await x402Service.createPayment(
                 '0xSeller', '0xBuyer', 35.50, 1, 'tx-123'
             );
 
-            expect(result.success).toBe(true);
-            expect(result.escrowId).toMatch(/^offchain-/);
-            expect(prisma.transaction.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 'tx-123' },
-                    data: expect.objectContaining({
-                        escrowId: expect.stringContaining('offchain-'),
-                        status: 'ESCROWED',
-                    }),
-                })
-            );
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('On-chain escrow not configured');
         });
     });
 
     // ─── settlePayment ───────────────────────────
 
     describe('settlePayment', () => {
-        it('should settle off-chain transaction', async () => {
+        it('should fail to settle when no on-chain escrow contract is configured', async () => {
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue({
                 id: 'tx-1',
                 escrowId: 'offchain-12345',
                 status: 'ESCROWED',
             });
-            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
 
             const result = await x402Service.settlePayment('tx-1');
-            expect(result.success).toBe(true);
-            expect(prisma.transaction.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    data: expect.objectContaining({
-                        status: 'RELEASED',
-                        escrowReleased: true,
-                    }),
-                })
-            );
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
 
         it('should return error for non-existent transaction', async () => {
@@ -188,35 +169,33 @@ describe('X402Service', () => {
     // ─── Edge Cases ──────────────────────────────
 
     describe('edge cases', () => {
-        it('should handle double-settle gracefully', async () => {
+        it('should handle double-settle gracefully (returns error without contract)', async () => {
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue({
                 id: 'tx-double',
                 escrowId: 'offchain-double',
                 status: 'RELEASED',
             });
-            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
 
             const result = await x402Service.settlePayment('tx-double');
-            expect(result.success).toBe(true);
+            // Without on-chain escrow, settle now fails
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
 
-        it('should create escrow with large USDC amount', async () => {
-            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
-
+        it('should fail to create escrow with large USDC amount (no contract)', async () => {
             const result = await x402Service.createPayment(
                 '0xSeller', '0xBuyer', 999999.99, 42, 'tx-large'
             );
-            expect(result.success).toBe(true);
-            expect(result.escrowId).toMatch(/^offchain-/);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('On-chain escrow not configured');
         });
 
-        it('should create escrow with zero amount', async () => {
-            (prisma.transaction.update as jest.Mock).mockResolvedValue({});
-
+        it('should fail to create escrow with zero amount (no contract)', async () => {
             const result = await x402Service.createPayment(
                 '0xSeller', '0xBuyer', 0, 1, 'tx-zero'
             );
-            expect(result.success).toBe(true);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('On-chain escrow not configured');
         });
 
         it('should handle refund for already-refunded transaction', async () => {
