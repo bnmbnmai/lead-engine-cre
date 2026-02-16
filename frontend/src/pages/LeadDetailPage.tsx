@@ -543,7 +543,7 @@ export default function LeadDetailPage() {
                             {/* Privacy Notice — hidden for owners/buyers/pending settlement */}
                             {!isBuyerViewing && !isOwnerViewing && !isSettlementPending && (
                                 <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
-                                    <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via x402 escrow settlement.</p>
+                                    <p><strong>Privacy Note:</strong> Personal identifiable information (PII) including name, email, and phone number is encrypted and will only be revealed to the buyer after a successful purchase via on-chain escrow settlement.</p>
                                 </div>
                             )}
                         </div>

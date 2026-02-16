@@ -446,7 +446,7 @@ export function HomePage() {
                                 <h3 className="font-semibold text-sm text-foreground">Full Transparency</h3>
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">
-                                Instant, on-chain settlement via x402 and LeadNFT provenance give both sides
+                                Instant, on-chain USDC settlement and LeadNFT provenance give both sides
                                 perfect auditability. Payment is atomic (no 30&ndash;90 day net terms, no
                                 chargebacks). Ownership history and the original quality proof travel with the
                                 NFT forever.
@@ -462,7 +462,7 @@ export function HomePage() {
                                 <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">
-                                x402 enables USDC escrow &rarr; instant release on auction win or Buy-It-Now
+                                RTBEscrow enables USDC escrow &rarr; instant release on auction win or Buy-It-Now
                                 purchase. Platform fee is taken automatically; seller receives funds in seconds
                                 instead of weeks.
                             </p>

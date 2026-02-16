@@ -545,7 +545,7 @@ export function DemoPanel() {
                                 variant="accent"
                             />
                             <p className="text-[11px] text-muted-foreground pl-1">
-                                Calls x402 escrow release on the most recent won auction.
+                                Calls on-chain escrow release on the most recent won auction.
                                 Triggers USDC transfer, marks escrowReleased=true, and unlocks PII for the buyer.
                                 Refresh the lead detail page after to see decrypted contact info.
                             </p>

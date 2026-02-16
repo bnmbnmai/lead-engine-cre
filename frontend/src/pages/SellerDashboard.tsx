@@ -139,7 +139,7 @@ export function SellerDashboard() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Seller Dashboard</h1>
-                        <p className="text-muted-foreground">Pipeline, auctions, and instant USDC settlements via x402</p>
+                        <p className="text-muted-foreground">Pipeline, auctions, and instant USDC settlements via on-chain escrow</p>
                     </div>
                     <div className="flex gap-3">
                         <Button variant="outline" asChild>
@@ -208,7 +208,7 @@ export function SellerDashboard() {
                         <div>
                             <h3 className="font-semibold text-sm">Instant USDC Settlement</h3>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                All lead sales settle instantly in USDC via the x402 payment protocol &mdash; no invoicing, no 30-day net terms.
+                                All lead sales settle instantly in USDC via the RTBEscrow smart contract on Base Sepolia &mdash; no invoicing, no 30-day net terms.
                             </p>
                         </div>
                     </CardContent>
