@@ -1,8 +1,8 @@
 /**
  * NFT Service Unit Tests
  * 
- * Tests off-chain mint fallback, sale recording,
- * metadata retrieval from DB, and quality score updates.
+ * Tests on-chain-only behavior: no off-chain fallbacks.
+ * When contract/signer is not configured, all operations fail explicitly.
  */
 
 jest.mock('../../src/lib/prisma', () => ({
@@ -68,7 +68,7 @@ describe('NFTService', () => {
             expect(result.tokenId).toBe('existing-token-42');
         });
 
-        it('should create off-chain pseudo-tokenId when no contract', async () => {
+        it('should fail explicitly when no contract is configured (no off-chain fallback)', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
                 id: 'lead-2',
                 nftTokenId: null,
@@ -80,33 +80,25 @@ describe('NFTService', () => {
                 source: 'PLATFORM',
                 seller: { user: { walletAddress: '0xSeller' } },
             });
-            (prisma.lead.update as jest.Mock).mockResolvedValue({});
 
             const result = await nftService.mintLeadNFT('lead-2');
-            expect(result.success).toBe(true);
-            expect(result.tokenId).toMatch(/^offchain-/);
-            expect(prisma.lead.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    data: expect.objectContaining({
-                        nftTokenId: expect.stringContaining('offchain-'),
-                    }),
-                })
-            );
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
+            // No DB update should happen — no pseudo-tokenId stored
+            expect(prisma.lead.update).not.toHaveBeenCalled();
         });
     });
 
     // ─── recordSaleOnChain ───────────────────────
 
     describe('recordSaleOnChain', () => {
-        it('should succeed for off-chain token (logged only)', async () => {
-            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
-
+        it('should fail explicitly when contract is not configured (no off-chain fallback)', async () => {
             const result = await nftService.recordSaleOnChain(
-                'offchain-123', '0xBuyer', 35.50
+                'token-123', '0xBuyer', 35.50
             );
 
-            expect(result.success).toBe(true);
-            consoleSpy.mockRestore();
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
     });
 
@@ -116,14 +108,14 @@ describe('NFTService', () => {
         it('should return null for non-existent token', async () => {
             (prisma.lead.findFirst as jest.Mock).mockResolvedValue(null);
 
-            const result = await nftService.getTokenMetadata('offchain-missing');
+            const result = await nftService.getTokenMetadata('missing-token');
             expect(result).toBeNull();
         });
 
-        it('should return DB-based metadata for off-chain token', async () => {
+        it('should return DB-based metadata when on-chain lookup is unavailable', async () => {
             (prisma.lead.findFirst as jest.Mock).mockResolvedValue({
                 id: 'lead-3',
-                nftTokenId: 'offchain-456',
+                nftTokenId: 'token-456',
                 vertical: 'mortgage',
                 geo: { state: 'CA' },
                 dataHash: null,
@@ -132,9 +124,9 @@ describe('NFTService', () => {
                 seller: { user: { walletAddress: '0xSellerCA' } },
             });
 
-            const result = await nftService.getTokenMetadata('offchain-456');
+            const result = await nftService.getTokenMetadata('token-456');
             expect(result).not.toBeNull();
-            expect(result!.tokenId).toBe('offchain-456');
+            expect(result!.tokenId).toBe('token-456');
             expect(result!.vertical).toBe('mortgage');
             expect(result!.isVerified).toBe(true);
             expect(result!.reservePrice).toBe(50);
@@ -144,16 +136,17 @@ describe('NFTService', () => {
     // ─── updateQualityScoreOnChain ───────────────
 
     describe('updateQualityScoreOnChain', () => {
-        it('should succeed silently for off-chain token (no-op)', async () => {
-            const result = await nftService.updateQualityScoreOnChain('offchain-123', 8500);
-            expect(result.success).toBe(true);
+        it('should fail explicitly when contract is not configured (no off-chain fallback)', async () => {
+            const result = await nftService.updateQualityScoreOnChain('token-123', 8500);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
     });
 
     // ─── mintLeadNFT extras ──────────────────────
 
     describe('mintLeadNFT (dataHash branch)', () => {
-        it('should use existing dataHash when available', async () => {
+        it('should use existing dataHash when available (still fails without contract)', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
                 id: 'lead-hash',
                 nftTokenId: null,
@@ -165,14 +158,13 @@ describe('NFTService', () => {
                 source: 'API',
                 seller: { user: { walletAddress: '0xSellerHash' } },
             });
-            (prisma.lead.update as jest.Mock).mockResolvedValue({});
 
             const result = await nftService.mintLeadNFT('lead-hash');
-            expect(result.success).toBe(true);
-            expect(result.tokenId).toMatch(/^offchain-/);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
 
-        it('should handle lead with no geo state', async () => {
+        it('should handle lead with no geo state (still fails without contract)', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
                 id: 'lead-nogeo',
                 nftTokenId: null,
@@ -184,13 +176,13 @@ describe('NFTService', () => {
                 source: 'PLATFORM',
                 seller: { user: { walletAddress: '0xNone' } },
             });
-            (prisma.lead.update as jest.Mock).mockResolvedValue({});
 
             const result = await nftService.mintLeadNFT('lead-nogeo');
-            expect(result.success).toBe(true);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
 
-        it('should handle lead with no seller wallet', async () => {
+        it('should fail when seller wallet is missing (BUG-1 fix)', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
                 id: 'lead-nowallet',
                 nftTokenId: null,
@@ -202,20 +194,20 @@ describe('NFTService', () => {
                 source: 'PLATFORM',
                 seller: { user: { walletAddress: null } },
             });
-            (prisma.lead.update as jest.Mock).mockResolvedValue({});
 
             const result = await nftService.mintLeadNFT('lead-nowallet');
-            expect(result.success).toBe(true);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('Seller wallet missing');
         });
     });
 
     // ─── getTokenMetadata extras ─────────────────
 
     describe('getTokenMetadata (field coverage)', () => {
-        it('should populate all metadata fields from DB', async () => {
+        it('should populate all metadata fields from DB with qualityScore 0 (no synthetic scores)', async () => {
             (prisma.lead.findFirst as jest.Mock).mockResolvedValue({
                 id: 'lead-meta',
-                nftTokenId: 'offchain-789',
+                nftTokenId: 'token-789',
                 vertical: 'solar',
                 geo: { state: 'FL' },
                 dataHash: '0xdatahash',
@@ -224,7 +216,7 @@ describe('NFTService', () => {
                 seller: { user: { walletAddress: '0xMetaSeller' } },
             });
 
-            const result = await nftService.getTokenMetadata('offchain-789');
+            const result = await nftService.getTokenMetadata('token-789');
             expect(result).not.toBeNull();
             expect(result!.vertical).toBe('solar');
             expect(result!.seller).toBe('0xMetaSeller');
@@ -232,13 +224,13 @@ describe('NFTService', () => {
             expect(result!.reservePrice).toBe(100);
             expect(result!.dataHash).toBe('0xdatahash');
             expect(result!.isVerified).toBe(false);
-            expect(result!.qualityScore).toBe(5000);
+            expect(result!.qualityScore).toBe(0); // No synthetic score
         });
 
         it('should return null dataHash as ZeroHash', async () => {
             (prisma.lead.findFirst as jest.Mock).mockResolvedValue({
                 id: 'lead-nohash',
-                nftTokenId: 'offchain-nohash',
+                nftTokenId: 'token-nohash',
                 vertical: 'legal',
                 geo: {},
                 dataHash: null,
@@ -247,7 +239,7 @@ describe('NFTService', () => {
                 seller: { user: { walletAddress: null } },
             });
 
-            const result = await nftService.getTokenMetadata('offchain-nohash');
+            const result = await nftService.getTokenMetadata('token-nohash');
             expect(result).not.toBeNull();
             expect(result!.dataHash).toMatch(/^0x0+$/);
         });
@@ -256,11 +248,10 @@ describe('NFTService', () => {
     // ─── recordSaleOnChain extras ────────────────
 
     describe('recordSaleOnChain (coverage)', () => {
-        it('should handle zero sale price', async () => {
-            const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => { });
-            const result = await nftService.recordSaleOnChain('offchain-zero', '0xBuyer', 0);
-            expect(result.success).toBe(true);
-            consoleSpy.mockRestore();
+        it('should fail for zero sale price when contract not configured', async () => {
+            const result = await nftService.recordSaleOnChain('token-zero', '0xBuyer', 0);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not configured');
         });
     });
 });

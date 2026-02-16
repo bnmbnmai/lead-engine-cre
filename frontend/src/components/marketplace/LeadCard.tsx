@@ -16,6 +16,7 @@ interface Lead {
     status: string;
     reservePrice: number;
     isVerified: boolean;
+    qualityScore?: number;
     auctionEndAt?: string;
     auctionStartAt?: string;
     auctionDuration?: number;
@@ -123,7 +124,25 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                             )}
                         </div>
                     </div>
-                    {lead.isVerified && <ChainlinkBadge size="sm" />}
+                    <div className="flex items-center gap-2">
+                        {lead.qualityScore != null ? (
+                            <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${lead.qualityScore >= 80
+                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                    : lead.qualityScore >= 60
+                                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    }`}
+                            >
+                                QS {lead.qualityScore}
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30">
+                                QS —
+                            </span>
+                        )}
+                        {lead.isVerified && <ChainlinkBadge size="sm" />}
+                    </div>
                 </div>
 
                 {/* Source & Stats */}

@@ -95,7 +95,10 @@ class NFTService {
         }
 
         const geo = lead.geo as any;
-        const sellerAddress = lead.seller?.user?.walletAddress || ethers.ZeroAddress;
+        const sellerAddress = lead.seller?.user?.walletAddress;
+        if (!sellerAddress) {
+            return { success: false, error: `Seller wallet missing for lead ${leadId} — cannot mint NFT to ZeroAddress` };
+        }
 
         // v2 parameters
         const platformLeadId = ethers.keccak256(ethers.toUtf8Bytes(leadId));
@@ -201,18 +204,13 @@ class NFTService {
             }
         }
 
-        // Off-chain fallback: generate pseudo-tokenId
-        console.warn('[NFT MINT] No contract/signer available — using offchain fallback');
-        const offchainTokenId = `offchain-${Date.now()}`;
-
-        await prisma.lead.update({
-            where: { id: leadId },
-            data: {
-                nftTokenId: offchainTokenId,
-            },
-        });
-
-        return { success: true, tokenId: offchainTokenId, offChain: true };
+        // No contract/signer — fail explicitly, no off-chain fallback
+        const missing = [];
+        if (!LEAD_NFT_ADDRESS) missing.push('LEAD_NFT_CONTRACT_ADDRESS');
+        if (!DEPLOYER_KEY) missing.push('DEPLOYER_PRIVATE_KEY');
+        const msg = `On-chain NFT mint not configured: missing ${missing.join(', ')}`;
+        console.error(`[NFT MINT] ${msg}`);
+        return { success: false, error: msg };
     }
 
     // ============================================
@@ -226,21 +224,20 @@ class NFTService {
     ): Promise<{ success: boolean; txHash?: string; error?: string; offChain?: boolean }> {
         const salePriceWei = Math.floor(salePrice * 1e6);
 
-        if (this.contract && this.signer && !nftTokenId.startsWith('offchain-')) {
-            try {
-                console.log(`[NFT SALE] Recording sale — tokenId=${nftTokenId}, buyer=${buyerAddress}, price=${salePriceWei}`);
-                const tx = await this.contract.recordSale(nftTokenId, buyerAddress, salePriceWei, { gasLimit: 200_000 });
-                const receipt = await tx.wait();
-                console.log(`[NFT SALE] ✅ Sale recorded — txHash=${receipt?.hash}`);
-                return { success: true, txHash: receipt?.hash };
-            } catch (error: any) {
-                console.error('[NFT SALE] ❌ recordSale failed:', error.message);
-                return { success: false, error: error.message };
-            }
+        if (!this.contract || !this.signer) {
+            return { success: false, error: 'On-chain NFT contract not configured — cannot record sale' };
         }
 
-        console.warn(`[NFT SALE] ⚠️  Off-chain fallback: token=${nftTokenId}, buyer=${buyerAddress}, price=${salePrice}`);
-        return { success: true, offChain: true };
+        try {
+            console.log(`[NFT SALE] Recording sale — tokenId=${nftTokenId}, buyer=${buyerAddress}, price=${salePriceWei}`);
+            const tx = await this.contract.recordSale(nftTokenId, buyerAddress, salePriceWei, { gasLimit: 200_000 });
+            const receipt = await tx.wait();
+            console.log(`[NFT SALE] ✅ Sale recorded — txHash=${receipt?.hash}`);
+            return { success: true, txHash: receipt?.hash };
+        } catch (error: any) {
+            console.error('[NFT SALE] ❌ recordSale failed:', error.message);
+            return { success: false, error: error.message };
+        }
     }
 
     // ============================================
@@ -248,7 +245,7 @@ class NFTService {
     // ============================================
 
     async getTokenMetadata(nftTokenId: string): Promise<TokenMetadata | null> {
-        if (this.contract && !nftTokenId.startsWith('offchain-')) {
+        if (this.contract) {
             try {
                 const [metadata, owner, uri] = await Promise.all([
                     this.contract.getLeadMetadata(nftTokenId),
@@ -289,7 +286,7 @@ class NFTService {
             dataHash: lead.dataHash || ethers.ZeroHash,
             seller: lead.seller?.user?.walletAddress || ethers.ZeroAddress,
             reservePrice: Number(lead.reservePrice || 0),
-            qualityScore: 5000,
+            qualityScore: 0,
             isVerified: lead.isVerified,
             owner: lead.seller?.user?.walletAddress || ethers.ZeroAddress,
         };
@@ -303,7 +300,7 @@ class NFTService {
         nftTokenId: string,
         score: number
     ): Promise<{ success: boolean; error?: string; offChain?: boolean }> {
-        if (this.contract && this.signer && !nftTokenId.startsWith('offchain-')) {
+        if (this.contract && this.signer) {
             try {
                 const tx = await this.contract.updateQualityScore(nftTokenId, score);
                 await tx.wait();
@@ -314,7 +311,7 @@ class NFTService {
             }
         }
 
-        return { success: true, offChain: true };
+        return { success: false, error: 'On-chain NFT contract not configured — cannot update quality score' };
     }
 }
 

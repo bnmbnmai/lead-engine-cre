@@ -140,7 +140,7 @@ describe('CREService', () => {
         });
     });
 
-    // ─── getQualityScore ─────────────────────────
+    // ─── getQualityScore (on-chain only) ──────────
 
     describe('getQualityScore', () => {
         it('should return 0 for non-existent lead', async () => {
@@ -149,6 +149,38 @@ describe('CREService', () => {
             expect(score).toBe(0);
         });
 
+        it('should return 0 without tokenId (on-chain only)', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-1',
+                isVerified: true,
+                tcpaConsentAt: new Date(),
+                geo: { state: 'FL', zip: '33101' },
+                parameters: { creditScore: 720 },
+            });
+
+            // No tokenId → on-chain not possible → returns 0
+            const score = await creService.getQualityScore('lead-1');
+            expect(score).toBe(0);
+        });
+
+        it('should cap quality score at 10000', async () => {
+            // This test verifies the cap via assessLeadQuality
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-3',
+                isVerified: true,
+                tcpaConsentAt: new Date(),
+                geo: { state: 'FL', zip: '33101' },
+                parameters: { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7 },
+            });
+
+            const score = await creService.assessLeadQuality('lead-3');
+            expect(score).toBeLessThanOrEqual(10000);
+        });
+    });
+
+    // ─── assessLeadQuality (internal quality gate) ──
+
+    describe('assessLeadQuality', () => {
         it('should return base score for minimal lead', async () => {
             (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
                 id: 'lead-1',
@@ -158,7 +190,7 @@ describe('CREService', () => {
                 parameters: null,
             });
 
-            const score = await creService.getQualityScore('lead-1');
+            const score = await creService.assessLeadQuality('lead-1');
             expect(score).toBe(5000);
         });
 
@@ -171,21 +203,8 @@ describe('CREService', () => {
                 parameters: { creditScore: 720, loanAmount: 350000 }, // +200
             });
 
-            const score = await creService.getQualityScore('lead-2');
+            const score = await creService.assessLeadQuality('lead-2');
             expect(score).toBe(7200); // 5000 + 1000 + 500 + 500 + 200
-        });
-
-        it('should cap quality score at 10000', async () => {
-            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
-                id: 'lead-3',
-                isVerified: true,
-                tcpaConsentAt: new Date(),
-                geo: { state: 'FL', zip: '33101' },
-                parameters: { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7 }, // 7 * 100 = 700, capped at 500
-            });
-
-            const score = await creService.getQualityScore('lead-3');
-            expect(score).toBeLessThanOrEqual(10000);
         });
     });
 

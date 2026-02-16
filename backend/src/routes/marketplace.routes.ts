@@ -450,6 +450,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: safeParams,
+                    qualityScore: null, // Scored after NFT minting via CREVerifier
                     _count: { bids: 0 },
                 },
             });
@@ -585,7 +586,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         }
 
         // Check minimum quality score (60/100 = 6000 internal)
-        const qualityScore = await creService.getQualityScore(lead.id);
+        const qualityScore = await creService.assessLeadQuality(lead.id);
         const MIN_QUALITY_SCORE = 6000; // 60 on the 0-100 display scale
         if (qualityScore < MIN_QUALITY_SCORE) {
             await prisma.lead.delete({ where: { id: lead.id } }).catch(() => { });
@@ -678,7 +679,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         if (io) {
             const updatedLead = await prisma.lead.findUnique({
                 where: { id: lead.id },
-                select: { id: true, vertical: true, status: true, reservePrice: true, geo: true, isVerified: true, auctionStartAt: true, auctionEndAt: true },
+                select: { id: true, vertical: true, status: true, reservePrice: true, geo: true, isVerified: true, auctionStartAt: true, auctionEndAt: true, qualityScore: true },
             });
             io.emit('marketplace:lead:new', {
                 lead: {
@@ -687,6 +688,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
                     parameters: safeParameters,
                     auctionStartAt: updatedLead?.auctionStartAt?.toISOString(),
                     auctionEndAt: updatedLead?.auctionEndAt?.toISOString(),
+                    qualityScore: updatedLead?.qualityScore != null ? Math.floor(updatedLead.qualityScore / 100) : null,
                     _count: { bids: 0 },
                 },
             });
@@ -784,7 +786,7 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             where.seller = { ...where.seller, reputationScore: { gte: minReputation } };
         }
 
-        const [leads, total] = await Promise.all([
+        const [rawLeads, total] = await Promise.all([
             prisma.lead.findMany({
                 where,
                 orderBy: { [sortBy]: sortOrder },
@@ -799,9 +801,11 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
                     reservePrice: true,
                     buyNowPrice: true,
                     isVerified: true,
+                    auctionStartAt: true,
                     auctionEndAt: true,
                     expiresAt: true,
                     createdAt: true,
+                    qualityScore: true,
                     _count: { select: { bids: true } },
                     seller: {
                         select: {
@@ -815,6 +819,12 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             }),
             prisma.lead.count({ where }),
         ]);
+
+        // Map leads — normalize stored CRE quality score from 0-10000 to 0-100
+        const leads = rawLeads.map((lead: any) => ({
+            ...lead,
+            qualityScore: lead.qualityScore != null ? Math.floor(lead.qualityScore / 100) : null,
+        }));
 
         res.json({
             leads,
@@ -973,6 +983,8 @@ router.post('/leads/search', generalLimiter, optionalAuthMiddleware, async (req:
                 expiresAt: true,
                 createdAt: true,
                 parameters: true,
+                tcpaConsentAt: true,
+                qualityScore: true,
                 _count: { select: { bids: true } },
                 seller: {
                     select: {
@@ -985,10 +997,15 @@ router.post('/leads/search', generalLimiter, optionalAuthMiddleware, async (req:
             },
         });
 
+        // ── Normalize stored CRE quality score ──
+        let filtered = candidates.map((lead: any) => ({
+            ...lead,
+            qualityScore: lead.qualityScore != null ? Math.floor(lead.qualityScore / 100) : null,
+        }));
+
         // ── Apply field filters in-memory ──
-        let filtered = candidates;
         if (needsFieldFiltering) {
-            filtered = candidates.filter(lead => {
+            filtered = filtered.filter(lead => {
                 const params = (lead as any).parameters as Record<string, any> | null;
                 const evalResult = evaluateFieldFilters(params, rules);
                 return evalResult.pass;
@@ -1022,7 +1039,7 @@ router.post('/leads/search', generalLimiter, optionalAuthMiddleware, async (req:
         const paginated = filtered.slice(offset, offset + limit);
 
         // ── Strip parameters from response (don't leak to non-owners) ──
-        const leads = paginated.map(({ parameters: _params, ...rest }: any) => rest);
+        const leads = paginated.map(({ parameters: _params, tcpaConsentAt: _tcpa, ...rest }: any) => rest);
 
         res.json({
             leads,
@@ -1083,8 +1100,8 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
             return;
         }
 
-        // Get quality score
-        const qualityScore = await creService.getQualityScore(lead.id);
+        // Read stored CRE quality score from database
+        const qualityScore = lead.qualityScore != null ? Math.floor((lead as any).qualityScore / 100) : null;
 
         // Check if requesting user is the lead's seller (owns the PII)
         const isOwner = req.user?.id && lead.seller?.userId === req.user.id;
@@ -1331,20 +1348,29 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
         });
 
         // After transaction commits — prepare escrow for buyer to sign with MetaMask
+        const sellerUser = await prisma.user.findUnique({ where: { id: result.seller.userId } });
+        if (!sellerUser?.walletAddress || !req.user?.walletAddress) {
+            // Roll back — payment can't proceed without both wallets
+            await prisma.transaction.delete({ where: { id: result.transaction.id } });
+            await prisma.lead.update({ where: { id: result.lead.id }, data: { status: 'UNSOLD', soldAt: null, winningBid: null } });
+            res.status(400).json({
+                error: 'Wallet addresses missing — cannot create escrow',
+                hint: `seller=${sellerUser?.walletAddress || 'MISSING'}, buyer=${req.user?.walletAddress || 'MISSING'}`,
+            });
+            return;
+        }
+
         let escrowTxData = null;
         try {
-            const sellerUser = await prisma.user.findUnique({ where: { id: result.seller.userId } });
-            if (sellerUser?.walletAddress && req.user?.walletAddress) {
-                const prepared = await x402Service.prepareEscrowTx(
-                    sellerUser.walletAddress,
-                    req.user.walletAddress,
-                    Number(result.transaction.amount),
-                    result.lead.id,
-                    result.transaction.id,
-                );
-                if (prepared.success) {
-                    escrowTxData = prepared.data;
-                }
+            const prepared = await x402Service.prepareEscrowTx(
+                sellerUser.walletAddress,
+                req.user.walletAddress,
+                Number(result.transaction.amount),
+                result.lead.id,
+                result.transaction.id,
+            );
+            if (prepared.success) {
+                escrowTxData = prepared.data;
             }
         } catch (prepErr) {
             console.error('Buy It Now escrow prep error (non-fatal):', prepErr);

@@ -472,6 +472,7 @@ model Lead {
   tcpaConsentAt   DateTime?
   consentProof    String?     // IPFS hash or on-chain reference
   isVerified      Boolean     @default(false)
+  qualityScore    Int?        // CRE quality score (0-10000), computed by CREVerifier at creation
   
   // Timestamps
   createdAt       DateTime    @default(now())

@@ -195,16 +195,31 @@ class CREService {
     // Quality Score (hybrid on-chain + off-chain)
     // ============================================
 
+    /**
+     * Get CRE quality score from on-chain CREVerifier ONLY.
+     * Returns 0 if no tokenId, no contract, or on-chain call fails.
+     * For the badge: use the stored lead.qualityScore from the database.
+     */
     async getQualityScore(leadId: string, tokenId?: number): Promise<number> {
         if (tokenId && this.contract) {
             try {
                 const onChainScore = await this.contract.getLeadQualityScore(tokenId);
                 if (Number(onChainScore) > 0) return Number(onChainScore);
             } catch (error) {
-                console.error('CRE on-chain quality score failed, using off-chain:', error);
+                console.error('CRE on-chain quality score failed:', error);
             }
         }
 
+        return 0; // No on-chain score available
+    }
+
+    /**
+     * Internal quality assessment for lead admission gating (NOT for badge display).
+     * Used by: hosted lander quality gate, RTB engine ping payload.
+     * This is the same formula CREVerifier runs on-chain, computed off-chain
+     * for leads that don't have an NFT token yet.
+     */
+    async assessLeadQuality(leadId: string): Promise<number> {
         const lead = await prisma.lead.findUnique({ where: { id: leadId } });
         if (!lead) return 0;
 

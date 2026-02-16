@@ -13,6 +13,7 @@ import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
 import { generateToken } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
+import { creService } from '../services/cre.service';
 import { nftService } from '../services/nft.service';
 
 const router = Router();
@@ -868,6 +869,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: params,
+                    qualityScore: null, // Demo leads — no CREVerifier scoring
                     _count: { bids: 0 },
                 },
             });
@@ -955,6 +957,7 @@ router.post('/auction', async (req: Request, res: Response) => {
                     isVerified: true,
                     auctionStartAt: new Date().toISOString(),
                     auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString(),
+                    qualityScore: null, // Demo leads — no CREVerifier scoring
                     _count: { bids: 0 },
                 },
             });

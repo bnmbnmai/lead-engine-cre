@@ -18,6 +18,7 @@ interface BuyNowLead {
     reservePrice?: number;
     buyNowPrice: number;
     isVerified: boolean;
+    qualityScore?: number;
     expiresAt: string;
     createdAt: string;
     seller?: {
@@ -125,6 +126,22 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                             <Tag className="h-3 w-3 mr-1" />
                             Buy Now
                         </Badge>
+                        {lead.qualityScore != null ? (
+                            <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${lead.qualityScore >= 80
+                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                    : lead.qualityScore >= 60
+                                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    }`}
+                            >
+                                QS {lead.qualityScore}
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30">
+                                QS —
+                            </span>
+                        )}
                         {lead.isVerified && (
                             <Badge variant="outline" className="text-blue-400 border-blue-400/30 text-xs">
                                 Verified

@@ -26,6 +26,7 @@ interface FormStep {
 
 interface LanderExportProps {
     vertical: string;
+    sellerId?: string;
     fields: FormField[];
     steps: FormStep[];
     gamification: {
@@ -44,7 +45,7 @@ function generateLanderHTML(
     config: LanderExportProps,
     theme: 'light' | 'dark'
 ): string {
-    const { vertical, fields, steps, gamification, apiEndpoint } = config;
+    const { vertical, sellerId, fields, steps, gamification, apiEndpoint } = config;
     const emoji = VERTICAL_EMOJI[vertical] || '📋';
     const verticalLabel = vertical.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     const isDark = theme === 'dark';
@@ -203,6 +204,7 @@ e.preventDefault();
 var fd=new FormData(e.target);
 var data={};fd.forEach(function(v,k){data[k]=v});
 data.vertical='${vertical}';
+${sellerId ? `data.sellerId='${sellerId}';` : `// TODO: set data.sellerId to the seller's user ID before deploying`}
 data.tcpaConsentAt=new Date().toISOString();
 ${apiEndpoint ? `fetch('${apiEndpoint}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(){})['catch'](function(){});` : '// Configure apiEndpoint to enable submission'}
 document.getElementById('leadForm').style.display='none';
