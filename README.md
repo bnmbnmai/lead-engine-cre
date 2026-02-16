@@ -15,8 +15,19 @@ Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead
 Sellers get paid in seconds. Buyers get verified, compliant leads with on-chain provenance.  
 Every purchased lead is minted as an **ERC-721 LeadNFT** — immutable quality score, resale rights, and royalties.
 
-**Key Differentiator**  
-First platform to tokenize leads as on-chain assets. Lead tokenization is **core**, not optional.
+### Key Differentiators
+- PII never touches the blockchain or the NFT (non-PII previews only)
+- Sealed-bid commit-reveal auctions for fairness
+- Real on-chain escrow + instant USDC settlement (client-side signing + x402 for convenience fees)
+- LeadNFT as immutable provenance and royalty-bearing asset
+- **Field-Level Filtering & Granular Autobidding**  
+  Buyers can filter and auto-bid on specific attributes (credit score ranges, ZIP codes, roof condition, system size, etc.).  
+  - Powered by the new VerticalField schema (automatically synced from admin-created verticals)  
+  - Live "X leads match" counter on the marketplace  
+  - Quality score filtering (0–100) via live Chainlink CREVerifier  
+  - Works for both manual browsing and MCP autonomous agents
+- **Dynamic Verticals – Horizontal Scaling**  
+  50+ seeded verticals. New verticals are created instantly in the admin dashboard and become live seller templates with no code changes. VerticalNFT auctions let the community launch and own new verticals, with 2% royalties on secondary sales of the ownership token (contracts ready, full revenue-share flow post-hackathon).
 
 ---
 
