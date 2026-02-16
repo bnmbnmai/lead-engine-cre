@@ -642,13 +642,13 @@ const USDC_READ_ABI = [
 
 router.get('/buyer/usdc-allowance', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.user!.id },
-            select: { walletAddress: true },
-        });
+        // TD-04 fix: use the session wallet (from JWT), not the DB record.
+        // This ensures the check targets the MetaMask wallet the user actually
+        // signed in with, even if their DB record still has an old demo wallet.
+        const walletAddress = req.user!.walletAddress;
 
-        if (!user?.walletAddress) {
-            res.status(400).json({ error: 'No wallet address on file' });
+        if (!walletAddress) {
+            res.status(400).json({ error: 'No wallet address in session' });
             return;
         }
 
@@ -668,8 +668,8 @@ router.get('/buyer/usdc-allowance', authMiddleware, requireBuyer, async (req: Au
         const usdc = new ethers.Contract(USDC_ADDRESS, USDC_READ_ABI, provider);
 
         const [allowanceRaw, balanceRaw] = await Promise.all([
-            usdc.allowance(user.walletAddress, ESCROW_ADDRESS),
-            usdc.balanceOf(user.walletAddress),
+            usdc.allowance(walletAddress, ESCROW_ADDRESS),
+            usdc.balanceOf(walletAddress),
         ]);
 
         res.json({

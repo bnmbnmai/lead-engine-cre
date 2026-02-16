@@ -7,6 +7,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
+import { getConfig, setConfig } from '../lib/config';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
 import { generateToken } from '../middleware/auth';
@@ -63,12 +64,15 @@ function pickFaucetWallet(): string {
     return wallet;
 }
 
-// In-memory toggle: when OFF, demo buyers will NOT place bids
-let demoBuyersEnabled = true;
+// TD-06 fix: toggle is now persisted in PlatformConfig DB table.
+// Default: false in production, true in dev/demo mode.
+const DEMO_BUYERS_KEY = 'demoBuyersEnabled';
+const DEMO_BUYERS_DEFAULT = (process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') ? 'false' : 'true';
 
-/** Read the current toggle state from other modules */
-export function getDemoBuyersEnabled(): boolean {
-    return demoBuyersEnabled;
+/** Read the current toggle state — persisted in DB, cached in memory (5 s). */
+export async function getDemoBuyersEnabled(): Promise<boolean> {
+    const val = await getConfig(DEMO_BUYERS_KEY, DEMO_BUYERS_DEFAULT);
+    return val === 'true';
 }
 
 // ============================================
@@ -387,19 +391,23 @@ const DEMO_BUYERS = [
 // POST /demo-buyers-toggle — flip it
 // ============================================
 
-router.get('/demo-buyers-toggle', (_req: Request, res: Response) => {
-    res.json({ enabled: demoBuyersEnabled });
+router.get('/demo-buyers-toggle', async (_req: Request, res: Response) => {
+    const enabled = await getDemoBuyersEnabled();
+    res.json({ enabled });
 });
 
-router.post('/demo-buyers-toggle', (req: Request, res: Response) => {
+router.post('/demo-buyers-toggle', async (req: Request, res: Response) => {
     const { enabled } = req.body as { enabled?: boolean };
+    let newValue: boolean;
     if (typeof enabled === 'boolean') {
-        demoBuyersEnabled = enabled;
+        newValue = enabled;
     } else {
-        demoBuyersEnabled = !demoBuyersEnabled;
+        // Toggle: read current then flip
+        newValue = !(await getDemoBuyersEnabled());
     }
-    console.log(`[DEMO] Demo buyers toggled → ${demoBuyersEnabled ? 'ON' : 'OFF'}`);
-    res.json({ enabled: demoBuyersEnabled });
+    await setConfig(DEMO_BUYERS_KEY, String(newValue));
+    console.log(`[DEMO] Demo buyers toggled → ${newValue ? 'ON' : 'OFF'} (persisted)`);
+    res.json({ enabled: newValue });
 });
 
 // ============================================
@@ -704,7 +712,7 @@ router.post('/seed', async (req: Request, res: Response) => {
             // Create bids from different demo buyers (respects @@unique([leadId, buyerId]))
             const shuffledBuyers = [...buyerUserIds].sort(() => Math.random() - 0.5);
             // Only 1 bot bid per lead — conservative so the user can win
-            const numBidders = demoBuyersEnabled ? 1 : 0;
+            const numBidders = (await getDemoBuyersEnabled()) ? 1 : 0;
             const baseAmount = Number(lead.reservePrice || 20);
 
             for (let b = 0; b < numBidders; b++) {
@@ -953,7 +961,7 @@ router.post('/auction', async (req: Request, res: Response) => {
 
         // Simulate bids arriving over auction window (conservative — user should outbid)
         // Only if demo buyers are enabled
-        const bidIntervals = demoBuyersEnabled ? [5000, 15000, 30000] : []; // 3 bids at 5s, 15s, 30s
+        const bidIntervals = (await getDemoBuyersEnabled()) ? [5000, 15000, 30000] : []; // 3 bids at 5s, 15s, 30s
         let currentBid = reservePrice;
 
         bidIntervals.forEach((delay, index) => {
@@ -997,7 +1005,7 @@ router.post('/auction', async (req: Request, res: Response) => {
             reservePrice,
             auctionEndsIn: '60 seconds',
             simulatedBids: bidIntervals.length,  // 0 if demo buyers off, 3 if on
-            demoBuyersEnabled,
+            demoBuyersEnabled: bidIntervals.length > 0,
         });
     } catch (error) {
         console.error('Demo auction error:', error);

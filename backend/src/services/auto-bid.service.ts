@@ -94,7 +94,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
     // ── Gate: respect demo buyers toggle ──
     try {
         const { getDemoBuyersEnabled } = await import('../routes/demo-panel.routes');
-        if (!getDemoBuyersEnabled()) {
+        if (!(await getDemoBuyersEnabled())) {
             console.log(`[AUTO-BID] Skipped for lead ${lead.id} — demo buyers disabled`);
             return result;
         }

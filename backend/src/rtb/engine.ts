@@ -272,7 +272,7 @@ class RTBEngine {
         // place bids during the auction window.
         // Gated by the demo buyers toggle — when OFF, no auto-bids fire.
         const { getDemoBuyersEnabled } = await import('../routes/demo-panel.routes');
-        if (!getDemoBuyersEnabled()) {
+        if (!(await getDemoBuyersEnabled())) {
             console.log(`[RTB] Auto-bid skipped for lead ${leadId} — demo buyers disabled`);
         } else {
             try {

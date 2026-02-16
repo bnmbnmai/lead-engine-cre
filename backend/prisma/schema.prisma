@@ -627,3 +627,13 @@ model VerticalSuggestion {
   @@index([parentSlug])
   @@index([status, hitCount])
 }
+
+// ============================================
+// Platform Configuration (Key-Value)
+// ============================================
+
+model PlatformConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

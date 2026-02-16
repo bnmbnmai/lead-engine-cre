@@ -101,6 +101,20 @@ router.post('/wallet', authLimiter, async (req: Request, res: Response) => {
             data: { nonce: uuid() },
         });
 
+        // TD-04: Sync DB wallet address if the session wallet differs.
+        // This handles the case where a user registered via demo-login with a
+        // demo wallet and later connects with their real MetaMask wallet.
+        if (user.walletAddress !== address.toLowerCase()) {
+            console.log(
+                `[AUTH] Wallet drift detected for user ${user.id}: ` +
+                `DB=${user.walletAddress} → session=${address.toLowerCase()}. Updating DB.`
+            );
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { walletAddress: address.toLowerCase() },
+            });
+        }
+
         // Generate JWT
         const token = generateToken({
             userId: user.id,
