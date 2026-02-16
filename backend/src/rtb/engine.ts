@@ -34,15 +34,29 @@ class RTBEngine {
                 return { success: false, error: 'Lead not found' };
             }
 
-            // Verify lead with CRE
-            const verification = await creService.verifyLead(leadId);
-            if (!verification.isValid) {
+            // Stage 1: CRE Pre-Auction Gate
+            // Runs real checks (data integrity, TCPA consent, geo validation).
+            // No numeric score — that's Stage 2 (post-NFT mint via CREVerifier.sol).
+            const preScore = await creService.computePreScore(leadId);
+            console.log(
+                `[RTB] Lead ${leadId} pre-score: ` +
+                `data=${preScore.checks.dataIntegrity} tcpa=${preScore.checks.tcpaConsent} geo=${preScore.checks.geoValid} ` +
+                `→ ${preScore.admitted ? 'ADMITTED' : 'REJECTED'}`
+            );
+
+            if (!preScore.admitted) {
                 await prisma.lead.update({
                     where: { id: leadId },
                     data: { status: 'CANCELLED' },
                 });
-                return { success: false, error: verification.reason };
+                return { success: false, error: preScore.reason || 'Failed CRE pre-gate' };
             }
+
+            // Mark lead as verified (same as verifyLead would do)
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: { isVerified: true },
+            });
 
             // Check seller compliance with ACE
             const sellerCompliance = await aceService.canTransact(

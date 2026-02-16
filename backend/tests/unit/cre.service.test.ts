@@ -386,4 +386,72 @@ describe('CREService', () => {
             expect(result.isValid).toBe(true);
         });
     });
+
+    // ─── computePreScore (structured pre-gate) ───
+
+    describe('computePreScore', () => {
+        it('should return not admitted for non-existent lead', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue(null);
+
+            const result = await creService.computePreScore('nonexistent');
+            expect(result.admitted).toBe(false);
+            expect(result.checks.dataIntegrity).toBe(false);
+            expect(result.checks.tcpaConsent).toBe(false);
+            expect(result.checks.geoValid).toBe(false);
+            expect(result.reason).toBe('Lead not found');
+        });
+
+        it('should return admitted for already-verified lead', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-pre-1',
+                isVerified: true,
+            });
+
+            const result = await creService.computePreScore('lead-pre-1');
+            expect(result.admitted).toBe(true);
+            expect(result.checks).toEqual({
+                dataIntegrity: true,
+                tcpaConsent: true,
+                geoValid: true,
+            });
+        });
+
+        it('should return admitted with all checks passing', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-pre-2',
+                isVerified: false,
+                dataHash: null,
+                encryptedData: null,
+                tcpaConsentAt: new Date(),
+                geo: { state: 'FL', zip: '33101' },
+            });
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({});
+
+            const result = await creService.computePreScore('lead-pre-2');
+            expect(result.admitted).toBe(true);
+            expect(result.checks.dataIntegrity).toBe(true);
+            expect(result.checks.tcpaConsent).toBe(true);
+            expect(result.checks.geoValid).toBe(true);
+            expect(result.reason).toBeUndefined();
+        });
+
+        it('should return not admitted for missing TCPA consent', async () => {
+            (prisma.lead.findUnique as jest.Mock).mockResolvedValue({
+                id: 'lead-pre-3',
+                isVerified: false,
+                dataHash: null,
+                encryptedData: null,
+                tcpaConsentAt: null,
+                geo: { state: 'FL', zip: '33101' },
+            });
+            (prisma.complianceCheck.create as jest.Mock).mockResolvedValue({});
+
+            const result = await creService.computePreScore('lead-pre-3');
+            expect(result.admitted).toBe(false);
+            expect(result.checks.dataIntegrity).toBe(true);
+            expect(result.checks.tcpaConsent).toBe(false);
+            expect(result.checks.geoValid).toBe(true);
+            expect(result.reason).toContain('TCPA');
+        });
+    });
 });

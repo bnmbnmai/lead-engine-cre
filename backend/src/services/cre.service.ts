@@ -4,7 +4,21 @@ import { zkService } from './zk.service';
 import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } from '../lib/geo-registry';
 
 // ============================================
-// CRE Verification Service
+// CRE Verification Service — Two-Stage Scoring
+// ============================================
+//
+// Stage 1: PRE-AUCTION GATE (verifyLead / computePreScore)
+//   Runs at lead submission (marketplace, hosted form, RTB engine).
+//   Performs real checks: data integrity, TCPA consent, geo validation.
+//   Boolean pass/fail — no numeric score. Rejected leads are deleted.
+//
+// Stage 2: ON-CHAIN NUMERIC SCORE (getQualityScore)
+//   Runs AFTER NFT mint via CREVerifier.sol contract.
+//   CREVerifier requires a tokenId — scoring is impossible pre-NFT.
+//   Until scored, qualityScore = null → UI shows "Pending CRE".
+//
+// There is NO synthetic formula. The old assessLeadQuality() was
+// removed because it faked a numeric score from off-chain data.
 // ============================================
 
 const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS || '';
@@ -50,13 +64,19 @@ class CREService {
     }
 
     // ============================================
-    // Lead Verification
+    // Stage 1: Pre-Auction Gate
     // ============================================
 
+    /**
+     * Verify a lead before it enters the auction.
+     * Checks data integrity, TCPA consent, and geo validation.
+     * Returns pass/fail (boolean gate) — no numeric score.
+     */
     async verifyLead(leadId: string): Promise<VerificationResult> {
         const lead = await prisma.lead.findUnique({ where: { id: leadId } });
 
         if (!lead) {
+            console.warn(`[CRE PRE-GATE] Lead ${leadId}: NOT FOUND → REJECTED`);
             return { isValid: false, reason: 'Lead not found' };
         }
 
@@ -64,14 +84,26 @@ class CREService {
             return { isValid: true };
         }
 
-        const checks = await Promise.all([
+        const [dataCheck, tcpaCheck, geoCheck] = await Promise.all([
             this.verifyDataIntegrity(lead),
             this.verifyTCPAConsent(lead),
             this.verifyGeo(lead),
         ]);
 
-        const failed = checks.find(c => !c.isValid);
-        if (failed) return failed;
+        const admitted = dataCheck.isValid && tcpaCheck.isValid && geoCheck.isValid;
+
+        console.log(
+            `[CRE PRE-GATE] Lead ${leadId}: ` +
+            `data=${dataCheck.isValid ? 'PASS' : 'FAIL'} ` +
+            `tcpa=${tcpaCheck.isValid ? 'PASS' : 'FAIL'} ` +
+            `geo=${geoCheck.isValid ? 'PASS' : 'FAIL'} ` +
+            `→ ${admitted ? 'ADMITTED' : 'REJECTED'}`
+        );
+
+        if (!admitted) {
+            const failed = [dataCheck, tcpaCheck, geoCheck].find(c => !c.isValid)!;
+            return failed;
+        }
 
         await prisma.lead.update({
             where: { id: leadId },
@@ -89,6 +121,57 @@ class CREService {
         });
 
         return { isValid: true };
+    }
+
+    /**
+     * Compute a structured pre-score for a lead.
+     * Returns the pass/fail result of each real CRE check.
+     * No synthetic formula — just real verification results.
+     *
+     * This is the public API for callers that need structured results
+     * (e.g., the RTB engine for logging, the admin dashboard for insight).
+     */
+    async computePreScore(leadId: string): Promise<{
+        admitted: boolean;
+        checks: { dataIntegrity: boolean; tcpaConsent: boolean; geoValid: boolean };
+        reason?: string;
+    }> {
+        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+
+        if (!lead) {
+            return {
+                admitted: false,
+                checks: { dataIntegrity: false, tcpaConsent: false, geoValid: false },
+                reason: 'Lead not found',
+            };
+        }
+
+        // If already verified, skip re-checking
+        if (lead.isVerified) {
+            return {
+                admitted: true,
+                checks: { dataIntegrity: true, tcpaConsent: true, geoValid: true },
+            };
+        }
+
+        const [dataCheck, tcpaCheck, geoCheck] = await Promise.all([
+            this.verifyDataIntegrity(lead),
+            this.verifyTCPAConsent(lead),
+            this.verifyGeo(lead),
+        ]);
+
+        const admitted = dataCheck.isValid && tcpaCheck.isValid && geoCheck.isValid;
+        const failedCheck = [dataCheck, tcpaCheck, geoCheck].find(c => !c.isValid);
+
+        return {
+            admitted,
+            checks: {
+                dataIntegrity: dataCheck.isValid,
+                tcpaConsent: tcpaCheck.isValid,
+                geoValid: geoCheck.isValid,
+            },
+            reason: failedCheck?.reason,
+        };
     }
 
     // ============================================
@@ -192,7 +275,7 @@ class CREService {
     }
 
     // ============================================
-    // Quality Score (on-chain only — no fallback)
+    // Stage 2: On-Chain Numeric Score (post-NFT mint)
     // ============================================
 
     /**

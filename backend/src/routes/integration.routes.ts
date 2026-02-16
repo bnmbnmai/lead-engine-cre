@@ -80,7 +80,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
         });
         steps.push({ step: '1. Create Lead', status: 'OK', duration: Date.now() - stepStart, data: { leadId: lead.id } });
 
-        // ─── Step 2: CRE Verification ──────────────
+        // ─── Step 2: CRE Pre-Auction Gate (Stage 1) ──────────────
         stepStart = Date.now();
         const verification = await creService.verifyLead(lead.id);
         steps.push({ step: '2. CRE Verify', status: verification.isValid ? 'PASSED' : 'FAILED', duration: Date.now() - stepStart, data: verification });

@@ -375,7 +375,8 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
             },
         });
 
-        // Verify lead immediately
+        // Stage 1: CRE Pre-Auction Gate (data integrity, TCPA, geo)
+        // qualityScore stays null until Stage 2 (post-NFT-mint on-chain scoring)
         const verification = await creService.verifyLead(lead.id);
 
         if (!verification.isValid) {
@@ -572,7 +573,8 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
 
         console.log(`[MARKETPLACE] Public lead ${lead.id} submitted for seller ${seller.id} (${seller.companyName}) — vertical: ${vertical}`);
 
-        // Verify lead via CRE
+        // Stage 1: CRE Pre-Auction Gate (data integrity, TCPA, geo)
+        // qualityScore stays null until Stage 2 (post-NFT-mint on-chain scoring)
         const verification = await creService.verifyLead(lead.id);
 
         if (!verification.isValid) {
