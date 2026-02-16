@@ -517,13 +517,15 @@ class X402Service {
                 }
             }
 
-            // 4. Update DB
+            // 4. Update DB — mark escrow as released since the buyer's wallet
+            //    created and funded the escrow in a single client-side flow.
             await prisma.transaction.update({
                 where: { id: transactionId },
                 data: {
                     escrowId: parsedEscrowId,
                     txHash: escrowTxHash,
-                    status: fundTxHash ? 'ESCROWED' : 'PENDING',
+                    status: 'RELEASED',
+                    escrowReleased: true,
                     chainId: 84532, // Base Sepolia
                 },
             });
