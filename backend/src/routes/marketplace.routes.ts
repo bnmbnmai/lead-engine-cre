@@ -868,7 +868,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     // Attach transaction details for Etherscan link
                     (lead as any).txHash = transaction.txHash || null;
                     (lead as any).escrowId = transaction.escrowId || null;
-                    (lead as any).chainId = transaction.chainId || 11155111; // default Sepolia
+                    (lead as any).chainId = transaction.chainId || 84532; // default Base Sepolia
                     (lead as any).escrowReleased = true;
                     (lead as any).releasedAt = transaction.releasedAt || transaction.confirmedAt || null;
                 } else {
@@ -877,7 +877,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     // Still expose txHash for the escrow creation tx
                     (lead as any).txHash = transaction?.txHash || null;
                     (lead as any).escrowId = transaction?.escrowId || null;
-                    (lead as any).chainId = transaction?.chainId || 11155111;
+                    (lead as any).chainId = transaction?.chainId || 84532; // Base Sepolia
                 }
             }
         }
@@ -1077,21 +1077,24 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         });
 
-        // After transaction commits — initiate escrow (outside tx to avoid long locks)
-        let escrow = null;
+        // After transaction commits — prepare escrow for buyer to sign with MetaMask
+        let escrowTxData = null;
         try {
             const sellerUser = await prisma.user.findUnique({ where: { id: result.seller.userId } });
             if (sellerUser?.walletAddress && req.user?.walletAddress) {
-                escrow = await x402Service.createPayment(
+                const prepared = await x402Service.prepareEscrowTx(
                     sellerUser.walletAddress,
                     req.user.walletAddress,
                     Number(result.transaction.amount),
                     result.lead.id,
                     result.transaction.id,
                 );
+                if (prepared.success) {
+                    escrowTxData = prepared.data;
+                }
             }
-        } catch (escrowErr) {
-            console.error('Buy It Now escrow error (non-fatal):', escrowErr);
+        } catch (prepErr) {
+            console.error('Buy It Now escrow prep error (non-fatal):', prepErr);
         }
 
         // Emit real-time events
@@ -1143,10 +1146,9 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
                 platformFee: Number(result.transaction.platformFee),
                 status: result.transaction.status,
             },
-            escrow: escrow ? {
-                escrowId: escrow.escrowId,
-                txHash: escrow.txHash,
-            } : null,
+            // Client-side signing: buyer must sign this with MetaMask
+            escrowAction: escrowTxData ? 'SIGN_REQUIRED' : null,
+            escrowTxData,
         });
     } catch (error: any) {
         if (error.status) {
@@ -1155,6 +1157,137 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
         }
         console.error('Buy It Now error:', error);
         res.status(500).json({ error: 'Failed to process Buy It Now purchase' });
+    }
+});
+
+// ============================================
+// Prepare Escrow (client-side signing)
+// ============================================
+// Returns unsigned tx data for the buyer's MetaMask.
+// Called when buyer wins an auction or before Buy It Now escrow.
+
+router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const leadId = req.params.id;
+
+        // Find the buyer's pending transaction for this lead
+        const transaction = await prisma.transaction.findFirst({
+            where: {
+                leadId,
+                buyerId: req.user!.id,
+                escrowReleased: false,
+                escrowId: null, // not yet escrowed
+            },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                lead: {
+                    select: {
+                        seller: {
+                            select: { user: { select: { walletAddress: true } } },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!transaction) {
+            res.status(404).json({
+                error: 'No pending transaction found for this lead',
+                hint: 'The auction may not have resolved yet, or escrow is already created.',
+            });
+            return;
+        }
+
+        const sellerWallet = (transaction.lead as any)?.seller?.user?.walletAddress;
+        const buyerWallet = req.user!.walletAddress;
+
+        if (!sellerWallet || !buyerWallet) {
+            res.status(400).json({
+                error: 'Missing wallet addresses',
+                hint: `seller=${sellerWallet || 'MISSING'}, buyer=${buyerWallet || 'MISSING'}`,
+            });
+            return;
+        }
+
+        const result = await x402Service.prepareEscrowTx(
+            sellerWallet,
+            buyerWallet,
+            Number(transaction.amount),
+            leadId,
+            transaction.id,
+        );
+
+        if (!result.success) {
+            res.status(503).json({ error: result.error });
+            return;
+        }
+
+        res.json(result.data);
+    } catch (error: any) {
+        console.error('Prepare escrow error:', error);
+        res.status(500).json({ error: 'Failed to prepare escrow transaction' });
+    }
+});
+
+// ============================================
+// Confirm Escrow (after buyer signs with MetaMask)
+// ============================================
+
+router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const leadId = req.params.id;
+        const { escrowTxHash, fundTxHash } = req.body as { escrowTxHash: string; fundTxHash?: string };
+
+        if (!escrowTxHash) {
+            res.status(400).json({ error: 'escrowTxHash is required' });
+            return;
+        }
+
+        // Find the buyer's transaction for this lead
+        const transaction = await prisma.transaction.findFirst({
+            where: {
+                leadId,
+                buyerId: req.user!.id,
+                escrowReleased: false,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        if (!transaction) {
+            res.status(404).json({ error: 'No transaction found for this lead' });
+            return;
+        }
+
+        const result = await x402Service.confirmEscrowTx(
+            transaction.id,
+            escrowTxHash,
+            fundTxHash,
+        );
+
+        if (!result.success) {
+            res.status(400).json({ error: result.error });
+            return;
+        }
+
+        // Emit socket event so UI updates
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('lead:escrow-confirmed', {
+                leadId,
+                escrowId: result.escrowId,
+                txHash: result.txHash,
+                buyerId: req.user!.id,
+            });
+        }
+
+        res.json({
+            success: true,
+            escrowId: result.escrowId,
+            txHash: result.txHash,
+        });
+    } catch (error: any) {
+        console.error('Confirm escrow error:', error);
+        res.status(500).json({ error: 'Failed to confirm escrow transaction' });
     }
 });
 

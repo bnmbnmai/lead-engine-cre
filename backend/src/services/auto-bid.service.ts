@@ -21,9 +21,9 @@ import { ethers } from 'ethers';
 // On-chain config for USDC allowance checks
 // ============================================
 
-const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
+const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
 const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
-const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 
 const ERC20_ABI = [
     'function allowance(address owner, address spender) view returns (uint256)',

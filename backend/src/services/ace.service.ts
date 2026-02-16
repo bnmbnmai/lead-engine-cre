@@ -8,7 +8,7 @@ import { isValidRegion } from '../lib/geo-registry';
 // ============================================
 
 const ACE_CONTRACT_ADDRESS = process.env.ACE_CONTRACT_ADDRESS || '';
-const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
 // ACE Contract ABI (read + write)

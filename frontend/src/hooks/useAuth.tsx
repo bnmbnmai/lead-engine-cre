@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // before triggering. If the wallet is on mainnet, wagmi will switch
     // chains first — we must NOT fire the sign request during that switch
     // or MetaMask will warn about "pending transactions".
-    const SUPPORTED_CHAIN_IDS = [11155111, 84532]; // sepolia, baseSepolia
+    const SUPPORTED_CHAIN_IDS = [84532, 11155111]; // baseSepolia, sepolia
     useEffect(() => {
         if (
             isConnected &&

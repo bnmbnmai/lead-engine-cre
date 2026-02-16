@@ -32,7 +32,7 @@ export const CONTRACT_ADDRESSES = {
 export const wagmiConfig = getDefaultConfig({
     appName: 'Lead Engine CRE',
     projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo',
-    chains: [sepolia, baseSepolia],
+    chains: [baseSepolia, sepolia],
     transports: {
         [sepolia.id]: http(import.meta.env.VITE_RPC_URL_SEPOLIA),
         [baseSepolia.id]: http(import.meta.env.VITE_RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org'),
@@ -111,7 +111,7 @@ export function getContractAddresses(chainId: number) {
     if (chainId === baseSepolia.id) {
         return CONTRACT_ADDRESSES.baseSepolia;
     }
-    return CONTRACT_ADDRESSES.sepolia; // Default
+    return CONTRACT_ADDRESSES.baseSepolia; // Default to Base Sepolia
 }
 
 export default wagmiConfig;

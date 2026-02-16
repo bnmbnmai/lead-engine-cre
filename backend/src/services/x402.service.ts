@@ -6,9 +6,9 @@ import { prisma } from '../lib/prisma';
 // ============================================
 // Wraps RTBEscrow for HTTP-native payment flows
 
-const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
+const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
 const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
-const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
 const ESCROW_ABI = [
@@ -34,6 +34,25 @@ interface PaymentResult {
     escrowId?: string;
     txHash?: string;
     error?: string;
+}
+
+interface PreparedEscrowTx {
+    /** Data the buyer needs to sign with MetaMask */
+    escrowContractAddress: string;
+    usdcContractAddress: string;
+    /** ABI-encoded calldata for createEscrow() */
+    createEscrowCalldata: string;
+    /** ABI-encoded calldata for USDC approve() */
+    approveCalldata: string;
+    /** Amount in USDC wei (6 decimals) */
+    amountWei: string;
+    /** Human-readable amount */
+    amountUSDC: number;
+    /** Chain ID */
+    chainId: number;
+    /** Transaction ID in our DB */
+    transactionId: string;
+    leadId: string;
 }
 
 interface PaymentStatus {
@@ -234,9 +253,9 @@ class X402Service {
             // Human-readable error
             let userError = error.shortMessage || error.reason || error.message;
             if (error.code === 'INSUFFICIENT_FUNDS') {
-                userError = `Deployer wallet has insufficient ETH for gas (${errorInfo.signerBalance}). Fund ${this.signer.address} on Sepolia.`;
+                userError = `Deployer wallet has insufficient ETH for gas (${errorInfo.signerBalance}). Fund ${this.signer.address} on Base Sepolia.`;
             } else if (error.code === 'CALL_EXCEPTION') {
-                userError = `Contract call reverted: ${error.reason || error.message}. Check that ESCROW_CONTRACT_ADDRESS is correct and deployed on Sepolia.`;
+                userError = `Contract call reverted: ${error.reason || error.message}. Check that ESCROW_CONTRACT_ADDRESS is correct and deployed on Base Sepolia.`;
             }
 
             return { success: false, error: userError };
@@ -274,7 +293,7 @@ class X402Service {
                     escrowReleased: true,
                     releasedAt: new Date(),
                     txHash: receipt?.hash || tx.hash,
-                    chainId: 11155111, // Sepolia
+                    chainId: 84532, // Base Sepolia
                 },
             });
 
@@ -399,6 +418,132 @@ class X402Service {
     }
 
     // ============================================
+    // Prepare Escrow Tx (client-side signing flow)
+    // ============================================
+    // Returns unsigned tx data for the buyer's MetaMask to sign.
+    // Does NOT touch the chain — just encodes the calldata.
+
+    async prepareEscrowTx(
+        sellerAddress: string,
+        buyerAddress: string,
+        amountUSDC: number,
+        leadId: string,
+        transactionId: string
+    ): Promise<{ success: boolean; data?: PreparedEscrowTx; error?: string }> {
+        if (!ESCROW_CONTRACT_ADDRESS) {
+            return { success: false, error: 'ESCROW_CONTRACT_ADDRESS not configured' };
+        }
+        if (!USDC_CONTRACT_ADDRESS) {
+            return { success: false, error: 'USDC_CONTRACT_ADDRESS not configured' };
+        }
+
+        const amountWei = BigInt(Math.floor(amountUSDC * 1e6));
+
+        // Encode createEscrow calldata
+        const escrowIface = new ethers.Interface(ESCROW_ABI);
+        const createEscrowCalldata = escrowIface.encodeFunctionData('createEscrow', [
+            leadId, sellerAddress, buyerAddress, amountWei,
+        ]);
+
+        // Encode USDC approve calldata (approve escrow contract to spend buyer's USDC)
+        const erc20Iface = new ethers.Interface(ERC20_ABI);
+        const approveCalldata = erc20Iface.encodeFunctionData('approve', [
+            ESCROW_CONTRACT_ADDRESS, amountWei * 10n, // 10x buffer for headroom
+        ]);
+
+        console.log(`[x402] prepareEscrowTx: lead=${leadId}, buyer=${buyerAddress}, amount=$${amountUSDC} (${amountWei} wei)`);
+
+        return {
+            success: true,
+            data: {
+                escrowContractAddress: ESCROW_CONTRACT_ADDRESS,
+                usdcContractAddress: USDC_CONTRACT_ADDRESS,
+                createEscrowCalldata,
+                approveCalldata,
+                amountWei: amountWei.toString(),
+                amountUSDC,
+                chainId: 84532, // Base Sepolia
+                transactionId,
+                leadId,
+            },
+        };
+    }
+
+    // ============================================
+    // Confirm Escrow Tx (after buyer signs)
+    // ============================================
+    // Verifies the buyer's signed tx landed on-chain, extracts
+    // the escrowId from the receipt, and updates the DB.
+
+    async confirmEscrowTx(
+        transactionId: string,
+        escrowTxHash: string,
+        fundTxHash?: string
+    ): Promise<PaymentResult> {
+        console.log(`[x402] confirmEscrowTx START: txId=${transactionId}, escrowTxHash=${escrowTxHash}`);
+
+        try {
+            // 1. Wait for createEscrow tx receipt
+            const receipt = await this.provider.waitForTransaction(escrowTxHash, 1, 60_000);
+            if (!receipt || receipt.status !== 1) {
+                return { success: false, error: `Escrow tx failed or not found (hash=${escrowTxHash})` };
+            }
+
+            // 2. Extract escrowId from EscrowCreated event log
+            const escrowIface = new ethers.Interface(ESCROW_ABI);
+            let parsedEscrowId = '0';
+            for (const log of receipt.logs) {
+                try {
+                    const parsed = escrowIface.parseLog({ topics: log.topics as string[], data: log.data });
+                    if (parsed && parsed.name === 'EscrowCreated') {
+                        parsedEscrowId = parsed.args[0].toString(); // first indexed arg = escrowId
+                        break;
+                    }
+                } catch { /* not our event */ }
+            }
+
+            // Fallback: extract from first topic
+            if (parsedEscrowId === '0' && receipt.logs.length > 0) {
+                parsedEscrowId = receipt.logs[0].topics?.[1] || '0';
+            }
+
+            console.log(`[x402] confirmEscrowTx: escrowId=${parsedEscrowId}, block=${receipt.blockNumber}`);
+
+            // 3. If fundTxHash provided, verify it too
+            if (fundTxHash) {
+                const fundReceipt = await this.provider.waitForTransaction(fundTxHash, 1, 60_000);
+                if (!fundReceipt || fundReceipt.status !== 1) {
+                    console.warn(`[x402] fundEscrow tx failed (hash=${fundTxHash}), escrow created but not funded`);
+                }
+            }
+
+            // 4. Update DB
+            await prisma.transaction.update({
+                where: { id: transactionId },
+                data: {
+                    escrowId: parsedEscrowId,
+                    txHash: escrowTxHash,
+                    status: fundTxHash ? 'ESCROWED' : 'PENDING',
+                    chainId: 84532, // Base Sepolia
+                },
+            });
+
+            console.log(`[x402] confirmEscrowTx COMPLETE — escrowId=${parsedEscrowId}`);
+            return { success: true, escrowId: parsedEscrowId, txHash: escrowTxHash };
+        } catch (error: any) {
+            console.error(`[x402] confirmEscrowTx FAILED:`, error.message);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // ============================================
+    // Public getters for contract addresses
+    // ============================================
+
+    get escrowAddress(): string { return ESCROW_CONTRACT_ADDRESS; }
+    get usdcAddress(): string { return USDC_CONTRACT_ADDRESS; }
+
+    // ============================================
     // x402 Payment Header (HTTP-native)
     // ============================================
 
@@ -414,9 +559,10 @@ class X402Service {
             'X-Payment-Amount': amount.toFixed(6),
             'X-Payment-Currency': 'USDC',
             'X-Payment-Recipient': recipient,
-            'X-Payment-Network': 'sepolia',
+            'X-Payment-Network': 'base-sepolia',
         };
     }
 }
 
 export const x402Service = new X402Service();
+

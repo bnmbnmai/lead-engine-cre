@@ -176,7 +176,7 @@ describe('X402Service', () => {
             expect(headers['X-Payment-Amount']).toBe('35.500000');
             expect(headers['X-Payment-Currency']).toBe('USDC');
             expect(headers['X-Payment-Recipient']).toBe('0xRecipient');
-            expect(headers['X-Payment-Network']).toBe('sepolia');
+            expect(headers['X-Payment-Network']).toBe('base-sepolia');
         });
 
         it('should handle zero amount', () => {

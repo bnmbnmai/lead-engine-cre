@@ -278,7 +278,7 @@ export function AuctionPage() {
 
                         {/* Contract Link */}
                         {(() => {
-                            const explorerUrl = import.meta.env.VITE_BLOCK_EXPLORER_URL || 'https://sepolia.etherscan.io';
+                            const explorerUrl = import.meta.env.VITE_BLOCK_EXPLORER_URL || 'https://sepolia.basescan.org';
                             const isMockId = !lead.id || !/^0x[0-9a-fA-F]{40}$/.test(lead.id);
                             return (
                                 <Card>
@@ -291,7 +291,7 @@ export function AuctionPage() {
                                             onClick={isMockId ? (e: React.MouseEvent) => e.preventDefault() : undefined}
                                         >
                                             <span className="flex items-center gap-2">
-                                                View on Etherscan
+                                                View on Basescan
                                                 {isMockId && (
                                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
                                                         MOCK

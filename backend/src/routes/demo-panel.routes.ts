@@ -31,7 +31,7 @@ router.use(devOnly);
 
 const DEMO_TAG = 'DEMO_PANEL';  // Tag for identifying demo data
 
-// Real Sepolia wallet addresses for demo personas (replaces old 0xDEMO_ placeholders)
+// Real Base Sepolia wallet addresses for demo personas (replaces old 0xDEMO_ placeholders)
 const DEMO_WALLETS = {
     PANEL_USER: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Demo seller / panel user
     ADMIN: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Admin (same as panel user)
@@ -1093,10 +1093,10 @@ router.post('/settle', async (req: Request, res: Response) => {
             });
             return;
         }
-        if (!process.env.ESCROW_CONTRACT_ADDRESS) {
+        if (!process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA && !process.env.ESCROW_CONTRACT_ADDRESS) {
             res.status(503).json({
                 error: 'Escrow contract address not configured',
-                hint: 'Set ESCROW_CONTRACT_ADDRESS env var on Render',
+                hint: 'Set ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA (or ESCROW_CONTRACT_ADDRESS) env var on Render',
             });
             return;
         }
@@ -1251,7 +1251,7 @@ router.post('/settle', async (req: Request, res: Response) => {
                 res.status(500).json({
                     error: 'Failed to create on-chain escrow',
                     details: createResult.error,
-                    hint: 'Ensure DEPLOYER_PRIVATE_KEY has Sepolia ETH for gas and ESCROW_CONTRACT_ADDRESS is deployed.',
+                    hint: 'Ensure DEPLOYER_PRIVATE_KEY has Base Sepolia ETH for gas and ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA is deployed.',
                 });
                 return;
             }

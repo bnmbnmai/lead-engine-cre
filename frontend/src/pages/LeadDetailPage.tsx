@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown, CheckCircle2, Hourglass } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
@@ -15,6 +15,7 @@ import { BidPanel } from '@/components/bidding/BidPanel';
 import { formatCurrency, getStatusColor, formatTimeRemaining } from '@/lib/utils';
 import { useAuction } from '@/hooks/useAuction';
 import useAuth from '@/hooks/useAuth';
+import { useEscrow, type EscrowStep } from '@/hooks/useEscrow';
 import api from '@/lib/api';
 import { toast } from '@/hooks/useToast';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -108,13 +109,29 @@ function DetailSkeleton() {
     );
 }
 
+// ─── Escrow Step Indicator ──────────────────
+
+function EscrowStepIndicator({ label, done, active }: { label: string; done?: boolean; active?: boolean }) {
+    return (
+        <div className={`flex items-center gap-2 text-xs ${done ? 'text-muted-foreground' : active ? 'text-amber-400' : 'text-muted-foreground/50'}`}>
+            {done ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+            ) : active ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+                <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30" />
+            )}
+            <span>{label}</span>
+        </div>
+    );
+}
+
 // ─── Page Component ─────────────────────────
 
 export default function LeadDetailPage() {
     const { id } = useParams<{ id: string }>();
     const { isAuthenticated } = useAuth();
     const { openConnectModal } = useConnectModal();
-    const navigate = useNavigate();
 
     const [lead, setLead] = useState<LeadDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -126,6 +143,9 @@ export default function LeadDetailPage() {
     const [previewOpen, setPreviewOpen] = useState(true);
     const [buyError, setBuyError] = useState<string | null>(null);
     const [purchased, setPurchased] = useState(false);
+
+    // Escrow signing flow (TD-01: buyer signs with MetaMask)
+    const escrow = useEscrow();
 
     // Bidding state
     const [bidLoading, setBidLoading] = useState(false);
@@ -165,6 +185,11 @@ export default function LeadDetailPage() {
 
     useEffect(() => { fetchLead(); }, [fetchLead]);
 
+    // Auto-refresh lead details when escrow completes (TD-01)
+    useEffect(() => {
+        if (escrow.step === 'done') fetchLead();
+    }, [escrow.step, fetchLead]);
+
     // Real-time updates
     useSocketEvents(
         {
@@ -198,8 +223,12 @@ export default function LeadDetailPage() {
                     setBuyError(res.error.error || 'Purchase failed');
                 } else {
                     setPurchased(true);
-                    // Redirect to portfolio after brief confirmation
-                    setTimeout(() => navigate('/buyer/portfolio'), 2000);
+                    // If server says buyer needs to sign escrow, start the MetaMask flow
+                    if (res.data?.escrowAction === 'SIGN_REQUIRED') {
+                        toast({ type: 'info', title: '🔑 Sign Escrow', description: 'Please approve the transactions in MetaMask to fund the escrow.' });
+                        await escrow.fundEscrow(lead.id);
+                    }
+                    fetchLead();
                 }
             } catch {
                 setBuyError('Network error — please try again');
@@ -656,7 +685,7 @@ export default function LeadDetailPage() {
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-muted-foreground">Escrow Tx</span>
                                                     <a
-                                                        href={`https://sepolia.etherscan.io/tx/${(lead as any).txHash}`}
+                                                        href={`https://sepolia.basescan.org/tx/${(lead as any).txHash}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
@@ -683,7 +712,7 @@ export default function LeadDetailPage() {
                                                     <span className="text-xs text-muted-foreground">LeadNFT</span>
                                                     {lead.nftContractAddr && !lead.nftTokenId.startsWith('offchain-') ? (
                                                         <a
-                                                            href={`https://sepolia.etherscan.io/nft/${lead.nftContractAddr}/${lead.nftTokenId}`}
+                                                            href={`https://sepolia.basescan.org/nft/${lead.nftContractAddr}/${lead.nftTokenId}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
@@ -702,7 +731,7 @@ export default function LeadDetailPage() {
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-muted-foreground">NFT Mint Tx</span>
                                                     <a
-                                                        href={`https://sepolia.etherscan.io/tx/${(lead as any).nftMintTxHash}`}
+                                                        href={`https://sepolia.basescan.org/tx/${(lead as any).nftMintTxHash}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
@@ -718,7 +747,7 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
-                                {/* ── SOLD: Settlement pending (won but payment not confirmed) ── */}
+                                {/* ── SOLD: Settlement pending — buyer must sign escrow with MetaMask ── */}
                                 {isSold && isSettlementPending && (
                                     <Card className="border-amber-500/30">
                                         <CardContent className="p-6 space-y-4">
@@ -727,32 +756,50 @@ export default function LeadDetailPage() {
                                                     <Hourglass className="h-5 w-5 text-amber-500 animate-pulse" />
                                                 </div>
                                                 <div>
-                                                    <h2 className="text-lg font-bold text-amber-500">You Won — Awaiting Payment</h2>
-                                                    <p className="text-xs text-muted-foreground">x402 escrow settlement in progress</p>
+                                                    <h2 className="text-lg font-bold text-amber-500">You Won — Fund Escrow</h2>
+                                                    <p className="text-xs text-muted-foreground">Sign with MetaMask to lock USDC in escrow</p>
                                                 </div>
                                             </div>
 
+                                            {/* Step progress */}
                                             <div className="space-y-2">
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                                                    <span>Auction won</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                                                    <span>Escrow created</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs text-amber-400">
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    <span>Payment confirmation pending</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground/50">
-                                                    <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30" />
-                                                    <span>PII decryption</span>
-                                                </div>
+                                                <EscrowStepIndicator label="Auction won" done />
+                                                <EscrowStepIndicator label="USDC approval" done={(['creating', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'approving'} />
+                                                <EscrowStepIndicator label="Create escrow" done={(['confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'creating'} />
+                                                <EscrowStepIndicator label="Confirm on-chain" done={escrow.step === 'done'} active={escrow.step === 'confirming'} />
+                                                <EscrowStepIndicator label="PII decryption" done={escrow.step === 'done'} />
                                             </div>
+
+                                            {escrow.error && (
+                                                <div className="p-3 rounded-lg bg-red-500/10 text-red-400 text-xs">
+                                                    {escrow.error}
+                                                </div>
+                                            )}
+
+                                            {escrow.step === 'done' ? (
+                                                <div className="text-center py-2">
+                                                    <p className="text-sm font-semibold text-green-500">✓ Escrow Funded</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">Refreshing lead details…</p>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    className="w-full py-5 bg-amber-600 hover:bg-amber-700 text-base"
+                                                    disabled={escrow.step !== 'idle' && escrow.step !== 'error'}
+                                                    onClick={() => {
+                                                        escrow.reset();
+                                                        escrow.fundEscrow(lead.id);
+                                                    }}
+                                                >
+                                                    {escrow.step === 'idle' || escrow.step === 'error' ? (
+                                                        <><Wallet className="h-5 w-5 mr-2" /> Fund Escrow</>
+                                                    ) : (
+                                                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing…</>
+                                                    )}
+                                                </Button>
+                                            )}
 
                                             <div className="pt-2 border-t border-border/50">
-                                                <p className="text-xs text-muted-foreground">Contact details will be decrypted automatically once the x402 escrow payment is confirmed on-chain.</p>
+                                                <p className="text-xs text-muted-foreground">Your MetaMask wallet will sign the USDC approval and escrow creation transactions. Contact details will be revealed after the escrow is confirmed on-chain.</p>
                                             </div>
                                         </CardContent>
                                     </Card>

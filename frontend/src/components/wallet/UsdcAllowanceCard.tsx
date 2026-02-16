@@ -206,7 +206,7 @@ export function UsdcAllowanceCard() {
                         <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
                             <AlertCircle className="h-5 w-5 text-amber-500" />
                             <p className="text-sm text-amber-400">
-                                Escrow contract not configured. Set <code className="text-xs bg-muted px-1 rounded">VITE_ESCROW_ADDRESS_SEPOLIA</code> in your environment.
+                                Escrow contract not configured. Set <code className="text-xs bg-muted px-1 rounded">VITE_ESCROW_ADDRESS_BASE</code> in your environment.
                             </p>
                         </div>
                     ) : (
@@ -309,10 +309,10 @@ export function UsdcAllowanceCard() {
                             {/* Tx status */}
                             {(isApproving || isWaitingForTx || txConfirmed || approveError) && (
                                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${approveError
-                                        ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                                        : txConfirmed
-                                            ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                    : txConfirmed
+                                        ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                        : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                                     }`}>
                                     {approveError ? (
                                         <>
@@ -331,7 +331,7 @@ export function UsdcAllowanceCard() {
                                             </span>
                                             {approveTxHash && (
                                                 <a
-                                                    href={`https://sepolia.etherscan.io/tx/${approveTxHash}`}
+                                                    href={`https://sepolia.basescan.org/tx/${approveTxHash}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="ml-auto flex-shrink-0"

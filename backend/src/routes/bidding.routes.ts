@@ -632,8 +632,8 @@ router.post('/auto-bid/evaluate', authMiddleware, async (req: AuthenticatedReque
 // ============================================
 
 const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
-const ESCROW_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS || '';
-const RPC_SEPOLIA = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+const ESCROW_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
+const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 
 const USDC_READ_ABI = [
     'function allowance(address owner, address spender) view returns (uint256)',
@@ -664,7 +664,7 @@ router.get('/buyer/usdc-allowance', authMiddleware, requireBuyer, async (req: Au
             return;
         }
 
-        const provider = new ethers.JsonRpcProvider(RPC_SEPOLIA);
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
         const usdc = new ethers.Contract(USDC_ADDRESS, USDC_READ_ABI, provider);
 
         const [allowanceRaw, balanceRaw] = await Promise.all([

@@ -8,7 +8,7 @@ import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } 
 // ============================================
 
 const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS || '';
-const RPC_URL = process.env.RPC_URL_SEPOLIA || 'https://eth-sepolia.g.alchemy.com/v2/demo';
+const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
 // CREVerifier Contract ABI (read + write)
