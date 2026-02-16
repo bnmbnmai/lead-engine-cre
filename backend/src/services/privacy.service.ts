@@ -6,7 +6,20 @@ import { ethers } from 'ethers';
 // ============================================
 // Encrypted bids, PII protection, token metadata encryption
 
-const ENCRYPTION_KEY = process.env.PRIVACY_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+function requireEncryptionKey(): string {
+    const key = process.env.PRIVACY_ENCRYPTION_KEY;
+    if (!key || key === 'generate-with-openssl-rand-hex-32') {
+        const msg = [
+            '⛔ FATAL: PRIVACY_ENCRYPTION_KEY is not set (or is the placeholder).',
+            '   Run:  openssl rand -hex 32',
+            '   Then set PRIVACY_ENCRYPTION_KEY in your .env / Render env vars.',
+        ].join('\n');
+        console.error(msg);
+        throw new Error(msg);
+    }
+    return key;
+}
+const ENCRYPTION_KEY = requireEncryptionKey();
 
 interface EncryptedPayload {
     ciphertext: string;  // hex-encoded AES-256-GCM ciphertext
