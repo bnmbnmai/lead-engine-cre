@@ -750,12 +750,12 @@ router.post('/seed', async (req: Request, res: Response) => {
 // ============================================
 router.post('/clear', async (req: Request, res: Response) => {
     try {
-        // Delete ALL data in dependency order — ensures old long-duration / orphan records are removed
-        const deletedBids = await prisma.bid.deleteMany({});
-        await prisma.auctionRoom.deleteMany({});
-        await prisma.transaction.deleteMany({});
-        const deletedLeads = await prisma.lead.deleteMany({});
-        const deletedAsks = await prisma.ask.deleteMany({});
+        // TD-09 fix: only delete demo-tagged records, not ALL data
+        const deletedBids = await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+        await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+        await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+        const deletedLeads = await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
+        const deletedAsks = await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
 
         // Flush all in-memory LRU caches so stale data doesn't persist
         const cachesFlushed = clearAllCaches();
@@ -1018,12 +1018,12 @@ router.post('/auction', async (req: Request, res: Response) => {
 // ============================================
 router.post('/reset', async (req: Request, res: Response) => {
     try {
-        // 1. Clear everything (FK dependency order)
-        await prisma.bid.deleteMany({});
-        await prisma.auctionRoom.deleteMany({});
-        await prisma.transaction.deleteMany({});
-        const cleared = await prisma.lead.deleteMany({});
-        await prisma.ask.deleteMany({});
+        // TD-09 fix: only delete demo-tagged records, not ALL data
+        await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+        await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+        await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+        const cleared = await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
+        await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
 
         // Flush all in-memory LRU caches so stale data doesn't persist
         clearAllCaches();
