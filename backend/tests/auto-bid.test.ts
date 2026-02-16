@@ -34,6 +34,11 @@ jest.mock('../src/lib/prisma', () => ({
     },
 }));
 
+// Mock demo-panel routes to enable demo buyers in tests
+jest.mock('../src/routes/demo-panel.routes', () => ({
+    getDemoBuyersEnabled: jest.fn().mockResolvedValue(true),
+}));
+
 // ============================================
 // Helpers
 // ============================================
@@ -44,7 +49,7 @@ function makeLead(overrides: Partial<LeadData> = {}): LeadData {
         vertical: 'solar',
         geo: { country: 'US', state: 'CA' },
         source: 'PLATFORM',
-        qualityScore: 9000,
+        qualityScore: 90,
         isVerified: true,
         reservePrice: 100,
         ...overrides,
@@ -91,26 +96,26 @@ describe('Auto-Bid Service', () => {
     describe('Quality Score Gate', () => {
         it('should bid when lead score exceeds minimum', async () => {
             mockFindMany.mockResolvedValue([
-                makePrefSet({ minQualityScore: 8000 }),
+                makePrefSet({ minQualityScore: 80 }),
             ]);
 
-            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 9000 }));
+            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 90 }));
 
             expect(result.bidsPlaced).toHaveLength(1);
             expect(result.bidsPlaced[0].amount).toBe(120);
             expect(result.skipped).toHaveLength(0);
         });
 
-        it('should skip when lead score is below minimum (bid if score > 80 = 8000)', async () => {
+        it('should skip when lead score is below minimum (bid if score > 80)', async () => {
             mockFindMany.mockResolvedValue([
-                makePrefSet({ minQualityScore: 8000 }),
+                makePrefSet({ minQualityScore: 80 }),
             ]);
 
-            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 7500 }));
+            const result = await evaluateLeadForAutoBid(makeLead({ qualityScore: 75 }));
 
             expect(result.bidsPlaced).toHaveLength(0);
             expect(result.skipped).toHaveLength(1);
-            expect(result.skipped[0].reason).toContain('Quality 7500 < min 8000');
+            expect(result.skipped[0].reason).toContain('Quality 75/100 < min 80/100');
         });
 
         it('should bid when no quality score gate is set', async () => {

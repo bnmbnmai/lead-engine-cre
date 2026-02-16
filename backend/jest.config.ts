@@ -25,6 +25,7 @@ const config: Config = {
         '**/tests/**/*.test.ts',
         '**/tests/**/*.spec.ts',
     ],
+    setupFilesAfterEnv: ['\u003crootDir\u003e/tests/jest.setup.ts'],
     collectCoverageFrom: [
         'src/services/**/*.ts',
         'src/rtb/**/*.ts',

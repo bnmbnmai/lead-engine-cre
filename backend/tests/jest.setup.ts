@@ -8,6 +8,10 @@
  * - Unclosed timers or pending promises
  */
 
+// Set required environment variables for tests
+process.env.PRIVACY_ENCRYPTION_KEY = process.env.PRIVACY_ENCRYPTION_KEY || 'test-key-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+
 // Increase default timeout for CI environments with slow I/O
 jest.setTimeout(30000);
 
