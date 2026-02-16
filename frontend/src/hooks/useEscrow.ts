@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useAccount, useSendTransaction } from 'wagmi';
+import { useAccount, useSendTransaction, usePublicClient } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import { wagmiConfig } from '@/lib/wagmi';
 import { api } from '@/lib/api';
@@ -13,6 +13,12 @@ import { api } from '@/lib/api';
  * 3. Sends createEscrow() via MetaMask.
  * 4. Calls backend to confirm the on-chain tx (confirmEscrow).
  */
+
+// Safe fallback gas limits if estimateGas fails
+const APPROVE_GAS_FALLBACK = 80_000n;
+const CREATE_ESCROW_GAS_FALLBACK = 500_000n;
+const GAS_BUFFER_MULTIPLIER = 150n; // 1.5x = 50% buffer
+const GAS_BUFFER_DIVISOR = 100n;
 
 export type EscrowStep = 'idle' | 'preparing' | 'approving' | 'creating' | 'confirming' | 'done' | 'error';
 
@@ -28,6 +34,7 @@ interface UseEscrowResult {
 export function useEscrow(): UseEscrowResult {
     const { address, isConnected } = useAccount();
     const { sendTransactionAsync } = useSendTransaction();
+    const publicClient = usePublicClient();
 
     const [step, setStep] = useState<EscrowStep>('idle');
     const [error, setError] = useState<string | null>(null);
@@ -40,6 +47,26 @@ export function useEscrow(): UseEscrowResult {
         setEscrowId(null);
         setTxHash(null);
     }, []);
+
+    /**
+     * Estimate gas with a 50% buffer; fall back to a safe hardcoded limit on error.
+     */
+    const estimateGasWithBuffer = useCallback(async (
+        txParams: { to: `0x${string}`; data: `0x${string}`; account: `0x${string}` },
+        fallback: bigint,
+        label: string,
+    ): Promise<bigint> => {
+        try {
+            if (!publicClient) throw new Error('No public client');
+            const estimated = await publicClient.estimateGas(txParams);
+            const buffered = (estimated * GAS_BUFFER_MULTIPLIER) / GAS_BUFFER_DIVISOR;
+            console.log(`[useEscrow] ${label} estimateGas=${estimated}, with 50% buffer=${buffered}`);
+            return buffered;
+        } catch (err) {
+            console.warn(`[useEscrow] ${label} estimateGas failed, using fallback=${fallback}`, err);
+            return fallback;
+        }
+    }, [publicClient]);
 
     const fundEscrow = useCallback(async (leadId: string) => {
         if (!isConnected || !address) {
@@ -62,10 +89,22 @@ export function useEscrow(): UseEscrowResult {
 
             // 2. USDC approve — MetaMask prompt #1
             setStep('approving');
+            const approveGas = await estimateGasWithBuffer(
+                {
+                    to: txData.usdcContractAddress as `0x${string}`,
+                    data: txData.approveCalldata as `0x${string}`,
+                    account: address,
+                },
+                APPROVE_GAS_FALLBACK,
+                'approve()',
+            );
+            console.log(`[useEscrow] approve() gasLimit=${approveGas}`);
+
             const approveHash = await sendTransactionAsync({
                 to: txData.usdcContractAddress as `0x${string}`,
                 data: txData.approveCalldata as `0x${string}`,
                 chainId: txData.chainId,
+                gas: approveGas,
             });
 
             // Wait for approval to be confirmed on-chain
@@ -76,10 +115,22 @@ export function useEscrow(): UseEscrowResult {
 
             // 3. Create escrow — MetaMask prompt #2
             setStep('creating');
+            const escrowGas = await estimateGasWithBuffer(
+                {
+                    to: txData.escrowContractAddress as `0x${string}`,
+                    data: txData.createEscrowCalldata as `0x${string}`,
+                    account: address,
+                },
+                CREATE_ESCROW_GAS_FALLBACK,
+                'createEscrow()',
+            );
+            console.log(`[useEscrow] createEscrow() gasLimit=${escrowGas}`);
+
             const escrowHash = await sendTransactionAsync({
                 to: txData.escrowContractAddress as `0x${string}`,
                 data: txData.createEscrowCalldata as `0x${string}`,
                 chainId: txData.chainId,
+                gas: escrowGas,
             });
 
             setTxHash(escrowHash);
@@ -113,7 +164,7 @@ export function useEscrow(): UseEscrowResult {
             }
             setStep('error');
         }
-    }, [address, isConnected, sendTransactionAsync]);
+    }, [address, isConnected, sendTransactionAsync, estimateGasWithBuffer]);
 
     return { step, error, escrowId, txHash, fundEscrow, reset };
 }
