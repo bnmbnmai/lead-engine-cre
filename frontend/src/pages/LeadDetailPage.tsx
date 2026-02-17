@@ -792,12 +792,11 @@ export default function LeadDetailPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Step progress */}
+                                            {/* Step progress — single-signature flow */}
                                             <div className="space-y-2">
                                                 <EscrowStepIndicator label="Auction won" done />
-                                                <EscrowStepIndicator label="USDC approval" done={(['creating', 'transferring-fee', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'approving'} />
-                                                <EscrowStepIndicator label="Create escrow" done={(['transferring-fee', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'creating'} />
-                                                <EscrowStepIndicator label="Convenience fee" done={(['confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'transferring-fee'} />
+                                                <EscrowStepIndicator label="USDC approval" done={(['funding', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'approving'} />
+                                                <EscrowStepIndicator label="Fund escrow" done={(['confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'funding'} />
                                                 <EscrowStepIndicator label="Confirm on-chain" done={escrow.step === 'done'} active={escrow.step === 'confirming'} />
                                                 <EscrowStepIndicator label="PII decryption" done={escrow.step === 'done'} />
                                             </div>
