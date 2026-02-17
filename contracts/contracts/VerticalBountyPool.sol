@@ -8,13 +8,14 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title VerticalBountyPool
- * @dev Per-vertical USDC bounty pools funded by sellers.
+ * @dev Per-vertical USDC bounty pools funded by buyers.
  *
  * Design:
- *   - Sellers deposit USDC into pools keyed by vertical slug hash
- *   - Criteria matching is off-chain (geo, QS, credit score in formConfig JSON)
- *   - Backend calls releaseBounty() when a matching lead is submitted
- *   - Sellers can withdraw unreleased balance at any time
+ *   - Buyers deposit USDC into pools keyed by vertical slug hash
+ *   - Criteria matching is off-chain (geo, QS, credit score in buyer config)
+ *   - Backend calls releaseBounty() when a matching lead is won at auction
+ *   - Released amount goes to the seller as a bonus on top of the winning bid
+ *   - Buyers can withdraw unreleased balance at any time (refund)
  *   - Multiple pools per vertical → stacking (backend resolves pro-rata)
  *
  * Gas optimizations:
@@ -32,7 +33,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     IERC20 public immutable paymentToken; // USDC
 
     struct BountyPool {
-        address seller;
+        address buyer;
         bytes32 verticalSlugHash;
         uint256 totalDeposited;
         uint256 totalReleased;
@@ -55,7 +56,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
 
     event BountyDeposited(
         uint256 indexed poolId,
-        address indexed seller,
+        address indexed buyer,
         bytes32 indexed verticalSlugHash,
         uint256 amount,
         uint256 newBalance
@@ -70,7 +71,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
 
     event BountyWithdrawn(
         uint256 indexed poolId,
-        address indexed seller,
+        address indexed buyer,
         uint256 amount
     );
 
@@ -106,15 +107,15 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     }
 
     // ============================================
-    // Deposit — Seller funds a bounty pool
+    // Deposit — Buyer funds a bounty pool
     // ============================================
 
     /**
-     * @dev Deposit USDC into a new or existing bounty pool for a vertical.
+     * @dev Deposit USDC into a new bounty pool for a vertical.
      *      Creates a new pool per call (allows multiple criteria sets per vertical).
      * @param verticalSlugHash keccak256 of the vertical slug string
      * @param amount USDC amount (in token units, 6 decimals)
-     * @return poolId The ID of the created/topped-up pool
+     * @return poolId The ID of the created pool
      */
     function depositBounty(
         bytes32 verticalSlugHash,
@@ -123,13 +124,13 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         require(verticalSlugHash != bytes32(0), "Empty slug hash");
         require(amount > 0, "Amount must be positive");
 
-        // Transfer USDC from seller to this contract
+        // Transfer USDC from buyer to this contract
         paymentToken.safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 poolId = ++_nextPoolId;
 
         pools[poolId] = BountyPool({
-            seller: msg.sender,
+            buyer: msg.sender,
             verticalSlugHash: verticalSlugHash,
             totalDeposited: amount,
             totalReleased: 0,
@@ -155,7 +156,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     ) external nonReentrant {
         BountyPool storage pool = pools[poolId];
         require(pool.active, "Pool not active");
-        require(msg.sender == pool.seller, "Only pool seller");
+        require(msg.sender == pool.buyer, "Only pool buyer");
         require(amount > 0, "Amount must be positive");
 
         paymentToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -166,14 +167,15 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     }
 
     // ============================================
-    // Release — Backend triggers on lead match
+    // Release — Backend triggers on auction win
     // ============================================
 
     /**
-     * @dev Release bounty to a recipient (seller bonus on matching lead).
-     *      Called by authorized backend service when a lead matches criteria.
+     * @dev Release bounty to a recipient (seller bonus on matching lead win).
+     *      Called by authorized backend service when a lead matches buyer criteria
+     *      and the auction is won.
      * @param poolId The bounty pool to release from
-     * @param recipient Address to receive the bounty (typically the seller)
+     * @param recipient Address to receive the bounty (the seller)
      * @param amount USDC amount to release
      * @param leadId Platform lead ID for audit trail
      */
@@ -199,11 +201,11 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     }
 
     // ============================================
-    // Withdraw — Seller reclaims unreleased funds
+    // Withdraw — Buyer reclaims unreleased funds
     // ============================================
 
     /**
-     * @dev Withdraw unreleased bounty balance back to seller.
+     * @dev Withdraw unreleased bounty balance back to buyer (refund).
      * @param poolId The pool to withdraw from
      * @param amount USDC amount to withdraw (0 = withdraw all)
      */
@@ -213,7 +215,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     ) external nonReentrant {
         BountyPool storage pool = pools[poolId];
         require(pool.active, "Pool not active");
-        require(msg.sender == pool.seller, "Only pool seller");
+        require(msg.sender == pool.buyer, "Only pool buyer");
 
         uint256 available = pool.totalDeposited - pool.totalReleased;
         uint256 withdrawAmount = amount == 0 ? available : amount;

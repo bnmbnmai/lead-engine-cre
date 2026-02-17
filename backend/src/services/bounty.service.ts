@@ -1,8 +1,9 @@
 /**
- * Bounty Service — Per-vertical seller bounty pool management
+ * Bounty Service — Per-vertical buyer bounty pool management
  *
- * Sellers fund standing USDC escrow pools per vertical with optional criteria filters.
- * When a matching lead is submitted, the bounty auto-releases as a seller bonus.
+ * Buyers fund standing USDC escrow pools per vertical with optional criteria filters.
+ * When a matching lead is won at auction, the bounty auto-releases to the seller
+ * as a bonus on top of the winning bid. Unmatched funds refund to the buyer.
  *
  * On-chain: VerticalBountyPool.sol (deposit/release/withdraw)
  * Off-chain: Criteria matching engine (geo, QS, credit) + formConfig.bountyConfig storage
@@ -41,8 +42,8 @@ export interface BountyResult {
 
 export interface MatchedBounty {
     poolId: string;
-    sellerId: string;
-    sellerWallet: string;
+    buyerId: string;
+    buyerWallet: string;
     amount: number;
     verticalSlug: string;
     criteria?: BountyCriteria;
@@ -60,7 +61,7 @@ const BOUNTY_POOL_ABI = [
     'function availableBalance(uint256 poolId) view returns (uint256)',
     'function getVerticalPoolIds(bytes32 verticalSlugHash) view returns (uint256[])',
     'function totalVerticalBounty(bytes32 verticalSlugHash) view returns (uint256)',
-    'function pools(uint256) view returns (address seller, bytes32 verticalSlugHash, uint256 totalDeposited, uint256 totalReleased, uint40 createdAt, bool active)',
+    'function pools(uint256) view returns (address buyer, bytes32 verticalSlugHash, uint256 totalDeposited, uint256 totalReleased, uint40 createdAt, bool active)',
 ];
 
 // ============================================
@@ -92,11 +93,11 @@ class BountyService {
     }
 
     // ============================================
-    // Deposit — Seller funds a bounty pool
+    // Deposit — Buyer funds a bounty pool
     // ============================================
 
     async depositBounty(
-        sellerId: string,
+        buyerId: string,
         verticalSlug: string,
         amountUSDC: number,
         criteria?: BountyCriteria
@@ -107,12 +108,12 @@ class BountyService {
 
             const slugHash = ethers.keccak256(ethers.toUtf8Bytes(verticalSlug));
 
-            // Save bounty config in formConfig.bountyConfig
+            // Save bounty config in formConfig.bountyPools
             const existingConfig = (vertical.formConfig as any) || {};
             const existingBounties = existingConfig.bountyPools || [];
 
             const poolEntry = {
-                sellerId,
+                buyerId,
                 amount: amountUSDC,
                 criteria: criteria || {},
                 createdAt: new Date().toISOString(),
@@ -136,13 +137,13 @@ class BountyService {
                 const receipt = await tx.wait();
 
                 const poolId = receipt.logs?.[0]?.args?.[0]?.toString() || '0';
-                console.log(`[BountyService] Deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${receipt.hash}`);
+                console.log(`[BountyService] Buyer deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${receipt.hash}`);
                 return { success: true, poolId, txHash: receipt.hash };
             }
 
             // Off-chain fallback
             const offChainPoolId = `offchain-${Date.now()}`;
-            console.log(`[BountyService] Deposited (off-chain) $${amountUSDC} on ${verticalSlug}`);
+            console.log(`[BountyService] Buyer deposited (off-chain) $${amountUSDC} on ${verticalSlug}`);
             return { success: true, poolId: offChainPoolId, offChain: true };
         } catch (err: any) {
             console.error('[BountyService] depositBounty error:', err);
@@ -151,7 +152,7 @@ class BountyService {
     }
 
     // ============================================
-    // Match — Find bounties matching a lead
+    // Match — Find buyer bounties matching a lead
     // ============================================
 
     async matchBounties(lead: {
@@ -197,16 +198,16 @@ class BountyService {
                 }
 
                 matched.push({
-                    poolId: pool.poolId || pool.sellerId,
-                    sellerId: pool.sellerId,
-                    sellerWallet: pool.sellerWallet || '',
+                    poolId: pool.poolId || pool.buyerId,
+                    buyerId: pool.buyerId,
+                    buyerWallet: pool.buyerWallet || '',
                     amount: pool.amount,
                     verticalSlug: vertical.slug,
                     criteria,
                 });
             }
 
-            // Sort by amount descending (highest first)
+            // Sort by amount descending (highest bounty first)
             matched.sort((a, b) => b.amount - a.amount);
 
             return matched;
@@ -217,7 +218,7 @@ class BountyService {
     }
 
     // ============================================
-    // Release — On-chain release from pool to recipient
+    // Release — On-chain release from pool to seller
     // ============================================
 
     async releaseBounty(
@@ -233,7 +234,7 @@ class BountyService {
                     BigInt(poolId), recipientAddress, amountWei, leadId
                 );
                 const receipt = await tx.wait();
-                console.log(`[BountyService] Released $${amountUSDC} from pool ${poolId} for lead ${leadId}`);
+                console.log(`[BountyService] Released $${amountUSDC} from pool ${poolId} to seller for lead ${leadId}`);
                 return { success: true, txHash: receipt.hash };
             }
 
@@ -247,7 +248,7 @@ class BountyService {
     }
 
     // ============================================
-    // Withdraw — Seller reclaims unreleased funds
+    // Withdraw — Buyer reclaims unreleased funds
     // ============================================
 
     async withdrawBounty(
@@ -261,11 +262,11 @@ class BountyService {
                     : BigInt(0); // 0 = withdraw all
                 const tx = await this.contract.withdrawBounty(BigInt(poolId), amountWei);
                 const receipt = await tx.wait();
-                console.log(`[BountyService] Withdrew from pool ${poolId}`);
+                console.log(`[BountyService] Buyer withdrew from pool ${poolId}`);
                 return { success: true, txHash: receipt.hash };
             }
 
-            console.log(`[BountyService] Withdrew (off-chain) from pool ${poolId}`);
+            console.log(`[BountyService] Buyer withdrew (off-chain) from pool ${poolId}`);
             return { success: true, offChain: true };
         } catch (err: any) {
             console.error('[BountyService] withdrawBounty error:', err);

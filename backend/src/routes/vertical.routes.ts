@@ -984,15 +984,15 @@ router.get('/:slug/fields', generalLimiter, async (req: AuthenticatedRequest, re
 });
 
 // ============================================
-// POST /:slug/bounty — Deposit seller bounty pool
+// POST /:slug/bounty — Deposit buyer bounty pool
 // ============================================
 
 router.post('/:slug/bounty', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         // Only sellers or hybrid/admin can fund bounties
         const role = req.user!.role;
-        if (role !== 'SELLER' && role !== 'HYBRID' && role !== 'ADMIN') {
-            res.status(403).json({ error: 'Only sellers can fund bounty pools' });
+        if (role !== 'BUYER' && role !== 'HYBRID' && role !== 'ADMIN') {
+            res.status(403).json({ error: 'Only buyers can fund bounty pools' });
             return;
         }
 
@@ -1026,7 +1026,7 @@ router.post('/:slug/bounty', authMiddleware, async (req: AuthenticatedRequest, r
         if (io) {
             io.emit('vertical:bounty:deposited', {
                 verticalSlug: slug,
-                sellerId: req.user!.id,
+                buyerId: req.user!.id,
                 amount: validation.data.amount,
                 poolId: result.poolId,
                 txHash: result.txHash,
@@ -1075,7 +1075,7 @@ router.get('/:slug/bounty', async (req: AuthenticatedRequest, res: Response) => 
             totalBounty,
             activePools: pools.length,
             pools: pools.map((p: any) => ({
-                sellerId: p.sellerId,
+                buyerId: p.buyerId,
                 amount: p.amount,
                 criteria: p.criteria || {},
                 createdAt: p.createdAt,
@@ -1094,8 +1094,8 @@ router.get('/:slug/bounty', async (req: AuthenticatedRequest, res: Response) => 
 router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const role = req.user!.role;
-        if (role !== 'SELLER' && role !== 'HYBRID' && role !== 'ADMIN') {
-            res.status(403).json({ error: 'Only sellers can withdraw bounties' });
+        if (role !== 'BUYER' && role !== 'HYBRID' && role !== 'ADMIN') {
+            res.status(403).json({ error: 'Only buyers can withdraw bounties' });
             return;
         }
 
@@ -1119,7 +1119,7 @@ router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedR
         if (vertical) {
             const config = (vertical.formConfig as any) || {};
             const pools = (config.bountyPools || []).map((p: any) => {
-                if (p.poolId === poolId || p.sellerId === req.user!.id) {
+                if (p.poolId === poolId || p.buyerId === req.user!.id) {
                     return { ...p, active: false };
                 }
                 return p;
@@ -1135,7 +1135,7 @@ router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedR
         if (io) {
             io.emit('vertical:bounty:withdrawn', {
                 verticalSlug: slug,
-                sellerId: req.user!.id,
+                buyerId: req.user!.id,
                 poolId,
                 txHash: result.txHash,
             });

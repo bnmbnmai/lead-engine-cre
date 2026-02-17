@@ -184,11 +184,15 @@ async function loadLangChain(): Promise<boolean> {
     if (langchainAvailable !== null) return langchainAvailable;
     try {
         const [coreTools, openai, agents, prompts, messages] = await Promise.all([
-            import('@langchain/core/tools'),
-            import('@langchain/openai'),
             // @ts-ignore — module may not be installed in all environments
+            import('@langchain/core/tools'),
+            // @ts-ignore
+            import('@langchain/openai'),
+            // @ts-ignore
             import('langchain/agents'),
+            // @ts-ignore
             import('@langchain/core/prompts'),
+            // @ts-ignore
             import('@langchain/core/messages'),
         ]);
         _DynamicStructuredTool = coreTools.DynamicStructuredTool;

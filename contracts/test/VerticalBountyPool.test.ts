@@ -14,7 +14,7 @@ describe("VerticalBountyPool", function () {
     const plumbingSlug = ethers.keccak256(ethers.toUtf8Bytes("home_services.plumbing"));
 
     async function deployFixture() {
-        const [owner, seller1, seller2, recipient, unauthorized] = await ethers.getSigners();
+        const [owner, buyer1, buyer2, recipient, unauthorized] = await ethers.getSigners();
 
         // Deploy mock USDC
         const MockERC20 = await ethers.getContractFactory("MockERC20");
@@ -27,16 +27,16 @@ describe("VerticalBountyPool", function () {
         // Authorize owner as caller (for releases)
         await pool.setAuthorizedCaller(owner.address, true);
 
-        // Fund sellers with USDC
-        await usdc.mint(seller1.address, ethers.parseUnits("10000", USDC_DECIMALS));
-        await usdc.mint(seller2.address, ethers.parseUnits("10000", USDC_DECIMALS));
+        // Fund buyers with USDC
+        await usdc.mint(buyer1.address, ethers.parseUnits("10000", USDC_DECIMALS));
+        await usdc.mint(buyer2.address, ethers.parseUnits("10000", USDC_DECIMALS));
 
         // Approve pool contract
         const poolAddr = await pool.getAddress();
-        await usdc.connect(seller1).approve(poolAddr, ethers.MaxUint256);
-        await usdc.connect(seller2).approve(poolAddr, ethers.MaxUint256);
+        await usdc.connect(buyer1).approve(poolAddr, ethers.MaxUint256);
+        await usdc.connect(buyer2).approve(poolAddr, ethers.MaxUint256);
 
-        return { pool, usdc, owner, seller1, seller2, recipient, unauthorized };
+        return { pool, usdc, owner, buyer1, buyer2, recipient, unauthorized };
     }
 
     // ============================================
@@ -45,18 +45,18 @@ describe("VerticalBountyPool", function () {
 
     describe("depositBounty", function () {
         it("should create a new pool and transfer USDC", async function () {
-            const { pool, usdc, seller1 } = await loadFixture(deployFixture);
+            const { pool, usdc, buyer1 } = await loadFixture(deployFixture);
 
-            const balBefore = await usdc.balanceOf(seller1.address);
-            const tx = await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            const balBefore = await usdc.balanceOf(buyer1.address);
+            const tx = await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
             const receipt = await tx.wait();
-            const balAfter = await usdc.balanceOf(seller1.address);
+            const balAfter = await usdc.balanceOf(buyer1.address);
 
             expect(balBefore - balAfter).to.equal(depositAmount);
 
             // Check pool state
             const p = await pool.pools(1);
-            expect(p.seller).to.equal(seller1.address);
+            expect(p.buyer).to.equal(buyer1.address);
             expect(p.verticalSlugHash).to.equal(solarSlug);
             expect(p.totalDeposited).to.equal(depositAmount);
             expect(p.totalReleased).to.equal(0);
@@ -64,33 +64,33 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should emit BountyDeposited event", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await expect(pool.connect(seller1).depositBounty(solarSlug, depositAmount))
+            await expect(pool.connect(buyer1).depositBounty(solarSlug, depositAmount))
                 .to.emit(pool, "BountyDeposited")
-                .withArgs(1, seller1.address, solarSlug, depositAmount, depositAmount);
+                .withArgs(1, buyer1.address, solarSlug, depositAmount, depositAmount);
         });
 
         it("should add pool ID to verticalPools mapping", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
             const poolIds = await pool.getVerticalPoolIds(solarSlug);
             expect(poolIds.length).to.equal(1);
             expect(poolIds[0]).to.equal(1);
         });
 
         it("should revert on empty slug hash", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
             await expect(
-                pool.connect(seller1).depositBounty(ethers.ZeroHash, depositAmount)
+                pool.connect(buyer1).depositBounty(ethers.ZeroHash, depositAmount)
             ).to.be.revertedWith("Empty slug hash");
         });
 
         it("should revert on zero amount", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
             await expect(
-                pool.connect(seller1).depositBounty(solarSlug, 0)
+                pool.connect(buyer1).depositBounty(solarSlug, 0)
             ).to.be.revertedWith("Amount must be positive");
         });
     });
@@ -101,41 +101,41 @@ describe("VerticalBountyPool", function () {
 
     describe("topUpBounty", function () {
         it("should increase pool deposit and transfer USDC", async function () {
-            const { pool, usdc, seller1 } = await loadFixture(deployFixture);
+            const { pool, usdc, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
-            await pool.connect(seller1).topUpBounty(1, topUpAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).topUpBounty(1, topUpAmount);
 
             const p = await pool.pools(1);
             expect(p.totalDeposited).to.equal(depositAmount + topUpAmount);
         });
 
         it("should emit BountyDeposited with updated balance", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
-            await expect(pool.connect(seller1).topUpBounty(1, topUpAmount))
+            await expect(pool.connect(buyer1).topUpBounty(1, topUpAmount))
                 .to.emit(pool, "BountyDeposited")
-                .withArgs(1, seller1.address, solarSlug, topUpAmount, depositAmount + topUpAmount);
+                .withArgs(1, buyer1.address, solarSlug, topUpAmount, depositAmount + topUpAmount);
         });
 
-        it("should revert if non-seller tries to top up", async function () {
-            const { pool, seller1, seller2 } = await loadFixture(deployFixture);
+        it("should revert if non-buyer tries to top up", async function () {
+            const { pool, buyer1, buyer2 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             await expect(
-                pool.connect(seller2).topUpBounty(1, topUpAmount)
-            ).to.be.revertedWith("Only pool seller");
+                pool.connect(buyer2).topUpBounty(1, topUpAmount)
+            ).to.be.revertedWith("Only pool buyer");
         });
 
         it("should revert on inactive pool", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
             // Pool 99 doesn't exist — active defaults to false
             await expect(
-                pool.connect(seller1).topUpBounty(99, topUpAmount)
+                pool.connect(buyer1).topUpBounty(99, topUpAmount)
             ).to.be.revertedWith("Pool not active");
         });
     });
@@ -145,10 +145,10 @@ describe("VerticalBountyPool", function () {
     // ============================================
 
     describe("releaseBounty", function () {
-        it("should transfer USDC to recipient", async function () {
-            const { pool, usdc, seller1, recipient, owner } = await loadFixture(deployFixture);
+        it("should transfer USDC to recipient (seller)", async function () {
+            const { pool, usdc, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             const balBefore = await usdc.balanceOf(recipient.address);
             await pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-001");
@@ -158,9 +158,9 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should update totalReleased", async function () {
-            const { pool, seller1, recipient, owner } = await loadFixture(deployFixture);
+            const { pool, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
             await pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-001");
 
             const p = await pool.pools(1);
@@ -168,9 +168,9 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should emit BountyReleased event", async function () {
-            const { pool, seller1, recipient, owner } = await loadFixture(deployFixture);
+            const { pool, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             await expect(pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-001"))
                 .to.emit(pool, "BountyReleased")
@@ -178,9 +178,9 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should revert if non-authorized caller", async function () {
-            const { pool, seller1, recipient, unauthorized } = await loadFixture(deployFixture);
+            const { pool, buyer1, recipient, unauthorized } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             await expect(
                 pool.connect(unauthorized).releaseBounty(1, recipient.address, releaseAmt, "lead-001")
@@ -188,9 +188,9 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should revert on insufficient balance", async function () {
-            const { pool, seller1, recipient, owner } = await loadFixture(deployFixture);
+            const { pool, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             const overAmount = ethers.parseUnits("200", USDC_DECIMALS);
             await expect(
@@ -199,9 +199,9 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should allow multiple partial releases", async function () {
-            const { pool, usdc, seller1, recipient, owner } = await loadFixture(deployFixture);
+            const { pool, usdc, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             await pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-001");
             await pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-002");
@@ -219,46 +219,46 @@ describe("VerticalBountyPool", function () {
     // ============================================
 
     describe("withdrawBounty", function () {
-        it("should refund unreleased balance to seller", async function () {
-            const { pool, usdc, seller1 } = await loadFixture(deployFixture);
+        it("should refund unreleased balance to buyer", async function () {
+            const { pool, usdc, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
-            const balBefore = await usdc.balanceOf(seller1.address);
-            await pool.connect(seller1).withdrawBounty(1, depositAmount);
-            const balAfter = await usdc.balanceOf(seller1.address);
+            const balBefore = await usdc.balanceOf(buyer1.address);
+            await pool.connect(buyer1).withdrawBounty(1, depositAmount);
+            const balAfter = await usdc.balanceOf(buyer1.address);
 
             expect(balAfter - balBefore).to.equal(depositAmount);
         });
 
         it("should withdraw all when amount is 0", async function () {
-            const { pool, usdc, seller1 } = await loadFixture(deployFixture);
+            const { pool, usdc, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
-            const balBefore = await usdc.balanceOf(seller1.address);
-            await pool.connect(seller1).withdrawBounty(1, 0); // 0 = withdraw all
-            const balAfter = await usdc.balanceOf(seller1.address);
+            const balBefore = await usdc.balanceOf(buyer1.address);
+            await pool.connect(buyer1).withdrawBounty(1, 0); // 0 = withdraw all
+            const balAfter = await usdc.balanceOf(buyer1.address);
 
             expect(balAfter - balBefore).to.equal(depositAmount);
         });
 
         it("should deactivate pool when fully drained", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
-            await pool.connect(seller1).withdrawBounty(1, 0);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).withdrawBounty(1, 0);
 
             const p = await pool.pools(1);
             expect(p.active).to.be.false;
         });
 
         it("should withdraw partial amount and keep pool active", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
             const partial = ethers.parseUnits("40", USDC_DECIMALS);
-            await pool.connect(seller1).withdrawBounty(1, partial);
+            await pool.connect(buyer1).withdrawBounty(1, partial);
 
             const p = await pool.pools(1);
             expect(p.active).to.be.true;
@@ -266,36 +266,36 @@ describe("VerticalBountyPool", function () {
         });
 
         it("should emit BountyWithdrawn event", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
-            await expect(pool.connect(seller1).withdrawBounty(1, depositAmount))
+            await expect(pool.connect(buyer1).withdrawBounty(1, depositAmount))
                 .to.emit(pool, "BountyWithdrawn")
-                .withArgs(1, seller1.address, depositAmount);
+                .withArgs(1, buyer1.address, depositAmount);
         });
 
-        it("should revert if non-seller tries to withdraw", async function () {
-            const { pool, seller1, seller2 } = await loadFixture(deployFixture);
+        it("should revert if non-buyer tries to withdraw", async function () {
+            const { pool, buyer1, buyer2 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
             await expect(
-                pool.connect(seller2).withdrawBounty(1, depositAmount)
-            ).to.be.revertedWith("Only pool seller");
+                pool.connect(buyer2).withdrawBounty(1, depositAmount)
+            ).to.be.revertedWith("Only pool buyer");
         });
 
         it("should revert on overdraft", async function () {
-            const { pool, seller1, owner } = await loadFixture(deployFixture);
+            const { pool, buyer1, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
             // Release some first
-            await pool.connect(owner).releaseBounty(1, seller1.address, releaseAmt, "lead-x");
+            await pool.connect(owner).releaseBounty(1, buyer1.address, releaseAmt, "lead-x");
 
             const remaining = depositAmount - releaseAmt;
             const overAmount = remaining + ethers.parseUnits("1", USDC_DECIMALS);
             await expect(
-                pool.connect(seller1).withdrawBounty(1, overAmount)
+                pool.connect(buyer1).withdrawBounty(1, overAmount)
             ).to.be.revertedWith("Insufficient balance");
         });
     });
@@ -304,32 +304,32 @@ describe("VerticalBountyPool", function () {
     // Stacking (multiple pools per vertical)
     // ============================================
 
-    describe("Stacking — multiple sellers", function () {
+    describe("Stacking — multiple buyers", function () {
         it("should allow multiple pools per vertical", async function () {
-            const { pool, seller1, seller2 } = await loadFixture(deployFixture);
+            const { pool, buyer1, buyer2 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
-            await pool.connect(seller2).depositBounty(solarSlug, topUpAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer2).depositBounty(solarSlug, topUpAmount);
 
             const poolIds = await pool.getVerticalPoolIds(solarSlug);
             expect(poolIds.length).to.equal(2);
         });
 
         it("should report correct total vertical bounty", async function () {
-            const { pool, seller1, seller2 } = await loadFixture(deployFixture);
+            const { pool, buyer1, buyer2 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
-            await pool.connect(seller2).depositBounty(solarSlug, topUpAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer2).depositBounty(solarSlug, topUpAmount);
 
             const total = await pool.totalVerticalBounty(solarSlug);
             expect(total).to.equal(depositAmount + topUpAmount);
         });
 
         it("should track pools per vertical independently", async function () {
-            const { pool, seller1, seller2 } = await loadFixture(deployFixture);
+            const { pool, buyer1, buyer2 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
-            await pool.connect(seller2).depositBounty(plumbingSlug, topUpAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer2).depositBounty(plumbingSlug, topUpAmount);
 
             expect(await pool.totalVerticalBounty(solarSlug)).to.equal(depositAmount);
             expect(await pool.totalVerticalBounty(plumbingSlug)).to.equal(topUpAmount);
@@ -353,19 +353,19 @@ describe("VerticalBountyPool", function () {
         });
 
         it("availableBalance excludes released amounts", async function () {
-            const { pool, seller1, recipient, owner } = await loadFixture(deployFixture);
+            const { pool, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
             await pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-1");
 
             expect(await pool.availableBalance(1)).to.equal(depositAmount - releaseAmt);
         });
 
         it("totalVerticalBounty excludes deactivated pools", async function () {
-            const { pool, seller1 } = await loadFixture(deployFixture);
+            const { pool, buyer1 } = await loadFixture(deployFixture);
 
-            await pool.connect(seller1).depositBounty(solarSlug, depositAmount);
-            await pool.connect(seller1).withdrawBounty(1, 0); // deactivates
+            await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
+            await pool.connect(buyer1).withdrawBounty(1, 0); // deactivates
 
             expect(await pool.totalVerticalBounty(solarSlug)).to.equal(0);
         });
