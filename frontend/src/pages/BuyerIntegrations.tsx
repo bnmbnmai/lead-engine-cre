@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { API_BASE_URL } from '@/lib/api';
-import { AgentChatModal } from '@/components/integrations/AgentChatModal';
 
 // ── Python starter code for LangChain + MCP ──
 
@@ -65,7 +64,7 @@ export function BuyerIntegrations() {
     const [curlCopied, setCurlCopied] = useState(false);
     const [mcpCopied, setMcpCopied] = useState(false);
     const [pythonCopied, setPythonCopied] = useState(false);
-    const [chatOpen, setChatOpen] = useState(false);
+
     const [crmOpen, setCrmOpen] = useState(false);
     const [agentOpen, setAgentOpen] = useState(false);
 
@@ -302,7 +301,7 @@ mcp_call("set_auto_bid_rules", {
                             {/* Action buttons */}
                             <div className="flex flex-wrap gap-3">
                                 <Button
-                                    onClick={() => setChatOpen(true)}
+                                    onClick={() => window.dispatchEvent(new CustomEvent('agent-chat:open'))}
                                     className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700"
                                 >
                                     <Sparkles className="h-4 w-4 mr-2" />
@@ -336,8 +335,6 @@ mcp_call("set_auto_bid_rules", {
                     More integrations coming soon — Salesforce, Zapier App
                 </div>
 
-                {/* Agent Chat Modal */}
-                <AgentChatModal open={chatOpen} onOpenChange={setChatOpen} />
             </div>
         </DashboardLayout>
     );

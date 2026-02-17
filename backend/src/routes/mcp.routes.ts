@@ -368,10 +368,21 @@ router.post('/chat', async (req: Request, res: Response) => {
         return;
     }
 
-    // If no Kimi API key, fall back to keyword-based demo
     if (!KIMI_API_KEY) {
         return fallbackChat(req, res, message, history);
     }
+
+    // ── Priority 1: LangChain agent ──
+    try {
+        const { runAgent } = await import('../services/agent.service');
+        const result = await runAgent(message, history);
+        res.json(result);
+        return;
+    } catch (err: any) {
+        console.warn('[MCP] LangChain agent failed, falling back to raw Kimi:', err.message);
+    }
+
+    // ── Priority 2: Raw Kimi ReAct loop ──
 
     try {
         // Build conversation for Kimi (Anthropic format: no system in messages)

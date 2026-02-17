@@ -32,6 +32,7 @@ import SellerIntegrations from '@/pages/SellerIntegrations';
 import BuyerIntegrations from '@/pages/BuyerIntegrations';
 
 import { DemoPanel } from '@/components/demo/DemoPanel';
+import { AgentChatWidget } from '@/components/agent/AgentChatWidget';
 import { Toaster } from '@/components/ui/Toaster';
 import { ErrorDialog } from '@/components/ui/ErrorDialog';
 import useAuth from '@/hooks/useAuth';
@@ -120,8 +121,10 @@ function App() {
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
 
-                            {/* Demo Panel — shows in dev mode or when VITE_DEMO_MODE is set */}
                             {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
+
+                            {/* Persistent AI Agent chat widget */}
+                            <AgentChatWidget />
 
                             {/* Toast notifications */}
                             <Toaster />
