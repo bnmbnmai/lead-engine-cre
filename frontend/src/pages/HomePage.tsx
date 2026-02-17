@@ -394,22 +394,22 @@ export function HomePage() {
                             <div className="flex justify-center mb-6">
                                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/[0.04] text-sm text-muted-foreground">
                                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                    Powered by Chainlink &middot; Built on-chain
+                                    Chainlink-verified &middot; On-chain settlement
                                 </div>
                             </div>
 
                             {/* Main heading */}
                             <h1 className="text-center text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4">
-                                <span className="gradient-text">Decentralized Lead RTB</span>
+                                <span className="text-foreground">Own the Vertical.</span>
                                 <br />
-                                <span className="text-foreground text-2xl sm:text-3xl md:text-4xl">Global. Compliant. Private.</span>
+                                <span className="gradient-text">Trade the Leads.</span>
                             </h1>
 
                             {/* Subtitle */}
                             <p className="text-center text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-                                Serving a <span className="text-foreground font-semibold">$200B+</span> lead generation market.
-                                Verified leads, auto-bid automation, instant settlements &mdash;
-                                across 20+ countries and 10 verticals.
+                                Serving the <span className="text-foreground font-semibold">$200B</span> lead generation market with
+                                Chainlink-verified quality, real-time bidding, auto-bid automation, and instant on-chain
+                                USDC settlement &mdash; across <span className="text-foreground font-semibold">50+ verticals</span> in 20+ countries.
                             </p>
 
                             {/* CTA */}
@@ -424,7 +424,7 @@ export function HomePage() {
                 <section>
                     <div className="grid md:grid-cols-3 gap-5">
                         {/* Card 1: Lead Quality */}
-                        <div className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.03]">
+                        <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
                                     <ShieldCheck className="h-5 w-5 text-emerald-400" />
@@ -432,15 +432,14 @@ export function HomePage() {
                                 <h3 className="font-semibold text-sm text-foreground">Verified Lead Quality</h3>
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">
-                                Buyers no longer have to take sellers&rsquo; word for it. Every lead carries a
-                                Chainlink CRE + ZK fraud-proof quality score (0&ndash;100) that cryptographically
-                                proves the lead was not botted, stuffed, or generated from junk data. Sellers are
-                                protected by immutable on-chain evidence.
+                                Every lead carries a Chainlink CRE quality score (0&ndash;100) that cryptographically
+                                proves authenticity. No bots, no stuffed data, no junk &mdash; verified on-chain
+                                before it reaches the marketplace.
                             </p>
                         </div>
 
                         {/* Card 2: Transparency */}
-                        <div className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 transition hover:border-blue-500/30 hover:bg-blue-500/[0.03]">
+                        <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-blue-500/30 hover:bg-blue-500/[0.04]">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
                                     <Eye className="h-5 w-5 text-blue-400" />
@@ -448,15 +447,14 @@ export function HomePage() {
                                 <h3 className="font-semibold text-sm text-foreground">Full Transparency</h3>
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">
-                                Instant, on-chain USDC settlement and LeadNFT provenance give both sides
-                                perfect auditability. Payment is atomic (no 30&ndash;90 day net terms, no
-                                chargebacks). Ownership history and the original quality proof travel with the
-                                NFT forever.
+                                On-chain USDC settlement and LeadNFT provenance give both sides perfect
+                                auditability. Atomic payments &mdash; no net terms, no chargebacks. Ownership
+                                history and quality proof travel with the NFT.
                             </p>
                         </div>
 
                         {/* Card 3: Instant Settlement */}
-                        <div className="group rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 transition hover:border-amber-500/30 hover:bg-amber-500/[0.03]">
+                        <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-amber-500/30 hover:bg-amber-500/[0.04]">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10">
                                     <Zap className="h-5 w-5 text-amber-400" />
@@ -464,9 +462,9 @@ export function HomePage() {
                                 <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">
-                                RTBEscrow enables USDC escrow &rarr; instant release on auction win or Buy-It-Now
-                                purchase. Platform fee is taken automatically; seller receives funds in seconds
-                                instead of weeks.
+                                RTBEscrow holds USDC in smart-contract escrow and releases
+                                instantly on auction win or Buy-It-Now purchase. Sellers receive funds in
+                                seconds, not weeks.
                             </p>
                         </div>
                     </div>
