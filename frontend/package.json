@@ -61,5 +61,9 @@
         "tailwindcss-animate": "^1.0.7",
         "typescript": "^5.4.2",
         "vite": "^5.1.4"
+    },
+    "optionalDependencies": {
+        "@rollup/rollup-linux-x64-gnu": "^4.0.0",
+        "@rollup/rollup-linux-x64-musl": "^4.0.0"
     }
 }
