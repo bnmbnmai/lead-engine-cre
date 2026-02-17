@@ -31,10 +31,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      # --force skips platform checks (fsevents is darwin-only)
+      # npm ci still follows lockfile strictly — --force only loosens validation
       - name: Install dependencies
-        run: |
-          echo "omit=optional" >> .npmrc
-          npm ci
+        run: npm ci --force
 
       - name: Lint backend
         working-directory: backend
@@ -72,9 +72,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: |
-          echo "omit=optional" >> .npmrc
-          npm ci
+        run: npm ci --force
 
       - name: Generate Prisma client
         working-directory: backend
@@ -117,9 +115,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: |
-          echo "omit=optional" >> .npmrc
-          npm ci
+        run: npm ci --force
 
       - name: Compile contracts
         working-directory: contracts
@@ -188,9 +184,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: |
-          echo "omit=optional" >> .npmrc
-          npm ci
+        run: npm ci --force
 
       - name: Generate Prisma & push schema
         working-directory: backend
