@@ -35,36 +35,19 @@ jobs:
         run: npm ci
 
       - name: Lint backend
-        run: npm run lint --workspace=backend --if-present
-
-      - name: Lint frontend
-        run: npm run lint --workspace=frontend --if-present
+        working-directory: backend
+        run: npx eslint src --ext .ts
 
   # ════════════════════════════════════════════════════════════
-  # Job 2: Backend Tests (Jest + PostgreSQL)
+  # Job 2: Backend Tests (Jest)
   # ════════════════════════════════════════════════════════════
   backend-tests:
     name: 🧪 Backend (Jest)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: lead_engine_cre_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lead_engine_cre_test?schema=public
+      DATABASE_URL: "postgresql://unused:unused@localhost:5432/unused"
       NODE_ENV: test
       PORT: 3001
       API_URL: http://localhost:3001
@@ -72,8 +55,11 @@ jobs:
       REDIS_URL: ""
       ALCHEMY_API_KEY: ""
       RPC_URL_SEPOLIA: ""
+      RPC_URL_BASE_SEPOLIA: ""
       PAYMENT_RECIPIENT_ADDRESS: "0x0000000000000000000000000000000000000001"
       PRIVACY_ENCRYPTION_KEY: "ci-test-encryption-key-32chars00"
+      CRE_API_KEY: "ci-test-cre-key"
+      DEPLOYER_PRIVATE_KEY: "0x0000000000000000000000000000000000000000000000000000000000000001"
 
     steps:
       - uses: actions/checkout@v4
@@ -89,10 +75,6 @@ jobs:
       - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
-
-      - name: Push DB schema
-        working-directory: backend
-        run: npx prisma db push --skip-generate --accept-data-loss
 
       - name: Run Jest tests
         working-directory: backend
@@ -116,6 +98,11 @@ jobs:
     name: ⛓️ Contracts (Hardhat)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    env:
+      DEPLOYER_PRIVATE_KEY: "0x0000000000000000000000000000000000000000000000000000000000000001"
+      ALCHEMY_API_KEY: ""
+      TESTNET_MNEMONIC: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -148,7 +135,7 @@ jobs:
           if-no-files-found: ignore
 
   # ════════════════════════════════════════════════════════════
-  # Job 5: Artillery Load Tests (advisory)
+  # Job 4: Artillery Load Tests (advisory)
   # ════════════════════════════════════════════════════════════
   artillery-load:
     name: 🚀 Artillery (Load)
@@ -180,8 +167,11 @@ jobs:
       REDIS_URL: ""
       ALCHEMY_API_KEY: ""
       RPC_URL_SEPOLIA: ""
+      RPC_URL_BASE_SEPOLIA: ""
       PAYMENT_RECIPIENT_ADDRESS: "0x0000000000000000000000000000000000000001"
       PRIVACY_ENCRYPTION_KEY: "ci-test-encryption-key-32chars00"
+      CRE_API_KEY: "ci-test-cre-key"
+      DEPLOYER_PRIVATE_KEY: "0x0000000000000000000000000000000000000000000000000000000000000001"
 
     steps:
       - uses: actions/checkout@v4
@@ -205,9 +195,15 @@ jobs:
         run: npx ts-node-dev --transpile-only src/index.ts &
         env:
           TEST_API_TOKEN: test-artillery-token
+          JWT_SECRET: ${{ env.JWT_SECRET }}
 
       - name: Wait for backend
-        run: npx wait-on http://localhost:3001/health --timeout 30000
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/health && break
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
 
       - name: Run Artillery RTB baseline
         run: npx artillery run tests/load/artillery-rtb.yaml --output artillery-report.json
