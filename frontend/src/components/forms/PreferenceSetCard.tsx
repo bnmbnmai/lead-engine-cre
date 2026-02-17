@@ -552,7 +552,7 @@ export function PreferenceSetCard({
                                 : ' Set a max bid above to enforce a ceiling.'}
                         </p>
                         <p className="text-xs text-amber-400/80 mt-1">
-                            ⚡ A $2 convenience fee applies to each auto-bid win (covers gas &amp; platform costs).
+                            ⚡ A $1 convenience fee applies to each auto-bid win (covers gas &amp; platform costs).
                         </p>
                     </div>
                 )}

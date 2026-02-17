@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { keccak256, encodeAbiParameters, toHex } from 'viem';
 import { Gavel, Lock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,19 @@ export function BidPanel({
     const [revealData, setRevealData] = useState({ amount: '', salt: '' });
     const [bidSubmitted, setBidSubmitted] = useState(false);
 
+    // Auto-populate reveal data from localStorage when entering REVEAL phase
+    useEffect(() => {
+        if (phase === 'REVEAL' && myPendingBid?.commitment) {
+            const stored = localStorage.getItem(`bid_salt_${myPendingBid.commitment}`);
+            if (stored) {
+                try {
+                    const { amount, salt } = JSON.parse(stored);
+                    setRevealData({ amount: String(amount), salt });
+                } catch { /* corrupt entry — user fills manually */ }
+            }
+        }
+    }, [phase, myPendingBid?.commitment]);
+
     const { register, handleSubmit, formState: { errors }, watch } = useForm<BidFormData>({
         resolver: zodResolver(bidSchema),
         defaultValues: {
@@ -47,9 +61,17 @@ export function BidPanel({
     const meetReserve = currentAmount >= reservePrice;
 
     const onSubmit = (data: BidFormData) => {
-        // Generate sealed commitment hash
-        const salt = crypto.randomUUID();
-        const commitment = btoa(`${data.amount}:${salt}`); // Simplified for demo
+        // Generate proper sealed commitment: keccak256(abi.encode([uint96, bytes32], [amountWei, salt]))
+        // Amount is in USDC with 6 decimals — convert to wei for on-chain matching
+        const amountWei = BigInt(Math.round(data.amount * 1e6));
+        const saltBytes = crypto.getRandomValues(new Uint8Array(32));
+        const salt = toHex(saltBytes);
+        const commitment = keccak256(
+            encodeAbiParameters(
+                [{ type: 'uint96' }, { type: 'bytes32' }],
+                [amountWei, salt as `0x${string}`]
+            )
+        );
         localStorage.setItem(`bid_salt_${commitment}`, JSON.stringify({ amount: data.amount, salt }));
         onPlaceBid({ commitment, amount: data.amount });
         setBidSubmitted(true);

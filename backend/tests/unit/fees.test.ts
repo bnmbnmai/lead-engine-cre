@@ -35,24 +35,24 @@ describe('calculateFees', () => {
 
     // ── Auto-bid wins ──
 
-    it('should add $2 convenience fee for AUTO_BID', () => {
+    it('should add $1 convenience fee for AUTO_BID', () => {
         const result = calculateFees(100, 'AUTO_BID');
         expect(result.platformFee).toBe(2.5);
-        expect(result.convenienceFee).toBe(2);
+        expect(result.convenienceFee).toBe(1);
         expect(result.convenienceFeeType).toBe('AUTOBID');
-        expect(result.totalFees).toBe(4.5);
-        expect(result.totalBuyerCharge).toBe(102);  // 100 + $2
+        expect(result.totalFees).toBe(3.5);
+        expect(result.totalBuyerCharge).toBe(101);  // 100 + $1
     });
 
     // ── API / Agent wins ──
 
-    it('should add $2 convenience fee for AGENT', () => {
+    it('should add $1 convenience fee for AGENT', () => {
         const result = calculateFees(100, 'AGENT');
         expect(result.platformFee).toBe(2.5);
-        expect(result.convenienceFee).toBe(2);
+        expect(result.convenienceFee).toBe(1);
         expect(result.convenienceFeeType).toBe('API');
-        expect(result.totalFees).toBe(4.5);
-        expect(result.totalBuyerCharge).toBe(102);  // 100 + $2
+        expect(result.totalFees).toBe(3.5);
+        expect(result.totalBuyerCharge).toBe(101);  // 100 + $1
     });
 
     // ── Edge cases ──
@@ -67,8 +67,8 @@ describe('calculateFees', () => {
     it('should handle $0 amount with AUTO_BID (still adds convenience fee)', () => {
         const result = calculateFees(0, 'AUTO_BID');
         expect(result.platformFee).toBe(0);
-        expect(result.convenienceFee).toBe(2);
-        expect(result.totalFees).toBe(2);
+        expect(result.convenienceFee).toBe(1);
+        expect(result.totalFees).toBe(1);
     });
 
     it('should handle large amounts with correct decimal precision', () => {
@@ -80,15 +80,15 @@ describe('calculateFees', () => {
     it('should handle fractional amounts', () => {
         const result = calculateFees(33.33, 'AUTO_BID');
         expect(result.platformFee).toBe(0.83);  // 33.33 * 0.025 = 0.83325 → 0.83
-        expect(result.convenienceFee).toBe(2);
-        expect(result.totalFees).toBe(2.83);
+        expect(result.convenienceFee).toBe(1);
+        expect(result.totalFees).toBe(1.83);
     });
 
     // ── Constants ──
 
     it('should export correct constants', () => {
         expect(PLATFORM_FEE_RATE).toBe(0.025);
-        expect(CONVENIENCE_FEE).toBe(2);
+        expect(CONVENIENCE_FEE).toBe(1);
     });
 
     // ── All three sources produce consistent structure ──

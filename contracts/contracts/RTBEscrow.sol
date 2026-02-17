@@ -164,6 +164,54 @@ contract RTBEscrow is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Create AND fund an escrow in a single transaction (single-signature flow).
+     *      Buyer must have pre-approved this contract for (amount + convenienceFee).
+     * @param leadId Platform lead ID
+     * @param seller The lead seller
+     * @param amount The bid amount (in USDC wei)
+     * @param convenienceFee Optional flat fee sent directly to feeRecipient (0 if none)
+     */
+    function createAndFundEscrow(
+        string calldata leadId,
+        address seller,
+        uint256 amount,
+        uint256 convenienceFee
+    ) external nonReentrant returns (uint256) {
+        require(leadToEscrow[leadId] == 0, "Escrow exists for lead");
+        require(seller != address(0), "Invalid seller");
+        require(amount > 0, "Amount must be positive");
+
+        uint256 escrowId = ++_nextEscrowId;
+        uint256 fee = (amount * platformFeeBps) / 10000;
+
+        escrows[escrowId] = Escrow({
+            leadId: leadId,
+            seller: seller,
+            buyer: msg.sender,
+            amount: amount,
+            platformFee: fee,
+            createdAt: block.timestamp,
+            releaseTime: block.timestamp + releaseDelay,
+            state: EscrowState.Funded  // Already funded atomically
+        });
+
+        leadToEscrow[leadId] = escrowId;
+
+        // Transfer bid amount from buyer to escrow
+        paymentToken.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Transfer convenience fee directly to feeRecipient
+        if (convenienceFee > 0) {
+            paymentToken.safeTransferFrom(msg.sender, feeRecipient, convenienceFee);
+        }
+
+        emit EscrowCreated(escrowId, leadId, seller, msg.sender, amount);
+        emit EscrowFunded(escrowId, amount);
+
+        return escrowId;
+    }
+
+    /**
      * @dev Release funds to seller after release delay
      * @param escrowId The escrow ID to release
      */

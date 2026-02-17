@@ -11,7 +11,7 @@ import {
 } from '../services/holder-perks.service';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
-import { x402Service } from '../services/x402.service';
+import { escrowService } from '../services/escrow.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 

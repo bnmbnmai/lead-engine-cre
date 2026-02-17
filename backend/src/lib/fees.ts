@@ -7,8 +7,8 @@
  *
  * Fee model:
  *  - Manual (browser) wins:  2.5% platform fee, $0 convenience fee
- *  - Auto-bid engine wins:   2.5% platform fee + $2 convenience fee
- *  - API / MCP agent wins:   2.5% platform fee + $2 convenience fee
+ *  - Auto-bid engine wins:   2.5% platform fee + $1 convenience fee
+ *  - API / MCP agent wins:   2.5% platform fee + $1 convenience fee
  */
 
 // ─── Constants ──────────────────────────────
@@ -17,7 +17,7 @@
 export const PLATFORM_FEE_RATE = 0.025;
 
 /** Flat convenience fee for server-side (non-MetaMask) wins */
-export const CONVENIENCE_FEE = 2.0;
+export const CONVENIENCE_FEE = 1.0;
 
 // ─── Types ──────────────────────────────────
 

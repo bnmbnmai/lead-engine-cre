@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { zkService } from './zk.service';
 import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } from '../lib/geo-registry';
 import { computeCREQualityScore, LeadScoringInput } from '../lib/chainlink/cre-quality-score';
+import { executeQualityScoreWorkflow } from '../lib/chainlink/quality-score-workflow';
 
 // ============================================
 // CRE Verification Service — Two-Stage Scoring
@@ -24,6 +25,7 @@ import { computeCREQualityScore, LeadScoringInput } from '../lib/chainlink/cre-q
 const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+const USE_CONFIDENTIAL_HTTP = process.env.USE_CONFIDENTIAL_HTTP === 'true';
 
 // CREVerifier Contract ABI (read + write)
 const CRE_ABI = [
@@ -136,6 +138,10 @@ class CREService {
      * Compute a structured pre-score for a lead.
      * Returns the pass/fail result of each real CRE check PLUS
      * the numeric quality score (0–10,000) from the shared scoring JS.
+     *
+     * When USE_CONFIDENTIAL_HTTP=true, delegates scoring to the
+     * Confidential HTTP workflow stub (fetches scoring-data via enclave).
+     * Otherwise, uses the direct-DB path (default).
      */
     async computePreScore(leadId: string): Promise<{
         admitted: boolean;
@@ -171,7 +177,18 @@ class CREService {
 
         const admitted = dataCheck.isValid && tcpaCheck.isValid && geoCheck.isValid;
         const failedCheck = [dataCheck, tcpaCheck, geoCheck].find(c => !c.isValid);
-        const score = admitted ? this.computeNumericPreScoreFromLead(lead) : 0;
+
+        // ── Scoring: CHTT path vs direct-DB path ──────────────
+        let score = 0;
+        if (admitted) {
+            if (USE_CONFIDENTIAL_HTTP && lead.nftTokenId) {
+                // Use Confidential HTTP workflow stub to fetch + score
+                score = await this.computeScoreViaConfidentialHTTP(lead.nftTokenId);
+            } else {
+                // Direct-DB scoring (default, always works)
+                score = this.computeNumericPreScoreFromLead(lead);
+            }
+        }
 
         return {
             admitted,
@@ -183,6 +200,52 @@ class CREService {
             },
             reason: failedCheck?.reason,
         };
+    }
+
+    // ============================================
+    // Confidential HTTP Quality Scoring (STUB)
+    // ============================================
+
+    /**
+     * Compute quality score via the Confidential HTTP workflow stub.
+     *
+     * STUB: Locally fetches the scoring-data endpoint through the
+     * ConfidentialHTTPClient stub (simulated enclave, secret injection).
+     * Falls back to direct-DB scoring on failure.
+     *
+     * In production: the CRE Workflow DON would call the scoring-data
+     * endpoint via Confidential HTTP, with the CRE API key injected
+     * from the Vault DON — never exposed in node memory.
+     *
+     * isStub: true
+     */
+    private async computeScoreViaConfidentialHTTP(tokenId: string): Promise<number> {
+        try {
+            const result = await executeQualityScoreWorkflow({
+                leadTokenId: tokenId,
+            });
+
+            if (result.success && result.score !== null) {
+                console.log(
+                    `[CRE] CHTT workflow scored lead ${tokenId}: ${result.score}/10000 ` +
+                    `(enclave=${result.confidentialHTTP.executedInEnclave}, ` +
+                    `latency=${result.workflowLatencyMs}ms, isStub=${result.isStub})`,
+                );
+                return result.score;
+            }
+
+            console.warn(
+                `[CRE] CHTT workflow failed for lead ${tokenId}: ${result.error} — falling back to direct scoring`,
+            );
+        } catch (err: any) {
+            console.warn(
+                `[CRE] CHTT workflow error for lead ${tokenId}: ${err.message} — falling back to direct scoring`,
+            );
+        }
+
+        // Fallback: score directly from DB (same as the non-CHTT path)
+        const lead = await prisma.lead.findUnique({ where: { nftTokenId: tokenId } });
+        return lead ? this.computeNumericPreScoreFromLead(lead) : 0;
     }
 
     /**

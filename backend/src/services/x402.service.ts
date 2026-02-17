@@ -14,6 +14,7 @@ const PLATFORM_WALLET_ADDRESS = process.env.PLATFORM_WALLET_ADDRESS || process.e
 
 const ESCROW_ABI = [
     'function createEscrow(string calldata leadId, address seller, address buyer, uint256 amount) returns (uint256)',
+    'function createAndFundEscrow(string calldata leadId, address seller, uint256 amount, uint256 convenienceFee) returns (uint256)',
     'function fundEscrow(uint256 escrowId)',
     'function releaseEscrow(uint256 escrowId)',
     'function refundEscrow(uint256 escrowId)',
@@ -43,8 +44,10 @@ interface PreparedEscrowTx {
     /** Data the buyer needs to sign with MetaMask */
     escrowContractAddress: string;
     usdcContractAddress: string;
-    /** ABI-encoded calldata for createEscrow() */
+    /** ABI-encoded calldata for createEscrow() — legacy 2-step flow */
     createEscrowCalldata: string;
+    /** ABI-encoded calldata for createAndFundEscrow() — single-signature flow */
+    createAndFundEscrowCalldata?: string;
     /** ABI-encoded calldata for USDC approve() */
     approveCalldata: string;
     /** Amount in USDC wei (6 decimals) */
@@ -56,7 +59,7 @@ interface PreparedEscrowTx {
     /** Transaction ID in our DB */
     transactionId: string;
     leadId: string;
-    /** Optional: USDC transfer calldata for $2 convenience fee */
+    /** Optional: USDC transfer calldata for $1 convenience fee (legacy path) */
     convenienceFeeTransferCalldata?: string;
     convenienceFeeAmountWei?: string;
     platformWalletAddress?: string;
@@ -464,40 +467,50 @@ class X402Service {
 
         const amountWei = BigInt(Math.floor(amountUSDC * 1e6));
 
-        // Encode createEscrow calldata
+        // Encode legacy createEscrow calldata (backward compat)
         const escrowIface = new ethers.Interface(ESCROW_ABI);
         const createEscrowCalldata = escrowIface.encodeFunctionData('createEscrow', [
             leadId, sellerAddress, buyerAddress, amountWei,
         ]);
 
-        // Encode USDC approve calldata (approve escrow contract to spend buyer's USDC)
-        const erc20Iface = new ethers.Interface(ERC20_ABI);
-        const approveCalldata = erc20Iface.encodeFunctionData('approve', [
-            ESCROW_CONTRACT_ADDRESS, amountWei * 10n, // 10x buffer for headroom
-        ]);
-
-        console.log(`[x402] prepareEscrowTx: lead=${leadId}, buyer=${buyerAddress}, amount=$${amountUSDC} (${amountWei} wei)`);
-
         // Look up convenience fee from the Transaction record
+        let convenienceFeeWei = 0n;
         let convenienceFeeFields: Pick<PreparedEscrowTx, 'convenienceFeeTransferCalldata' | 'convenienceFeeAmountWei' | 'platformWalletAddress'> = {};
         try {
             const transaction = await prisma.transaction.findUnique({ where: { id: transactionId } });
             const convFee = (transaction as any)?.convenienceFee ? Number((transaction as any).convenienceFee) : 0;
-            if (convFee > 0 && PLATFORM_WALLET_ADDRESS) {
-                const feeWei = BigInt(Math.floor(convFee * 1e6));
-                const transferCalldata = erc20Iface.encodeFunctionData('transfer', [
-                    PLATFORM_WALLET_ADDRESS, feeWei,
-                ]);
-                convenienceFeeFields = {
-                    convenienceFeeTransferCalldata: transferCalldata,
-                    convenienceFeeAmountWei: feeWei.toString(),
-                    platformWalletAddress: PLATFORM_WALLET_ADDRESS,
-                };
-                console.log(`[x402] Convenience fee: $${convFee} (${feeWei} wei) → ${PLATFORM_WALLET_ADDRESS.slice(0, 10)}…`);
+            if (convFee > 0) {
+                convenienceFeeWei = BigInt(Math.floor(convFee * 1e6));
+                if (PLATFORM_WALLET_ADDRESS) {
+                    const erc20Iface = new ethers.Interface(ERC20_ABI);
+                    const transferCalldata = erc20Iface.encodeFunctionData('transfer', [
+                        PLATFORM_WALLET_ADDRESS, convenienceFeeWei,
+                    ]);
+                    convenienceFeeFields = {
+                        convenienceFeeTransferCalldata: transferCalldata,
+                        convenienceFeeAmountWei: convenienceFeeWei.toString(),
+                        platformWalletAddress: PLATFORM_WALLET_ADDRESS,
+                    };
+                }
+                console.log(`[x402] Convenience fee: $${convFee} (${convenienceFeeWei} wei)`);
             }
         } catch (err) {
             console.warn(`[x402] Could not look up convenience fee for tx=${transactionId}:`, err);
         }
+
+        // Encode single-signature createAndFundEscrow calldata
+        const createAndFundEscrowCalldata = escrowIface.encodeFunctionData('createAndFundEscrow', [
+            leadId, sellerAddress, amountWei, convenienceFeeWei,
+        ]);
+
+        // Encode USDC approve calldata (approve escrow for amount + fee)
+        const erc20Iface = new ethers.Interface(ERC20_ABI);
+        const totalApproval = (amountWei + convenienceFeeWei) * 10n; // 10x buffer
+        const approveCalldata = erc20Iface.encodeFunctionData('approve', [
+            ESCROW_CONTRACT_ADDRESS, totalApproval,
+        ]);
+
+        console.log(`[x402] prepareEscrowTx: lead=${leadId}, buyer=${buyerAddress}, amount=$${amountUSDC} (${amountWei} wei), convFee=${convenienceFeeWei} wei`);
 
         return {
             success: true,
@@ -505,6 +518,7 @@ class X402Service {
                 escrowContractAddress: ESCROW_CONTRACT_ADDRESS,
                 usdcContractAddress: USDC_CONTRACT_ADDRESS,
                 createEscrowCalldata,
+                createAndFundEscrowCalldata,
                 approveCalldata,
                 amountWei: amountWei.toString(),
                 amountUSDC,

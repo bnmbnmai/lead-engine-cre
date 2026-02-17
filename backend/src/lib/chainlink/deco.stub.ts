@@ -1,65 +1,38 @@
 import crypto from 'crypto';
 
-// ============================================
-// Chainlink DECO zkTLS — KYC Verification Stub
-// ============================================
-// Uses DECO's zkTLS protocol to verify KYC identity claims
-// directly from issuer websites (government, bank, broker)
-// without revealing the underlying PII to the platform.
+// ============================================================================
+// Chainlink DECO — Consolidated Stub
+// ============================================================================
 //
-// Integration path:
-//   1. Seller/buyer provides a URL to their KYC source (e.g., NMLS, state portal)
-//   2. DECO creates a TLS session with the issuer, extracts the relevant fields
-//   3. A zero-knowledge proof proves the identity claim is valid
-//   4. Platform receives a boolean + attestation proof — never raw PII
+// This file consolidates all DECO functionality into a single location:
 //
-// ⚡ Ready for mainnet integration when Chainlink DECO access is granted.
-//    Swap the stub methods below for real DECO SDK calls — interfaces are
-//    designed as drop-in replacements.
+//   1. DECOWebAttester  — Web data attestation (TLS notarization)
+//      Prove a web page element matches an expected hash without revealing
+//      the full page. Used for seller compliance verification.
+//
+//   2. DECOKYCVerifier  — KYC identity verification (zkTLS)
+//      Prove a KYC identity claim (license, sanctions, accreditation) from
+//      an issuer website without revealing PII.
+//
+// ── No overlap ──────────────────────────────────────────────────────────
+//   • confidential.stub.ts       = sealed bids & lead PII (auction privacy)
+//   • confidential.service.ts    = TEE scoring & matching (generic compute)
+//   • confidential-http.stub.ts  = Confidential HTTP requests (API-in-enclave)
+//   • data-feed.stub.ts          = Custom Data Feed publishing
+//   • THIS FILE                  = DECO zkTLS / web attestation
+//
+// ── Drop-in replacement ─────────────────────────────────────────────────
+//   When Chainlink grants DECO access:
+//   1. Replace stub methods with real DECO SDK calls
+//   2. Interface signatures are designed to be drop-in compatible
+//   3. Remove `isStub: true` flags from all responses
+// ============================================================================
 
-const STUB_LATENCY_MIN = 120;
+// ── Shared Helpers ──────────────────────────────────────────────────────
+
+const STUB_LATENCY_MIN = 100;
 const STUB_LATENCY_MAX = 400;
-
-// ── Types ──
-
-export interface KYCVerificationResult {
-    /** Unique attestation identifier */
-    attestationId: string;
-    /** Whether the identity claim is valid */
-    verified: boolean;
-    /** Confidence score (0–1) */
-    confidence: number;
-    /** Type of KYC check performed */
-    checkType: KYCCheckType;
-    /** Jurisdiction of the identity issuer */
-    jurisdiction: string;
-    /** Expiry of this KYC attestation (ISO string) */
-    expiresAt: string;
-    /** Simulated latency in ms */
-    latencyMs: number;
-    /** Always true in stub mode */
-    isStub: true;
-    /** If true, fell back to local logic due to TEE/network failure */
-    degraded: boolean;
-    /** Human-readable reason for failure, if any */
-    reason?: string;
-}
-
-export type KYCCheckType =
-    | 'LICENSE_VERIFICATION'    // NMLS, state broker license
-    | 'IDENTITY_PROOF'         // Government-issued ID
-    | 'ACCREDITED_INVESTOR'    // SEC accredited investor check
-    | 'BUSINESS_REGISTRATION'  // State business registry
-    | 'SANCTIONS_SCREEN';      // OFAC / SDN list screening
-
-export interface BatchKYCResult {
-    results: KYCVerificationResult[];
-    allPassed: boolean;
-    passRate: number; // 0–1
-    totalLatencyMs: number;
-}
-
-// ── Helpers ──
+const DECO_TIMEOUT_MS = parseInt(process.env.DECO_TIMEOUT_MS || '5000');
 
 function simulateLatency(): Promise<number> {
     const ms = STUB_LATENCY_MIN + Math.random() * (STUB_LATENCY_MAX - STUB_LATENCY_MIN);
@@ -70,28 +43,203 @@ function deterministicHash(input: string): string {
     return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-function deterministicBool(input: string, threshold = 0.80): boolean {
+function deterministicBool(input: string, threshold = 0.75): boolean {
     const hash = deterministicHash(input);
     const value = parseInt(hash.slice(0, 8), 16) / 0xffffffff;
     return value < threshold;
 }
 
-// ── Service ──
+// ── Types: Web Attestation ──────────────────────────────────────────────
 
+export interface DECOAttestationResult {
+    attestationId: string;
+    isValid: boolean;
+    confidence: number;      // 0–1
+    latencyMs: number;
+    timestamp: string;
+    isStub: true;
+    reason?: string;
+}
+
+export interface SolarSubsidyResult extends DECOAttestationResult {
+    programId: string;
+    eligible: boolean;
+    subsidyTier: 'FEDERAL' | 'STATE' | 'MUNICIPAL' | 'NONE';
+    estimatedValue?: number;
+}
+
+// ── Types: KYC Verification ─────────────────────────────────────────────
+
+export type KYCCheckType =
+    | 'LICENSE_VERIFICATION'    // NMLS, state broker license
+    | 'IDENTITY_PROOF'         // Government-issued ID
+    | 'ACCREDITED_INVESTOR'    // SEC accredited investor check
+    | 'BUSINESS_REGISTRATION'  // State business registry
+    | 'SANCTIONS_SCREEN';      // OFAC / SDN list screening
+
+export interface KYCVerificationResult {
+    attestationId: string;
+    verified: boolean;
+    confidence: number;         // 0–1
+    checkType: KYCCheckType;
+    jurisdiction: string;
+    expiresAt: string;
+    latencyMs: number;
+    isStub: true;
+    degraded: boolean;
+    reason?: string;
+}
+
+export interface BatchKYCResult {
+    results: KYCVerificationResult[];
+    allPassed: boolean;
+    passRate: number;           // 0–1
+    totalLatencyMs: number;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Part 1: Web Data Attestation
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * DECO Web Attester — STUB
+ *
+ * Proves web page content matches expected values via TLS notarization.
+ * Used for seller compliance verification (business licenses, subsidy
+ * eligibility, regulatory filings).
+ *
+ * isStub: true — all methods return simulated results.
+ */
+class DECOWebAttester {
+    /**
+     * Attest web data: prove a specific element on a web page matches
+     * an expected hash without revealing the full page content.
+     *
+     * STUB: returns deterministic result based on input hash.
+     * In production: DECO opens a TLS session, extracts the selector
+     * content, and produces a proof.
+     */
+    async attestWebData(
+        url: string,
+        cssSelector: string,
+        expectedHash: string
+    ): Promise<DECOAttestationResult> {
+        console.log(`[DECO STUB] attestWebData: ${url} selector="${cssSelector}"`);
+
+        const start = Date.now();
+
+        try {
+            const latencyMs = await Promise.race([
+                simulateLatency(),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('TIMEOUT')), DECO_TIMEOUT_MS)
+                ),
+            ]);
+
+            const inputKey = `${url}|${cssSelector}|${expectedHash}`;
+            const isValid = deterministicBool(inputKey);
+            const confidence = isValid ? 0.92 + Math.random() * 0.08 : 0.1 + Math.random() * 0.3;
+
+            const result: DECOAttestationResult = {
+                attestationId: `deco_${deterministicHash(inputKey).slice(0, 16)}`,
+                isValid,
+                confidence: parseFloat(confidence.toFixed(3)),
+                latencyMs,
+                timestamp: new Date().toISOString(),
+                isStub: true,
+            };
+
+            console.log(`[DECO STUB] result: valid=${isValid} confidence=${result.confidence} latency=${latencyMs}ms`);
+            return result;
+        } catch (err) {
+            const elapsed = Date.now() - start;
+            console.warn(`[DECO STUB] TIMEOUT after ${elapsed}ms — returning fallback`);
+
+            return {
+                attestationId: `deco_fallback_${Date.now()}`,
+                isValid: false,
+                confidence: 0,
+                latencyMs: elapsed,
+                timestamp: new Date().toISOString(),
+                isStub: true,
+                reason: 'TIMEOUT_FALLBACK',
+            };
+        }
+    }
+
+    /**
+     * Verify solar subsidy eligibility via DECO.
+     *
+     * Scenario: a seller claims their leads are from a region with active
+     * federal/state solar subsidies. DECO attests the government's subsidy
+     * database page without exposing the full query.
+     *
+     * STUB: returns deterministic tier based on program ID hash.
+     */
+    async verifySolarSubsidy(
+        sellerDomain: string,
+        programId: string
+    ): Promise<SolarSubsidyResult> {
+        console.log(`[DECO STUB] verifySolarSubsidy: domain=${sellerDomain} program=${programId}`);
+
+        const attestation = await this.attestWebData(
+            `https://${sellerDomain}/subsidies/${programId}`,
+            '#program-status',
+            deterministicHash(`${sellerDomain}:${programId}:active`)
+        );
+
+        const tiers: SolarSubsidyResult['subsidyTier'][] = ['FEDERAL', 'STATE', 'MUNICIPAL', 'NONE'];
+        const tierIndex = parseInt(deterministicHash(programId).slice(0, 2), 16) % 4;
+        const tier = tiers[tierIndex];
+
+        const estimatedValues: Record<string, number> = {
+            FEDERAL: 7500,
+            STATE: 3500,
+            MUNICIPAL: 1500,
+            NONE: 0,
+        };
+
+        return {
+            ...attestation,
+            programId,
+            eligible: attestation.isValid && tier !== 'NONE',
+            subsidyTier: tier,
+            estimatedValue: estimatedValues[tier],
+        };
+    }
+
+    /**
+     * Batch attestation for multiple URLs.
+     */
+    async batchAttest(
+        requests: Array<{ url: string; selector: string; hash: string }>
+    ): Promise<DECOAttestationResult[]> {
+        console.log(`[DECO STUB] batchAttest: ${requests.length} requests`);
+        return Promise.all(
+            requests.map((r) => this.attestWebData(r.url, r.selector, r.hash))
+        );
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Part 2: KYC Identity Verification
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * DECO KYC Verifier — STUB
+ *
+ * Uses DECO's zkTLS protocol to verify KYC identity claims directly from
+ * issuer websites (government, bank, broker) without revealing PII.
+ *
+ * isStub: true — all methods return simulated results.
+ */
 class DECOKYCVerifier {
     /**
      * Verify a seller or buyer's KYC claim via zkTLS.
      *
-     * In production, DECO opens a TLS session with the issuer URL,
-     * extracts the indicated field, and produces a ZK proof that the
-     * value matches the expected claim — without the platform or
-     * any third party seeing the raw data.
-     *
-     * @param walletAddress - Ethereum address of the party being verified
-     * @param issuerUrl     - URL of the KYC issuer (e.g., "https://nmlsconsumeraccess.org")
-     * @param checkType     - Type of KYC verification
-     * @param claimHash     - keccak256 hash of the expected claim value
-     * @param jurisdiction  - ISO country/state code (e.g., "US-CA")
+     * STUB: returns deterministic result based on input hash.
+     * In production: DECO opens a TLS session with the issuer,
+     * extracts the claim, and produces a ZK proof.
      */
     async verifyIdentity(
         walletAddress: string,
@@ -108,12 +256,11 @@ class DECOKYCVerifier {
             const latencyMs = await simulateLatency();
 
             const inputKey = `${walletAddress}|${issuerUrl}|${checkType}|${claimHash}`;
-            const verified = deterministicBool(inputKey);
+            const verified = deterministicBool(inputKey, 0.80);
             const confidence = verified
                 ? 0.90 + Math.random() * 0.10
                 : 0.05 + Math.random() * 0.25;
 
-            // KYC attestation valid for 1 year
             const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
             const result: KYCVerificationResult = {
@@ -150,11 +297,9 @@ class DECOKYCVerifier {
     }
 
     /**
-     * Verify a NMLS (Nationwide Multistate Licensing System) license.
+     * Verify an NMLS (Nationwide Multistate Licensing System) license.
      *
-     * Concrete example for mortgage-vertical sellers: proves the seller
-     * holds a valid NMLS license for the claimed state without revealing
-     * the license number or personal details to the platform.
+     * Concrete example for mortgage-vertical sellers.
      */
     async verifyNMLSLicense(
         walletAddress: string,
@@ -172,11 +317,7 @@ class DECOKYCVerifier {
     }
 
     /**
-     * Run OFAC / SDN sanctions screening via zkTLS.
-     *
-     * In production, DECO would TLS-connect to the Treasury OFAC API
-     * and prove the wallet owner is NOT on the Specially Designated
-     * Nationals list — without revealing any PII.
+     * OFAC / SDN sanctions screening via zkTLS.
      */
     async screenSanctions(
         walletAddress: string,
@@ -195,9 +336,6 @@ class DECOKYCVerifier {
 
     /**
      * Batch KYC verification — runs multiple checks in parallel.
-     *
-     * Typical usage: onboard a new seller by verifying license + sanctions
-     * + business registration in one call.
      */
     async batchVerify(
         walletAddress: string,
@@ -230,4 +368,10 @@ class DECOKYCVerifier {
     }
 }
 
+// ── Singletons ──────────────────────────────────────────────────────────
+
+export const decoWebAttester = new DECOWebAttester();
 export const decoKYC = new DECOKYCVerifier();
+
+/** @deprecated Use `decoWebAttester` instead. Kept for backward compatibility. */
+export const decoService = decoWebAttester;

@@ -3,25 +3,42 @@ import { useAccount, useSendTransaction, usePublicClient } from 'wagmi';
 import { waitForTransactionReceipt } from 'wagmi/actions';
 import { wagmiConfig } from '@/lib/wagmi';
 import { api } from '@/lib/api';
+import { erc20Abi } from 'viem';
 
 /**
  * useEscrow — Client-side signing flow for escrow creation.
  *
- * Steps:
+ * Steps (single-signature flow):
  * 1. Calls backend to get unsigned tx calldata (prepareEscrow).
- * 2. Sends USDC approve() via MetaMask.
- * 3. Sends createEscrow() via MetaMask.
+ * 2. Checks existing USDC allowance. If insufficient, sends approve() — MetaMask prompt #1.
+ * 3. Sends createAndFundEscrow() — MetaMask prompt #2 (or #1 if pre-approved).
  * 4. Calls backend to confirm the on-chain tx (confirmEscrow).
  */
 
 // Safe fallback gas limits if estimateGas fails
 const APPROVE_GAS_FALLBACK = 80_000n;
-const CREATE_ESCROW_GAS_FALLBACK = 500_000n;
-const TRANSFER_GAS_FALLBACK = 80_000n;
+const CREATE_AND_FUND_GAS_FALLBACK = 350_000n;
 const GAS_BUFFER_MULTIPLIER = 150n; // 1.5x = 50% buffer
 const GAS_BUFFER_DIVISOR = 100n;
 
-export type EscrowStep = 'idle' | 'preparing' | 'approving' | 'creating' | 'transferring-fee' | 'confirming' | 'done' | 'error';
+/** PreparedEscrowTx shape returned by the backend prepareEscrow endpoint */
+interface PreparedEscrowTx {
+    escrowContractAddress: string;
+    usdcContractAddress: string;
+    createEscrowCalldata: string;
+    createAndFundEscrowCalldata?: string;
+    approveCalldata: string;
+    amountWei: string;
+    amountUSDC: number;
+    chainId: number;
+    transactionId: string;
+    leadId: string;
+    convenienceFeeTransferCalldata?: string;
+    convenienceFeeAmountWei?: string;
+    platformWalletAddress?: string;
+}
+
+export type EscrowStep = 'idle' | 'preparing' | 'approving' | 'funding' | 'confirming' | 'done' | 'error';
 
 interface UseEscrowResult {
     step: EscrowStep;
@@ -83,53 +100,78 @@ export function useEscrow(options?: { onSuccess?: () => void }): UseEscrowResult
 
         try {
             // 1. Get unsigned tx data from backend
-            const { data: txData, error: prepError } = await api.prepareEscrow(leadId);
-            if (prepError || !txData) {
+            const { data: rawTxData, error: prepError } = await api.prepareEscrow(leadId);
+            if (prepError || !rawTxData) {
                 throw new Error(prepError?.message || 'Failed to prepare escrow transaction');
             }
+            const txData = rawTxData as PreparedEscrowTx;
 
-            // 2. USDC approve — MetaMask prompt #1
-            setStep('approving');
-            const approveGas = await estimateGasWithBuffer(
-                {
+            // 2. Check existing USDC allowance — only approve if insufficient
+            const totalNeeded = BigInt(txData.amountWei) + BigInt(txData.convenienceFeeAmountWei || '0');
+            let needsApproval = true;
+
+            if (publicClient) {
+                try {
+                    const currentAllowance = await publicClient.readContract({
+                        address: txData.usdcContractAddress as `0x${string}`,
+                        abi: erc20Abi,
+                        functionName: 'allowance',
+                        args: [address, txData.escrowContractAddress as `0x${string}`],
+                    });
+                    needsApproval = currentAllowance < totalNeeded;
+                    console.log(`[useEscrow] USDC allowance: current=${currentAllowance}, needed=${totalNeeded}, needsApproval=${needsApproval}`);
+                } catch (err) {
+                    console.warn('[useEscrow] Allowance check failed, will approve anyway', err);
+                }
+            }
+
+            if (needsApproval && txData.approveCalldata) {
+                setStep('approving');
+                const approveGas = await estimateGasWithBuffer(
+                    {
+                        to: txData.usdcContractAddress as `0x${string}`,
+                        data: txData.approveCalldata as `0x${string}`,
+                        account: address,
+                    },
+                    APPROVE_GAS_FALLBACK,
+                    'approve()',
+                );
+                console.log(`[useEscrow] Sending approve() — gasLimit=${approveGas}`);
+
+                const approveHash = await sendTransactionAsync({
                     to: txData.usdcContractAddress as `0x${string}`,
                     data: txData.approveCalldata as `0x${string}`,
-                    account: address,
-                },
-                APPROVE_GAS_FALLBACK,
-                'approve()',
-            );
-            console.log(`[useEscrow] approve() gasLimit=${approveGas}`);
+                    chainId: txData.chainId,
+                    gas: approveGas,
+                });
 
-            const approveHash = await sendTransactionAsync({
-                to: txData.usdcContractAddress as `0x${string}`,
-                data: txData.approveCalldata as `0x${string}`,
-                chainId: txData.chainId,
-                gas: approveGas,
-            });
+                // Wait for approval to be confirmed on-chain
+                await waitForTransactionReceipt(wagmiConfig, {
+                    hash: approveHash,
+                    confirmations: 1,
+                });
+                console.log(`[useEscrow] Approval confirmed: ${approveHash}`);
+            } else {
+                console.log('[useEscrow] Sufficient allowance — skipping approve()');
+            }
 
-            // Wait for approval to be confirmed on-chain
-            await waitForTransactionReceipt(wagmiConfig, {
-                hash: approveHash,
-                confirmations: 1,
-            });
-
-            // 3. Create escrow — MetaMask prompt #2
-            setStep('creating');
+            // 3. createAndFundEscrow — single MetaMask prompt for bid + convenience fee
+            setStep('funding');
+            const calldata = txData.createAndFundEscrowCalldata || txData.createEscrowCalldata;
             const escrowGas = await estimateGasWithBuffer(
                 {
                     to: txData.escrowContractAddress as `0x${string}`,
-                    data: txData.createEscrowCalldata as `0x${string}`,
+                    data: calldata as `0x${string}`,
                     account: address,
                 },
-                CREATE_ESCROW_GAS_FALLBACK,
-                'createEscrow()',
+                CREATE_AND_FUND_GAS_FALLBACK,
+                'createAndFundEscrow()',
             );
-            console.log(`[useEscrow] createEscrow() gasLimit=${escrowGas}`);
+            console.log(`[useEscrow] createAndFundEscrow() gasLimit=${escrowGas}`);
 
             const escrowHash = await sendTransactionAsync({
                 to: txData.escrowContractAddress as `0x${string}`,
-                data: txData.createEscrowCalldata as `0x${string}`,
+                data: calldata as `0x${string}`,
                 chainId: txData.chainId,
                 gas: escrowGas,
             });
@@ -142,43 +184,11 @@ export function useEscrow(options?: { onSuccess?: () => void }): UseEscrowResult
                 confirmations: 1,
             });
 
-            // 3b. Transfer convenience fee — MetaMask prompt #3 (if applicable)
-            let convenienceFeeTxHash: string | undefined;
-            if (txData.convenienceFeeTransferCalldata && txData.platformWalletAddress) {
-                setStep('transferring-fee');
-                console.log(`[useEscrow] Sending $2 convenience fee to platform wallet…`);
-
-                const feeGas = await estimateGasWithBuffer(
-                    {
-                        to: txData.usdcContractAddress as `0x${string}`,
-                        data: txData.convenienceFeeTransferCalldata as `0x${string}`,
-                        account: address,
-                    },
-                    TRANSFER_GAS_FALLBACK,
-                    'transfer() convenienceFee',
-                );
-
-                convenienceFeeTxHash = await sendTransactionAsync({
-                    to: txData.usdcContractAddress as `0x${string}`,
-                    data: txData.convenienceFeeTransferCalldata as `0x${string}`,
-                    chainId: txData.chainId,
-                    gas: feeGas,
-                });
-
-                await waitForTransactionReceipt(wagmiConfig, {
-                    hash: convenienceFeeTxHash as `0x${string}`,
-                    confirmations: 1,
-                });
-                console.log(`[useEscrow] Convenience fee transfer confirmed: ${convenienceFeeTxHash}`);
-            }
-
             // 4. Confirm with backend
             setStep('confirming');
             const { data: confirmData, error: confirmError } = await api.confirmEscrow(
                 leadId,
                 escrowHash,
-                undefined, // fundTxHash — not used in client-side flow
-                convenienceFeeTxHash,
             );
 
             if (confirmError || !confirmData?.success) {
@@ -200,7 +210,7 @@ export function useEscrow(options?: { onSuccess?: () => void }): UseEscrowResult
             }
             setStep('error');
         }
-    }, [address, isConnected, sendTransactionAsync, estimateGasWithBuffer]);
+    }, [address, isConnected, sendTransactionAsync, estimateGasWithBuffer, publicClient]);
 
     return { step, error, escrowId, txHash, fundEscrow, reset };
 }

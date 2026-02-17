@@ -1313,7 +1313,8 @@ router.get('/leads/:tokenId/scoring-data', async (req: AuthenticatedRequest, res
             }
         }
 
-        res.json({
+        // Build the scoring response
+        const scoringResponse: Record<string, unknown> = {
             tcpaConsentAt: lead.tcpaConsentAt,
             geo: geo || null,
             hasEncryptedData: !!lead.encryptedData,
@@ -1321,7 +1322,20 @@ router.get('/leads/:tokenId/scoring-data', async (req: AuthenticatedRequest, res
             parameterCount: paramCount,
             source: lead.source || 'OTHER',
             zipMatchesState,
-        });
+        };
+
+        // If called via Confidential HTTP (stub or real), append metadata
+        // Normal x-cre-key-only calls are unaffected.
+        if (req.headers['x-chtt-request'] === 'true') {
+            scoringResponse._meta = {
+                confidentialHTTP: true,
+                executedInEnclave: false,  // STUB — always false locally
+                isStub: true,
+                note: 'Response would be encrypted (AES-GCM) in production when EncryptOutput is enabled',
+            };
+        }
+
+        res.json(scoringResponse);
     } catch (err) {
         console.error('[MARKETPLACE] scoring-data error:', err);
         res.status(500).json({ error: 'Failed to build scoring data' });

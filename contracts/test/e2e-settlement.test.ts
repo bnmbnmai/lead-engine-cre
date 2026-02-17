@@ -575,4 +575,190 @@ describe("E2E Settlement — Full Lifecycle", function () {
             );
         });
     });
+
+    // ═══════════════════════════════════════════
+    // Test Suite 6: createAndFundEscrow (Single-Signature)
+    // ═══════════════════════════════════════════
+
+    describe("createAndFundEscrow — Single-Signature Flow", function () {
+        beforeEach(deployStack);
+
+        it("atomically creates and funds escrow with convenience fee", async function () {
+            const amount = ethers.parseUnits("100", 6);
+            const convenienceFee = ethers.parseUnits("1", 6); // $1
+
+            // Approve escrow contract for amount + fee
+            await usdc.mint(buyer1.address, amount + convenienceFee);
+            await usdc
+                .connect(buyer1)
+                .approve(await escrow.getAddress(), amount + convenienceFee);
+
+            const feeBalBefore = await usdc.balanceOf(feeRecipient.address);
+
+            const tx = await escrow
+                .connect(buyer1)
+                .createAndFundEscrow("single-sig-lead-1", seller.address, amount, convenienceFee);
+
+            await expect(tx).to.emit(escrow, "EscrowCreated");
+            await expect(tx).to.emit(escrow, "EscrowFunded");
+
+            // Escrow should be in Funded state
+            const esc = await escrow.getEscrow(1);
+            expect(esc.state).to.equal(1); // Funded
+            expect(esc.buyer).to.equal(buyer1.address);
+            expect(esc.seller).to.equal(seller.address);
+            expect(esc.amount).to.equal(amount);
+
+            // Convenience fee should go to feeRecipient
+            expect(await usdc.balanceOf(feeRecipient.address)).to.equal(
+                feeBalBefore + convenienceFee
+            );
+
+            // Escrow contract should hold the bid amount
+            expect(await usdc.balanceOf(await escrow.getAddress())).to.equal(amount);
+        });
+
+        it("works with zero convenience fee", async function () {
+            const amount = ethers.parseUnits("75", 6);
+
+            await usdc.mint(buyer1.address, amount);
+            await usdc
+                .connect(buyer1)
+                .approve(await escrow.getAddress(), amount);
+
+            const feeBalBefore = await usdc.balanceOf(feeRecipient.address);
+
+            await escrow
+                .connect(buyer1)
+                .createAndFundEscrow("zero-fee-lead", seller.address, amount, 0);
+
+            // fee recipient balance unchanged
+            expect(await usdc.balanceOf(feeRecipient.address)).to.equal(feeBalBefore);
+
+            // escrow holds the bid amount
+            expect(await usdc.balanceOf(await escrow.getAddress())).to.equal(amount);
+        });
+
+        it("reverts on insufficient USDC allowance", async function () {
+            const amount = ethers.parseUnits("100", 6);
+            const convenienceFee = ethers.parseUnits("1", 6);
+
+            // Mint enough but only approve the base amount (not fee)
+            await usdc.mint(buyer1.address, amount + convenienceFee);
+            await usdc
+                .connect(buyer1)
+                .approve(await escrow.getAddress(), amount); // missing fee approval
+
+            await expect(
+                escrow
+                    .connect(buyer1)
+                    .createAndFundEscrow("low-allowance-lead", seller.address, amount, convenienceFee)
+            ).to.be.reverted; // SafeERC20 revert
+        });
+
+        it("reverts on duplicate leadId", async function () {
+            const amount = ethers.parseUnits("50", 6);
+
+            await usdc.mint(buyer1.address, amount * 2n);
+            await usdc
+                .connect(buyer1)
+                .approve(await escrow.getAddress(), amount * 2n);
+
+            // First call succeeds
+            await escrow
+                .connect(buyer1)
+                .createAndFundEscrow("dup-lead", seller.address, amount, 0);
+
+            // Second call with same leadId should revert
+            await expect(
+                escrow
+                    .connect(buyer1)
+                    .createAndFundEscrow("dup-lead", seller.address, amount, 0)
+            ).to.be.revertedWith("Escrow exists for lead");
+        });
+
+        it("full lifecycle: atomic create → release with correct splits", async function () {
+            const amount = ethers.parseUnits("200", 6);
+            const convenienceFee = ethers.parseUnits("1", 6);
+
+            await usdc.mint(buyer1.address, amount + convenienceFee);
+            await usdc
+                .connect(buyer1)
+                .approve(await escrow.getAddress(), amount + convenienceFee);
+
+            await escrow
+                .connect(buyer1)
+                .createAndFundEscrow("lifecycle-lead", seller.address, amount, convenienceFee);
+
+            // Time-warp past release delay (24h)
+            await time.increase(86401);
+
+            const sellerBalBefore = await usdc.balanceOf(seller.address);
+            const feeRecBefore = await usdc.balanceOf(feeRecipient.address);
+
+            await escrow.releaseEscrow(1);
+
+            const expectedPlatformFee = (amount * platformFeeBps) / 10000n;
+            const sellerExpected = amount - expectedPlatformFee;
+
+            expect(await usdc.balanceOf(seller.address)).to.equal(
+                sellerBalBefore + sellerExpected
+            );
+            // feeRecipient gets platform fee + convenience fee (convenience already transferred)
+            expect(await usdc.balanceOf(feeRecipient.address)).to.equal(
+                feeRecBefore + expectedPlatformFee
+            );
+        });
+    });
+
+    // ═══════════════════════════════════════════
+    // Test Suite 7: Auction Tie (Equal Bids)
+    // ═══════════════════════════════════════════
+
+    describe("Auction Tie — First Bidder Wins", function () {
+        beforeEach(deployStack);
+
+        it("awards first bidder when two bids are equal", async function () {
+            const tokenId = await mintLeadTo(seller);
+            await leadNFT
+                .connect(seller)
+                .approve(await marketplace.getAddress(), tokenId);
+            await marketplace
+                .connect(seller)
+                .createListing(tokenId, reservePrice, 0n, 3600, 900, true);
+
+            // Both bid exactly the same amount
+            const tieAmount = ethers.parseUnits("100", 6);
+            const salt1 = ethers.encodeBytes32String("tie_salt_1");
+            const salt2 = ethers.encodeBytes32String("tie_salt_2");
+
+            const commit1 = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [tieAmount, salt1]
+            );
+            const commit2 = ethers.solidityPackedKeccak256(
+                ["uint96", "bytes32"],
+                [tieAmount, salt2]
+            );
+
+            // buyer1 commits first
+            await marketplace.connect(buyer1).commitBid(1n, commit1);
+            await marketplace.connect(buyer2).commitBid(1n, commit2);
+
+            await time.increase(3601);
+            await marketplace.connect(buyer1).revealBid(1n, tieAmount, salt1);
+            await marketplace.connect(buyer2).revealBid(1n, tieAmount, salt2);
+
+            await time.increase(901);
+
+            // resolveAuction uses `>` (not `>=`), so the first bidder in the
+            // iteration order wins ties because the second equal bid doesn't
+            // exceed the current highest.
+            await expect(marketplace.resolveAuction(1n))
+                .to.emit(marketplace, "AuctionResolved")
+                .withArgs(1n, buyer1.address, tieAmount);
+
+            expect(await leadNFT.ownerOf(tokenId)).to.equal(buyer1.address);
+        });
+    });
 });
