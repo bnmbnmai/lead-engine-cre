@@ -392,6 +392,27 @@ export const api = {
 
 
     // Vertical bounties — see /api/v1/verticals/:slug/bounty
+    depositBounty: (slug: string, amount: number, criteria?: Record<string, unknown>) =>
+        apiFetch<{ success: boolean; poolId: string; amount: number; criteria: Record<string, unknown>; txHash?: string; offChain?: boolean }>(
+            `/api/v1/verticals/${slug}/bounty`,
+            { method: 'POST', body: JSON.stringify({ amount, criteria }) },
+        ),
+
+    withdrawBounty: (slug: string, poolId: string, amount?: number) =>
+        apiFetch<{ success: boolean; txHash?: string; offChain?: boolean }>(
+            `/api/v1/verticals/${slug}/bounty/withdraw`,
+            { method: 'POST', body: JSON.stringify({ poolId, amount }) },
+        ),
+
+    getBountyInfo: (slug: string) =>
+        apiFetch<{ verticalSlug: string; verticalName: string; totalBounty: number; activePools: number; pools: Array<{ buyerId: string; amount: number; criteria: Record<string, unknown>; createdAt: string }> }>(
+            `/api/v1/verticals/${slug}/bounty`,
+        ),
+
+    getMyBountyPools: (slug: string) =>
+        apiFetch<{ pools: Array<{ poolId: string; amount: number; totalReleased: number; available: number; criteria: Record<string, unknown>; createdAt: string; active: boolean }> }>(
+            `/api/v1/verticals/${slug}/bounty/my-pools`,
+        ),
 
     // Decrypted lead data (only available for owned NFTs)
     getLeadDecrypted: (leadId: string) =>

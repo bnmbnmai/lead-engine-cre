@@ -14,6 +14,7 @@ import { redactLeadForPreview } from '../services/piiProtection';
 import { privacyService } from '../services/privacy.service';
 import { calculateFees } from '../lib/fees';
 import { evaluateFieldFilters, FieldFilterRule, FilterOperator } from '../services/field-filter.service';
+import { resolveExpiredAuctions } from '../services/auction-closure.service';
 
 const router = Router();
 
@@ -729,6 +730,9 @@ router.get('/leads/count-today', generalLimiter, async (_req: AuthenticatedReque
 
 router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
+        // On-demand sweep: resolve any expired auctions before listing
+        // Idempotent — returns 0 if monitor already handled them
+        await resolveExpiredAuctions();
         const validation = LeadQuerySchema.safeParse(req.query);
         if (!validation.success) {
             res.status(400).json({ error: 'Invalid query', details: validation.error.issues });

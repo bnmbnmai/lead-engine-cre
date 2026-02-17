@@ -12,6 +12,7 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 
 // ============================================
 // Types & Schemas
@@ -84,6 +85,10 @@ class BountyService {
     private contract: ethers.Contract | null = null;
     private signer: ethers.Wallet | null = null;
 
+    // In-memory TTL cache for vertical bounty totals (key: slug, value: { total, expiresAt })
+    private totalCache = new Map<string, { value: number; expiresAt: number }>();
+    private readonly CACHE_TTL_MS = 60_000; // 60 seconds
+
     constructor() {
         if (BOUNTY_POOL_ADDRESS && RPC_URL && DEPLOYER_KEY) {
             try {
@@ -107,7 +112,8 @@ class BountyService {
         buyerId: string,
         verticalSlug: string,
         amountUSDC: number,
-        criteria?: BountyCriteria
+        criteria?: BountyCriteria,
+        buyerWallet?: string
     ): Promise<BountyResult> {
         try {
             const vertical = await prisma.vertical.findUnique({ where: { slug: verticalSlug } });
@@ -128,7 +134,7 @@ class BountyService {
                 txHash = receipt.hash;
                 console.log(`[BountyService] Buyer deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${txHash}`);
             } else {
-                poolId = `offchain-${Date.now()}`;
+                poolId = randomUUID();
                 offChain = true;
                 console.log(`[BountyService] Buyer deposited (off-chain) $${amountUSDC} on ${verticalSlug}`);
             }
@@ -140,7 +146,9 @@ class BountyService {
             const poolEntry = {
                 poolId,
                 buyerId,
+                buyerWallet: buyerWallet || '',
                 amount: amountUSDC,
+                totalReleased: 0,
                 criteria: criteria || {},
                 createdAt: new Date().toISOString(),
                 active: true,
@@ -160,6 +168,8 @@ class BountyService {
         } catch (err: any) {
             console.error('[BountyService] depositBounty error:', err);
             return { success: false, error: err.message || 'Deposit failed' };
+        } finally {
+            this.invalidateCache(verticalSlug);
         }
     }
 
@@ -170,7 +180,10 @@ class BountyService {
     /**
      * Match active buyer bounty pools to a lead.
      * Returns matched bounties sorted by amount descending.
-     * If leadPrice is provided, caps total bounty at 2× lead price (stacking cap).
+     *
+     * @param lead - The lead to match against (must include vertical, qualityScore, state, etc.)
+     * @param leadPrice - Override price for stacking cap (defaults to lead.reservePrice).
+     *                    Pass the winning bid amount for accurate cap calculation.
      */
     async matchBounties(lead: {
         id: string;
@@ -181,7 +194,7 @@ class BountyService {
         parameters?: any;
         createdAt?: Date;
         reservePrice?: number | null;
-    }): Promise<MatchedBounty[]> {
+    }, leadPrice?: number): Promise<MatchedBounty[]> {
         if (!lead.vertical) return [];
 
         try {
@@ -199,6 +212,10 @@ class BountyService {
 
             for (const pool of pools) {
                 if (!pool.active) continue;
+
+                // Available balance = deposited amount - total released so far
+                const availableAmount = (pool.amount || 0) - (pool.totalReleased || 0);
+                if (availableAmount <= 0) continue;
 
                 const criteria: BountyCriteria = pool.criteria || {};
 
@@ -219,7 +236,7 @@ class BountyService {
                     poolId: pool.poolId || pool.buyerId,
                     buyerId: pool.buyerId,
                     buyerWallet: pool.buyerWallet || '',
-                    amount: pool.amount,
+                    amount: availableAmount,
                     verticalSlug: vertical.slug,
                     criteria,
                 });
@@ -229,9 +246,10 @@ class BountyService {
             matched.sort((a, b) => b.amount - a.amount);
 
             // Apply stacking cap: total bounty ≤ 2× lead price
-            const leadPrice = lead.reservePrice || 0;
-            if (leadPrice > 0) {
-                const cap = leadPrice * BOUNTY_STACKING_CAP_MULTIPLIER;
+            // Use explicit leadPrice (winning bid) if provided, else fall back to reservePrice
+            const effectivePrice = leadPrice ?? (lead.reservePrice ? Number(lead.reservePrice) : 0);
+            if (effectivePrice > 0) {
+                const cap = effectivePrice * BOUNTY_STACKING_CAP_MULTIPLIER;
                 let runningTotal = 0;
                 const capped: MatchedBounty[] = [];
 
@@ -260,25 +278,42 @@ class BountyService {
         poolId: string,
         leadId: string,
         recipientAddress: string,
-        amountUSDC: number
+        amountUSDC: number,
+        verticalSlug?: string
     ): Promise<BountyResult> {
         try {
-            if (this.contract && this.signer) {
+            // On-chain release (only for numeric pool IDs from the contract)
+            const isOnChainPool = /^\d+$/.test(poolId);
+            if (this.contract && this.signer && isOnChainPool) {
                 const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
                 const tx = await this.contract.releaseBounty(
                     BigInt(poolId), recipientAddress, amountWei, leadId
                 );
                 const receipt = await tx.wait();
                 console.log(`[BountyService] Released $${amountUSDC} from pool ${poolId} to seller for lead ${leadId}`);
+
+                // Update off-chain tracking
+                if (verticalSlug) {
+                    await this.updatePoolReleased(verticalSlug, poolId, amountUSDC);
+                }
+
                 return { success: true, txHash: receipt.hash };
             }
 
-            // Off-chain fallback
-            console.log(`[BountyService] Released (off-chain) $${amountUSDC} from pool ${poolId}`);
+            // Off-chain release
+            console.log(`[BountyService] Released (off-chain) $${amountUSDC} from pool ${poolId} for lead ${leadId}`);
+
+            // Update off-chain tracking
+            if (verticalSlug) {
+                await this.updatePoolReleased(verticalSlug, poolId, amountUSDC);
+            }
+
             return { success: true, offChain: true };
         } catch (err: any) {
             console.error('[BountyService] releaseBounty error:', err);
             return { success: false, error: err.message || 'Release failed' };
+        } finally {
+            if (verticalSlug) this.invalidateCache(verticalSlug);
         }
     }
 
@@ -291,7 +326,8 @@ class BountyService {
         amountUSDC?: number
     ): Promise<BountyResult> {
         try {
-            if (this.contract && this.signer) {
+            const isOnChainPool = /^\d+$/.test(poolId);
+            if (this.contract && this.signer && isOnChainPool) {
                 const amountWei = amountUSDC
                     ? ethers.parseUnits(amountUSDC.toString(), 6)
                     : BigInt(0); // 0 = withdraw all
@@ -314,6 +350,11 @@ class BountyService {
     // ============================================
 
     async getVerticalBountyTotal(verticalSlug: string): Promise<number> {
+        // Check cache first
+        const cached = this.getCached(verticalSlug);
+        if (cached !== null) return cached;
+
+        let result: number;
         try {
             if (this.contract) {
                 const slugHash = ethers.keccak256(ethers.toUtf8Bytes(verticalSlug));
@@ -321,7 +362,7 @@ class BountyService {
                 return Number(ethers.formatUnits(totalWei, 6));
             }
 
-            // Off-chain: sum from formConfig
+            // Off-chain: sum available balance (amount - totalReleased) from formConfig
             const vertical = await prisma.vertical.findUnique({
                 where: { slug: verticalSlug },
                 select: { formConfig: true },
@@ -329,12 +370,68 @@ class BountyService {
 
             const config = (vertical?.formConfig as any) || {};
             const pools: any[] = config.bountyPools || [];
-            return pools
+            result = pools
                 .filter((p: any) => p.active)
-                .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+                .reduce((sum: number, p: any) => sum + Math.max(0, (p.amount || 0) - (p.totalReleased || 0)), 0);
         } catch {
             return 0;
         }
+
+        // Populate cache
+        this.totalCache.set(verticalSlug, {
+            value: result,
+            expiresAt: Date.now() + this.CACHE_TTL_MS,
+        });
+        return result;
+    }
+
+    // ============================================
+    // Internal — Update off-chain release tracking
+    // ============================================
+
+    private async updatePoolReleased(verticalSlug: string, poolId: string, releasedAmount: number): Promise<void> {
+        try {
+            const vertical = await prisma.vertical.findUnique({
+                where: { slug: verticalSlug },
+                select: { formConfig: true },
+            });
+            if (!vertical) return;
+
+            const config = (vertical.formConfig as any) || {};
+            const pools: any[] = config.bountyPools || [];
+
+            const updatedPools = pools.map((p: any) => {
+                if (p.poolId === poolId) {
+                    const newTotalReleased = (p.totalReleased || 0) + releasedAmount;
+                    const active = newTotalReleased < (p.amount || 0);
+                    return { ...p, totalReleased: newTotalReleased, active };
+                }
+                return p;
+            });
+
+            await prisma.vertical.update({
+                where: { slug: verticalSlug },
+                data: { formConfig: { ...config, bountyPools: updatedPools } },
+            });
+        } catch (err) {
+            console.error('[BountyService] updatePoolReleased error:', err);
+        }
+    }
+
+    // ============================================
+    // Internal — Cache helpers
+    // ============================================
+
+    private getCached(slug: string): number | null {
+        const entry = this.totalCache.get(slug);
+        if (entry && entry.expiresAt > Date.now()) return entry.value;
+        if (entry) this.totalCache.delete(slug);
+        return null;
+    }
+
+    /** Invalidate cache for a vertical slug */
+    invalidateCache(slug: string): void {
+        this.totalCache.delete(slug);
     }
 }
 

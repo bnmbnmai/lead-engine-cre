@@ -17,6 +17,7 @@ import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PerksPanel } from '@/components/marketplace/PerksPanel';
+import { BountyPanel } from '@/components/marketplace/BountyPanel';
 
 export function BuyerDashboard() {
     const [overview, setOverview] = useState<any>(null);
@@ -284,6 +285,9 @@ export function BuyerDashboard() {
 
                 {/* Vertical Ownership Perks */}
                 <PerksPanel />
+
+                {/* Bounty Pools */}
+                <BountyPanel />
 
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Recent Bids */}

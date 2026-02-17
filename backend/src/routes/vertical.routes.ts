@@ -1088,6 +1088,46 @@ router.get('/:slug/bounty', async (req: AuthenticatedRequest, res: Response) => 
 });
 
 // ============================================
+// GET /:slug/bounty/my-pools — Current buyer's pools
+// ============================================
+
+router.get('/:slug/bounty/my-pools', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { slug } = req.params;
+        const buyerId = req.user!.id;
+
+        const vertical = await prisma.vertical.findUnique({
+            where: { slug },
+            select: { formConfig: true },
+        });
+
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        const config = (vertical.formConfig as any) || {};
+        const allPools: any[] = config.bountyPools || [];
+        const myPools = allPools
+            .filter((p: any) => p.buyerId === buyerId)
+            .map((p: any) => ({
+                poolId: p.poolId,
+                amount: p.amount,
+                totalReleased: p.totalReleased || 0,
+                available: Math.max(0, (p.amount || 0) - (p.totalReleased || 0)),
+                criteria: p.criteria || {},
+                createdAt: p.createdAt,
+                active: p.active,
+            }));
+
+        res.json({ pools: myPools });
+    } catch (error: any) {
+        console.error('Get my bounty pools error:', error);
+        res.status(500).json({ error: 'Failed to get your bounty pools' });
+    }
+});
+
+// ============================================
 // POST /:slug/bounty/withdraw — Withdraw unreleased bounty
 // ============================================
 
@@ -1107,7 +1147,25 @@ router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedR
             return;
         }
 
+        // Verify the requesting buyer owns this pool
+        const ownerCheckVertical = await prisma.vertical.findUnique({ where: { slug } });
+        if (!ownerCheckVertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+        const existingConfig = (ownerCheckVertical.formConfig as any) || {};
+        const pool = (existingConfig.bountyPools || []).find((p: any) => p.poolId === poolId);
+        if (!pool) {
+            res.status(404).json({ error: 'Pool not found' });
+            return;
+        }
+        if (pool.buyerId !== req.user!.id) {
+            res.status(403).json({ error: 'Not your pool' });
+            return;
+        }
+
         const result = await bountyService.withdrawBounty(poolId, amount);
+        bountyService.invalidateCache(slug);
 
         if (!result.success) {
             res.status(500).json({ error: result.error || 'Withdraw failed' });

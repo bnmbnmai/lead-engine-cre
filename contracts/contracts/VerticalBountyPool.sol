@@ -47,6 +47,9 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     // Vertical slug hash → array of pool IDs (for stacking queries)
     mapping(bytes32 => uint256[]) private _verticalPools;
 
+    // Cached running totals — O(1) reads instead of looping all pools
+    mapping(bytes32 => uint256) private _verticalBountyTotals;
+
     // Authorized callers (backend service for releases)
     mapping(address => bool) public authorizedCallers;
 
@@ -139,6 +142,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         });
 
         _verticalPools[verticalSlugHash].push(poolId);
+        _verticalBountyTotals[verticalSlugHash] += amount;
 
         emit BountyDeposited(poolId, msg.sender, verticalSlugHash, amount, amount);
 
@@ -161,6 +165,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
 
         paymentToken.safeTransferFrom(msg.sender, address(this), amount);
         pool.totalDeposited += amount;
+        _verticalBountyTotals[pool.verticalSlugHash] += amount;
 
         uint256 balance = pool.totalDeposited - pool.totalReleased;
         emit BountyDeposited(poolId, msg.sender, pool.verticalSlugHash, amount, balance);
@@ -194,6 +199,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         require(amount <= available, "Insufficient pool balance");
 
         pool.totalReleased += amount;
+        _verticalBountyTotals[pool.verticalSlugHash] -= amount;
 
         paymentToken.safeTransfer(recipient, amount);
 
@@ -224,6 +230,7 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         require(withdrawAmount <= available, "Insufficient balance");
 
         pool.totalReleased += withdrawAmount;
+        _verticalBountyTotals[pool.verticalSlugHash] -= withdrawAmount;
 
         // Deactivate pool if fully drained
         if (pool.totalDeposited == pool.totalReleased) {
@@ -257,14 +264,9 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
 
     /**
      * @dev Get total available bounty across all pools for a vertical.
+     *      O(1) — reads cached running total maintained by deposit/release/withdraw.
      */
-    function totalVerticalBounty(bytes32 verticalSlugHash) external view returns (uint256 total) {
-        uint256[] storage poolIds = _verticalPools[verticalSlugHash];
-        for (uint256 i = 0; i < poolIds.length; i++) {
-            BountyPool storage pool = pools[poolIds[i]];
-            if (pool.active) {
-                total += pool.totalDeposited - pool.totalReleased;
-            }
-        }
+    function totalVerticalBounty(bytes32 verticalSlugHash) external view returns (uint256) {
+        return _verticalBountyTotals[verticalSlugHash];
     }
 }

@@ -9,6 +9,7 @@ import swaggerUi from 'swagger-ui-express';
 import { prisma } from './lib/prisma';
 import RTBSocketServer from './rtb/socket';
 import { startQuarterlyResetCron } from './services/quarterly-reset.service';
+import { resolveExpiredAuctions } from './services/auction-closure.service';
 
 // Load environment variables FIRST
 dotenv.config();
@@ -234,6 +235,11 @@ httpServer.listen(PORT, () => {
 
     // Start quarterly lease reset cron (daily at midnight UTC)
     startQuarterlyResetCron();
+
+    // Sweep any auctions that expired during downtime
+    resolveExpiredAuctions()
+        .then((count) => { if (count > 0) console.log(`  ✅ Resolved ${count} expired auctions on startup`); })
+        .catch((err) => console.error('  ⚠️  Startup auction sweep failed:', err));
 });
 
 export { app, httpServer, socketServer };
