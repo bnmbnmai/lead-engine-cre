@@ -170,7 +170,7 @@ export function NestedVerticalSelect({
     const hasError = Boolean(error);
 
     return (
-        <div className={`relative ${className || ''}`} ref={containerRef}>
+        <div className={`relative isolate z-[51] ${className || ''}`} ref={containerRef}>
             {/* Trigger Button */}
             <button
                 type="button"
@@ -205,7 +205,7 @@ export function NestedVerticalSelect({
             {/* Dropdown Panel */}
             {isOpen && (
                 <div
-                    className="absolute z-50 mt-1 w-full min-w-[280px] rounded-xl border border-border bg-white dark:bg-zinc-900 text-foreground shadow-xl ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95"
+                    className="absolute z-[60] mt-1 w-full min-w-[280px] rounded-xl border border-border bg-popover text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/5 animate-in fade-in-0 zoom-in-95"
                     role="listbox"
                 >
                     {/* Search Input */}
