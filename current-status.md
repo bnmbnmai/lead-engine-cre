@@ -1,6 +1,6 @@
 # Lead Engine CRE — Current Status & Priorities
 
-**Updated:** February 17, 2026  
+**Updated:** February 17, 2026 (post-MCP agent upgrade)  
 **Branch:** `main`
 
 ---
@@ -18,8 +18,8 @@
 | **Quality Scoring** | ✅ Working | Two-stage: pre-auction JS scoring (immediate) + on-chain CREVerifier (post-mint) |
 | **Auto-Bid Engine** | ✅ Working | Per-vertical preference sets with geo, quality, budget, and USDC allowance checks |
 | **Privacy/Encryption** | ✅ Working | AES-256-GCM PII encryption, seller attribution, PII unlock on escrow release |
-| **MCP Agent** | ✅ Working | 9 tools, Kimi K2.5 reasoning with keyword fallback, navigation detection, PII sanitization |
-| **Demo Panel** | ✅ Working | Lead injection, auction start, settlement, bid simulation |
+| **MCP Agent** | ✅ Upgraded | 9 tools, LangChain `AgentExecutor` + `ChatOpenAI` (Kimi K2.5), 3-tier fallback (LangChain → raw Kimi → keyword), persistent floating chat widget with `sessionStorage`, mutual exclusion with Demo Panel |
+| **Demo Panel** | ✅ Working | Lead injection, auction start, settlement, bid simulation, mutual exclusion with Agent Chat |
 | **Analytics** | ✅ Working | Mock toggle for dev, real Prisma/Redis queries in production |
 | **Seller Funnels** | ✅ Working | Form builder, hosted forms at `/f/:slug`, lander export |
 | **SIWE Auth** | ✅ Working | MetaMask wallet sign-in, race-condition mutex, no double-prompt |
@@ -54,19 +54,15 @@ Other stubs: `confidential.service.ts` (TEE compute), `datastreams.service.ts` (
 
 ## Priority List (Ranked)
 
-### 🔴 Priority 1: LangChain MCP Agent Toggle (Quick Win, High Visibility)
+### ✅ ~~Priority 1: LangChain MCP Agent~~ — DONE
 
-**Why first:** Judges see it immediately. The MCP agent is the most "wow" feature — an AI that searches leads, places bids, and manages preferences. Currently uses Kimi K2.5 with keyword fallback. Adding a LangChain option via a Demo Panel toggle gives judges a choice of AI backends and demonstrates MCP tool compliance.
+**Completed Feb 17.** Commits: `ac5c438` → `9ee200e` → `b3200c7` → `ed891b5`
 
-**What to do:**
-- Add a `LLM Provider` dropdown to the Demo Panel: `Kimi K2.5 | LangChain (OpenAI) | Keyword Fallback`
-- Store the selection in `localStorage` (same pattern as `VITE_USE_MOCK_DATA`)
-- Frontend passes `x-llm-provider` header on `/api/v1/mcp/chat` calls
-- Backend routes to the selected provider (Kimi, LangChain with OpenAI, or keyword)
-- LangChain integration: `@langchain/openai` + `createToolCallingAgent` with the existing 9 MCP tools
-- Needs `OPENAI_API_KEY` env var (or use a free-tier model)
-
-**Effort:** ~2–3 hours. **Impact:** High — judges see a real agent with tool use, plus a "choice of AI backbone" differentiator.
+**What was delivered:**
+- **Persistent Chat Widget** — Floating bubble (bottom-right, beside beaker) available on every page. `sessionStorage` persistence, unread badge, ARIA labels, keyboard shortcuts, mobile responsive.
+- **LangChain Integration** — `agent.service.ts` using `ChatOpenAI` from `@langchain/openai` pointed at Kimi K2.5's OpenAI-compatible API (`api.kimi.com/coding/v1`). 9 `DynamicStructuredTool`s with Zod schemas. 3-tier fallback: LangChain → raw Kimi ReAct → keyword.
+- **Mutual Exclusion** — Agent chat and Demo Panel occupy the same space, auto-close each other via custom events.
+- **Self-Review** — Found and fixed critical bug (ChatMoonshot → ChatOpenAI), plus 7 additional fixes (minPrice falsy, MCP error handling, type safety, duplicate buttons, Escape conflict, ARIA).
 
 ---
 
@@ -195,13 +191,13 @@ From the 24-item `TECH_DEBT.md`, these are the lowest-effort highest-visibility 
 
 ```mermaid
 graph LR
-    A["🔴 P1: LangChain Agent Toggle\n(2–3h)"] --> B["🔴 P2: CRO Lander Pass\n(6–8h)"]
+    A["✅ P1: LangChain Agent\n(DONE)"] --> B["🔴 P2: CRO Lander Pass\n(6–8h)"]
     B --> C["🟡 P3: Vertical Polish\n(4–6h)"]
     C --> D["🟡 P4: Stub Refinement\n(1h)"]
     D --> E["🟢 P5: Deploy Contracts\n(1h)"]
     E --> F["🟢 P6: Tech Debt Fixes\n(1-2h)"]
 ```
 
-**Rationale:** P1 is a quick win that judges notice first. P2 is the highest-ROI investment (more leads = more demo activity). P3 builds on P2's foundation. P4–P6 are cleanup that can be parallelized or deferred.
+**Rationale:** P1 is done ✅. P2 is the highest-ROI investment (more leads = more demo activity). P3 builds on P2's foundation. P4–P6 are cleanup that can be parallelized or deferred.
 
-**Total estimated effort:** ~16–22 hours for all six priorities.
+**Remaining effort:** ~13–18 hours for P2–P6.
