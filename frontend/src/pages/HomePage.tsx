@@ -473,7 +473,7 @@ export function HomePage() {
                 </section>
 
                 {/* Filters */}
-                <section>
+                <section className="relative z-10">
                     <div className="glass rounded-xl p-4 sm:p-6">
                         <div className="flex flex-col gap-4">
                             {/* Row 1: View toggle + Search */}
@@ -816,8 +816,7 @@ export function HomePage() {
                     </div>
                 </section>
 
-                {/* Results */}
-                <section>
+                <section className="relative z-0">
                     {isLoading ? (
                         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                             {[1, 2, 3, 4, 5, 6].map((i) => (
