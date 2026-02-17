@@ -29,6 +29,8 @@ import {
     GamificationConfig, FormColorScheme,
     COLOR_SCHEMES, VERTICAL_PRESETS, GENERIC_TEMPLATE, autoGroupSteps,
 } from '@/pages/FormBuilder';
+import type { CROConfig } from '@/types/formBuilder';
+import { DEFAULT_CRO_CONFIG } from '@/types/formBuilder';
 
 // ============================================
 // Category Mapping
@@ -85,6 +87,7 @@ export default function SellerTemplates() {
     const [adminFields, setAdminFields] = useState<FormField[] | null>(null);
     const [adminSteps, setAdminSteps] = useState<FormStep[] | null>(null);
     const [hasActiveAsk, setHasActiveAsk] = useState<boolean | null>(null);
+    const [croConfig, setCroConfig] = useState<CROConfig>(DEFAULT_CRO_CONFIG);
 
     // Conversion tracking — persisted server-side via SellerProfile
     const [conversionPixelUrl, setConversionPixelUrl] = useState('');
@@ -437,6 +440,47 @@ export default function SellerTemplates() {
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+
+                                {/* CRO Settings */}
+                                <div className="space-y-2 pt-2 border-t border-border">
+                                    <label className="text-sm font-medium flex items-center gap-1 text-foreground">
+                                        <Activity className="h-4 w-4 text-primary" />
+                                        CRO Settings
+                                    </label>
+                                    <p className="text-[10px] text-muted-foreground -mt-1">
+                                        Conversion rate optimization features for your hosted form.
+                                    </p>
+                                    <LabeledSwitch
+                                        label="Trust Badges"
+                                        checked={croConfig.showTrustBar}
+                                        onCheckedChange={(v) => setCroConfig(c => ({ ...c, showTrustBar: v }))}
+                                    />
+                                    <LabeledSwitch
+                                        label="Social Proof Counter"
+                                        checked={croConfig.showSocialProof}
+                                        onCheckedChange={(v) => setCroConfig(c => ({ ...c, showSocialProof: v }))}
+                                    />
+                                    <LabeledSwitch
+                                        label="Form State Persistence"
+                                        checked={croConfig.persistFormState}
+                                        onCheckedChange={(v) => setCroConfig(c => ({ ...c, persistFormState: v }))}
+                                    />
+                                    <LabeledSwitch
+                                        label="UTM Auto-Prefill"
+                                        checked={croConfig.utmPrefill}
+                                        onCheckedChange={(v) => setCroConfig(c => ({ ...c, utmPrefill: v }))}
+                                    />
+                                    <LabeledSwitch
+                                        label="Exit-Intent Modal"
+                                        checked={croConfig.showExitIntent}
+                                        onCheckedChange={(v) => setCroConfig(c => ({ ...c, showExitIntent: v }))}
+                                    />
+                                    <LabeledSwitch
+                                        label="Speed Badge (Thank You Page)"
+                                        checked={croConfig.showSpeedBadge}
+                                        onCheckedChange={(v) => setCroConfig(c => ({ ...c, showSpeedBadge: v }))}
+                                    />
                                 </div>
 
                                 {/* Gamification */}

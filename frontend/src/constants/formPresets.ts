@@ -138,6 +138,34 @@ export const VERTICAL_PRESETS: Record<string, FormField[]> = {
         { id: '7', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 999-0000' },
         { id: '8', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '10001' },
     ],
+    ev_charging: [
+        { id: '1', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Your Name' },
+        { id: '2', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
+        { id: '3', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 000-0000' },
+        { id: '4', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '90210' },
+        { id: '5', key: 'ev_make', label: 'What EV do you drive?', type: 'select', required: true, options: ['Tesla', 'Ford', 'Chevy', 'Rivian', 'BMW', 'Hyundai', 'Other'] },
+        { id: '6', key: 'charger_level', label: 'Charger level needed', type: 'select', required: true, options: ['Level 1 (120V)', 'Level 2 (240V)', 'Not Sure'] },
+        { id: '7', key: 'garage_type', label: 'Where will the charger go?', type: 'select', required: true, options: ['Attached Garage', 'Detached Garage', 'Carport', 'Driveway Only'] },
+    ],
+    pet_insurance: [
+        { id: '1', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Your Name' },
+        { id: '2', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
+        { id: '3', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 000-0000' },
+        { id: '4', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '90210' },
+        { id: '5', key: 'pet_type', label: 'What type of pet?', type: 'select', required: true, options: ['Dog', 'Cat', 'Other'] },
+        { id: '6', key: 'breed', label: 'Breed', type: 'text', required: true, placeholder: 'Golden Retriever' },
+        { id: '7', key: 'pet_age', label: 'How old is your pet?', type: 'number', required: true, placeholder: '3' },
+        { id: '8', key: 'coverage_level', label: 'Coverage level', type: 'select', required: true, options: ['Accidents Only', 'Accidents + Illness', 'Comprehensive', 'Wellness Add-on'] },
+    ],
+    home_security: [
+        { id: '1', key: 'full_name', label: 'Full Name', type: 'text', required: true, placeholder: 'Your Name' },
+        { id: '2', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
+        { id: '3', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 000-0000' },
+        { id: '4', key: 'zip', label: 'ZIP Code', type: 'text', required: true, placeholder: '90210' },
+        { id: '5', key: 'security_type', label: 'What type of system?', type: 'select', required: true, options: ['DIY System', 'Professionally Monitored', 'Smart Home Integration', 'Camera Only'] },
+        { id: '6', key: 'home_size', label: 'Home size', type: 'select', required: true, options: ['Under 1,000 sqft', '1,000-2,000 sqft', '2,000-3,000 sqft', '3,000+ sqft'] },
+        { id: '7', key: 'entry_points', label: 'Number of entry points', type: 'select', required: true, options: ['1-3', '4-6', '7-10', '10+'] },
+    ],
 };
 
 // Generic fallback template for verticals without a specific preset

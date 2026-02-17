@@ -5,12 +5,23 @@
  * color props so it can be themed. Used by:
  *  - HostedForm.tsx (full-page, interactive)
  *  - SellerFunnels.tsx (compact inline preview, read-only)
+ *
+ * CRO enhancements:
+ *  - Conditional field visibility (showWhen)
+ *  - Auto-format as-you-type (phone, zip, currency)
+ *  - Field entrance animations
+ *  - Green checkmarks on completed required fields
+ *  - Nudge messages between steps
+ *  - Sticky progress bar
+ *  - Help text rendering
+ *  - 48px min-height buttons, consistent spacing
  */
 
-import { CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertCircle, Lock } from 'lucide-react';
+import { CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertCircle, Lock, Check } from 'lucide-react';
 import { getContrastText } from '@/lib/contrast';
 import type { FormField, FormStep } from '@/types/formBuilder';
 import { VERTICAL_EMOJI } from '@/components/forms/StepProgress';
+import { applyAutoFormat } from '@/utils/autoFormat';
 
 // ─── Color helpers ──────────────────────────────────────────────
 function lighten(hex: string, amount: number): string {
@@ -27,6 +38,29 @@ function withAlpha(hex: string, alpha: number): string {
     const g = (num >> 8) & 0xff;
     const b = num & 0xff;
     return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ─── CSS Animations (injected once) ─────────────────────────────
+const ANIM_STYLE_ID = 'form-preview-anims';
+function ensureAnimations() {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById(ANIM_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = ANIM_STYLE_ID;
+    style.textContent = `
+        @keyframes fp-slideIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fp-fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes fp-spin {
+            to { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 // ─── Props ──────────────────────────────────────────────────────
@@ -107,9 +141,17 @@ export default function FormPreview({
     submitError,
     compact = false,
 }: FormPreviewProps) {
+    ensureAnimations();
+
     const { bg, text, accent, border, inputBg, muted } = colors;
     const cardBg = lighten(bg, 0.03);
     const isInteractive = !!onFieldChange;
+
+    // ─── Conditional field visibility ────────────────────────
+    function isFieldVisible(f: FormField): boolean {
+        if (!f.showWhen) return true;
+        return formData[f.showWhen.field] === f.showWhen.equals;
+    }
 
     // Derived
     const currentFields = (() => {
@@ -128,44 +170,87 @@ export default function FormPreview({
     // For compact mode, show first 4 fields across all steps
     const previewFields = compact ? fields.slice(0, 4) : currentFields;
 
+    // Count remaining required fields on current step for nudge
+    const remainingRequired = previewFields.filter(
+        f => isFieldVisible(f) && f.required && !formData[f.key]
+    ).length;
+
     const accentGradient = `linear-gradient(135deg, ${accent}, ${lighten(accent, 0.15)})`;
     const ctaFg = getContrastText(accent);
 
+    // ─── Auto-format wrapper ─────────────────────────────────
+    /** Strip question prefixes for cleaner select placeholders */
+    function selectPlaceholder(label: string): string {
+        return label.replace(/^(what|how|do you|are you|is this|when|where)\s+/i, '').replace(/\?$/, '');
+    }
+
+    function handleFieldChange(key: string, value: string | boolean, field: FormField) {
+        if (!onFieldChange) return;
+        if (typeof value === 'string' && field.autoFormat) {
+            onFieldChange(key, applyAutoFormat(value, field.autoFormat));
+        } else {
+            onFieldChange(key, value);
+        }
+    }
+
     // ─── Field renderer ──────────────────────────────────────
-    function renderField(f: FormField) {
+    function renderField(f: FormField, idx: number) {
+        if (!isFieldVisible(f)) return null;
+
         const value = formData[f.key] ?? '';
         const err = fieldErrors[f.key];
+        const isCompleted = f.required && !!value && !err;
         const inputStyles: React.CSSProperties = {
             backgroundColor: inputBg,
-            border: `1px solid ${err ? '#ef4444' : border}`,
+            border: `1px solid ${err ? '#ef4444' : isCompleted ? `${accent}60` : border}`,
             color: text,
             borderRadius: '0.5rem',
             padding: compact ? '0.4rem 0.75rem' : '0.65rem 1rem',
             fontSize: compact ? '0.75rem' : '0.875rem',
             width: '100%',
             outline: 'none',
-            transition: 'border-color 0.2s',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+            boxShadow: isCompleted ? `0 0 0 1px ${accent}20` : undefined,
         };
 
+        const animDelay = `${idx * 0.06}s`;
+
         return (
-            <div key={f.id} style={{ marginBottom: compact ? '0.6rem' : '0.9rem' }}>
-                <label style={{ display: 'block', fontSize: compact ? '0.7rem' : '0.8rem', fontWeight: 500, color: muted, marginBottom: '0.3rem' }}>
+            <div
+                key={f.id}
+                style={{
+                    marginBottom: compact ? '0.6rem' : '1rem',
+                    animation: compact ? undefined : `fp-slideIn 0.3s ease-out ${animDelay} both`,
+                }}
+            >
+                <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    fontSize: compact ? '0.7rem' : '0.8rem',
+                    fontWeight: 500,
+                    color: muted,
+                    marginBottom: '0.3rem',
+                }}>
                     {f.label} {f.required && <span style={{ color: accent }}>*</span>}
+                    {isCompleted && !compact && (
+                        <Check style={{ width: 12, height: 12, color: '#22c55e', marginLeft: 'auto' }} />
+                    )}
                 </label>
 
                 {f.type === 'select' && f.options ? (
                     isInteractive ? (
                         <select
                             value={value as string}
-                            onChange={e => onFieldChange!(f.key, e.target.value)}
+                            onChange={e => handleFieldChange(f.key, e.target.value, f)}
                             style={{ ...inputStyles, appearance: 'none' as const }}
                         >
-                            <option value="">Select {f.label.toLowerCase()}...</option>
+                            <option value="">Select {selectPlaceholder(f.label).toLowerCase()}...</option>
                             {f.options.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                     ) : (
                         <div style={inputStyles}>
-                            <span style={{ opacity: 0.5 }}>Select {f.label.toLowerCase()}...</span>
+                            <span style={{ opacity: 0.5 }}>Select {selectPlaceholder(f.label).toLowerCase()}...</span>
                         </div>
                     )
                 ) : f.type === 'boolean' ? (
@@ -176,7 +261,7 @@ export default function FormPreview({
                                 <button
                                     key={opt}
                                     type="button"
-                                    onClick={isInteractive ? () => onFieldChange!(f.key, opt === 'Yes') : undefined}
+                                    onClick={isInteractive ? () => handleFieldChange(f.key, opt === 'Yes', f) : undefined}
                                     style={{
                                         flex: 1,
                                         padding: compact ? '0.35rem' : '0.55rem',
@@ -199,16 +284,16 @@ export default function FormPreview({
                     f.type === 'textarea' ? (
                         <textarea
                             value={value as string}
-                            onChange={e => onFieldChange!(f.key, e.target.value)}
+                            onChange={e => handleFieldChange(f.key, e.target.value, f)}
                             placeholder={f.placeholder || f.label}
                             rows={3}
                             style={{ ...inputStyles, resize: 'none' }}
                         />
                     ) : (
                         <input
-                            type={f.type === 'phone' ? 'tel' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text'}
+                            type={f.type === 'phone' ? 'tel' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : f.type === 'date' ? 'date' : 'text'}
                             value={value as string}
-                            onChange={e => onFieldChange!(f.key, e.target.value)}
+                            onChange={e => handleFieldChange(f.key, e.target.value, f)}
                             placeholder={f.placeholder || f.label}
                             style={inputStyles}
                         />
@@ -217,6 +302,13 @@ export default function FormPreview({
                     <div style={inputStyles}>
                         <span style={{ opacity: 0.5 }}>{f.placeholder || f.label}</span>
                     </div>
+                )}
+
+                {/* Help text */}
+                {f.helpText && (
+                    <p style={{ fontSize: '0.65rem', color: muted, opacity: 0.7, marginTop: '0.2rem' }}>
+                        {f.helpText}
+                    </p>
                 )}
 
                 {err && (
@@ -233,11 +325,9 @@ export default function FormPreview({
         ? { backgroundColor: bg, color: text, padding: '1.25rem', borderRadius: '0.75rem', minHeight: 300, fontFamily: 'inherit' }
         : { backgroundColor: bg, color: text, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem', fontFamily: 'inherit' };
 
-    const innerWidth = compact ? '100%' : '100%';
-
     return (
         <div style={containerStyle}>
-            <div style={{ width: innerWidth, maxWidth: compact ? undefined : 448 }}>
+            <div style={{ width: '100%', maxWidth: compact ? undefined : 448 }}>
                 {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: compact ? '0.75rem' : '2rem' }}>
                     {(logoUrl || companyName) && (
@@ -286,9 +376,17 @@ export default function FormPreview({
                     </p>
                 </div>
 
-                {/* Progress bar */}
+                {/* Sticky progress bar */}
                 {showProgress && totalSteps > 1 && (
-                    <div style={{ marginBottom: compact ? '0.75rem' : '1.5rem' }}>
+                    <div style={{
+                        marginBottom: compact ? '0.75rem' : '1.5rem',
+                        position: compact ? undefined : 'sticky',
+                        top: compact ? undefined : 0,
+                        zIndex: compact ? undefined : 10,
+                        backgroundColor: compact ? undefined : bg,
+                        paddingTop: compact ? undefined : '0.5rem',
+                        paddingBottom: compact ? undefined : '0.5rem',
+                    }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: compact ? '0.6rem' : '0.7rem', color: muted, marginBottom: '0.4rem' }}>
                             <span>Step {currentStep + 1} of {totalSteps}</span>
                             <span>{steps[currentStep]?.label || ''}</span>
@@ -310,6 +408,20 @@ export default function FormPreview({
                     </div>
                 )}
 
+                {/* Nudge message */}
+                {showNudges && !compact && isInteractive && remainingRequired > 0 && remainingRequired <= 3 && (
+                    <div style={{
+                        textAlign: 'center',
+                        fontSize: '0.7rem',
+                        color: accent,
+                        marginBottom: '0.75rem',
+                        animation: 'fp-fadeIn 0.3s ease-out',
+                        fontWeight: 500,
+                    }}>
+                        ✨ Almost there! Just {remainingRequired} more field{remainingRequired !== 1 ? 's' : ''} to go
+                    </div>
+                )}
+
                 {/* Form card */}
                 <div style={{
                     backgroundColor: cardBg,
@@ -318,7 +430,7 @@ export default function FormPreview({
                     padding: compact ? '0.85rem' : '1.5rem',
                     boxShadow: compact ? undefined : `0 25px 50px -12px ${withAlpha(bg, 0.6)}`,
                 }}>
-                    {previewFields.map(f => renderField(f))}
+                    {previewFields.map((f, i) => renderField(f, i))}
 
                     {/* Compact: truncation notice */}
                     {compact && fields.length > 4 && (
@@ -336,6 +448,7 @@ export default function FormPreview({
                                 style={{
                                     flex: 1,
                                     padding: '0.65rem',
+                                    minHeight: 48,
                                     borderRadius: '0.5rem',
                                     backgroundColor: withAlpha(text, 0.05),
                                     color: muted,
@@ -360,6 +473,7 @@ export default function FormPreview({
                             style={{
                                 flex: 1,
                                 padding: compact ? '0.5rem' : '0.7rem',
+                                minHeight: compact ? undefined : 48,
                                 borderRadius: '0.5rem',
                                 background: accentGradient,
                                 color: ctaFg,
@@ -372,12 +486,12 @@ export default function FormPreview({
                                 justifyContent: 'center',
                                 gap: '0.35rem',
                                 boxShadow: `0 4px 12px ${withAlpha(accent, 0.25)}`,
-                                transition: 'opacity 0.2s',
+                                transition: 'opacity 0.2s, transform 0.1s',
                                 opacity: submitting ? 0.6 : 1,
                             }}
                         >
                             {submitting ? (
-                                <><Loader2 style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} /> Submitting...</>
+                                <><Loader2 style={{ width: 16, height: 16, animation: 'fp-spin 1s linear infinite' }} /> Submitting...</>
                             ) : isLastStep && isInteractive ? (
                                 <><span>{ctaText}</span> <CheckCircle style={{ width: 16, height: 16 }} /></>
                             ) : (

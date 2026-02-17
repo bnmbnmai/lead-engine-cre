@@ -16,6 +16,9 @@ interface FormField {
     required: boolean;
     placeholder?: string;
     options?: string[];
+    showWhen?: { field: string; equals: string | boolean };
+    autoFormat?: 'phone' | 'zip' | 'currency';
+    helpText?: string;
 }
 
 interface FormStep {

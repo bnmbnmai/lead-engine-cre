@@ -1,6 +1,6 @@
 # Lead Engine CRE — Current Status & Priorities
 
-**Updated:** February 17, 2026 (post-MCP agent upgrade)  
+**Updated:** February 17, 2026 (post P4–P6 execution)  
 **Branch:** `main`
 
 ---
@@ -40,15 +40,18 @@ After today's consolidation, Chainlink stubs are organized in `lib/chainlink/`:
 
 Other stubs: `confidential.service.ts` (TEE compute), `datastreams.service.ts` (Data Streams metrics), analytics mock (Faker.js, prod-gated).
 
-### Smart Contracts — Not Yet Deployed to Base Sepolia
+### Smart Contracts — All Deployed to Base Sepolia ✅
 
-| Contract | Sepolia Only | Notes |
-|----------|-------------|-------|
-| ACECompliance | `0x7462…` | KYC/AML + reputation — needs Base Sepolia deployment |
-| Marketplace | `0x3b1b…` | On-chain commit-reveal — needs Base Sepolia deployment |
-| VerticalNFT | Not deployed | ERC-721 + ERC-2981 royalties for vertical ownership |
-| VerticalAuction | Not deployed | Holder-priority auctions with 1.2× multiplier |
-| CustomLeadFeed | Not deployed | On-chain platform metrics consumer |
+| Contract | Base Sepolia Address | Notes |
+|----------|---------------------|-------|
+| LeadNFTv2 | `0x3741…E303` | ERC-721 tokenization, packed metadata |
+| RTBEscrow | `0xff5d…DbDB` | Redeployed Feb 17, single-sig |
+| ACECompliance | `0xAea2…EfE6` | KYC/AML + reputation |
+| CREVerifier | `0xe21F…eB4d` | Chainlink Functions quality scoring |
+| Marketplace | `0xfDf9…6905` | On-chain commit-reveal |
+| VerticalNFT | `0x60c2…EC5b` | ERC-721 + ERC-2981 royalties |
+| VerticalAuction | `0x4050…1003` | Holder-priority auctions |
+| CustomLeadFeed | `0x1953…6d61` | On-chain platform metrics |
 
 ---
 
@@ -152,38 +155,26 @@ Other stubs: `confidential.service.ts` (TEE compute), `datastreams.service.ts` (
 
 ---
 
-### 🟡 Priority 4: Remaining Chainlink Stub Refinement
+### ✅ ~~Priority 4: Remaining Chainlink Stub Refinement~~ — DONE
 
-**Why lower:** The stubs are now cleanly organized and clearly labelled. Further refinement is about making them look better in the code review, not functional improvements.
-
-- **Confidential HTTP:** Already done (today). `confidential-http.stub.ts` + `quality-score-workflow.ts` + CRE service integration.
-- **DECO:** Already consolidated (today). Single `deco.stub.ts` with both web attestation and KYC verification.
-- **Remaining:** Update `confidential.service.ts` to add `isStub` metadata (currently implicitly labelled). Update `datastreams.service.ts` with clearer stub documentation.
-
-**Effort:** ~1 hour. **Impact:** Low — code quality, not user-facing.
+**Completed Feb 17.** `confidential.service.ts` and `datastreams.service.ts` already had `isStub: true`. Added `isOnChain: false` to `ace.service.ts` off-chain fallbacks (`autoKYC`, `updateReputation`). Demo toggle persistence already using `PlatformConfig`.
 
 ---
 
-### 🟢 Priority 5: Deploy ACECompliance + Marketplace to Base Sepolia
+### ✅ ~~Priority 5: Deploy Contracts to Base Sepolia~~ — ALREADY DONE
 
-**Why last:** These contracts work on Sepolia already. Deploying to Base Sepolia is mechanical — just `npx hardhat run scripts/deploy-X.ts --network baseSepolia`. But the contracts aren't actively exercised in the demo flow today (the backend uses off-chain fallbacks when contracts aren't configured).
-
-**Effort:** ~1 hour. **Impact:** Low — nice-to-have for completeness.
+**All 8 contracts already deployed per `.env`.** Deploy script (`deploy-remaining-base-sepolia.ts`) has been updated with correct RTBEscrow address.
 
 ---
 
-### 🟢 Priority 6: Tech Debt Quick Wins
+### ✅ ~~Priority 6: Tech Debt Quick Wins~~ — DONE
 
-From the 24-item `TECH_DEBT.md`, these are the lowest-effort highest-visibility fixes:
-
-| TD | Issue | Effort |
+| TD | Issue | Status |
 |----|-------|--------|
-| TD-08 | `consentProof` hijacked as demo tag → add `isDemo` boolean | 30 min |
-| TD-04 | USDC check uses DB wallet, not session wallet | 15 min |
-| TD-14 | Hardcoded Sepolia chain ID in Transaction update | 10 min |
-| ~~TD-12~~ | ~~USDC approve uses 10× amount~~ — **FIXED**: on-chain allowance check in `useEscrow.ts` | ✅ Done |
-
-**Effort:** ~1 hour for remaining three. **Impact:** Medium — removes obvious code-review red flags.
+| TD-08 | `consentProof` hijacked as demo tag | ✅ Fixed — `LeadSource.DEMO` enum added, all references migrated |
+| TD-04 | USDC check uses DB wallet, not session wallet | ✅ Already fixed |
+| TD-14 | Hardcoded Sepolia chain ID | ✅ Already fixed (84532) |
+| ~~TD-12~~ | ~~USDC approve uses 10× amount~~ | ✅ Already fixed |
 
 ---
 
@@ -198,6 +189,6 @@ graph LR
     E --> F["🟢 P6: Tech Debt Fixes\n(1-2h)"]
 ```
 
-**Rationale:** P1 is done ✅. P2 is the highest-ROI investment (more leads = more demo activity). P3 builds on P2's foundation. P4–P6 are cleanup that can be parallelized or deferred.
+**Rationale:** P1 is done ✅. P4–P6 are done ✅. P2 is the highest-ROI investment (more leads = more demo activity). P3 builds on P2's foundation.
 
-**Remaining effort:** ~13–18 hours for P2–P6.
+**Remaining effort:** ~10–14 hours for P2–P3.

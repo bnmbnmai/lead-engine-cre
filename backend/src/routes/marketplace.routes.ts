@@ -702,6 +702,28 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
 });
 
 // ============================================
+// Lead Count Today (Public — used by SocialProofBanner)
+// Returns the number of verified leads submitted in the last 24 hours.
+// No auth required. Rate limited.
+// ============================================
+
+router.get('/leads/count-today', generalLimiter, async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const count = await prisma.lead.count({
+            where: {
+                createdAt: { gte: since },
+                isVerified: true,
+            },
+        });
+        res.json({ count });
+    } catch (error) {
+        console.error('Lead count-today error:', error);
+        res.status(500).json({ error: 'Failed to count leads' });
+    }
+});
+
+// ============================================
 // List Leads
 // ============================================
 

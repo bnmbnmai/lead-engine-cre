@@ -298,7 +298,7 @@ class ACEService {
     async autoKYC(
         walletAddress: string,
         proofHash?: string
-    ): Promise<{ verified: boolean; txHash?: string; error?: string }> {
+    ): Promise<{ verified: boolean; txHash?: string; error?: string; isOnChain?: boolean }> {
         const kycProofHash = proofHash || ethers.keccak256(
             ethers.toUtf8Bytes(`kyc-${walletAddress}-${Date.now()}`)
         );
@@ -341,7 +341,7 @@ class ACEService {
             },
         });
 
-        return { verified: true };
+        return { verified: true, isOnChain: false };
     }
 
     // ============================================
@@ -401,7 +401,7 @@ class ACEService {
     async updateReputation(
         walletAddress: string,
         delta: number
-    ): Promise<{ success: boolean; newScore?: number; error?: string }> {
+    ): Promise<{ success: boolean; newScore?: number; error?: string; isOnChain?: boolean }> {
         // On-chain update
         if (this.contract && this.signer) {
             try {
@@ -427,7 +427,7 @@ class ACEService {
                 where: { id: seller.id },
                 data: { reputationScore: newScore },
             });
-            return { success: true, newScore };
+            return { success: true, newScore, isOnChain: false };
         }
 
         return { success: false, error: 'Seller not found' };

@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
  * 
  * Already deployed:
  *   LeadNFTv2:  0x37414bc0341e0AAb94e51E89047eD73C7086E303
- *   RTBEscrow:  0x80fA1d07a1D5b20Fd90845b4829BEB30B3f86507
+ *   RTBEscrow:  0xff5d18a9fff7682a5285ccdafd0253e34761DbDB (redeployed Feb 17)
  *
  * This script deploys:
  *   1. ACECompliance
@@ -28,7 +28,7 @@ async function main() {
 
     // ── Already-deployed addresses ───────────────────────────────
     const LEAD_NFT_ADDRESS = "0x37414bc0341e0AAb94e51E89047eD73C7086E303";
-    const ESCROW_ADDRESS = "0x80fA1d07a1D5b20Fd90845b4829BEB30B3f86507";
+    const ESCROW_ADDRESS = "0xff5d18a9fff7682a5285ccdafd0253e34761DbDB";   // RTBEscrow (redeployed Feb 17)
     const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
     // Chainlink Functions (Base Sepolia) — from docs.chain.link

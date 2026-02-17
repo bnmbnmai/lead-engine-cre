@@ -406,6 +406,10 @@ export const api = {
             '/api/v1/seller/conversion-settings',
             { method: 'PUT', body: JSON.stringify(settings) },
         ),
+
+    // Lead count (public, no auth — used by SocialProofBanner)
+    getLeadCountToday: () =>
+        apiFetch<{ count: number }>('/api/v1/leads/count-today'),
 };
 
 export default api;

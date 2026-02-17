@@ -1,22 +1,35 @@
 /**
- * HostedForm — Public-facing multi-step form wizard
+ * HostedForm — Public-facing multi-step form wizard with CRO features
  *
  * Route: /f/:slug  (e.g. /f/roofing--clxyz123 or /f/solar.residential--cmxyz456)
  * The slug format is: {verticalSlug}--{sellerId}
  *
- * Fetches formConfig from the public API, renders a fully functional
- * multi-step wizard with progress bar, validation, and submission.
- * Delegates all rendering to the shared FormPreview component.
+ * CRO features:
+ *  - TrustBar + SocialProof above the form
+ *  - Form state persistence via sessionStorage
+ *  - UTM param pre-fill
+ *  - Exit-intent modal
+ *  - Speed badge on thank-you page
+ *  - A/B variant support (?variant=B)
+ *  - Keyboard navigation (Enter → next step)
+ *  - Confetti on successful submit
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle, Shield } from 'lucide-react';
 import api from '@/lib/api';
 import FormPreview from '@/components/forms/FormPreview';
 import type { FormPreviewColors } from '@/components/forms/FormPreview';
 import { COLOR_SCHEMES } from '@/constants/formPresets';
-import type { FormField, FormStep } from '@/types/formBuilder';
+import type { FormField, FormStep, CROConfig } from '@/types/formBuilder';
+import { DEFAULT_CRO_CONFIG } from '@/types/formBuilder';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
+import { useUTMPrefill } from '@/hooks/useUTMPrefill';
+import TrustBar from '@/components/forms/TrustBar';
+import SocialProofBanner from '@/components/forms/SocialProofBanner';
+import ExitIntentModal from '@/components/forms/ExitIntentModal';
+import SpeedBadge from '@/components/forms/SpeedBadge';
 
 // ─── Default colors (Dark scheme) ─────────────────────────────────
 const DEFAULT_COLORS: FormPreviewColors = {
@@ -31,7 +44,20 @@ const DEFAULT_COLORS: FormPreviewColors = {
 interface FormConfig {
     fields: FormField[];
     steps: FormStep[];
-    gamification?: { showProgress?: boolean; showNudges?: boolean };
+    gamification?: { showProgress?: boolean; showNudges?: boolean; confetti?: boolean };
+}
+
+// ─── A/B Variant helpers ──────────────────────────────────────────
+type Variant = 'A' | 'B';
+
+function getVariant(): Variant {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('variant')?.toUpperCase();
+    if (v === 'B') return 'B';
+    // Sticky variant so user always sees the same one
+    const stored = sessionStorage.getItem('form_variant');
+    if (stored === 'B') return 'B';
+    return 'A';
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -51,6 +77,7 @@ export default function HostedForm() {
     }, [slug]);
 
     const [config, setConfig] = useState<FormConfig | null>(null);
+    const [croConfig, setCroConfig] = useState<CROConfig>(DEFAULT_CRO_CONFIG);
     const [verticalName, setVerticalName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -65,6 +92,15 @@ export default function HostedForm() {
     const [submitted, setSubmitted] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
 
+    // CRO state
+    const formStartTime = useRef(Date.now());
+    const [elapsedMs, setElapsedMs] = useState(0);
+    const variant = useMemo(() => {
+        const v = getVariant();
+        sessionStorage.setItem('form_variant', v);
+        return v;
+    }, []);
+
     // Fetch form config
     useEffect(() => {
         if (!verticalSlug) return;
@@ -74,6 +110,10 @@ export default function HostedForm() {
                 if (!res.data) throw new Error('No data');
                 setConfig(res.data.formConfig as FormConfig);
                 setVerticalName(res.data.vertical.name);
+                // CROConfig is part of the response if the backend sends it
+                if ((res.data as any).croConfig) {
+                    setCroConfig({ ...DEFAULT_CRO_CONFIG, ...(res.data as any).croConfig });
+                }
             })
             .catch(() => setError('This form is not available or has expired.'))
             .finally(() => setLoading(false));
@@ -95,6 +135,10 @@ export default function HostedForm() {
                         muted: tc.muted || DEFAULT_COLORS.muted,
                     });
                 }
+                // Merge any CRO overrides from seller config
+                if (tc?.croConfig) {
+                    setCroConfig(prev => ({ ...prev, ...tc.croConfig }));
+                }
             })
             .catch(() => { /* fallback to DEFAULT_COLORS */ });
     }, [verticalSlug, sellerId]);
@@ -113,6 +157,27 @@ export default function HostedForm() {
 
     const isLastStep = currentStep === Math.max(steps.length - 1, 0);
 
+    // ─── CRO Hooks ───────────────────────────────────────────
+    const setFormDataCb = useCallback((data: Record<string, string | boolean>) => setFormData(data), []);
+    const setCurrentStepCb = useCallback((step: number) => setCurrentStep(step), []);
+
+    const { clear: clearPersistence } = useFormPersistence({
+        slug: slug || '',
+        formData,
+        currentStep,
+        setFormData: setFormDataCb,
+        setCurrentStep: setCurrentStepCb,
+        enabled: croConfig.persistFormState,
+    });
+
+    useUTMPrefill({
+        fields,
+        formData,
+        setFormData,
+        enabled: croConfig.utmPrefill && fields.length > 0,
+    });
+
+    // ─── Handlers ─────────────────────────────────────────────
     function updateField(key: string, value: string | boolean) {
         setFormData(prev => ({ ...prev, [key]: value }));
         setFieldErrors(prev => {
@@ -125,6 +190,9 @@ export default function HostedForm() {
     function validateStep(): boolean {
         const errors: Record<string, string> = {};
         for (const f of currentFields) {
+            // Skip hidden conditional fields
+            if (f.showWhen && formData[f.showWhen.field] !== f.showWhen.equals) continue;
+
             const val = formData[f.key];
             if (f.required && (val === undefined || val === '')) {
                 errors[f.key] = `${f.label} is required`;
@@ -153,6 +221,19 @@ export default function HostedForm() {
         if (currentStep > 0) setCurrentStep(s => s - 1);
     }
 
+    // Keyboard: Enter advances to next step
+    useEffect(() => {
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.key === 'Enter' && !submitting && !submitted && config) {
+                e.preventDefault();
+                handleNext();
+            }
+        }
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentStep, formData, submitting, submitted, config]);
+
     async function handleSubmit() {
         if (!validateStep()) return;
         setSubmitting(true);
@@ -168,7 +249,11 @@ export default function HostedForm() {
             const res = await api.submitPublicLead({
                 sellerId,
                 vertical: verticalSlug,
-                parameters: formData as Record<string, unknown>,
+                parameters: {
+                    ...formData,
+                    _variant: variant,
+                    _completionMs: Date.now() - formStartTime.current,
+                } as Record<string, unknown>,
                 geo,
             });
 
@@ -177,6 +262,8 @@ export default function HostedForm() {
             }
 
             console.log('[HostedForm] Lead submitted:', res.data?.lead?.id);
+            setElapsedMs(Date.now() - formStartTime.current);
+            clearPersistence();
             setSubmitted(true);
         } catch (err: any) {
             console.error('[HostedForm] Submit error:', err);
@@ -185,6 +272,15 @@ export default function HostedForm() {
             setSubmitting(false);
         }
     }
+
+    // ─── Filled field count (for ExitIntent) ──────────────────
+    const filledFieldCount = useMemo(
+        () => fields.filter(f => formData[f.key] !== undefined && formData[f.key] !== '').length,
+        [fields, formData]
+    );
+
+    // ─── Variant-specific CTA ─────────────────────────────────
+    const ctaText = variant === 'B' ? 'See My Options Now →' : 'Get My Free Quote';
 
     // ─── Loading state ───────────────────────────────────────
     if (loading) {
@@ -210,43 +306,109 @@ export default function HostedForm() {
         );
     }
 
-    // ─── Submitted state ─────────────────────────────────────
+    // ─── Submitted / Thank You state ─────────────────────────
     if (submitted) {
         return (
             <div style={{ minHeight: '100vh', backgroundColor: colors.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                 <div style={{ textAlign: 'center', maxWidth: 448 }}>
-                    <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-                        <CheckCircle style={{ width: 32, height: 32, color: '#4ade80' }} />
+                    <div style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.05))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 1.25rem',
+                        animation: 'fp-fadeIn 0.5s ease-out',
+                    }}>
+                        <CheckCircle style={{ width: 36, height: 36, color: '#4ade80' }} />
                     </div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: colors.text, marginBottom: '0.5rem' }}>Thank You!</h1>
-                    <p style={{ color: colors.muted }}>
-                        Your information has been submitted successfully. A specialist will be in touch shortly.
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 700, color: colors.text, marginBottom: '0.5rem' }}>
+                        Thank You! 🎉
+                    </h1>
+                    <p style={{ color: colors.muted, fontSize: '0.9rem', lineHeight: 1.6 }}>
+                        Your information has been submitted successfully. A qualified specialist will be in touch shortly.
                     </p>
-                    <p style={{ fontSize: '0.7rem', color: colors.muted, marginTop: '1.5rem', opacity: 0.5 }}>Powered by Lead Engine</p>
+
+                    {/* Speed Badge */}
+                    {croConfig.showSpeedBadge && elapsedMs > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                            <SpeedBadge elapsedMs={elapsedMs} accentColor={colors.accent} mutedColor={colors.muted} />
+                        </div>
+                    )}
+
+                    {/* Trust reinforcement */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        marginTop: '1.5rem',
+                        padding: '0.6rem 1rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                    }}>
+                        <Shield style={{ width: 14, height: 14, color: '#3b82f6' }} />
+                        <span style={{ fontSize: '0.7rem', color: colors.muted }}>
+                            Your data is encrypted and verified on-chain via Chainlink
+                        </span>
+                    </div>
+
+                    <p style={{ fontSize: '0.65rem', color: colors.muted, marginTop: '1.5rem', opacity: 0.4 }}>
+                        Powered by Lead Engine
+                    </p>
                 </div>
             </div>
         );
     }
 
-    // ─── Form wizard ─────────────────────────────────────────
+    // ─── Form wizard with CRO layers ─────────────────────────
     return (
-        <FormPreview
-            verticalName={verticalName}
-            verticalSlug={verticalSlug}
-            fields={fields}
-            steps={steps}
-            currentStep={currentStep}
-            colors={colors}
-            showProgress={config.gamification?.showProgress !== false}
-            showNudges={config.gamification?.showNudges !== false}
-            ctaText="Submit"
-            formData={formData}
-            fieldErrors={fieldErrors}
-            onFieldChange={updateField}
-            onNext={handleNext}
-            onBack={handleBack}
-            submitting={submitting}
-            submitError={submitError}
-        />
+        <div style={{ backgroundColor: colors.bg, minHeight: '100vh' }}>
+            <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1rem' }}>
+                {/* Trust Bar (Variant A: above, Variant B: below header would be handled in FormPreview) */}
+                {croConfig.showTrustBar && (
+                    <TrustBar mutedColor={colors.muted} />
+                )}
+
+                {/* Social Proof */}
+                {croConfig.showSocialProof && (
+                    <SocialProofBanner accentColor={colors.accent} mutedColor={colors.muted} />
+                )}
+
+                {/* The Form */}
+                <FormPreview
+                    verticalName={verticalName}
+                    verticalSlug={verticalSlug}
+                    fields={fields}
+                    steps={steps}
+                    currentStep={currentStep}
+                    colors={colors}
+                    showProgress={config.gamification?.showProgress !== false}
+                    showNudges={config.gamification?.showNudges !== false}
+                    ctaText={ctaText}
+                    formData={formData}
+                    fieldErrors={fieldErrors}
+                    onFieldChange={updateField}
+                    onNext={handleNext}
+                    onBack={handleBack}
+                    submitting={submitting}
+                    submitError={submitError}
+                />
+
+                {/* Exit Intent Modal */}
+                {croConfig.showExitIntent && (
+                    <ExitIntentModal
+                        accentColor={colors.accent}
+                        bgColor={colors.bg}
+                        textColor={colors.text}
+                        filledFieldCount={filledFieldCount}
+                        totalFieldCount={fields.length}
+                    />
+                )}
+            </div>
+        </div>
     );
 }

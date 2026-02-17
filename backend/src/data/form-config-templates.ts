@@ -14,10 +14,13 @@ export interface FormField {
     id: string;
     key: string;
     label: string;
-    type: 'text' | 'select' | 'boolean' | 'number' | 'textarea' | 'email' | 'phone';
+    type: 'text' | 'select' | 'boolean' | 'number' | 'textarea' | 'email' | 'phone' | 'date';
     required: boolean;
     placeholder?: string;
     options?: string[];
+    showWhen?: { field: string; equals: string | boolean };
+    autoFormat?: 'phone' | 'zip' | 'currency';
+    helpText?: string;
 }
 
 export interface FormStep {
@@ -34,11 +37,11 @@ export interface FormConfig {
 
 // ─── Shared re-usable fields ───
 const CONTACT_FIELDS: FormField[] = [
-    { id: 'f_name', key: 'fullName', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
-    { id: 'f_email', key: 'email', label: 'Email', type: 'email', required: true, placeholder: 'john@example.com' },
-    { id: 'f_phone', key: 'phone', label: 'Phone', type: 'phone', required: true, placeholder: '(555) 123-4567' },
-    { id: 'f_zip', key: 'zip', label: 'ZIP / Postal Code', type: 'text', required: true, placeholder: '90210' },
-    { id: 'f_state', key: 'state', label: 'State / Region', type: 'text', required: true, placeholder: 'CA' },
+    { id: 'f_name', key: 'fullName', label: 'What is your full name?', type: 'text', required: true, placeholder: 'John Doe' },
+    { id: 'f_email', key: 'email', label: 'Best email to reach you', type: 'email', required: true, placeholder: 'john@example.com' },
+    { id: 'f_phone', key: 'phone', label: 'Phone number', type: 'phone', required: true, placeholder: '(555) 123-4567', autoFormat: 'phone' },
+    { id: 'f_zip', key: 'zip', label: 'ZIP code', type: 'text', required: true, placeholder: '90210', autoFormat: 'zip' },
+    { id: 'f_state', key: 'state', label: 'State', type: 'text', required: true, placeholder: 'CA' },
     { id: 'f_country', key: 'country', label: 'Country', type: 'select', required: true, options: ['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'BR', 'MX', 'IN', 'JP', 'Other'] },
 ];
 
@@ -59,18 +62,19 @@ function makeConfig(detailFields: FormField[], detailStepLabel: string): FormCon
 //  SOLAR
 // ═══════════════════════════════════════════
 const SOLAR_COMMON: FormField[] = [
-    { id: 'roof_type', key: 'roofType', label: 'Roof Type', type: 'select', required: true, options: ['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO', 'Slate'] },
-    { id: 'roof_age', key: 'roofAge', label: 'Roof Age (years)', type: 'number', required: true, placeholder: '10' },
-    { id: 'electric_bill', key: 'electricBill', label: 'Monthly Electric Bill', type: 'select', required: true, options: ['Under $100', '$100-$200', '$200-$300', '$300-$400', '$400+'] },
-    { id: 'credit_score', key: 'creditScore', label: 'Credit Score Range', type: 'select', required: true, options: ['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)', 'Below 650'] },
-    { id: 'timeline', key: 'timeline', label: 'Timeline', type: 'select', required: true, options: ['ASAP', '1-3 months', '3-6 months', 'Just researching'] },
+    { id: 'own_rent', key: 'ownOrRent', label: 'Do you own or rent your home?', type: 'select', required: true, options: ['Own', 'Rent'], helpText: 'Solar installation requires homeownership' },
+    { id: 'roof_type', key: 'roofType', label: 'What type of roof do you have?', type: 'select', required: true, options: ['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO', 'Slate'] },
+    { id: 'roof_age', key: 'roofAge', label: 'How old is your roof?', type: 'number', required: false, placeholder: '10', helpText: 'Approximate years' },
+    { id: 'electric_bill', key: 'electricBill', label: 'What is your monthly electric bill?', type: 'select', required: true, options: ['Under $100', '$100-$200', '$200-$300', '$300-$400', '$400+'] },
+    { id: 'credit_score', key: 'creditScore', label: 'Approximate credit score', type: 'select', required: false, options: ['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)', 'Below 650'] },
+    { id: 'timeline', key: 'timeline', label: 'When are you looking to go solar?', type: 'select', required: true, options: ['ASAP', '1-3 months', '3-6 months', 'Just researching'] },
 ];
 
 const solarResidential: FormConfig = makeConfig([
     ...SOLAR_COMMON,
-    { id: 'sqft', key: 'sqft', label: 'Home Square Footage', type: 'number', required: true, placeholder: '2000' },
-    { id: 'system_size', key: 'systemSize', label: 'Desired System Size', type: 'select', required: false, options: ['4-6 kW', '6-8 kW', '8-10 kW', '10+ kW'] },
-    { id: 'shading', key: 'shading', label: 'Roof Shading', type: 'select', required: false, options: ['No shading', 'Partial shade', 'Heavy shade'] },
+    { id: 'sqft', key: 'sqft', label: 'Approximate home size (sqft)', type: 'number', required: false, placeholder: '2000' },
+    { id: 'system_size', key: 'systemSize', label: 'Desired system size', type: 'select', required: false, options: ['4-6 kW', '6-8 kW', '8-10 kW', '10+ kW'] },
+    { id: 'shading', key: 'shading', label: 'Does your roof get shade?', type: 'select', required: false, options: ['No shading', 'Partial shade', 'Heavy shade'] },
 ], 'Property & Solar Details');
 
 const solarCommercial: FormConfig = makeConfig([
@@ -97,27 +101,29 @@ const solarCommunity: FormConfig = makeConfig([
 //  MORTGAGE
 // ═══════════════════════════════════════════
 const MORTGAGE_COMMON: FormField[] = [
-    { id: 'prop_type_m', key: 'propertyType', label: 'Property Type', type: 'select', required: true, options: ['Single Family', 'Condo', 'Townhouse', 'Multi-Family'] },
-    { id: 'credit_m', key: 'creditScore', label: 'Credit Score', type: 'select', required: true, options: ['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)', 'Below 650'] },
-    { id: 'occupancy', key: 'occupancy', label: 'Occupancy', type: 'select', required: true, options: ['Primary Residence', 'Second Home', 'Investment Property'] },
+    { id: 'prop_type_m', key: 'propertyType', label: 'What type of property?', type: 'select', required: true, options: ['Single Family', 'Condo', 'Townhouse', 'Multi-Family'] },
+    { id: 'credit_m', key: 'creditScore', label: 'Approximate credit score', type: 'select', required: false, options: ['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)', 'Below 650'] },
+    { id: 'occupancy', key: 'occupancy', label: 'Is this your primary home?', type: 'select', required: true, options: ['Primary Residence', 'Second Home', 'Investment Property'] },
 ];
 
 const mortgagePurchase: FormConfig = makeConfig([
     ...MORTGAGE_COMMON,
-    { id: 'purchase_price', key: 'purchasePrice', label: 'Purchase Price', type: 'number', required: true, placeholder: '400000' },
-    { id: 'down_pmt', key: 'downPayment', label: 'Down Payment %', type: 'select', required: true, options: ['3%', '5%', '10%', '20%', '25%+'] },
-    { id: 'loan_type_p', key: 'loanType', label: 'Loan Type', type: 'select', required: true, options: ['Conventional', 'FHA', 'VA', 'USDA', 'Jumbo'] },
-    { id: 'timeline_m', key: 'purchaseTimeline', label: 'Timeline', type: 'select', required: true, options: ['Immediately', '1-3 months', '3-6 months', '6+ months'] },
-    { id: 'pre_approved', key: 'preApproved', label: 'Pre-Approved?', type: 'boolean', required: false },
+    { id: 'first_time', key: 'firstTimeBuyer', label: 'Are you a first-time home buyer?', type: 'boolean', required: false, helpText: 'First-time buyers may qualify for special programs' },
+    { id: 'timeline_m', key: 'purchaseTimeline', label: 'When do you plan to purchase?', type: 'select', required: true, options: ['Immediately', '1-3 months', '3-6 months', '6+ months'] },
+    { id: 'purchase_price', key: 'purchasePrice', label: 'Estimated purchase price', type: 'number', required: true, placeholder: '400000', autoFormat: 'currency' },
+    { id: 'down_pmt', key: 'downPayment', label: 'How much can you put down?', type: 'select', required: true, options: ['3%', '5%', '10%', '20%', '25%+'] },
+    { id: 'loan_type_p', key: 'loanType', label: 'Preferred loan type', type: 'select', required: false, options: ['Conventional', 'FHA', 'VA', 'USDA', 'Jumbo', 'Not sure'] },
+    { id: 'pre_approved', key: 'preApproved', label: 'Have you been pre-approved?', type: 'boolean', required: false },
 ], 'Purchase Details');
 
 const mortgageRefinance: FormConfig = makeConfig([
     ...MORTGAGE_COMMON,
-    { id: 'current_rate', key: 'currentRate', label: 'Current Interest Rate', type: 'number', required: true, placeholder: '6.5' },
-    { id: 'loan_balance', key: 'loanBalance', label: 'Remaining Loan Balance', type: 'number', required: true, placeholder: '250000' },
-    { id: 'home_value', key: 'homeValue', label: 'Estimated Home Value', type: 'number', required: true, placeholder: '450000' },
-    { id: 'cashout_amt', key: 'cashOutAmount', label: 'Cash-Out Amount (if any)', type: 'number', required: false, placeholder: '0' },
-    { id: 'refi_goal', key: 'refinanceGoal', label: 'Refinance Goal', type: 'select', required: true, options: ['Lower Rate', 'Lower Payment', 'Cash Out', 'Remove PMI', 'Shorter Term'] },
+    { id: 'refi_goal', key: 'refinanceGoal', label: 'What is your refinance goal?', type: 'select', required: true, options: ['Lower Rate', 'Lower Payment', 'Cash Out', 'Remove PMI', 'Shorter Term'] },
+    { id: 'current_rate', key: 'currentRate', label: 'Current interest rate (%)', type: 'number', required: true, placeholder: '6.5' },
+    { id: 'loan_balance', key: 'loanBalance', label: 'Remaining loan balance', type: 'number', required: true, placeholder: '250000', autoFormat: 'currency' },
+    { id: 'home_value', key: 'homeValue', label: 'Estimated home value', type: 'number', required: false, placeholder: '450000', autoFormat: 'currency' },
+    { id: 'cashout_amt', key: 'cashOutAmount', label: 'How much cash do you need?', type: 'number', required: false, placeholder: '0', autoFormat: 'currency', showWhen: { field: 'refinanceGoal', equals: 'Cash Out' } },
+    { id: 'current_lender', key: 'currentLender', label: 'Current lender', type: 'text', required: false, placeholder: 'e.g. Wells Fargo' },
 ], 'Refinance Details');
 
 const mortgageHeloc: FormConfig = makeConfig([
@@ -139,24 +145,24 @@ const mortgageReverse: FormConfig = makeConfig([
 //  ROOFING
 // ═══════════════════════════════════════════
 const ROOFING_COMMON: FormField[] = [
-    { id: 'prop_type_r', key: 'propertyType', label: 'Property Type', type: 'select', required: true, options: ['Single Family', 'Townhouse', 'Commercial', 'Multi-Family'] },
-    { id: 'roof_type_r', key: 'roofMaterial', label: 'Roof Material', type: 'select', required: true, options: ['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO', 'Slate', 'Wood Shake'] },
-    { id: 'stories_r', key: 'stories', label: 'Stories', type: 'select', required: true, options: ['1 Story', '2 Stories', '3+ Stories'] },
+    { id: 'prop_type_r', key: 'propertyType', label: 'What type of property?', type: 'select', required: true, options: ['Single Family', 'Townhouse', 'Commercial', 'Multi-Family'] },
+    { id: 'roof_type_r', key: 'roofMaterial', label: 'Current roof material', type: 'select', required: true, options: ['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO', 'Slate', 'Wood Shake', 'Not sure'] },
+    { id: 'stories_r', key: 'stories', label: 'How many stories?', type: 'select', required: true, options: ['1 Story', '2 Stories', '3+ Stories'] },
 ];
 
 const roofingRepair: FormConfig = makeConfig([
     ...ROOFING_COMMON,
-    { id: 'damage_type', key: 'damageType', label: 'Damage Type', type: 'select', required: true, options: ['Leak', 'Missing Shingles', 'Storm Damage', 'Sagging', 'Other'] },
-    { id: 'urgency_rr', key: 'urgency', label: 'Urgency', type: 'select', required: true, options: ['Emergency', 'This week', '1-2 weeks', 'Flexible'] },
-    { id: 'has_insurance', key: 'insuranceClaim', label: 'Filing Insurance Claim?', type: 'boolean', required: false },
+    { id: 'damage_type', key: 'damageType', label: 'What type of damage?', type: 'select', required: true, options: ['Leak', 'Missing Shingles', 'Storm Damage', 'Sagging', 'Other'] },
+    { id: 'urgency_rr', key: 'urgency', label: 'How urgent is the repair?', type: 'select', required: true, options: ['Emergency', 'This week', '1-2 weeks', 'Flexible'] },
+    { id: 'has_insurance', key: 'insuranceClaim', label: 'Are you filing an insurance claim?', type: 'boolean', required: false },
 ], 'Repair Details');
 
 const roofingReplacement: FormConfig = makeConfig([
     ...ROOFING_COMMON,
-    { id: 'roof_age_rr', key: 'roofAge', label: 'Current Roof Age (years)', type: 'number', required: true, placeholder: '20' },
-    { id: 'sqft_rr', key: 'roofSqft', label: 'Roof Sqft', type: 'number', required: true, placeholder: '2000' },
-    { id: 'budget_rr', key: 'budget', label: 'Budget Range', type: 'select', required: true, options: ['Under $10K', '$10K-$20K', '$20K-$35K', '$35K+'] },
-    { id: 'preferred_mat', key: 'preferredMaterial', label: 'Preferred New Material', type: 'select', required: false, options: ['Asphalt Shingle', 'Metal', 'Tile', 'Standing Seam', 'No preference'] },
+    { id: 'roof_age_rr', key: 'roofAge', label: 'How old is your current roof?', type: 'number', required: false, placeholder: '20', helpText: 'Approximate years' },
+    { id: 'home_size_rr', key: 'homeSize', label: 'Home size', type: 'select', required: true, options: ['Small (under 1,500 sqft)', 'Medium (1,500-2,500 sqft)', 'Large (2,500+ sqft)'] },
+    { id: 'budget_rr', key: 'budget', label: 'Budget range', type: 'select', required: false, options: ['Under $10K', '$10K-$20K', '$20K-$35K', '$35K+'] },
+    { id: 'preferred_mat', key: 'preferredMaterial', label: 'Preferred new material', type: 'select', required: false, options: ['Asphalt Shingle', 'Metal', 'Tile', 'Standing Seam', 'No preference'] },
 ], 'Replacement Details');
 
 const roofingInspection: FormConfig = makeConfig([
@@ -176,12 +182,13 @@ const roofingGutter: FormConfig = makeConfig([
 //  INSURANCE
 // ═══════════════════════════════════════════
 const insuranceAuto: FormConfig = makeConfig([
-    { id: 'vehicle_type', key: 'vehicleType', label: 'Vehicle Type', type: 'select', required: true, options: ['Sedan', 'SUV', 'Truck', 'Sports Car', 'Minivan', 'Electric'] },
-    { id: 'vehicle_year', key: 'vehicleYear', label: 'Vehicle Year', type: 'number', required: true, placeholder: '2022' },
-    { id: 'coverage_type_ia', key: 'coverageType', label: 'Coverage Type', type: 'select', required: true, options: ['Full Coverage', 'Liability Only', 'Comprehensive'] },
-    { id: 'driving_record', key: 'drivingRecord', label: 'Driving Record', type: 'select', required: true, options: ['Clean', '1 ticket', '1 accident', 'Multiple incidents'] },
-    { id: 'current_carrier', key: 'currentCarrier', label: 'Current Carrier', type: 'select', required: false, options: ['State Farm', 'Allstate', 'Progressive', 'GEICO', 'None'] },
-    { id: 'multi_car', key: 'multiCar', label: 'Multi-Car Discount', type: 'boolean', required: false },
+    { id: 'vehicle_type', key: 'vehicleType', label: 'What type of vehicle?', type: 'select', required: true, options: ['Sedan', 'SUV', 'Truck', 'Sports Car', 'Minivan', 'Electric'] },
+    { id: 'vehicle_year', key: 'vehicleYear', label: 'Vehicle year', type: 'number', required: true, placeholder: '2022' },
+    { id: 'coverage_type_ia', key: 'coverageType', label: 'What coverage do you need?', type: 'select', required: true, options: ['Full Coverage', 'Liability Only', 'Comprehensive'] },
+    { id: 'driving_record', key: 'drivingRecord', label: 'How is your driving record?', type: 'select', required: true, options: ['Clean', '1 ticket', '1 accident', 'Multiple incidents'] },
+    { id: 'annual_mileage', key: 'annualMileage', label: 'Annual mileage', type: 'select', required: false, options: ['Under 5,000', '5,000-10,000', '10,000-15,000', '15,000+'], helpText: 'Lower mileage often means lower rates' },
+    { id: 'current_carrier', key: 'currentCarrier', label: 'Current insurance company', type: 'select', required: false, options: ['State Farm', 'Allstate', 'Progressive', 'GEICO', 'None'] },
+    { id: 'multi_car', key: 'multiCar', label: 'Insuring multiple vehicles?', type: 'boolean', required: false },
 ], 'Auto Insurance Details');
 
 const insuranceHome: FormConfig = makeConfig([
@@ -232,10 +239,10 @@ const hsElectrical: FormConfig = makeConfig([
 
 const hsHvac: FormConfig = makeConfig([
     ...HS_COMMON,
-    { id: 'hvac_service', key: 'serviceType', label: 'Service Type', type: 'select', required: true, options: ['AC Repair', 'Furnace Repair', 'System Replacement', 'Duct Cleaning', 'Maintenance', 'Heat Pump'] },
-    { id: 'system_age', key: 'systemAge', label: 'System Age (years)', type: 'number', required: false, placeholder: '10' },
-    { id: 'sqft_hvac', key: 'homeSqft', label: 'Home Sqft', type: 'number', required: true, placeholder: '2000' },
-    { id: 'fuel_type', key: 'fuelType', label: 'Fuel Type', type: 'select', required: false, options: ['Natural Gas', 'Electric', 'Oil', 'Propane', 'Heat Pump'] },
+    { id: 'hvac_service', key: 'serviceType', label: 'What service do you need?', type: 'select', required: true, options: ['AC Repair', 'Furnace Repair', 'System Replacement', 'Duct Cleaning', 'Maintenance', 'Heat Pump'] },
+    { id: 'system_type_hvac', key: 'systemType', label: 'System type', type: 'select', required: true, options: ['Central AC/Heat', 'Window Unit', 'Mini-Split', 'Not sure'] },
+    { id: 'system_age', key: 'systemAge', label: 'How old is your system?', type: 'number', required: false, placeholder: '10', helpText: 'Approximate years' },
+    { id: 'fuel_type', key: 'fuelType', label: 'Fuel type', type: 'select', required: false, options: ['Natural Gas', 'Electric', 'Oil', 'Propane', 'Heat Pump'] },
 ], 'HVAC Details');
 
 const hsLandscaping: FormConfig = makeConfig([
@@ -470,6 +477,33 @@ const financialRoot = rootConfig('Financial Service Details', [
 ]);
 
 // ═══════════════════════════════════════════
+//  NEW NICHES
+// ═══════════════════════════════════════════
+const hsEvCharging: FormConfig = makeConfig([
+    ...HS_COMMON,
+    { id: 'ev_make', key: 'evMake', label: 'What EV do you drive?', type: 'select', required: true, options: ['Tesla', 'Ford', 'Chevy', 'Rivian', 'BMW', 'Hyundai', 'Other'] },
+    { id: 'charger_level', key: 'chargerLevel', label: 'Charger level needed', type: 'select', required: true, options: ['Level 1 (120V)', 'Level 2 (240V)', 'Not Sure'] },
+    { id: 'garage_type', key: 'garageType', label: 'Where will the charger go?', type: 'select', required: true, options: ['Attached Garage', 'Detached Garage', 'Carport', 'Driveway Only'] },
+    { id: 'panel_capacity', key: 'electricalPanelCapacity', label: 'Electrical panel capacity', type: 'select', required: false, options: ['100 amp', '200 amp', 'Not sure'], helpText: 'Check your breaker box if unsure' },
+], 'EV Charger Details');
+
+const insurancePet: FormConfig = makeConfig([
+    { id: 'pet_type', key: 'petType', label: 'What type of pet?', type: 'select', required: true, options: ['Dog', 'Cat', 'Other'] },
+    { id: 'breed', key: 'breed', label: 'Breed', type: 'text', required: true, placeholder: 'Golden Retriever' },
+    { id: 'pet_age', key: 'petAge', label: 'How old is your pet?', type: 'number', required: true, placeholder: '3' },
+    { id: 'pre_existing_pet', key: 'preExistingConditions', label: 'Any pre-existing conditions?', type: 'boolean', required: true },
+    { id: 'coverage_level', key: 'coverageLevel', label: 'Coverage level', type: 'select', required: true, options: ['Accidents Only', 'Accidents + Illness', 'Comprehensive', 'Wellness Add-on'] },
+], 'Pet Insurance Details');
+
+const hsSecurity: FormConfig = makeConfig([
+    ...HS_COMMON,
+    { id: 'security_type', key: 'securityType', label: 'What type of system?', type: 'select', required: true, options: ['DIY System', 'Professionally Monitored', 'Smart Home Integration', 'Camera Only'] },
+    { id: 'home_size_s', key: 'homeSize', label: 'Home size', type: 'select', required: true, options: ['Under 1,000 sqft', '1,000-2,000 sqft', '2,000-3,000 sqft', '3,000+ sqft'] },
+    { id: 'entry_points', key: 'entryPoints', label: 'Number of entry points', type: 'select', required: true, options: ['1-3', '4-6', '7-10', '10+'] },
+    { id: 'monitoring', key: 'monitoringPreference', label: 'Monitoring preference', type: 'select', required: false, options: ['Self-monitored', '24/7 Professional', 'Police/Fire Dispatch', 'No preference'] },
+], 'Home Security Details');
+
+// ═══════════════════════════════════════════
 //  EXPORT: slug → FormConfig map
 // ═══════════════════════════════════════════
 
@@ -509,12 +543,15 @@ export const FORM_CONFIG_TEMPLATES: Record<string, FormConfig> = {
     'insurance.home': insuranceHome,
     'insurance.life': insuranceLife,
     'insurance.health': insuranceHealth,
+    'insurance.pet': insurancePet,
 
     // Home Services children
     'home_services.plumbing': hsPlumbing,
     'home_services.electrical': hsElectrical,
     'home_services.hvac': hsHvac,
     'home_services.landscaping': hsLandscaping,
+    'home_services.ev_charging': hsEvCharging,
+    'home_services.security': hsSecurity,
 
     // B2B SaaS children
     'b2b_saas.crm': saasCrm,
@@ -546,3 +583,4 @@ export const FORM_CONFIG_TEMPLATES: Record<string, FormConfig> = {
     'financial_services.credit_repair': fsCredit,
     'financial_services.tax_prep': fsTax,
 };
+

@@ -33,7 +33,9 @@ const devOnly = (_req: Request, res: Response, next: NextFunction) => {
 
 router.use(devOnly);
 
-const DEMO_TAG = 'DEMO_PANEL';  // Tag for identifying demo data
+// TD-08 fix: Demo data is now identified via source='DEMO' (LeadSource enum)
+// instead of hijacking consentProof. The DEMO_TAG constant is kept only for Ask._demoTag.
+const DEMO_TAG = 'DEMO_PANEL';  // Only for Ask.parameters._demoTag (no LeadSource on Ask model)
 
 // Real Base Sepolia wallet addresses for demo personas (replaces old 0xDEMO_ placeholders)
 const DEMO_WALLETS = {
@@ -483,10 +485,10 @@ async function seedVerticals(): Promise<number> {
 // ============================================
 router.get('/status', async (_req: Request, res: Response) => {
     try {
-        // Count demo-tagged data using consentProof field as tag
+        // Count demo-tagged data using source='DEMO' (TD-08 fix)
         const [leads, bids, asks] = await Promise.all([
-            prisma.lead.count({ where: { consentProof: DEMO_TAG } }),
-            prisma.bid.count({ where: { lead: { consentProof: DEMO_TAG } } }),
+            prisma.lead.count({ where: { source: 'DEMO' } }),
+            prisma.bid.count({ where: { lead: { source: 'DEMO' } } }),
             prisma.ask.count({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } }),
         ]);
 
@@ -530,14 +532,14 @@ router.post('/seed', async (req: Request, res: Response) => {
 
         // Auto-clear existing demo data (makes seed idempotent)
         // Must delete in FK dependency order: Transaction uses RESTRICT on leadId
-        const existing = await prisma.lead.count({ where: { consentProof: DEMO_TAG } });
+        const existing = await prisma.lead.count({ where: { source: 'DEMO' } });
         if (existing > 0) {
             console.log(`[DEMO] Auto-clearing ${existing} existing demo leads before re-seed`);
-            await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-            await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-            await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
+            await prisma.bid.deleteMany({ where: { lead: { source: 'DEMO' } } });
+            await prisma.transaction.deleteMany({ where: { lead: { source: 'DEMO' } } });
+            await prisma.auctionRoom.deleteMany({ where: { lead: { source: 'DEMO' } } });
 
-            await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
+            await prisma.lead.deleteMany({ where: { source: 'DEMO' } });
             await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
             clearAllCaches();
         }
@@ -683,7 +685,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     })(),
                     vertical,
                     geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
-                    source: 'PLATFORM',
+                    source: 'DEMO',
                     status: status as any,
                     reservePrice: price,
                     buyNowPrice: status === 'UNSOLD' ? Math.round(price * 1.2) : undefined,
@@ -691,7 +693,6 @@ router.post('/seed', async (req: Request, res: Response) => {
                     winningBid: status === 'SOLD' ? price * 1.2 : undefined,
                     isVerified: true,
                     tcpaConsentAt: createdAt,
-                    consentProof: DEMO_TAG,
                     createdAt,
                     auctionStartAt: createdAt,
                     auctionEndAt: auctionEnd ?? undefined,
@@ -754,10 +755,10 @@ router.post('/seed', async (req: Request, res: Response) => {
 router.post('/clear', async (req: Request, res: Response) => {
     try {
         // TD-09 fix: only delete demo-tagged records, not ALL data
-        const deletedBids = await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-        await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-        await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-        const deletedLeads = await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
+        const deletedBids = await prisma.bid.deleteMany({ where: { lead: { source: 'DEMO' } } });
+        await prisma.auctionRoom.deleteMany({ where: { lead: { source: 'DEMO' } } });
+        await prisma.transaction.deleteMany({ where: { lead: { source: 'DEMO' } } });
+        const deletedLeads = await prisma.lead.deleteMany({ where: { source: 'DEMO' } });
         const deletedAsks = await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
 
         // Flush all in-memory LRU caches so stale data doesn't persist
@@ -846,13 +847,12 @@ router.post('/lead', async (req: Request, res: Response) => {
                 sellerId: seller.id,
                 vertical,
                 geo: demoGeo as any,
-                source: 'PLATFORM',
+                source: 'DEMO',
                 status: 'IN_AUCTION',
                 reservePrice: price,
                 isVerified: true,
                 qualityScore: demoScore,
                 tcpaConsentAt: new Date(),
-                consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
                 auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
                 parameters: params as any,
@@ -950,15 +950,14 @@ router.post('/auction', async (req: Request, res: Response) => {
                 sellerId: seller.id,
                 vertical,
                 geo: auctionGeo as any,
-                source: 'PLATFORM',
+                source: 'DEMO',
                 status: 'IN_AUCTION',
                 reservePrice,
                 isVerified: true,
                 qualityScore: auctionScore,
                 tcpaConsentAt: new Date(),
-                consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
-                auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), // 60s auction
+                auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
             },
         });
 
@@ -1054,7 +1053,7 @@ router.post('/auction', async (req: Request, res: Response) => {
 router.post('/reset', async (req: Request, res: Response) => {
     try {
         // 1. Delete ALL non-sold leads (IN_AUCTION, UNSOLD, PENDING_AUCTION, EXPIRED, CANCELLED)
-        //    This catches lander-submitted leads that don't have consentProof: DEMO_TAG
+        //    This catches lander-submitted leads that don't have source: DEMO
         const nonSoldStatuses = ['IN_AUCTION', 'UNSOLD', 'PENDING_AUCTION', 'EXPIRED', 'CANCELLED', 'DISPUTED', 'PENDING_PING', 'IN_PING_POST', 'REVEAL_PHASE'] as any;
 
         // Delete related records for non-sold leads (FK order: bids → auctionRoom → transactions → leads)
@@ -1064,10 +1063,10 @@ router.post('/reset', async (req: Request, res: Response) => {
         const clearedNonSold = await prisma.lead.deleteMany({ where: { status: { in: nonSoldStatuses } } });
 
         // 2. Also clear demo-tagged SOLD leads (fake demo sales, not real purchases)
-        await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG, status: 'SOLD' } } });
-        await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG, status: 'SOLD' } } });
-        await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG, status: 'SOLD' } } });
-        const clearedDemoSold = await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG, status: 'SOLD' } });
+        await prisma.bid.deleteMany({ where: { lead: { source: 'DEMO', status: 'SOLD' } } });
+        await prisma.auctionRoom.deleteMany({ where: { lead: { source: 'DEMO', status: 'SOLD' } } });
+        await prisma.transaction.deleteMany({ where: { lead: { source: 'DEMO', status: 'SOLD' } } });
+        const clearedDemoSold = await prisma.lead.deleteMany({ where: { source: 'DEMO', status: 'SOLD' } });
 
         // 3. Clear all demo-tagged asks
         await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });

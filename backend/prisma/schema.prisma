@@ -500,6 +500,7 @@ enum LeadSource {
   PLATFORM     // Platform-hosted form
   API          // Seller API submission
   OFFSITE      // Off-site form (buyer toggle)
+  DEMO         // Demo panel injected data (TD-08 fix)
 }
 
 enum LeadStatus {
