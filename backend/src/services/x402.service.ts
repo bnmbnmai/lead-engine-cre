@@ -18,6 +18,7 @@ const ESCROW_ABI = [
     'function fundEscrow(uint256 escrowId)',
     'function releaseEscrow(uint256 escrowId)',
     'function refundEscrow(uint256 escrowId)',
+
     'function getEscrow(uint256 escrowId) view returns (tuple(string leadId, address seller, address buyer, uint256 amount, uint256 platformFee, uint256 createdAt, uint256 releaseTime, uint8 state))',
     'function platformFeeBps() view returns (uint256)',
     'function owner() view returns (address)',
@@ -640,6 +641,7 @@ class X402Service {
             'X-Payment-Network': 'base-sepolia',
         };
     }
+
 }
 
 export const x402Service = new X402Service();

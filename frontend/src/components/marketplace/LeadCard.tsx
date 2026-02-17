@@ -8,6 +8,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { formatCurrency, formatTimeRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
 
+
 interface Lead {
     id: string;
     vertical: string;
@@ -22,6 +23,7 @@ interface Lead {
     auctionDuration?: number;
     _count?: { bids: number };
     auctionRoom?: { bidCount?: number; highestBid?: number };
+    parameters?: { _bountyTotal?: number };
     seller?: {
         id: string;
         companyName: string;
@@ -86,6 +88,8 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
         }
         prevBidCount.current = bidCount;
     }, [bidCount]);
+
+
 
     return (
         <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow-ready' : ''} active:scale-[0.98]`}>
@@ -213,18 +217,23 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
 
                     {showBidButton && isLive && (
                         <div className="flex items-center gap-2">
+
                             <Button asChild size="sm" variant="outline">
                                 <Link to={`/lead/${lead.id}`}>
                                     <Eye className="h-3.5 w-3.5 mr-1" />
                                     Details
                                 </Link>
                             </Button>
+
                             {isAuthenticated ? (
-                                <Button asChild size="sm" variant="gradient">
-                                    <Link to={`/auction/${lead.id}`}>
-                                        Place Bid
-                                    </Link>
-                                </Button>
+                                <>
+
+                                    <Button asChild size="sm" variant="gradient">
+                                        <Link to={`/auction/${lead.id}`}>
+                                            Place Bid
+                                        </Link>
+                                    </Button>
+                                </>
                             ) : (
                                 <Button
                                     size="sm"

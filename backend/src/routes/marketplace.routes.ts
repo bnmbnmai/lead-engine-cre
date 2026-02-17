@@ -735,26 +735,24 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             return;
         }
 
-        const { vertical, status, state, country, search, sellerId, sellerName, minReputation, limit, offset, sortBy, sortOrder } = validation.data;
+        const { view, vertical, status, state, country, search, sellerId, sellerName, minReputation, limit, offset, sortBy, sortOrder } = validation.data;
 
-        // Build query based on user role
+        // Build query — unified marketplace for all authenticated users
         const where: any = {};
 
         if (req.user) {
-            // Authenticated: role-based filtering
-            if (req.user.role === 'SELLER') {
+            // Authenticated users see all leads by default (unified marketplace)
+            // ?view=my-leads narrows sellers to their own leads only
+            if (view === 'my-leads' && (req.user.role === 'SELLER' || req.user.role === 'ADMIN')) {
                 const seller = await prisma.sellerProfile.findFirst({
                     where: { user: { id: req.user.id } },
                 });
                 if (seller) where.sellerId = seller.id;
             }
-
-            if (req.user.role === 'BUYER') {
-                // Buyers can browse all active leads; vertical preferences only apply to auto-bidding
-                where.status = 'IN_AUCTION';
-            }
+            // Both buyers and sellers see all active statuses —
+            // the ?status= filter can narrow further if desired
         } else {
-            // Public (unauthenticated): show all active leads
+            // Public (unauthenticated): only show IN_AUCTION leads
             where.status = 'IN_AUCTION';
         }
 
@@ -1730,6 +1728,9 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
         res.status(500).json({ error: 'Failed to confirm escrow transaction' });
     }
 });
+
+// Old per-lead buyer bounty route removed — bounties now live at vertical level
+// See vertical.routes.ts POST /:slug/bounty for seller bounty pools
 
 // ============================================
 // Requalify Lead (Stub — Twilio SMS Preview)

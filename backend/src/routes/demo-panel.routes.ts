@@ -633,6 +633,16 @@ router.post('/seed', async (req: Request, res: Response) => {
             askCount++;
         }
 
+        // Accept optional sellerId from request body — allows attributing all leads
+        // to the session user's seller profile instead of rotating faucet wallets
+        let sessionSellerId: string | null = null;
+        if (req.body?.sellerId) {
+            const sessionSeller = await prisma.sellerProfile.findFirst({
+                where: { user: { id: req.body.sellerId } },
+            });
+            if (sessionSeller) sessionSellerId = sessionSeller.id;
+        }
+
         // Create 10 leads using hierarchical verticals — mix of IN_AUCTION + UNSOLD
         let leadCount = 0;
         const leadIds: string[] = [];
@@ -657,34 +667,50 @@ router.post('/seed', async (req: Request, res: Response) => {
             // Build non-PII parameters
             const params = buildVerticalDemoParams(vertical);
 
+            // Compute quality score (same algo as POST /lead — CREVerifier stub)
+            const seedGeo = { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` };
+            const paramCount = params ? Object.keys(params).filter((k: string) => (params as any)[k] != null && (params as any)[k] !== '').length : 0;
+            const seedScoreInput: LeadScoringInput = {
+                tcpaConsentAt: createdAt,
+                geo: { country: seedGeo.country, state: seedGeo.state, zip: seedGeo.zip },
+                hasEncryptedData: false,
+                encryptedDataValid: false,
+                parameterCount: paramCount,
+                source: 'PLATFORM',
+                zipMatchesState: false,
+            };
+            const qualityScore = computeCREQualityScore(seedScoreInput);
+
+            // Determine seller: use session seller if provided, else rotate faucet wallets
+            const leadSellerId = sessionSellerId || await (async () => {
+                const faucetWallet = FAUCET_WALLETS[i % FAUCET_WALLETS.length];
+                let faucetSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: faucetWallet } } });
+                if (!faucetSeller) {
+                    let faucetUser = await prisma.user.findFirst({ where: { walletAddress: faucetWallet } });
+                    if (!faucetUser) {
+                        faucetUser = await prisma.user.create({
+                            data: {
+                                walletAddress: faucetWallet,
+                                role: 'SELLER',
+                                sellerProfile: { create: { companyName: `Demo Seller ${i + 1}`, verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
+                            },
+                            include: { sellerProfile: true },
+                        });
+                    } else {
+                        await prisma.sellerProfile.create({
+                            data: { userId: faucetUser.id, companyName: `Demo Seller ${i + 1}`, verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
+                        });
+                    }
+                    faucetSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: faucetWallet } } });
+                }
+                return faucetSeller!.id;
+            })();
+
             const lead = await prisma.lead.create({
                 data: {
-                    // Rotate sellers through faucet wallets (each lead gets a different seller)
-                    sellerId: await (async () => {
-                        const faucetWallet = FAUCET_WALLETS[i % FAUCET_WALLETS.length];
-                        let faucetSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: faucetWallet } } });
-                        if (!faucetSeller) {
-                            let faucetUser = await prisma.user.findFirst({ where: { walletAddress: faucetWallet } });
-                            if (!faucetUser) {
-                                faucetUser = await prisma.user.create({
-                                    data: {
-                                        walletAddress: faucetWallet,
-                                        role: 'SELLER',
-                                        sellerProfile: { create: { companyName: `Demo Seller ${i + 1}`, verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' } },
-                                    },
-                                    include: { sellerProfile: true },
-                                });
-                            } else {
-                                await prisma.sellerProfile.create({
-                                    data: { userId: faucetUser.id, companyName: `Demo Seller ${i + 1}`, verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
-                                });
-                            }
-                            faucetSeller = await prisma.sellerProfile.findFirst({ where: { user: { walletAddress: faucetWallet } } });
-                        }
-                        return faucetSeller!.id;
-                    })(),
+                    sellerId: leadSellerId,
                     vertical,
-                    geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
+                    geo: seedGeo as any,
                     source: 'DEMO',
                     status: status as any,
                     reservePrice: price,
@@ -692,6 +718,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                     expiresAt: status === 'UNSOLD' ? new Date(now.getTime() + 7 * 86400000) : undefined,
                     winningBid: status === 'SOLD' ? price * 1.2 : undefined,
                     isVerified: true,
+                    qualityScore,
                     tcpaConsentAt: createdAt,
                     createdAt,
                     auctionStartAt: createdAt,
@@ -793,8 +820,8 @@ router.post('/lead', async (req: Request, res: Response) => {
         const pr = priceFor(vertical);
         const price = rand(pr.min, pr.max);
 
-        // Pick a faucet wallet for the seller (cycles through the 10 wallets)
-        const sellerWalletAddr = pickFaucetWallet();
+        // Accept optional sellerWallet to attribute to session seller, else rotate faucet wallets
+        const sellerWalletAddr = req.body?.sellerWallet || pickFaucetWallet();
         let seller = await prisma.sellerProfile.findFirst({
             where: { user: { walletAddress: sellerWalletAddr } },
         });

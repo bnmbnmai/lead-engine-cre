@@ -64,6 +64,7 @@ export const LeadSubmitSchema = z.object({
 });
 
 export const LeadQuerySchema = z.object({
+    view: z.enum(['all', 'my-leads']).optional().default('all'),
     vertical: z.string().optional(),
     status: z.enum(['PENDING_AUCTION', 'IN_AUCTION', 'SOLD', 'UNSOLD', 'EXPIRED']).optional(),
     state: z.string().length(2).optional(),

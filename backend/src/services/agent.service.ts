@@ -9,13 +9,12 @@
  * supports tool calling. ChatMoonshot from @langchain/community targets
  * api.moonshot.cn and does NOT support tool calling.
  *
+ * IMPORTANT: All LangChain imports are dynamic to avoid build failures when
+ * packages are not installed (e.g. on Render deployment). The agent is only
+ * available when KIMI_API_KEY is set AND packages are installed.
+ *
  * Exports: runAgent(message, history) — called from mcp.routes.ts
  */
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { ChatOpenAI } from '@langchain/openai';
-import { AgentExecutor, createToolCallingAgent } from 'langchain/agents';
-import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 
@@ -49,156 +48,66 @@ function sanitizeLeadData(data: unknown): unknown {
 
 // ── Local search (Prisma — direct DB access for search_leads) ──
 
-async function searchLeadsLocal(params: Record<string, unknown>) {
-    const where: Record<string, unknown> = { status: 'IN_AUCTION' };
+async function localSearchLeads(params: {
+    vertical?: string;
+    state?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    limit?: number;
+}) {
+    const where: Record<string, unknown> = {};
+    if (params.vertical) where.vertical = params.vertical;
+    if (params.state) where.geo = { path: ['state'], equals: params.state };
+    if (params.minPrice || params.maxPrice) {
+        where.reservePrice = {};
+        if (params.minPrice) (where.reservePrice as Record<string, unknown>).gte = params.minPrice;
+        if (params.maxPrice) (where.reservePrice as Record<string, unknown>).lte = params.maxPrice;
+    }
 
-    if (params.vertical) {
-        where.vertical = { contains: params.vertical as string, mode: 'insensitive' };
-    }
-    if (params.state) {
-        where.geo = { path: ['state'], equals: params.state };
-    }
-    if (params.minPrice !== undefined || params.maxPrice !== undefined) {
-        const price: Record<string, number> = {};
-        if (params.minPrice !== undefined) price.gte = Number(params.minPrice);
-        if (params.maxPrice !== undefined) price.lte = Number(params.maxPrice);
-        where.reservePrice = price;
-    }
-
-    const limit = Math.min(Number(params.limit) || 5, 10);
     const leads = await prisma.lead.findMany({
-        where,
-        take: limit,
+        where: where as any,
+        take: Math.min(params.limit ?? 5, 10),
         orderBy: { createdAt: 'desc' },
-        include: {
-            seller: { select: { reputationScore: true, isVerified: true, companyName: true } },
-            _count: { select: { bids: true } },
+        select: {
+            id: true,
+            vertical: true,
+            geo: true,
+            reservePrice: true,
+            qualityScore: true,
+            status: true,
+            createdAt: true,
+            bids: { select: { id: true }, take: 100 },
         },
     });
-    return sanitizeLeadData({ leads });
+
+    return sanitizeLeadData(leads.map((l: any) => ({
+        ...l,
+        bidCount: l.bids?.length ?? 0,
+        bids: undefined,
+    })));
 }
 
-// ── MCP JSON-RPC execution ──
+// ── MCP tool executor ──
 
 async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<unknown> {
-    // search_leads runs locally for speed & accuracy
+    // Use local Prisma search for search_leads (faster, no network hop)
     if (name === 'search_leads') {
-        try {
-            return await searchLeadsLocal(params);
-        } catch (err) {
-            console.warn('[Agent] Local search_leads failed, falling back to MCP:', err);
-        }
+        return localSearchLeads(params as any);
     }
 
-    const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: `agent-${Date.now()}`,
-            method: name,
-            params,
-        }),
-        signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!rpcResponse.ok) {
-        throw new Error(`MCP RPC error: ${rpcResponse.status} ${rpcResponse.statusText}`);
+    // For all other tools, call MCP server
+    try {
+        const res = await fetch(`${MCP_BASE}/tools/${name}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+        if (!res.ok) return { error: `MCP tool ${name} returned ${res.status}` };
+        return await res.json();
+    } catch (err: any) {
+        return { error: `MCP tool ${name} failed: ${err.message}` };
     }
-
-    const rpcData = await rpcResponse.json() as { result?: unknown; error?: unknown };
-    return sanitizeLeadData(rpcData.result || rpcData.error || {});
 }
-
-// ── Tool definitions (9 tools — mirrors MCP_TOOLS in mcp.routes.ts) ──
-
-const tools = [
-    new DynamicStructuredTool({
-        name: 'search_leads',
-        description: 'Search and filter available leads in the marketplace by vertical, state, price range.',
-        schema: z.object({
-            vertical: z.string().optional().describe('Lead vertical (solar, mortgage, roofing, insurance, etc.)'),
-            state: z.string().optional().describe('US state code (e.g., CA, FL, TX)'),
-            minPrice: z.number().optional().describe('Minimum reserve price in USDC'),
-            maxPrice: z.number().optional().describe('Maximum reserve price in USDC'),
-            limit: z.number().optional().default(5).describe('Max results to return (1-10)'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('search_leads', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'get_bid_floor',
-        description: 'Get real-time bid floor pricing for a vertical. Returns floor, ceiling, and market index.',
-        schema: z.object({
-            vertical: z.string().describe('Lead vertical (solar, mortgage, etc.)'),
-            country: z.string().optional().default('US').describe('Country code'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('get_bid_floor', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'get_preferences',
-        description: 'Get the current buyer auto-bid preference sets (per-vertical, geo filters, budgets).',
-        schema: z.object({}),
-        func: async () => JSON.stringify(await executeMcpTool('get_preferences', {})),
-    }),
-    new DynamicStructuredTool({
-        name: 'set_auto_bid_rules',
-        description: 'Configure auto-bid rules for a vertical. The engine auto-bids on matching leads.',
-        schema: z.object({
-            vertical: z.string().describe('Lead vertical'),
-            autoBidEnabled: z.boolean().optional().default(true),
-            autoBidAmount: z.number().describe('Bid amount in USDC'),
-            minQualityScore: z.number().optional().describe('Min quality score 0-100'),
-            dailyBudget: z.number().optional().describe('Daily budget cap in USDC'),
-            geoInclude: z.array(z.string()).optional().describe('State codes to include'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('set_auto_bid_rules', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'export_leads',
-        description: 'Export leads as CSV or JSON for CRM integration.',
-        schema: z.object({
-            format: z.enum(['csv', 'json']).optional().default('json'),
-            status: z.string().optional().default('SOLD'),
-            days: z.number().optional().default(30),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('export_leads', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'place_bid',
-        description: 'Place a sealed bid on a specific lead.',
-        schema: z.object({
-            leadId: z.string().describe('The lead ID to bid on'),
-            commitment: z.string().describe('Bid commitment hash'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('place_bid', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'configure_crm_webhook',
-        description: 'Register a CRM webhook (HubSpot, Zapier, or generic).',
-        schema: z.object({
-            url: z.string().describe('Webhook destination URL'),
-            format: z.enum(['hubspot', 'zapier', 'generic']).optional().default('generic'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('configure_crm_webhook', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'ping_lead',
-        description: 'Get full details and current status for a specific lead.',
-        schema: z.object({
-            leadId: z.string().describe('The lead ID'),
-            action: z.enum(['status', 'evaluate']).optional().default('status'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('ping_lead', params)),
-    }),
-    new DynamicStructuredTool({
-        name: 'suggest_vertical',
-        description: 'AI-powered vertical classification from a lead description.',
-        schema: z.object({
-            description: z.string().describe('Lead description text'),
-        }),
-        func: async (params) => JSON.stringify(await executeMcpTool('suggest_vertical', params)),
-    }),
-];
 
 // ── System prompt (identical to SYSTEM_PROMPT in mcp.routes.ts) ──
 
@@ -251,27 +160,172 @@ Proactively suggest relevant navigation after answering:
 - When user says "go to", "take me to", "open", "show me" → output a link to that page
 - Always use the format: [Page Name](/path) — never use full URLs.`;
 
-// ── LangChain Prompt Template ──
+// ── Chat message interface (matches frontend + mcp.routes.ts) ──
 
-const prompt = ChatPromptTemplate.fromMessages([
-    ['system', SYSTEM_PROMPT],
-    new MessagesPlaceholder('chat_history'),
-    ['human', '{input}'],
-    new MessagesPlaceholder('agent_scratchpad'),
-]);
+interface ChatMessage {
+    role: 'user' | 'assistant' | 'tool';
+    content: string;
+    toolCall?: { name: string; params: Record<string, unknown>; result?: unknown };
+}
+
+// ── Lazy-loaded LangChain modules ──
+
+let langchainAvailable: boolean | null = null;
+let _DynamicStructuredTool: any = null;
+let _ChatOpenAI: any = null;
+let _AgentExecutor: any = null;
+let _createToolCallingAgent: any = null;
+let _ChatPromptTemplate: any = null;
+let _MessagesPlaceholder: any = null;
+let _AIMessage: any = null;
+let _HumanMessage: any = null;
+
+async function loadLangChain(): Promise<boolean> {
+    if (langchainAvailable !== null) return langchainAvailable;
+    try {
+        const [coreTools, openai, agents, prompts, messages] = await Promise.all([
+            import('@langchain/core/tools'),
+            import('@langchain/openai'),
+            // @ts-ignore — module may not be installed in all environments
+            import('langchain/agents'),
+            import('@langchain/core/prompts'),
+            import('@langchain/core/messages'),
+        ]);
+        _DynamicStructuredTool = coreTools.DynamicStructuredTool;
+        _ChatOpenAI = openai.ChatOpenAI;
+        _AgentExecutor = agents.AgentExecutor;
+        _createToolCallingAgent = agents.createToolCallingAgent;
+        _ChatPromptTemplate = prompts.ChatPromptTemplate;
+        _MessagesPlaceholder = prompts.MessagesPlaceholder;
+        _AIMessage = messages.AIMessage;
+        _HumanMessage = messages.HumanMessage;
+        langchainAvailable = true;
+        console.log('[AgentService] LangChain modules loaded successfully');
+    } catch (err: any) {
+        langchainAvailable = false;
+        console.warn('[AgentService] LangChain not available:', err.message);
+    }
+    return langchainAvailable;
+}
+
+// ── Build tools (requires LangChain) ──
+
+function buildTools() {
+    return [
+        new _DynamicStructuredTool({
+            name: 'search_leads',
+            description: 'Search lead marketplace. Returns matching leads with quality score, status, bid count.',
+            schema: z.object({
+                vertical: z.string().optional().describe('Lead vertical (solar, mortgage, roofing, insurance, etc.)'),
+                state: z.string().optional().describe('US state code (e.g., CA, FL, TX)'),
+                minPrice: z.number().optional().describe('Minimum reserve price in USDC'),
+                maxPrice: z.number().optional().describe('Maximum reserve price in USDC'),
+                limit: z.number().optional().default(5).describe('Max results to return (1-10)'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('search_leads', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'get_bid_floor',
+            description: 'Get real-time bid floor pricing for a vertical. Returns floor, ceiling, and market index.',
+            schema: z.object({
+                vertical: z.string().describe('Lead vertical (solar, mortgage, etc.)'),
+                country: z.string().optional().default('US').describe('Country code'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('get_bid_floor', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'get_preferences',
+            description: 'Get the current buyer auto-bid preference sets (per-vertical, geo filters, budgets).',
+            schema: z.object({}),
+            func: async () => JSON.stringify(await executeMcpTool('get_preferences', {})),
+        }),
+        new _DynamicStructuredTool({
+            name: 'set_auto_bid_rules',
+            description: 'Configure auto-bid rules for a vertical. The engine auto-bids on matching leads.',
+            schema: z.object({
+                vertical: z.string().describe('Lead vertical'),
+                autoBidEnabled: z.boolean().optional().default(true),
+                autoBidAmount: z.number().describe('Bid amount in USDC'),
+                minQualityScore: z.number().optional().describe('Min quality score 0-100'),
+                dailyBudget: z.number().optional().describe('Daily budget cap in USDC'),
+                geoInclude: z.array(z.string()).optional().describe('State codes to include'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('set_auto_bid_rules', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'export_leads',
+            description: 'Export leads as CSV or JSON for CRM integration.',
+            schema: z.object({
+                format: z.enum(['csv', 'json']).optional().default('json'),
+                status: z.string().optional().default('SOLD'),
+                days: z.number().optional().default(30),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('export_leads', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'place_bid',
+            description: 'Place a sealed bid on a specific lead.',
+            schema: z.object({
+                leadId: z.string().describe('The lead ID to bid on'),
+                commitment: z.string().describe('Bid commitment hash'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('place_bid', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'configure_crm_webhook',
+            description: 'Register a CRM webhook (HubSpot, Zapier, or generic).',
+            schema: z.object({
+                url: z.string().describe('Webhook destination URL'),
+                format: z.enum(['hubspot', 'zapier', 'generic']).optional().default('generic'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('configure_crm_webhook', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'ping_lead',
+            description: 'Get full details and current status for a specific lead.',
+            schema: z.object({
+                leadId: z.string().describe('The lead ID'),
+                action: z.enum(['status', 'evaluate']).optional().default('status'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('ping_lead', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'suggest_vertical',
+            description: 'AI-powered vertical classification from a lead description.',
+            schema: z.object({
+                description: z.string().describe('Lead description text'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('suggest_vertical', params)),
+        }),
+    ];
+}
 
 // ── Lazy-initialized executor (created once, reused across requests) ──
 
-let executorInstance: AgentExecutor | null = null;
+let executorInstance: any = null;
 
-function getExecutor(): AgentExecutor {
+async function getExecutor(): Promise<any> {
     if (executorInstance) return executorInstance;
 
     if (!KIMI_API_KEY) {
         throw new Error('KIMI_API_KEY not set — cannot initialize LangChain agent');
     }
 
-    const llm = new ChatOpenAI({
+    const loaded = await loadLangChain();
+    if (!loaded) {
+        throw new Error('LangChain packages not installed — agent unavailable');
+    }
+
+    const tools = buildTools();
+
+    const prompt = _ChatPromptTemplate.fromMessages([
+        ['system', SYSTEM_PROMPT],
+        new _MessagesPlaceholder('chat_history'),
+        ['human', '{input}'],
+        new _MessagesPlaceholder('agent_scratchpad'),
+    ]);
+
+    const llm = new _ChatOpenAI({
         openAIApiKey: KIMI_API_KEY,
         modelName: 'kimi-k2.5',
         temperature: 0.2,
@@ -281,8 +335,8 @@ function getExecutor(): AgentExecutor {
         },
     });
 
-    const agent = createToolCallingAgent({ llm, tools, prompt });
-    executorInstance = new AgentExecutor({
+    const agent = _createToolCallingAgent({ llm, tools, prompt });
+    executorInstance = new _AgentExecutor({
         agent,
         tools,
         maxIterations: 5,
@@ -292,27 +346,19 @@ function getExecutor(): AgentExecutor {
     return executorInstance;
 }
 
-// ── Chat message interface (matches frontend + mcp.routes.ts) ──
-
-interface ChatMessage {
-    role: 'user' | 'assistant' | 'tool';
-    content: string;
-    toolCall?: { name: string; params: Record<string, unknown>; result?: unknown };
-}
-
 // ── Main entry point ──
 
 export async function runAgent(
     message: string,
     history: ChatMessage[] = [],
 ): Promise<{ messages: ChatMessage[]; toolCalls: Array<{ name: string; params: Record<string, unknown>; result?: unknown }>; mode: string }> {
-    const executor = getExecutor();
+    const executor = await getExecutor();
 
     // Convert recent chat history to LangChain message format
     // Keep last 6 user/assistant messages for context window
     const chatHistory = history.slice(-6).flatMap((h) => {
-        if (h.role === 'user') return [new HumanMessage(h.content)];
-        if (h.role === 'assistant') return [new AIMessage(h.content)];
+        if (h.role === 'user') return [new _HumanMessage(h.content)];
+        if (h.role === 'assistant') return [new _AIMessage(h.content)];
         return []; // tool messages are internal traces, not part of conversation history
     });
 

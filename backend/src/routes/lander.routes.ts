@@ -15,6 +15,12 @@ const FieldSchema = z.object({
     required: z.boolean(),
     placeholder: z.string().max(200).optional(),
     options: z.array(z.string().max(100)).max(50).optional(),
+    showWhen: z.object({
+        field: z.string(),
+        equals: z.union([z.string(), z.boolean()]),
+    }).optional(),
+    autoFormat: z.enum(['phone', 'zip', 'currency']).optional(),
+    helpText: z.string().max(200).optional(),
 });
 
 const StepSchema = z.object({
@@ -68,18 +74,24 @@ function generateLanderHTML(config: z.infer<typeof LanderExportSchema>): string 
         const req = f.required ? ' required' : '';
         const ph = f.placeholder ? ` placeholder="${escapeHtml(f.placeholder)}"` : '';
         const lbl = escapeHtml(f.label);
+        const showWhenAttr = f.showWhen
+            ? ` data-show-when-field="${escapeHtml(f.showWhen.field)}" data-show-when-equals="${escapeHtml(String(f.showWhen.equals))}"`
+            : '';
+        const autoFmtAttr = f.autoFormat ? ` data-auto-format="${f.autoFormat}"` : '';
+        const helpSpan = f.helpText ? `<span class="lf-help">${escapeHtml(f.helpText)}</span>` : '';
 
+        let inputHtml: string;
         if (f.type === 'select' && f.options?.length) {
-            return `<select name="${escapeHtml(f.key)}"${req} class="lf-input"><option value="">Select ${lbl}</option>${f.options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+            inputHtml = `<select name="${escapeHtml(f.key)}"${req} class="lf-input"${autoFmtAttr}><option value="">Select ${lbl}</option>${f.options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+        } else if (f.type === 'boolean') {
+            inputHtml = `<label class="lf-toggle"><input type="checkbox" name="${escapeHtml(f.key)}"><span>${lbl}</span></label>`;
+        } else if (f.type === 'textarea') {
+            inputHtml = `<textarea name="${escapeHtml(f.key)}"${req}${ph} rows="3" class="lf-input"${autoFmtAttr}></textarea>`;
+        } else {
+            const inputType = f.type === 'phone' ? 'tel' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text';
+            inputHtml = `<input type="${inputType}" name="${escapeHtml(f.key)}"${req}${ph} class="lf-input"${autoFmtAttr}>`;
         }
-        if (f.type === 'boolean') {
-            return `<label class="lf-toggle"><input type="checkbox" name="${escapeHtml(f.key)}"><span>${lbl}</span></label>`;
-        }
-        if (f.type === 'textarea') {
-            return `<textarea name="${escapeHtml(f.key)}"${req}${ph} rows="3" class="lf-input"></textarea>`;
-        }
-        const inputType = f.type === 'phone' ? 'tel' : f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text';
-        return `<input type="${inputType}" name="${escapeHtml(f.key)}"${req}${ph} class="lf-input">`;
+        return `${inputHtml}${helpSpan}`;
     };
 
     const stepsJSON = JSON.stringify(fieldsByStep.map((s, i) => ({ label: s.label, idx: i })));
@@ -131,6 +143,9 @@ select.lf-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg 
 .lf-success{text-align:center;padding:40px 0;animation:fadeIn 0.5s ease}
 .lf-success h2{font-size:28px;margin-bottom:8px}
 .lf-success p{color:${muted};font-size:14px}
+.lf-help{display:block;font-size:12px;color:${muted};margin-top:4px}
+.lf-field[data-show-when-field]{transition:max-height 0.3s ease,opacity 0.3s ease;overflow:hidden}
+.lf-field.lf-hidden{max-height:0;opacity:0;margin:0;padding:0}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:480px){.lf-card{padding:20px;border-radius:12px}.lf-header h1{font-size:20px}}
 </style>
@@ -146,7 +161,12 @@ ${gamification.showProgress ? `<div class="lf-progress"><div class="lf-progress-
 <form id="leadForm" novalidate>
 ${fieldsByStep.map((step, si) => `<div class="lf-step${si === 0 ? ' active' : ''}" data-step="${si}">
 <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">${escapeHtml(step.label)}</h3>
-${step.fields.map((f) => `<div class="lf-field"><label class="lf-label">${escapeHtml(f.label)}${f.required ? '<span class="req">*</span>' : ''}</label>${renderField(f)}</div>`).join('\n')}
+${step.fields.map((f) => {
+        const swAttr = f.showWhen
+            ? ` data-show-when-field="${escapeHtml(f.showWhen.field)}" data-show-when-equals="${escapeHtml(String(f.showWhen.equals))}"`
+            : '';
+        return `<div class="lf-field"${swAttr}><label class="lf-label">${escapeHtml(f.label)}${f.required ? '<span class="req">*</span>' : ''}</label>${renderField(f)}</div>`;
+    }).join('\n')}
 </div>`).join('\n')}
 <div class="lf-step" data-step="${fieldsByStep.length}">
 <div class="lf-tcpa"><input type="checkbox" id="tcpa" required><span>By submitting, I consent to being contacted by phone, text, or email. I understand I may receive automated communications. Consent is not a condition of purchase.</span></div>
@@ -191,7 +211,32 @@ ${apiEndpoint ? `fetch('${apiEndpoint}',{method:'POST',headers:{'Content-Type':'
 document.getElementById('leadForm').style.display='none';navBtns.style.display='none';dots.style.display='none';
 var pg=document.querySelector('.lf-progress');if(pg)pg.style.display='none';
 document.getElementById('success').style.display='block'});
-render()})();
+render();
+// ── showWhen conditional visibility ──
+var swFields=document.querySelectorAll('[data-show-when-field]');
+swFields.forEach(function(el){
+  var depKey=el.getAttribute('data-show-when-field');
+  var depVal=el.getAttribute('data-show-when-equals');
+  var src=document.querySelector('[name="'+depKey+'"]');
+  if(!src)return;
+  function check(){
+    var v=src.type==='checkbox'?String(src.checked):src.value;
+    if(v===depVal){el.classList.remove('lf-hidden')}else{el.classList.add('lf-hidden');}
+  }
+  src.addEventListener('change',check);src.addEventListener('input',check);check();
+});
+// ── autoFormat ──
+var afFields=document.querySelectorAll('[data-auto-format]');
+afFields.forEach(function(el){
+  var fmt=el.getAttribute('data-auto-format');
+  el.addEventListener('input',function(){
+    var v=el.value.replace(/\D/g,'');
+    if(fmt==='phone'){if(v.length>10)v=v.slice(0,10);if(v.length>6)el.value='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>3)el.value='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)el.value='('+v;else el.value='';}
+    else if(fmt==='zip'){el.value=v.slice(0,5);}
+    else if(fmt==='currency'){if(!v){el.value='';return;}var n=parseInt(v,10);el.value='$'+n.toLocaleString();}
+  });
+});
+})();
 </script>
 </body>
 </html>`;

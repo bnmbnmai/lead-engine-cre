@@ -21,6 +21,7 @@ import * as auctionService from '../services/auction.service';
 import { z } from 'zod';
 import { NFT_FEATURES_ENABLED } from '../config/perks.env';
 import { syncVerticalFields, FormConfigField } from '../services/vertical-field.service';
+import { bountyService, BountyDepositSchema } from '../services/bounty.service';
 
 const router = Router();
 
@@ -335,7 +336,13 @@ router.get('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
             res.status(404).json({ error: 'Vertical not found' });
             return;
         }
-        res.json({ formConfig: vertical.formConfig || null, vertical: { slug: vertical.slug, name: vertical.name } });
+        const raw = (vertical.formConfig || {}) as Record<string, unknown>;
+        const { croConfig, ...formConfig } = raw;
+        res.json({
+            formConfig: Object.keys(formConfig).length > 0 ? formConfig : null,
+            croConfig: croConfig || null,
+            vertical: { slug: vertical.slug, name: vertical.name },
+        });
     } catch (error) {
         console.error('Get form config error:', error);
         res.status(500).json({ error: 'Failed to fetch form config' });
@@ -358,8 +365,7 @@ router.get('/public/:slug/form-config', generalLimiter, async (req: Authenticate
             return;
         }
 
-        // Use saved formConfig or generate a sensible default
-        const formConfig = vertical.formConfig || {
+        const DEFAULT_FORM_CONFIG = {
             fields: [
                 { id: 'f_notes', key: 'notes', label: 'Additional Details', type: 'textarea', required: false, placeholder: 'Tell us more about what you need...' },
                 { id: 'f_name', key: 'fullName', label: 'Full Name', type: 'text', required: true, placeholder: 'John Doe' },
@@ -376,7 +382,16 @@ router.get('/public/:slug/form-config', generalLimiter, async (req: Authenticate
             gamification: { showProgress: true, showNudges: true, confetti: true },
         };
 
-        res.json({ formConfig, vertical: { slug: vertical.slug, name: vertical.name } });
+        // Extract croConfig from stored JSON (or null if not set)
+        const raw = (vertical.formConfig || {}) as Record<string, unknown>;
+        const { croConfig, ...savedFormConfig } = raw;
+        const formConfig = Object.keys(savedFormConfig).length > 0 ? savedFormConfig : DEFAULT_FORM_CONFIG;
+
+        res.json({
+            formConfig,
+            croConfig: croConfig || null,
+            vertical: { slug: vertical.slug, name: vertical.name },
+        });
     } catch (error) {
         console.error('Public form config error:', error);
         res.status(500).json({ error: 'Failed to fetch form config' });
@@ -387,6 +402,16 @@ router.get('/public/:slug/form-config', generalLimiter, async (req: Authenticate
 // PUT /:slug/form-config — Save form builder config (Admin only)
 // ============================================
 
+const CROConfigSchema = z.object({
+    showTrustBar: z.boolean().default(true),
+    showSocialProof: z.boolean().default(true),
+    persistFormState: z.boolean().default(true),
+    utmPrefill: z.boolean().default(true),
+    showExitIntent: z.boolean().default(false),
+    showSpeedBadge: z.boolean().default(true),
+    singleColumn: z.boolean().default(true),
+});
+
 const FormConfigSchema = z.object({
     fields: z.array(z.object({
         id: z.string(),
@@ -396,6 +421,12 @@ const FormConfigSchema = z.object({
         required: z.boolean(),
         placeholder: z.string().optional(),
         options: z.array(z.string()).optional(),
+        showWhen: z.object({
+            field: z.string(),
+            equals: z.union([z.string(), z.boolean()]),
+        }).optional(),
+        autoFormat: z.enum(['phone', 'zip', 'currency']).optional(),
+        helpText: z.string().max(200).optional(),
     })),
     steps: z.array(z.object({
         id: z.string(),
@@ -407,6 +438,7 @@ const FormConfigSchema = z.object({
         showNudges: z.boolean(),
         confetti: z.boolean(),
     }).optional(),
+    croConfig: CROConfigSchema.optional(),
 });
 
 router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
@@ -441,26 +473,37 @@ router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
             );
         }
 
+        // Merge croConfig into the formConfig JSON blob (single column, no migration)
+        const { croConfig, ...formFields } = validation.data;
+        const dataToSave = croConfig
+            ? { ...formFields, croConfig } as any
+            : formFields as any;
+
         // Save formConfig JSON + sync VerticalField rows in a single transaction
         const { updated, fieldsSynced } = await prisma.$transaction(async (tx) => {
             const vert = await tx.vertical.update({
                 where: { slug },
-                data: { formConfig: validation.data as any },
+                data: { formConfig: dataToSave },
             });
 
             // Sync VerticalField rows from the validated fields
             const syncResult = await syncVerticalFields(
                 vert.id,
-                validation.data.fields as FormConfigField[],
+                formFields.fields as FormConfigField[],
                 tx
             );
 
             return { updated: vert, fieldsSynced: syncResult.synced };
         });
 
+        // Return croConfig separately for clean API
+        const savedRaw = (updated.formConfig || {}) as Record<string, unknown>;
+        const { croConfig: savedCro, ...savedForm } = savedRaw;
+
         res.json({
             message: `Form config saved for '${updated.name}' (${fieldsSynced} fields synced)`,
-            formConfig: updated.formConfig,
+            formConfig: savedForm,
+            croConfig: savedCro || null,
             fieldsSynced,
             ...(warnings.length > 0 ? { warnings } : {}),
         });
@@ -937,6 +980,176 @@ router.get('/:slug/fields', generalLimiter, async (req: AuthenticatedRequest, re
     } catch (error) {
         console.error('Get vertical fields error:', error);
         res.status(500).json({ error: 'Failed to get vertical fields' });
+    }
+});
+
+// ============================================
+// POST /:slug/bounty — Deposit seller bounty pool
+// ============================================
+
+router.post('/:slug/bounty', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        // Only sellers or hybrid/admin can fund bounties
+        const role = req.user!.role;
+        if (role !== 'SELLER' && role !== 'HYBRID' && role !== 'ADMIN') {
+            res.status(403).json({ error: 'Only sellers can fund bounty pools' });
+            return;
+        }
+
+        const { slug } = req.params;
+        const validation = BountyDepositSchema.safeParse(req.body);
+        if (!validation.success) {
+            res.status(400).json({ error: 'Invalid bounty config', details: validation.error.issues });
+            return;
+        }
+
+        const vertical = await prisma.vertical.findUnique({ where: { slug } });
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        const result = await bountyService.depositBounty(
+            req.user!.id,
+            slug,
+            validation.data.amount,
+            validation.data.criteria
+        );
+
+        if (!result.success) {
+            res.status(500).json({ error: result.error || 'Bounty deposit failed' });
+            return;
+        }
+
+        // Emit socket event for real-time updates
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('vertical:bounty:deposited', {
+                verticalSlug: slug,
+                sellerId: req.user!.id,
+                amount: validation.data.amount,
+                poolId: result.poolId,
+                txHash: result.txHash,
+            });
+        }
+
+        res.json({
+            success: true,
+            poolId: result.poolId,
+            amount: validation.data.amount,
+            criteria: validation.data.criteria || {},
+            txHash: result.txHash,
+            offChain: result.offChain,
+        });
+    } catch (error: any) {
+        console.error('Deposit bounty error:', error);
+        res.status(500).json({ error: 'Failed to deposit bounty' });
+    }
+});
+
+// ============================================
+// GET /:slug/bounty — Get bounty pool info
+// ============================================
+
+router.get('/:slug/bounty', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { slug } = req.params;
+
+        const vertical = await prisma.vertical.findUnique({
+            where: { slug },
+            select: { slug: true, name: true, formConfig: true },
+        });
+
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        const totalBounty = await bountyService.getVerticalBountyTotal(slug);
+        const config = (vertical.formConfig as any) || {};
+        const pools = (config.bountyPools || []).filter((p: any) => p.active);
+
+        res.json({
+            verticalSlug: slug,
+            verticalName: vertical.name,
+            totalBounty,
+            activePools: pools.length,
+            pools: pools.map((p: any) => ({
+                sellerId: p.sellerId,
+                amount: p.amount,
+                criteria: p.criteria || {},
+                createdAt: p.createdAt,
+            })),
+        });
+    } catch (error: any) {
+        console.error('Get bounty info error:', error);
+        res.status(500).json({ error: 'Failed to get bounty info' });
+    }
+});
+
+// ============================================
+// POST /:slug/bounty/withdraw — Withdraw unreleased bounty
+// ============================================
+
+router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const role = req.user!.role;
+        if (role !== 'SELLER' && role !== 'HYBRID' && role !== 'ADMIN') {
+            res.status(403).json({ error: 'Only sellers can withdraw bounties' });
+            return;
+        }
+
+        const { slug } = req.params;
+        const { poolId, amount } = req.body as { poolId?: string; amount?: number };
+
+        if (!poolId) {
+            res.status(400).json({ error: 'Pool ID required' });
+            return;
+        }
+
+        const result = await bountyService.withdrawBounty(poolId, amount);
+
+        if (!result.success) {
+            res.status(500).json({ error: result.error || 'Withdraw failed' });
+            return;
+        }
+
+        // Mark pool inactive in formConfig
+        const vertical = await prisma.vertical.findUnique({ where: { slug } });
+        if (vertical) {
+            const config = (vertical.formConfig as any) || {};
+            const pools = (config.bountyPools || []).map((p: any) => {
+                if (p.poolId === poolId || p.sellerId === req.user!.id) {
+                    return { ...p, active: false };
+                }
+                return p;
+            });
+            await prisma.vertical.update({
+                where: { slug },
+                data: { formConfig: { ...config, bountyPools: pools } },
+            });
+        }
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('vertical:bounty:withdrawn', {
+                verticalSlug: slug,
+                sellerId: req.user!.id,
+                poolId,
+                txHash: result.txHash,
+            });
+        }
+
+        res.json({
+            success: true,
+            poolId,
+            txHash: result.txHash,
+            offChain: result.offChain,
+        });
+    } catch (error: any) {
+        console.error('Withdraw bounty error:', error);
+        res.status(500).json({ error: 'Failed to withdraw bounty' });
     }
 });
 

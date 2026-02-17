@@ -50,6 +50,7 @@ contract RTBEscrow is Ownable, ReentrancyGuard {
     // Authorized callers (backend service)
     mapping(address => bool) public authorizedCallers;
     
+    
     // Release delay for disputes (default 24 hours)
     uint256 public releaseDelay = 24 hours;
     
@@ -68,6 +69,7 @@ contract RTBEscrow is Ownable, ReentrancyGuard {
     event EscrowDisputed(uint256 indexed escrowId, address disputant);
     event CallerAuthorized(address indexed caller, bool authorized);
     event PlatformFeeUpdated(uint256 newFeeBps);
+
 
     constructor(
         address _paymentToken,
@@ -276,6 +278,11 @@ contract RTBEscrow is Ownable, ReentrancyGuard {
         
         emit EscrowDisputed(escrowId, msg.sender);
     }
+
+
+    // ============================================
+    // View
+    // ============================================
 
     /**
      * @dev Get escrow details

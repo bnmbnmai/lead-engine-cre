@@ -276,17 +276,17 @@ export const api = {
 
     // Form Config
     getFormConfig: (slug: string) =>
-        apiFetch<{ formConfig: any | null; vertical: { slug: string; name: string } }>(
+        apiFetch<{ formConfig: any | null; croConfig: any | null; vertical: { slug: string; name: string } }>(
             `/api/v1/verticals/${slug}/form-config`
         ),
 
     getPublicFormConfig: (slug: string) =>
-        apiFetch<{ formConfig: any; vertical: { slug: string; name: string } }>(
+        apiFetch<{ formConfig: any; croConfig: any | null; vertical: { slug: string; name: string } }>(
             `/api/v1/verticals/public/${slug}/form-config`
         ),
 
-    saveFormConfig: (slug: string, config: { fields: any[]; steps: any[]; gamification?: any }) =>
-        apiFetch<{ message: string; formConfig: any }>(
+    saveFormConfig: (slug: string, config: { fields: any[]; steps: any[]; gamification?: any; croConfig?: any }) =>
+        apiFetch<{ message: string; formConfig: any; croConfig: any | null }>(
             `/api/v1/verticals/${slug}/form-config`, {
             method: 'PUT',
             body: JSON.stringify(config),
@@ -389,6 +389,9 @@ export const api = {
         apiFetch<{ preview: string; estimatedDelivery: string; status: string; note: string }>(
             `/api/v1/leads/${leadId}/requalify`, { method: 'POST' },
         ),
+
+
+    // Vertical bounties — see /api/v1/verticals/:slug/bounty
 
     // Decrypted lead data (only available for owned NFTs)
     getLeadDecrypted: (leadId: string) =>

@@ -110,9 +110,9 @@ export default function HostedForm() {
                 if (!res.data) throw new Error('No data');
                 setConfig(res.data.formConfig as FormConfig);
                 setVerticalName(res.data.vertical.name);
-                // CROConfig is part of the response if the backend sends it
-                if ((res.data as any).croConfig) {
-                    setCroConfig({ ...DEFAULT_CRO_CONFIG, ...(res.data as any).croConfig });
+                // CROConfig returned by backend (typed, no cast needed)
+                if (res.data.croConfig) {
+                    setCroConfig({ ...DEFAULT_CRO_CONFIG, ...res.data.croConfig });
                 }
             })
             .catch(() => setError('This form is not available or has expired.'))
