@@ -108,11 +108,21 @@ export function DemoPanel() {
         const handler = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'D') {
                 e.preventDefault();
-                setIsOpen(prev => !prev);
+                setIsOpen(prev => {
+                    if (!prev) window.dispatchEvent(new CustomEvent('agent-chat:close'));
+                    return !prev;
+                });
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    // Mutual exclusion: close when agent chat opens
+    useEffect(() => {
+        const handler = () => setIsOpen(false);
+        window.addEventListener('demo-panel:close', handler);
+        return () => window.removeEventListener('demo-panel:close', handler);
     }, []);
 
     // ============================================
@@ -424,7 +434,11 @@ export function DemoPanel() {
         <>
             {/* Floating trigger button */}
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => {
+                    const next = !isOpen;
+                    setIsOpen(next);
+                    if (next) window.dispatchEvent(new CustomEvent('agent-chat:close'));
+                }}
                 className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${isOpen
                     ? 'bg-red-500 hover:bg-red-600 rotate-90 scale-90'
                     : 'bg-gradient-to-br from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 hover:scale-110'

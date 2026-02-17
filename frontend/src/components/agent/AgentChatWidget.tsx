@@ -90,12 +90,17 @@ export function AgentChatWidget() {
 
     // Listen for external open events (from BuyerIntegrations button)
     useEffect(() => {
-        const handler = () => {
+        const openHandler = () => {
             setIsOpen(true);
             setHasUnread(false);
         };
-        window.addEventListener('agent-chat:open', handler);
-        return () => window.removeEventListener('agent-chat:open', handler);
+        const closeHandler = () => setIsOpen(false);
+        window.addEventListener('agent-chat:open', openHandler);
+        window.addEventListener('agent-chat:close', closeHandler);
+        return () => {
+            window.removeEventListener('agent-chat:open', openHandler);
+            window.removeEventListener('agent-chat:close', closeHandler);
+        };
     }, []);
 
     // Keyboard: Escape to minimize (only when input not focused)
@@ -108,6 +113,18 @@ export function AgentChatWidget() {
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
     }, [isOpen]);
+
+    // When user opens, close the DemoPanel
+    const handleOpen = useCallback(() => {
+        setIsOpen(true);
+        setHasUnread(false);
+        window.dispatchEvent(new CustomEvent('demo-panel:close'));
+    }, []);
+
+    // When user closes
+    const handleClose = useCallback(() => {
+        setIsOpen(false);
+    }, []);
 
     // Navigate to internal links (panel stays open)
     const handleInternalLink = useCallback((path: string) => {
@@ -189,8 +206,8 @@ export function AgentChatWidget() {
             {/* Floating bubble — positioned above DemoPanel */}
             {!isOpen && (
                 <button
-                    onClick={() => { setIsOpen(true); setHasUnread(false); }}
-                    className="fixed bottom-20 right-6 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-blue-600 hover:from-violet-600 hover:to-blue-700 hover:scale-110 flex items-center justify-center shadow-lg shadow-violet-500/25 transition-all duration-300 group"
+                    onClick={handleOpen}
+                    className="fixed bottom-6 right-20 z-50 w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-blue-600 hover:from-violet-600 hover:to-blue-700 hover:scale-110 flex items-center justify-center shadow-lg shadow-violet-500/25 transition-all duration-300 group"
                     title="Open Agent Chat"
                     aria-label="Open AI Agent chat"
                 >
@@ -207,7 +224,7 @@ export function AgentChatWidget() {
 
             {/* Expanded chat panel */}
             {isOpen && (
-                <div className="fixed z-40 bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-[380px] h-[calc(100vh-5rem)] sm:h-[550px] max-h-[700px] flex flex-col rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300" role="dialog" aria-label="Agent Chat">
+                <div className="fixed z-50 bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-[380px] h-[calc(100vh-5rem)] sm:h-[550px] max-h-[700px] flex flex-col rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300" role="dialog" aria-label="Agent Chat">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border rounded-t-2xl bg-background/95 backdrop-blur-xl">
                         <div className="flex items-center gap-2">
@@ -238,7 +255,7 @@ export function AgentChatWidget() {
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
                             </button>
                             <button
-                                onClick={() => setIsOpen(false)}
+                                onClick={handleClose}
                                 className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                                 title="Close (Esc)"
                                 aria-label="Close chat panel"
