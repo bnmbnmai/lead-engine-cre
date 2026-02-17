@@ -989,7 +989,7 @@ router.get('/:slug/fields', generalLimiter, async (req: AuthenticatedRequest, re
 
 router.post('/:slug/bounty', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        // Only sellers or hybrid/admin can fund bounties
+        // Only buyers or hybrid/admin can fund bounties
         const role = req.user!.role;
         if (role !== 'BUYER' && role !== 'HYBRID' && role !== 'ADMIN') {
             res.status(403).json({ error: 'Only buyers can fund bounty pools' });
@@ -1119,7 +1119,7 @@ router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedR
         if (vertical) {
             const config = (vertical.formConfig as any) || {};
             const pools = (config.bountyPools || []).map((p: any) => {
-                if (p.poolId === poolId || p.buyerId === req.user!.id) {
+                if (p.poolId === poolId) {
                     return { ...p, active: false };
                 }
                 return p;

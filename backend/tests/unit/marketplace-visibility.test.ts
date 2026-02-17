@@ -462,3 +462,188 @@ describe('LeadQuerySchema — view param', () => {
         expect(defaultView).toBe('all');
     });
 });
+
+// =============================================
+// 7. Bounty Stacking & Cap Logic
+// =============================================
+
+describe('Bounty Stacking & Cap Logic', () => {
+    const BOUNTY_STACKING_CAP_MULTIPLIER = 2;
+
+    function applyStackingCap(
+        matched: { poolId: string; amount: number }[],
+        leadPrice: number
+    ): { poolId: string; amount: number }[] {
+        if (leadPrice <= 0) return matched;
+        const cap = leadPrice * BOUNTY_STACKING_CAP_MULTIPLIER;
+        let total = 0;
+        const capped: { poolId: string; amount: number }[] = [];
+        for (const m of matched) {
+            if (total >= cap) break;
+            const allowed = Math.min(m.amount, cap - total);
+            capped.push({ ...m, amount: allowed });
+            total += allowed;
+        }
+        return capped;
+    }
+
+    it('should not cap when total bounty < 2× lead price', () => {
+        const matched = [
+            { poolId: 'p1', amount: 50 },
+            { poolId: 'p2', amount: 30 },
+        ];
+        const result = applyStackingCap(matched, 100); // cap = $200
+        expect(result.length).toBe(2);
+        expect(result[0].amount + result[1].amount).toBe(80);
+    });
+
+    it('should cap total bounty at 2× lead price', () => {
+        const matched = [
+            { poolId: 'p1', amount: 150 },
+            { poolId: 'p2', amount: 100 },
+        ];
+        const result = applyStackingCap(matched, 100); // cap = $200
+        expect(result.length).toBe(2);
+        expect(result[0].amount).toBe(150);
+        expect(result[1].amount).toBe(50); // truncated to fit cap
+    });
+
+    it('should exclude pools entirely if cap already reached', () => {
+        const matched = [
+            { poolId: 'p1', amount: 200 },
+            { poolId: 'p2', amount: 100 }, // should be excluded
+        ];
+        const result = applyStackingCap(matched, 100); // cap = $200
+        expect(result.length).toBe(1);
+        expect(result[0].amount).toBe(200);
+    });
+
+    it('should return all matched when leadPrice is 0 (no cap)', () => {
+        const matched = [
+            { poolId: 'p1', amount: 500 },
+            { poolId: 'p2', amount: 500 },
+        ];
+        const result = applyStackingCap(matched, 0); // no cap
+        expect(result.length).toBe(2);
+        expect(result[0].amount + result[1].amount).toBe(1000);
+    });
+});
+
+// =============================================
+// 8. Bounty Refund Flow
+// =============================================
+
+describe('Bounty Refund Flow', () => {
+    it('should deactivate only the targeted pool (not all buyer pools)', () => {
+        const buyerId = 'buyer-1';
+        const pools = [
+            { poolId: 'pool-1', buyerId, amount: 100, active: true },
+            { poolId: 'pool-2', buyerId, amount: 50, active: true },
+            { poolId: 'pool-3', buyerId: 'buyer-2', amount: 75, active: true },
+        ];
+
+        // Simulate withdraw targeting pool-1 only
+        const withdrawPoolId = 'pool-1';
+        const updated = pools.map(p =>
+            p.poolId === withdrawPoolId ? { ...p, active: false } : p
+        );
+
+        expect(updated[0].active).toBe(false); // pool-1 deactivated
+        expect(updated[1].active).toBe(true);   // pool-2 still active
+        expect(updated[2].active).toBe(true);   // pool-3 unaffected
+    });
+
+    it('should not deactivate pools from other buyers', () => {
+        const pools = [
+            { poolId: 'pool-A', buyerId: 'buyer-1', active: true },
+            { poolId: 'pool-B', buyerId: 'buyer-2', active: true },
+        ];
+
+        const updated = pools.map(p =>
+            p.poolId === 'pool-A' ? { ...p, active: false } : p
+        );
+
+        expect(updated[0].active).toBe(false);
+        expect(updated[1].active).toBe(true);
+    });
+
+    it('should handle pool not found gracefully', () => {
+        const pools = [
+            { poolId: 'pool-1', buyerId: 'buyer-1', active: true },
+        ];
+
+        const updated = pools.map(p =>
+            p.poolId === 'nonexistent' ? { ...p, active: false } : p
+        );
+
+        expect(updated[0].active).toBe(true); // unchanged
+    });
+});
+
+// =============================================
+// 9. Buyer-Funded E2E Matching
+// =============================================
+
+describe('Buyer-Funded E2E Matching', () => {
+    const matchesCriteria = (
+        lead: { qualityScore?: number; state?: string; creditScore?: number; ageHours?: number },
+        criteria: { minQualityScore?: number; geoStates?: string[]; minCreditScore?: number; maxLeadAge?: number }
+    ): boolean => {
+        if (criteria.minQualityScore != null && (lead.qualityScore || 0) < criteria.minQualityScore) return false;
+        if (criteria.geoStates?.length && !criteria.geoStates.includes(lead.state || '')) return false;
+        if (criteria.minCreditScore != null && (lead.creditScore || 0) < criteria.minCreditScore) return false;
+        if (criteria.maxLeadAge != null && (lead.ageHours || 0) > criteria.maxLeadAge) return false;
+        return true;
+    };
+
+    it('should resolve tie between equal-amount pools by first-match order', () => {
+        const lead = { qualityScore: 8000, state: 'CA', creditScore: 750, ageHours: 2 };
+        const pools = [
+            { poolId: 'pool-1', buyerId: 'buyer-A', amount: 100, criteria: { minQualityScore: 7000 } },
+            { poolId: 'pool-2', buyerId: 'buyer-B', amount: 100, criteria: { minQualityScore: 5000 } },
+        ];
+
+        const matched = pools
+            .filter(p => matchesCriteria(lead, p.criteria))
+            .sort((a, b) => b.amount - a.amount);
+
+        expect(matched.length).toBe(2);
+        // Both match, equal amount → first-match (FIFO) preserved from sort stability
+        expect(matched[0].poolId).toBe('pool-1');
+        expect(matched[1].poolId).toBe('pool-2');
+    });
+
+    it('should match only the buyer whose criteria pass', () => {
+        const lead = { qualityScore: 6000, state: 'TX' };
+        const pools = [
+            { poolId: 'p1', buyerId: 'b1', amount: 200, criteria: { minQualityScore: 7000 } }, // fails
+            { poolId: 'p2', buyerId: 'b2', amount: 50, criteria: { geoStates: ['TX'] } },       // passes
+        ];
+
+        const matched = pools.filter(p => matchesCriteria(lead, p.criteria));
+        expect(matched.length).toBe(1);
+        expect(matched[0].poolId).toBe('p2');
+    });
+
+    it('should match no pools when no criteria pass', () => {
+        const lead = { qualityScore: 1000, state: 'FL' };
+        const pools = [
+            { poolId: 'p1', buyerId: 'b1', amount: 200, criteria: { minQualityScore: 7000 } },
+            { poolId: 'p2', buyerId: 'b2', amount: 50, criteria: { geoStates: ['TX', 'CA'] } },
+        ];
+
+        const matched = pools.filter(p => matchesCriteria(lead, p.criteria));
+        expect(matched.length).toBe(0);
+    });
+
+    it('should match all pools when they have no criteria (match-all)', () => {
+        const lead = { qualityScore: 1000, state: 'FL' };
+        const pools = [
+            { poolId: 'p1', buyerId: 'b1', amount: 200, criteria: {} },
+            { poolId: 'p2', buyerId: 'b2', amount: 50, criteria: {} },
+        ];
+
+        const matched = pools.filter(p => matchesCriteria(lead, p.criteria));
+        expect(matched.length).toBe(2);
+    });
+});

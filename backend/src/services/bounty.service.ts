@@ -65,6 +65,13 @@ const BOUNTY_POOL_ABI = [
 ];
 
 // ============================================
+// Constants
+// ============================================
+
+/** Bounty stacking cap: max total bounty = 2× lead price */
+const BOUNTY_STACKING_CAP_MULTIPLIER = 2;
+
+// ============================================
 // Service
 // ============================================
 
@@ -108,11 +115,30 @@ class BountyService {
 
             const slugHash = ethers.keccak256(ethers.toUtf8Bytes(verticalSlug));
 
-            // Save bounty config in formConfig.bountyPools
+            // On-chain deposit first (fail fast if on-chain fails)
+            let poolId: string;
+            let txHash: string | undefined;
+            let offChain = false;
+
+            if (this.contract && this.signer) {
+                const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
+                const tx = await this.contract.depositBounty(slugHash, amountWei);
+                const receipt = await tx.wait();
+                poolId = receipt.logs?.[0]?.args?.[0]?.toString() || '0';
+                txHash = receipt.hash;
+                console.log(`[BountyService] Buyer deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${txHash}`);
+            } else {
+                poolId = `offchain-${Date.now()}`;
+                offChain = true;
+                console.log(`[BountyService] Buyer deposited (off-chain) $${amountUSDC} on ${verticalSlug}`);
+            }
+
+            // Save bounty config in formConfig.bountyPools WITH poolId
             const existingConfig = (vertical.formConfig as any) || {};
             const existingBounties = existingConfig.bountyPools || [];
 
             const poolEntry = {
+                poolId,
                 buyerId,
                 amount: amountUSDC,
                 criteria: criteria || {},
@@ -130,21 +156,7 @@ class BountyService {
                 },
             });
 
-            // On-chain deposit
-            if (this.contract && this.signer) {
-                const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
-                const tx = await this.contract.depositBounty(slugHash, amountWei);
-                const receipt = await tx.wait();
-
-                const poolId = receipt.logs?.[0]?.args?.[0]?.toString() || '0';
-                console.log(`[BountyService] Buyer deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${receipt.hash}`);
-                return { success: true, poolId, txHash: receipt.hash };
-            }
-
-            // Off-chain fallback
-            const offChainPoolId = `offchain-${Date.now()}`;
-            console.log(`[BountyService] Buyer deposited (off-chain) $${amountUSDC} on ${verticalSlug}`);
-            return { success: true, poolId: offChainPoolId, offChain: true };
+            return { success: true, poolId, txHash, offChain };
         } catch (err: any) {
             console.error('[BountyService] depositBounty error:', err);
             return { success: false, error: err.message || 'Deposit failed' };
@@ -155,6 +167,11 @@ class BountyService {
     // Match — Find buyer bounties matching a lead
     // ============================================
 
+    /**
+     * Match active buyer bounty pools to a lead.
+     * Returns matched bounties sorted by amount descending.
+     * If leadPrice is provided, caps total bounty at 2× lead price (stacking cap).
+     */
     async matchBounties(lead: {
         id: string;
         vertical?: string;
@@ -163,6 +180,7 @@ class BountyService {
         country?: string | null;
         parameters?: any;
         createdAt?: Date;
+        reservePrice?: number | null;
     }): Promise<MatchedBounty[]> {
         if (!lead.vertical) return [];
 
@@ -184,7 +202,7 @@ class BountyService {
 
                 const criteria: BountyCriteria = pool.criteria || {};
 
-                // Criteria matching engine
+                // Criteria matching engine (AND logic — all criteria must pass)
                 if (criteria.minQualityScore != null && (lead.qualityScore || 0) < criteria.minQualityScore) continue;
                 if (criteria.geoStates?.length && !criteria.geoStates.includes(lead.state || '')) continue;
                 if (criteria.geoCountries?.length && !criteria.geoCountries.includes(lead.country || '')) continue;
@@ -209,6 +227,23 @@ class BountyService {
 
             // Sort by amount descending (highest bounty first)
             matched.sort((a, b) => b.amount - a.amount);
+
+            // Apply stacking cap: total bounty ≤ 2× lead price
+            const leadPrice = lead.reservePrice || 0;
+            if (leadPrice > 0) {
+                const cap = leadPrice * BOUNTY_STACKING_CAP_MULTIPLIER;
+                let runningTotal = 0;
+                const capped: MatchedBounty[] = [];
+
+                for (const m of matched) {
+                    if (runningTotal >= cap) break;
+                    const allowed = Math.min(m.amount, cap - runningTotal);
+                    capped.push({ ...m, amount: allowed });
+                    runningTotal += allowed;
+                }
+
+                return capped;
+            }
 
             return matched;
         } catch (err) {
