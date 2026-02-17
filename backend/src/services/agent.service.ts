@@ -183,18 +183,14 @@ let _HumanMessage: any = null;
 async function loadLangChain(): Promise<boolean> {
     if (langchainAvailable !== null) return langchainAvailable;
     try {
-        const [coreTools, openai, agents, prompts, messages] = await Promise.all([
-            // @ts-ignore — module may not be installed in all environments
-            import('@langchain/core/tools'),
-            // @ts-ignore
-            import('@langchain/openai'),
-            // @ts-ignore
-            import('langchain/agents'),
-            // @ts-ignore
-            import('@langchain/core/prompts'),
-            // @ts-ignore
-            import('@langchain/core/messages'),
-        ]);
+        // Use require() to avoid TypeScript module resolution validation
+        // (these packages may not be installed in all environments)
+        const r = (m: string) => require(m); // eslint-disable-line @typescript-eslint/no-var-requires
+        const coreTools = r('@langchain/core/tools');
+        const openai = r('@langchain/openai');
+        const agents = r('langchain/agents');
+        const prompts = r('@langchain/core/prompts');
+        const messages = r('@langchain/core/messages');
         _DynamicStructuredTool = coreTools.DynamicStructuredTool;
         _ChatOpenAI = openai.ChatOpenAI;
         _AgentExecutor = agents.AgentExecutor;

@@ -230,7 +230,7 @@ var afFields=document.querySelectorAll('[data-auto-format]');
 afFields.forEach(function(el){
   var fmt=el.getAttribute('data-auto-format');
   el.addEventListener('input',function(){
-    var v=el.value.replace(/\D/g,'');
+    var v=el.value.replace(/[^0-9]/g,'');
     if(fmt==='phone'){if(v.length>10)v=v.slice(0,10);if(v.length>6)el.value='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>3)el.value='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)el.value='('+v;else el.value='';}
     else if(fmt==='zip'){el.value=v.slice(0,5);}
     else if(fmt==='currency'){if(!v){el.value='';return;}var n=parseInt(v,10);el.value='$'+n.toLocaleString();}
