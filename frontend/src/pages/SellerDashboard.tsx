@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote, Inbox } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { SkeletonCard } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -227,16 +228,16 @@ export function SellerDashboard() {
                             {isLoading ? (
                                 <div className="space-y-4">
                                     {[1, 2, 3].map((i) => (
-                                        <div key={i} className="animate-pulse h-16 bg-muted rounded-xl" />
+                                        <div key={i} className="animate-shimmer h-16 rounded-xl" />
                                     ))}
                                 </div>
                             ) : filteredLeads.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <p className="text-muted-foreground mb-4">No leads submitted yet</p>
-                                    <Button variant="outline" size="sm" asChild>
-                                        <Link to="/seller/submit">Submit Lead</Link>
-                                    </Button>
-                                </div>
+                                <EmptyState
+                                    icon={FileText}
+                                    title="No leads submitted yet"
+                                    description="Submit your first lead to start receiving bids from buyers."
+                                    action={{ label: 'Submit Lead', onClick: () => window.location.href = '/seller/submit' }}
+                                />
                             ) : (
                                 <div className="space-y-3">
                                     {filteredLeads.map((lead) => (
@@ -284,17 +285,12 @@ export function SellerDashboard() {
                                 ))}
                             </div>
                         ) : activeAsks.length === 0 ? (
-                            <Card className="p-8 text-center">
-                                <p className="text-muted-foreground mb-4">
-                                    Create a funnel to start receiving bids on your leads
-                                </p>
-                                <Button asChild>
-                                    <Link to="/seller/funnels">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Create Your First Funnel
-                                    </Link>
-                                </Button>
-                            </Card>
+                            <EmptyState
+                                icon={Inbox}
+                                title="No active funnels"
+                                description="Create a funnel to start receiving bids on your leads."
+                                action={{ label: 'Create Your First Funnel', onClick: () => window.location.href = '/seller/funnels' }}
+                            />
                         ) : (
                             <div className="grid md:grid-cols-2 gap-4">
                                 {activeAsks.map((ask) => (

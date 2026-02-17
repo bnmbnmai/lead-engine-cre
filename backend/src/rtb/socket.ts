@@ -435,6 +435,33 @@ class RTBSocketServer {
 
                     console.log(`Expired ${expiredBinLeads.length} stale Buy It Now leads`);
                 }
+
+                // ── Stuck Auction Sweep ──
+                // Catch IN_AUCTION leads with null auctionEndAt (edge case: incomplete creation)
+                // or auctionEndAt far in the past (orphaned after server restart)
+                const stuckAuctions = await prisma.lead.findMany({
+                    where: {
+                        status: 'IN_AUCTION',
+                        OR: [
+                            { auctionEndAt: null },
+                            { auctionEndAt: { lte: new Date(now.getTime() - 5 * 60 * 1000) } }, // 5+ min stale
+                        ],
+                    },
+                    select: { id: true, vertical: true, reservePrice: true },
+                });
+
+                for (const lead of stuckAuctions) {
+                    console.log(`[AuctionMonitor] Resolving stuck lead ${lead.id} (null/stale auctionEndAt)`);
+                    await this.convertToUnsold(lead.id, lead);
+                    this.io.emit('auction:resolved', {
+                        leadId: lead.id,
+                        outcome: 'NO_WINNER',
+                    });
+                    this.io.emit('lead:status-change', {
+                        leadId: lead.id,
+                        newStatus: 'UNSOLD',
+                    });
+                }
             } catch (error) {
                 console.error('Auction monitor error:', error);
             }

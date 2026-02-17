@@ -100,14 +100,14 @@ function QualityBar({ score, nftTokenId }: { score: number; nftTokenId?: string 
 
 function DetailSkeleton() {
     return (
-        <div className="space-y-6 animate-pulse">
-            <div className="h-8 w-48 bg-muted rounded" />
+        <div className="space-y-6">
+            <div className="h-8 w-48 animate-shimmer rounded" />
             <div className="grid md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 space-y-4">
-                    <div className="h-40 bg-muted rounded-xl" />
-                    <div className="h-32 bg-muted rounded-xl" />
+                    <div className="h-40 animate-shimmer rounded-xl" />
+                    <div className="h-32 animate-shimmer rounded-xl" />
                 </div>
-                <div className="h-60 bg-muted rounded-xl" />
+                <div className="h-60 animate-shimmer rounded-xl" />
             </div>
         </div>
     );

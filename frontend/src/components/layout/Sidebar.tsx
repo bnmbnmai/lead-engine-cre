@@ -98,8 +98,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         className={cn(
                             'flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm',
                             isActive
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-white/[0.04] hover:text-foreground'
+                                ? 'bg-muted/60 text-foreground font-semibold border-l-2 border-emerald-500'
+                                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
                         )}
                     >
                         {item.icon}

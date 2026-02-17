@@ -1048,35 +1048,103 @@ router.post('/auction', async (req: Request, res: Response) => {
 });
 
 // ============================================
-// POST /reset — clear ALL data + reseed fresh short auctions
+// POST /reset — clear ALL non-sold leads + demo-sold leads
+// Comprehensive reset: catches lander-submitted leads that lack DEMO_TAG
 // ============================================
 router.post('/reset', async (req: Request, res: Response) => {
     try {
-        // TD-09 fix: only delete demo-tagged records, not ALL data
-        await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-        await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-        await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG } } });
-        const cleared = await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG } });
+        // 1. Delete ALL non-sold leads (IN_AUCTION, UNSOLD, PENDING_AUCTION, EXPIRED, CANCELLED)
+        //    This catches lander-submitted leads that don't have consentProof: DEMO_TAG
+        const nonSoldStatuses = ['IN_AUCTION', 'UNSOLD', 'PENDING_AUCTION', 'EXPIRED', 'CANCELLED', 'DISPUTED', 'PENDING_PING', 'IN_PING_POST', 'REVEAL_PHASE'] as any;
+
+        // Delete related records for non-sold leads (FK order: bids → auctionRoom → transactions → leads)
+        await prisma.bid.deleteMany({ where: { lead: { status: { in: nonSoldStatuses } } } });
+        await prisma.auctionRoom.deleteMany({ where: { lead: { status: { in: nonSoldStatuses } } } });
+        await prisma.transaction.deleteMany({ where: { lead: { status: { in: nonSoldStatuses } } } });
+        const clearedNonSold = await prisma.lead.deleteMany({ where: { status: { in: nonSoldStatuses } } });
+
+        // 2. Also clear demo-tagged SOLD leads (fake demo sales, not real purchases)
+        await prisma.bid.deleteMany({ where: { lead: { consentProof: DEMO_TAG, status: 'SOLD' } } });
+        await prisma.auctionRoom.deleteMany({ where: { lead: { consentProof: DEMO_TAG, status: 'SOLD' } } });
+        await prisma.transaction.deleteMany({ where: { lead: { consentProof: DEMO_TAG, status: 'SOLD' } } });
+        const clearedDemoSold = await prisma.lead.deleteMany({ where: { consentProof: DEMO_TAG, status: 'SOLD' } });
+
+        // 3. Clear all demo-tagged asks
         await prisma.ask.deleteMany({ where: { parameters: { path: ['_demoTag'], equals: DEMO_TAG } } });
 
-        // Flush all in-memory LRU caches so stale data doesn't persist
+        // Flush all in-memory LRU caches
         clearAllCaches();
 
         // Keep verticals seeded so hierarchy API stays functional
         await seedVerticals();
 
-        // 2. Notify clients to refresh (dashboards will now be empty)
+        // Notify clients to refresh
         const io = req.app.get('io');
         if (io) io.emit('marketplace:refreshAll');
 
+        const totalCleared = clearedNonSold.count + clearedDemoSold.count;
+        console.log(`[DEMO RESET] Cleared ${totalCleared} leads (${clearedNonSold.count} non-sold + ${clearedDemoSold.count} demo-sold)`);
+
         res.json({
             success: true,
-            cleared: cleared.count,
-            message: 'All marketplace data cleared. Both dashboards are now empty. Use Seed or Inject to add data.',
+            cleared: totalCleared,
+            breakdown: {
+                nonSoldLeads: clearedNonSold.count,
+                demoSoldLeads: clearedDemoSold.count,
+            },
+            message: `Cleared ${totalCleared} leads. Real SOLD leads preserved. Dashboards are now clean.`,
         });
     } catch (error) {
         console.error('Demo reset error:', error);
         res.status(500).json({ error: 'Failed to reset demo state', details: String(error) });
+    }
+});
+
+// ============================================
+// POST /wipe — FULL marketplace data wipe (nuclear option)
+// Deletes ALL leads, bids, transactions, auction rooms, asks regardless of tag
+// ============================================
+router.post('/wipe', async (req: Request, res: Response) => {
+    try {
+        const { confirm } = req.body as { confirm?: boolean };
+        if (!confirm) {
+            res.status(400).json({ error: 'Must send { confirm: true } to wipe all data' });
+            return;
+        }
+
+        // Delete in FK dependency order
+        const deletedBids = await prisma.bid.deleteMany({});
+        const deletedAuctionRooms = await prisma.auctionRoom.deleteMany({});
+        const deletedTransactions = await prisma.transaction.deleteMany({});
+        const deletedLeads = await prisma.lead.deleteMany({});
+        const deletedAsks = await prisma.ask.deleteMany({});
+
+        // Flush caches
+        clearAllCaches();
+
+        // Re-seed verticals so the platform stays functional
+        await seedVerticals();
+
+        // Notify clients
+        const io = req.app.get('io');
+        if (io) io.emit('marketplace:refreshAll');
+
+        console.log(`[DEMO WIPE] Full marketplace wipe: ${deletedLeads.count} leads, ${deletedBids.count} bids, ${deletedTransactions.count} txns, ${deletedAsks.count} asks`);
+
+        res.json({
+            success: true,
+            deleted: {
+                leads: deletedLeads.count,
+                bids: deletedBids.count,
+                transactions: deletedTransactions.count,
+                auctionRooms: deletedAuctionRooms.count,
+                asks: deletedAsks.count,
+            },
+            message: 'All marketplace data wiped. Platform is clean.',
+        });
+    } catch (error) {
+        console.error('Demo wipe error:', error);
+        res.status(500).json({ error: 'Failed to wipe data', details: String(error) });
     }
 });
 

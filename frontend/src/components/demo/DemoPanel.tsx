@@ -28,6 +28,7 @@ import {
     Loader2,
     Check,
     AlertCircle,
+    AlertTriangle,
     Sparkles,
     RefreshCw,
     Shield,
@@ -159,7 +160,17 @@ export function DemoPanel() {
         await runAction('reset', async () => {
             const { data, error } = await api.demoReset();
             if (error) throw new Error(error.message || error.error);
-            return `🔄 Cleared ${data?.cleared} records — dashboards are now empty`;
+            const b = (data as any)?.breakdown;
+            return `🔄 Cleared ${data?.cleared} leads (${b?.nonSoldLeads ?? '?'} non-sold + ${b?.demoSoldLeads ?? '?'} demo-sold). Real purchases preserved.`;
+        });
+    }
+
+    async function handleWipe() {
+        await runAction('wipe', async () => {
+            const { data, error } = await api.demoWipe();
+            if (error) throw new Error(error.message || error.error);
+            const d = data?.deleted;
+            return `☢️ Wiped all: ${d?.leads} leads, ${d?.bids} bids, ${d?.asks} asks, ${d?.transactions} transactions`;
         });
     }
 
@@ -491,6 +502,16 @@ export function DemoPanel() {
                                 onClick={handleReset}
                                 variant="danger"
                             />
+                            <ActionButton
+                                actionKey="wipe"
+                                label="Clear All Marketplace Data"
+                                icon={AlertTriangle}
+                                onClick={handleWipe}
+                                variant="danger"
+                            />
+                            <p className="text-[10px] text-red-400/70 pl-1">
+                                ⚠️ Wipe removes EVERYTHING — including real SOLD leads and transactions.
+                            </p>
                             <ActionButton
                                 actionKey="seedTemplates"
                                 label="Sync Form Templates"

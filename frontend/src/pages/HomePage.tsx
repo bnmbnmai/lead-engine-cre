@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { DynamicFieldFilter } from '@/components/marketplace/DynamicFieldFilter'
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 import api from '@/lib/api';
 import useAuth from '@/hooks/useAuth';
@@ -72,6 +73,7 @@ function getRegions(country: string) {
 
 export function HomePage() {
     const [view, setView] = useState<'asks' | 'leads' | 'buyNow' | 'nfts' | 'sellers'>('leads');
+    const [layoutMode, setLayoutMode] = useState<'cards' | 'table'>('cards');
     const [vertical, setVertical] = useState('all');
     const [country, setCountry] = useState('ALL');
     const [region, setRegion] = useState('All');
@@ -699,6 +701,30 @@ export function HomePage() {
                                             </Select>
                                         </div>
                                     </div>
+
+                                    {/* Layout Toggle */}
+                                    {(view === 'leads' || view === 'buyNow') && (
+                                        <div className="flex gap-1 p-0.5 rounded-md bg-muted">
+                                            <Tooltip content="Card view">
+                                                <button
+                                                    onClick={() => setLayoutMode('cards')}
+                                                    className={`p-1.5 rounded transition-all ${layoutMode === 'cards' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                    aria-label="Card view"
+                                                >
+                                                    <LayoutGrid className="h-3.5 w-3.5" />
+                                                </button>
+                                            </Tooltip>
+                                            <Tooltip content="Table view">
+                                                <button
+                                                    onClick={() => setLayoutMode('table')}
+                                                    className={`p-1.5 rounded transition-all ${layoutMode === 'table' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                    aria-label="Table view"
+                                                >
+                                                    <List className="h-3.5 w-3.5" />
+                                                </button>
+                                            </Tooltip>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -847,22 +873,109 @@ export function HomePage() {
                             )}
                         </div>
                     ) : (
-                        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                            {leads.length === 0 ? (
+                        layoutMode === 'table' && (view === 'leads' || view === 'buyNow') ? (
+                            /* Table View for Leads / Buy Now */
+                            leads.length === 0 ? (
                                 <EmptyState
                                     icon={Search}
                                     title={hasFilters ? "No leads match your criteria" : "No active leads"}
                                     description={hasFilters
-                                        ? vertical !== 'all'
-                                            ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
-                                            : "Select a vertical to unlock field-level filtering and see available leads."
-                                        : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
-                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
+                                        ? "Try adjusting your filters to see more leads."
+                                        : "No leads are currently in auction. Check back soon."}
+                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
                                 />
                             ) : (
-                                leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} />)
-                            )}
-                        </div>
+                                <div className="rounded-xl border border-border overflow-hidden bg-card">
+                                    <div className="overflow-x-auto">
+                                        <table className="data-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Vertical</th>
+                                                    <th>Location</th>
+                                                    <th>Reserve</th>
+                                                    <th>QS</th>
+                                                    <th>Bids</th>
+                                                    <th>Time Left</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {leads.map((lead: any) => {
+                                                    const qs = lead.qualityScore != null ? Math.floor(lead.qualityScore / 100) : null;
+                                                    const endTime = lead.auctionEndAt ? new Date(lead.auctionEndAt) : null;
+                                                    const timeLeft = endTime ? (() => {
+                                                        const diff = endTime.getTime() - Date.now();
+                                                        if (diff <= 0) return 'Ended';
+                                                        const mins = Math.floor(diff / 60000);
+                                                        const secs = Math.floor((diff % 60000) / 1000);
+                                                        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                                                    })() : '—';
+                                                    return (
+                                                        <tr key={lead.id}>
+                                                            <td>
+                                                                <span className="font-medium capitalize">{lead.vertical?.replace(/_/g, ' ')}</span>
+                                                            </td>
+                                                            <td>
+                                                                <span className="flex items-center gap-1 text-muted-foreground text-sm">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    {lead.geo?.city ? `${lead.geo.city}, ` : ''}{lead.geo?.state || 'Unknown'}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span className="font-semibold">${Number(lead.reservePrice || 0).toFixed(2)}</span>
+                                                            </td>
+                                                            <td>
+                                                                {qs !== null ? (
+                                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border ${qs >= 70 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                                        : qs >= 50 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                                                            : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                                                        }`}>
+                                                                        {qs}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-muted-foreground text-xs">—</span>
+                                                                )}
+                                                            </td>
+                                                            <td>
+                                                                <span className="text-sm">{lead._count?.bids || lead.auctionRoom?.bidCount || 0}</span>
+                                                            </td>
+                                                            <td>
+                                                                <span className={`text-sm ${timeLeft === 'Ended' ? 'text-red-500' : 'text-amber-500'}`}>
+                                                                    {timeLeft}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <a href={`/lead/${lead.id}`} className="text-primary hover:underline text-sm font-medium flex items-center gap-1">
+                                                                    <Eye className="h-3.5 w-3.5" />
+                                                                    View
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )
+                        ) : (
+                            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                                {leads.length === 0 ? (
+                                    <EmptyState
+                                        icon={Search}
+                                        title={hasFilters ? "No leads match your criteria" : "No active leads"}
+                                        description={hasFilters
+                                            ? vertical !== 'all'
+                                                ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
+                                                : "Select a vertical to unlock field-level filtering and see available leads."
+                                            : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
+                                        action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
+                                    />
+                                ) : (
+                                    leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} />)
+                                )}
+                            </div>
+                        )
                     )}
                 </section>
             </div>

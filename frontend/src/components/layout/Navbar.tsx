@@ -77,9 +77,9 @@ export function Navbar() {
                             <Link
                                 key={link.href}
                                 to={link.href}
-                                className={`text-sm font-medium transition ${isActive
-                                    ? 'text-foreground'
-                                    : 'text-muted-foreground hover:text-foreground'
+                                className={`text-sm font-medium transition pb-1 ${isActive
+                                    ? 'text-foreground border-b-2 border-primary'
+                                    : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
                                     }`}
                             >
                                 {link.label}

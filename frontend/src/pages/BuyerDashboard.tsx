@@ -298,7 +298,7 @@ export function BuyerDashboard() {
                             {isLoading ? (
                                 <div className="space-y-4">
                                     {[1, 2, 3].map((i) => (
-                                        <div key={i} className="animate-pulse h-16 bg-muted rounded-xl" />
+                                        <div key={i} className="animate-shimmer h-16 rounded-xl" />
                                     ))}
                                 </div>
                             ) : filteredBids.length === 0 ? (
