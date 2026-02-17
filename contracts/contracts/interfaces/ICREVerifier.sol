@@ -86,6 +86,17 @@ interface ICREVerifier {
         uint256 leadTokenId
     ) external view returns (uint16);  // 0-10000
 
+    function computeQualityScoreFromParams(
+        uint40 tcpaConsentTimestamp,
+        bool hasGeoState,
+        bool hasGeoZip,
+        bool zipMatchesState,
+        bool hasEncryptedData,
+        bool encryptedDataValid,
+        uint8 parameterCount,
+        uint8 sourceType          // 0=API, 1=FORM, 2=PLATFORM, 3=OTHER
+    ) external pure returns (uint16);  // 0-10000
+
     // Batch Operations
     function batchRequestParameterMatch(
         uint256[] calldata leadTokenIds,

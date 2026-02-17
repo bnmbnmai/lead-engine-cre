@@ -15,6 +15,7 @@ import { generateToken } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 import { creService } from '../services/cre.service';
 import { nftService } from '../services/nft.service';
+import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 
 const router = Router();
 
@@ -826,15 +827,30 @@ router.post('/lead', async (req: Request, res: Response) => {
         // Build non-PII form parameters from vertical schema (randomized)
         const params = buildVerticalDemoParams(vertical);
 
+        // Compute quality score for demo lead using same algorithm as CREVerifier
+        const demoParamCount = params ? Object.keys(params).filter((k: string) => (params as any)[k] != null && (params as any)[k] !== '').length : 0;
+        const demoGeo = { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` };
+        const demoScoreInput: LeadScoringInput = {
+            tcpaConsentAt: new Date(),
+            geo: { country: demoGeo.country, state: demoGeo.state, zip: demoGeo.zip },
+            hasEncryptedData: false,
+            encryptedDataValid: false,
+            parameterCount: demoParamCount,
+            source: 'PLATFORM',
+            zipMatchesState: false,
+        };
+        const demoScore = computeCREQualityScore(demoScoreInput);
+
         const lead = await prisma.lead.create({
             data: {
                 sellerId: seller.id,
                 vertical,
-                geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
+                geo: demoGeo as any,
                 source: 'PLATFORM',
                 status: 'IN_AUCTION',
                 reservePrice: price,
                 isVerified: true,
+                qualityScore: demoScore,
                 tcpaConsentAt: new Date(),
                 consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
@@ -869,7 +885,7 @@ router.post('/lead', async (req: Request, res: Response) => {
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: params,
-                    qualityScore: null, // Demo leads — no CREVerifier scoring
+                    qualityScore: demoScore,
                     _count: { bids: 0 },
                 },
             });
@@ -916,15 +932,29 @@ router.post('/auction', async (req: Request, res: Response) => {
         }
 
         // Create lead in auction
+        // Compute quality score for demo auction lead
+        const auctionGeo = { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` };
+        const auctionScoreInput: LeadScoringInput = {
+            tcpaConsentAt: new Date(),
+            geo: { country: auctionGeo.country, state: auctionGeo.state, zip: auctionGeo.zip },
+            hasEncryptedData: false,
+            encryptedDataValid: false,
+            parameterCount: 0,
+            source: 'PLATFORM',
+            zipMatchesState: false,
+        };
+        const auctionScore = computeCREQualityScore(auctionScoreInput);
+
         const lead = await prisma.lead.create({
             data: {
                 sellerId: seller.id,
                 vertical,
-                geo: { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` },
+                geo: auctionGeo as any,
                 source: 'PLATFORM',
                 status: 'IN_AUCTION',
                 reservePrice,
                 isVerified: true,
+                qualityScore: auctionScore,
                 tcpaConsentAt: new Date(),
                 consentProof: DEMO_TAG,
                 auctionStartAt: new Date(),
@@ -957,7 +987,7 @@ router.post('/auction', async (req: Request, res: Response) => {
                     isVerified: true,
                     auctionStartAt: new Date().toISOString(),
                     auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString(),
-                    qualityScore: null, // Demo leads — no CREVerifier scoring
+                    qualityScore: auctionScore,
                     _count: { bids: 0 },
                 },
             });

@@ -29,6 +29,7 @@ const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 const CRE_ABI = [
     // Read
     'function getLeadQualityScore(uint256 leadTokenId) view returns (uint16)',
+    'function computeQualityScoreFromParams(uint40 tcpaConsentTimestamp, bool hasGeoState, bool hasGeoZip, bool zipMatchesState, bool hasEncryptedData, bool encryptedDataValid, uint8 parameterCount, uint8 sourceType) pure returns (uint16)',
     'function isVerificationValid(bytes32 requestId) view returns (bool)',
     'function getVerificationResult(bytes32 requestId) view returns (tuple(bytes32 requestId, uint8 verificationType, uint256 leadTokenId, address requester, uint40 requestedAt, uint40 fulfilledAt, uint8 status, bytes32 resultHash))',
     // Write

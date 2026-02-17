@@ -340,6 +340,73 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
         return _leadQualityScores[leadTokenId];
     }
 
+    /**
+     * @notice Compute a quality score from raw lead parameters (no tokenId needed).
+     * @dev Pure function — mirrors the off-chain computeCREQualityScore() logic.
+     *      Scoring buckets: TCPA freshness (0-3000), geo (0-2000),
+     *      data integrity (0-2000), parameters (0-2000), source (0-1000) = max 10000.
+     * @param tcpaConsentTimestamp  UNIX timestamp of TCPA consent (0 = no consent)
+     * @param hasGeoState           Whether geo.state is populated
+     * @param hasGeoZip             Whether geo.zip is populated
+     * @param zipMatchesState       Whether zip cross-validates with state
+     * @param hasEncryptedData      Whether encryptedData exists
+     * @param encryptedDataValid    Whether encrypted envelope has ciphertext+iv+tag
+     * @param parameterCount        Count of non-empty lead parameters
+     * @param sourceType            0=API, 1=FORM, 2=PLATFORM, 3=OTHER
+     */
+    function computeQualityScoreFromParams(
+        uint40 tcpaConsentTimestamp,
+        bool hasGeoState,
+        bool hasGeoZip,
+        bool zipMatchesState,
+        bool hasEncryptedData,
+        bool encryptedDataValid,
+        uint8 parameterCount,
+        uint8 sourceType
+    ) external pure returns (uint16) {
+        uint16 score = 0;
+
+        // ── Bucket 1: TCPA Freshness (max 3000) ──
+        if (tcpaConsentTimestamp > 0) {
+            // Base points for having consent
+            score += 1500;
+            // Freshness bonus: full 1500 if within 24h, linear decay over 30 days
+            // Since this is pure and has no block.timestamp, we award the full 3000
+            // for any non-zero consent. Off-chain pre-score handles time decay.
+            score += 1500;
+        }
+
+        // ── Bucket 2: Geo Completeness (max 2000) ──
+        if (hasGeoState) score += 800;
+        if (hasGeoZip)   score += 700;
+        if (zipMatchesState) score += 500;
+
+        // ── Bucket 3: Data Integrity (max 2000) ──
+        if (hasEncryptedData)   score += 1000;
+        if (encryptedDataValid) score += 1000;
+
+        // ── Bucket 4: Parameter Richness (max 2000) ──
+        // 200 pts per param, capped at 10
+        uint8 capped = parameterCount > 10 ? 10 : parameterCount;
+        score += uint16(capped) * 200;
+
+        // ── Bucket 5: Source Quality (max 1000) ──
+        if (sourceType == 0) {      // API
+            score += 1000;
+        } else if (sourceType == 1) { // FORM
+            score += 800;
+        } else if (sourceType == 2) { // PLATFORM
+            score += 600;
+        } else {                      // OTHER
+            score += 300;
+        }
+
+        // Cap at 10000
+        if (score > 10000) score = 10000;
+
+        return score;
+    }
+
     // ============================================
     // Helper Functions
     // ============================================

@@ -376,7 +376,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
         });
 
         // Stage 1: CRE Pre-Auction Gate (data integrity, TCPA, geo)
-        // qualityScore stays null until Stage 2 (post-NFT-mint on-chain scoring)
+        // verifyLead computes a numeric pre-score and stores it in the DB
         const verification = await creService.verifyLead(lead.id);
 
         if (!verification.isValid) {
@@ -451,7 +451,7 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: safeParams,
-                    qualityScore: null, // Scored after NFT minting via CREVerifier
+                    qualityScore: verification.score ?? null,
                     _count: { bids: 0 },
                 },
             });
@@ -574,7 +574,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
         console.log(`[MARKETPLACE] Public lead ${lead.id} submitted for seller ${seller.id} (${seller.companyName}) — vertical: ${vertical}`);
 
         // Stage 1: CRE Pre-Auction Gate (data integrity, TCPA, geo)
-        // qualityScore stays null until Stage 2 (post-NFT-mint on-chain scoring)
+        // verifyLead computes a numeric pre-score and stores it in the DB
         const verification = await creService.verifyLead(lead.id);
 
         if (!verification.isValid) {
@@ -587,8 +587,7 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
             return;
         }
 
-        // Quality score is null until the lead is minted as an NFT and scored by CREVerifier on-chain.
-        // The CRE verifyLead check above is the real admission gate.
+        // Pre-score is already stored in the DB by verifyLead above.
 
         // Find matching asks for this lead
         let matchingAsks = await prisma.ask.findMany({
