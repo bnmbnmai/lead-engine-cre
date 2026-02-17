@@ -4,27 +4,27 @@
 
 @layer base {
     :root {
-        /* Chainlink-Inspired Institutional Palette */
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
+        /* Institutional Light Palette — warm stone-50 base */
+        --background: 40 23% 97%;
+        --foreground: 224 10% 10%;
 
         --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
+        --card-foreground: 224 10% 10%;
 
         --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
+        --popover-foreground: 224 10% 10%;
 
-        --primary: 0 0% 9%;
+        --primary: 224 10% 10%;
         --primary-foreground: 0 0% 98%;
 
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
+        --secondary: 220 14% 96%;
+        --secondary-foreground: 224 10% 10%;
 
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
+        --muted: 220 14% 96%;
+        --muted-foreground: 220 9% 46%;
 
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
+        --accent: 220 14% 96%;
+        --accent-foreground: 224 10% 10%;
 
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 0 0% 98%;
@@ -32,9 +32,9 @@
         --success: 142 71% 45%;
         --success-foreground: 210 40% 98%;
 
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
+        --border: 220 13% 91%;
+        --input: 220 13% 91%;
+        --ring: 224 10% 10%;
 
         --radius: 0.5rem;
 
@@ -44,31 +44,32 @@
         --chart-4: 43 74% 66%;
         --chart-5: 27 87% 67%;
 
-        /* Verified / institutional green accents */
-        --verified: 142 71% 45%;
+        /* Verified / institutional emerald accents */
+        --verified: 152 60% 40%;
         --verified-foreground: 210 40% 98%;
     }
 
     .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
+        /* Dark mode — softer zinc-950 base, slate-800 cards */
+        --background: 240 6% 6%;
+        --foreground: 210 20% 95%;
+        --card: 222 10% 9%;
+        --card-foreground: 210 20% 95%;
+        --popover: 222 10% 9%;
+        --popover-foreground: 210 20% 95%;
+        --primary: 210 20% 95%;
+        --primary-foreground: 222 10% 9%;
+        --secondary: 220 10% 14%;
+        --secondary-foreground: 210 20% 95%;
+        --muted: 220 10% 14%;
+        --muted-foreground: 215 14% 58%;
+        --accent: 220 10% 14%;
+        --accent-foreground: 210 20% 95%;
         --destructive: 0 62.8% 30.6%;
         --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
+        --border: 220 13% 16%;
+        --input: 220 13% 16%;
+        --ring: 215 14% 75%;
         --chart-1: 220 70% 50%;
         --chart-2: 160 60% 45%;
         --chart-3: 30 80% 55%;
@@ -102,6 +103,14 @@
     /* Glass Effect — subtler for institutional feel */
     .glass {
         @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.06];
+    }
+
+    .dark .glass {
+        @apply bg-white/[0.03] backdrop-blur-xl border-white/[0.06];
+    }
+
+    :root .glass {
+        @apply bg-white/80 backdrop-blur-xl border-black/[0.06];
     }
 
     /* Chainlink Blue Glow — always on */
@@ -158,7 +167,7 @@
         animation: float 6s ease-in-out infinite;
     }
 
-    /* Shimmer */
+    /* Skeleton Shimmer */
     @keyframes shimmer {
         0% {
             background-position: -200% 0;
@@ -170,9 +179,12 @@
     }
 
     .animate-shimmer {
-        background: linear-gradient(90deg, transparent, rgba(55, 91, 210, 0.08), transparent);
+        background: linear-gradient(90deg,
+                hsl(var(--muted)) 0%,
+                hsl(var(--muted-foreground) / 0.08) 50%,
+                hsl(var(--muted)) 100%);
         background-size: 200% 100%;
-        animation: shimmer 2s infinite;
+        animation: shimmer 1.8s ease-in-out infinite;
     }
 
     /* Custom Scrollbar */
@@ -271,6 +283,35 @@
 
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+/* ============================================
+   Institutional Table Styles
+   ============================================ */
+@layer components {
+    .data-table {
+        @apply w-full text-sm;
+    }
+
+    .data-table thead {
+        @apply border-b border-border;
+    }
+
+    .data-table th {
+        @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+    }
+
+    .data-table th.sortable {
+        @apply cursor-pointer select-none hover:text-foreground transition-colors;
+    }
+
+    .data-table tbody tr {
+        @apply border-b border-border/50 transition-colors hover:bg-muted/30;
+    }
+
+    .data-table td {
+        @apply px-4 py-3;
     }
 }
 

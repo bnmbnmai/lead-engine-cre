@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, ExternalLink, Tag } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -388,7 +388,7 @@ export function BuyerDashboard() {
                     </div>
                 </div>
 
-                {/* Purchased Leads */}
+                {/* Purchased Leads — Table View */}
                 <div>
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -418,78 +418,89 @@ export function BuyerDashboard() {
                         </div>
                     </div>
                     {filteredPurchased.length === 0 ? (
-                        <Card className="p-8 text-center">
-                            <p className="text-muted-foreground">No purchased leads yet. Win auctions to see them here.</p>
-                            <Button variant="outline" className="mt-4" asChild>
+                        <Card className="p-12 text-center">
+                            <CheckCircle className="h-10 w-10 text-muted-foreground/25 mx-auto mb-3" />
+                            <p className="text-base font-medium mb-1">No purchased leads yet</p>
+                            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                                Win auctions or use Buy Now to build your lead portfolio.
+                            </p>
+                            <Button variant="outline" className="mt-5" asChild>
                                 <Link to="/">Browse Marketplace</Link>
                             </Button>
                         </Card>
                     ) : (
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredPurchased.map((bid) => (
-                                <Card key={bid.id} className="border-emerald-500/20">
-                                    <CardContent className="p-5">
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div>
-                                                <h3 className="font-semibold capitalize">{bid.lead?.vertical || 'Lead'}</h3>
-                                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                                    <MapPin className="h-3 w-3" />
-                                                    {bid.lead?.geo?.city ? `${bid.lead.geo.city}, ` : ''}{bid.lead?.geo?.state || 'Unknown'}
-                                                </div>
-                                            </div>
-                                            <Badge className="bg-emerald-500/15 text-emerald-500 border-0">
-                                                Won
-                                            </Badge>
-                                        </div>
-                                        {bid.lead?.nftTokenId && (
-                                            <div className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 text-xs font-medium">
-                                                <ExternalLink className="h-3 w-3" />
-                                                NFT #{bid.lead.nftTokenId.slice(0, 8)}…
-                                                {bid.lead.nftContractAddr && (
-                                                    <span className="text-[10px] text-muted-foreground ml-auto">
-                                                        {bid.lead.nftContractAddr.slice(0, 6)}…{bid.lead.nftContractAddr.slice(-4)}
+                        <Card className="overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Vertical</th>
+                                            <th>Location</th>
+                                            <th>Amount Paid</th>
+                                            <th>NFT ID</th>
+                                            <th>Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredPurchased.map((bid) => (
+                                            <tr key={bid.id}>
+                                                <td>
+                                                    <span className="font-medium capitalize">{bid.lead?.vertical || 'Lead'}</span>
+                                                </td>
+                                                <td>
+                                                    <span className="flex items-center gap-1 text-muted-foreground text-sm">
+                                                        <MapPin className="h-3 w-3" />
+                                                        {bid.lead?.geo?.city ? `${bid.lead.geo.city}, ` : ''}{bid.lead?.geo?.state || 'Unknown'}
                                                     </span>
-                                                )}
-                                            </div>
-                                        )}
-                                        <div className="flex items-center justify-between pt-3 border-t border-border">
-                                            <div>
-                                                <span className="text-xs text-muted-foreground">Amount Paid</span>
-                                                <div className="text-lg font-bold">{formatCurrency(bid.amount || 0)}</div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-xs text-muted-foreground">Purchased</span>
-                                                <div className="text-sm font-medium">
-                                                    {new Date(bid.updatedAt || bid.createdAt).toLocaleDateString()}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2 mt-3">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleCrmPushSingle(bid.lead?.id || bid.id)}
-                                                disabled={crmPushed.has(bid.lead?.id || bid.id)}
-                                                className="flex-1 gap-1"
-                                            >
-                                                {crmPushed.has(bid.lead?.id || bid.id) ? (
-                                                    <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Pushed</>
-                                                ) : (
-                                                    <><Send className="h-3.5 w-3.5" /> Push to CRM</>
-                                                )}
-                                            </Button>
-                                            {bid.lead?.id && (
-                                                <Button variant="outline" size="sm" className="flex-1" asChild>
-                                                    <Link to={`/lead/${bid.lead.id}`}>
-                                                        View Details <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
-                                                    </Link>
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
+                                                </td>
+                                                <td>
+                                                    <span className="font-semibold">{formatCurrency(bid.amount || 0)}</span>
+                                                </td>
+                                                <td>
+                                                    {bid.lead?.nftTokenId ? (
+                                                        <span className="font-mono text-xs text-violet-400">
+                                                            #{bid.lead.nftTokenId.slice(0, 8)}…
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground text-xs">—</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        {new Date(bid.updatedAt || bid.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 px-2 text-xs"
+                                                            onClick={() => handleCrmPushSingle(bid.lead?.id || bid.id)}
+                                                            disabled={crmPushed.has(bid.lead?.id || bid.id)}
+                                                        >
+                                                            {crmPushed.has(bid.lead?.id || bid.id) ? (
+                                                                <><CheckCircle className="h-3 w-3 text-emerald-500" /> Pushed</>
+                                                            ) : (
+                                                                <><Send className="h-3 w-3" /> CRM</>
+                                                            )}
+                                                        </Button>
+                                                        {bid.lead?.id && (
+                                                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" asChild>
+                                                                <Link to={`/lead/${bid.lead.id}`}>
+                                                                    View <ArrowUpRight className="h-3 w-3 ml-0.5" />
+                                                                </Link>
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
                     )}
                 </div>
             </div>

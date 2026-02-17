@@ -17,10 +17,10 @@ export function BuyerPreferences() {
 
     return (
         <DashboardLayout>
-            <div className="max-w-4xl mx-auto">
-                <div className="mb-8">
+            <div className="max-w-4xl mx-auto space-y-8">
+                <div>
                     <h1 className="text-3xl font-bold">Auto Bidding</h1>
-                    <p className="text-muted-foreground">
+                    <p className="text-muted-foreground mt-2 max-w-2xl">
                         Configure auto-bid rules per vertical — set budgets, quality gates, geo targeting, and field-level
                         filters. Approve USDC via the allowance card below, then close your browser. The server bids and
                         settles 24/7 using your on-chain allowance.
@@ -29,7 +29,7 @@ export function BuyerPreferences() {
 
                 {/* Success banner */}
                 {saved && (
-                    <div className="mb-6 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 flex items-center gap-3 animate-in fade-in duration-300">
+                    <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 flex items-center gap-3 animate-in fade-in duration-300">
                         <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
                         <p className="text-sm font-medium text-emerald-300">Preferences saved successfully!</p>
                         <button onClick={() => setSaved(false)} className="ml-auto text-muted-foreground hover:text-foreground transition">
@@ -40,7 +40,7 @@ export function BuyerPreferences() {
 
                 {/* Onboarding tooltip for first-time visitors */}
                 {showTip && (
-                    <div className="mb-6 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-3" data-testid="onboarding-tooltip">
+                    <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-3" data-testid="onboarding-tooltip">
                         <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
                         <div className="flex-1">
                             <p className="text-sm font-medium text-foreground mb-1">Getting started with auto-bid</p>
@@ -58,7 +58,7 @@ export function BuyerPreferences() {
                 )}
 
                 {/* USDC allowance for offline auto-bidding */}
-                <div className="mb-6">
+                <div>
                     <UsdcAllowanceCard />
                 </div>
 

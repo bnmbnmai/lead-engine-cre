@@ -126,21 +126,25 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                     </div>
                     <div className="flex items-center gap-2">
                         {lead.qualityScore != null ? (
-                            <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${lead.qualityScore >= 7000
-                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                    : lead.qualityScore >= 5000
-                                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
-                                    }`}
-                                title="CRE Pre-score — confirmed on-chain after purchase"
-                            >
-                                QS {Math.floor(lead.qualityScore / 100)}
-                            </span>
+                            <Tooltip content="CRE Pre-score — confirmed on-chain after purchase">
+                                <span
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : lead.qualityScore >= 5000
+                                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                            : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                        }`}
+                                >
+                                    <Shield className="h-3 w-3" />
+                                    QS {Math.floor(lead.qualityScore / 100)}
+                                </span>
+                            </Tooltip>
                         ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30">
-                                QS —
-                            </span>
+                            <Tooltip content="Quality score pending — will be confirmed on-chain">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
+                                    QS —
+                                </span>
+                            </Tooltip>
                         )}
                         {lead.isVerified && <ChainlinkBadge size="sm" />}
                     </div>

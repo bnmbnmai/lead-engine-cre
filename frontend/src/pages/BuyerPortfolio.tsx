@@ -9,18 +9,30 @@ import {
     Tag,
     Search,
     ExternalLink,
+    LayoutGrid,
+    List,
+    Download,
+    Send,
+    ArrowUpDown,
+    ArrowUp,
+    ArrowDown,
+    CheckCircle,
+    Square,
+    CheckSquare,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { SkeletonTable } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 
-// ─── Skeleton ───────────────────────────────
+// ─── Skeleton Card ──────────────────────────
 
 function SkeletonCard() {
     return (
@@ -47,12 +59,19 @@ function QualityBadge({ score }: { score: number }) {
             displayed >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
                 'text-red-400 bg-red-500/15 border-red-500/30';
     return (
-        <Badge variant="outline" className={`text-xs ${color}`} title="CRE Pre-score — confirmed on-chain after purchase">
-            <Shield className="h-3 w-3 mr-1" />
-            {displayed}/100
-        </Badge>
+        <Tooltip content="CRE Pre-score — confirmed on-chain after purchase">
+            <Badge variant="outline" className={`text-xs ${color}`}>
+                <Shield className="h-3 w-3 mr-1" />
+                {displayed}/100
+            </Badge>
+        </Tooltip>
     );
 }
+
+// ─── Sort Types ─────────────────────────────
+
+type SortKey = 'vertical' | 'amount' | 'date' | 'qualityScore' | 'nftTokenId';
+type SortDir = 'asc' | 'desc';
 
 // ─── Page Component ─────────────────────────
 
@@ -61,6 +80,12 @@ export function BuyerPortfolio() {
     const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
+    const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+    const [sortKey, setSortKey] = useState<SortKey>('date');
+    const [sortDir, setSortDir] = useState<SortDir>('desc');
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
+    const [csvExporting, setCsvExporting] = useState(false);
 
     const fetchPortfolio = useCallback(async () => {
         try {
@@ -101,78 +126,346 @@ export function BuyerPortfolio() {
         [leads, q],
     );
 
+    // Sorted data
+    const sorted = useMemo(() => {
+        const arr = [...filtered];
+        arr.sort((a, b) => {
+            let cmp = 0;
+            switch (sortKey) {
+                case 'vertical':
+                    cmp = (a.lead?.vertical || '').localeCompare(b.lead?.vertical || '');
+                    break;
+                case 'amount':
+                    cmp = (a.amount || 0) - (b.amount || 0);
+                    break;
+                case 'date':
+                    cmp = new Date(a.updatedAt || a.createdAt).getTime() - new Date(b.updatedAt || b.createdAt).getTime();
+                    break;
+                case 'qualityScore':
+                    cmp = (a.lead?.qualityScore || 0) - (b.lead?.qualityScore || 0);
+                    break;
+                case 'nftTokenId':
+                    cmp = (a.lead?.nftTokenId || '').localeCompare(b.lead?.nftTokenId || '');
+                    break;
+            }
+            return sortDir === 'asc' ? cmp : -cmp;
+        });
+        return arr;
+    }, [filtered, sortKey, sortDir]);
+
     // Stats
     const totalSpent = leads.reduce((sum, b) => sum + (b.amount || 0), 0);
     const verticals = [...new Set(leads.map((b) => b.lead?.vertical).filter(Boolean))];
 
+    // Sort handler
+    const handleSort = (key: SortKey) => {
+        if (sortKey === key) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortKey(key);
+            setSortDir('desc');
+        }
+    };
+
+    const SortIcon = ({ col }: { col: SortKey }) => {
+        if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+        return sortDir === 'asc'
+            ? <ArrowUp className="h-3 w-3 ml-1 text-foreground" />
+            : <ArrowDown className="h-3 w-3 ml-1 text-foreground" />;
+    };
+
+    // Bulk selection
+    const allSelected = sorted.length > 0 && selected.size === sorted.length;
+    const toggleAll = () => {
+        if (allSelected) {
+            setSelected(new Set());
+        } else {
+            setSelected(new Set(sorted.map(b => b.id)));
+        }
+    };
+    const toggleOne = (id: string) => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    // CSV Export
+    const handleExportCSV = () => {
+        const exportData = sorted.filter(b => selected.size === 0 || selected.has(b.id));
+        if (exportData.length === 0) return;
+        setCsvExporting(true);
+        const headers = ['Lead ID', 'Vertical', 'State', 'City', 'Purchase Price', 'Quality Score', 'NFT Token ID', 'Purchase Date'];
+        const rows = exportData.map((b: any) => [
+            b.lead?.id || '',
+            b.lead?.vertical || '',
+            b.lead?.geo?.state || '',
+            b.lead?.geo?.city || '',
+            b.amount || '',
+            b.lead?.qualityScore != null ? Math.floor(b.lead.qualityScore / 100) : '',
+            b.lead?.nftTokenId || '',
+            b.updatedAt ? new Date(b.updatedAt).toISOString() : new Date(b.createdAt).toISOString(),
+        ].join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `portfolio-leads-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setTimeout(() => setCsvExporting(false), 1500);
+    };
+
+    // CRM Push
+    const handleCrmPush = () => {
+        const ids = selected.size > 0 ? [...selected] : sorted.map(b => b.lead?.id || b.id);
+        ids.forEach(id => setCrmPushed(prev => new Set(prev).add(id)));
+        // In production, this would POST to /api/v1/crm/push
+    };
+
     return (
         <DashboardLayout>
-            <div className="space-y-8">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold flex items-center gap-3">
                             <Briefcase className="h-8 w-8 text-primary" />
                             My Portfolio
                         </h1>
-                        <p className="text-muted-foreground mt-1">
+                        <p className="text-muted-foreground mt-1 text-sm">
                             All purchased LeadNFTs with full lead data and on-chain provenance
                         </p>
                     </div>
-                    <Button asChild>
-                        <Link to="/marketplace">Browse Marketplace</Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button asChild variant="outline" size="sm">
+                            <Link to="/marketplace">Browse Marketplace</Link>
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Stats Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Card className="p-5 bg-muted/30 border-border">
-                        <div className="text-sm text-muted-foreground">Total Leads Owned</div>
+                    <Card className="p-5">
+                        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Leads Owned</div>
                         <div className="text-2xl font-bold mt-1">{leads.length}</div>
                     </Card>
-                    <Card className="p-5 bg-muted/30 border-border">
-                        <div className="text-sm text-muted-foreground">Total Invested</div>
+                    <Card className="p-5">
+                        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Invested</div>
                         <div className="text-2xl font-bold mt-1">{formatCurrency(totalSpent)}</div>
                     </Card>
-                    <Card className="p-5 bg-muted/30 border-border">
-                        <div className="text-sm text-muted-foreground">Verticals</div>
+                    <Card className="p-5">
+                        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Verticals</div>
                         <div className="text-2xl font-bold mt-1">{verticals.length}</div>
                     </Card>
                 </div>
 
-                {/* Search */}
-                <div className="max-w-md">
-                    <Input
-                        placeholder="Search by vertical, location, or lead ID..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        icon={<Search className="h-4 w-4" />}
-                    />
+                {/* Toolbar: Search + View Toggle + Bulk Actions */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1">
+                        <div className="max-w-sm flex-1">
+                            <Input
+                                placeholder="Search by vertical, location, or lead ID..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                icon={<Search className="h-4 w-4" />}
+                            />
+                        </div>
+                        {/* View Toggle */}
+                        <div className="flex gap-1 p-1 rounded-lg bg-muted">
+                            <button
+                                onClick={() => setViewMode('table')}
+                                className={`p-1.5 rounded-md transition ${viewMode === 'table' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                title="Table view"
+                            >
+                                <List className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('card')}
+                                className={`p-1.5 rounded-md transition ${viewMode === 'card' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                title="Card view"
+                            >
+                                <LayoutGrid className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Bulk Actions */}
+                    <div className="flex items-center gap-2">
+                        {selected.size > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                                {selected.size} selected
+                            </Badge>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleExportCSV}
+                            disabled={sorted.length === 0 || csvExporting}
+                            className="gap-1.5"
+                        >
+                            {csvExporting ? (
+                                <><CheckCircle className="h-3.5 w-3.5 text-emerald-500" /> Exported!</>
+                            ) : (
+                                <><Download className="h-3.5 w-3.5" /> Export CSV</>
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCrmPush}
+                            disabled={sorted.length === 0}
+                            className="gap-1.5"
+                        >
+                            <Send className="h-3.5 w-3.5" />
+                            Push to CRM
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Grid */}
+                {/* Content */}
                 {isLoading ? (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <SkeletonCard key={i} />
-                        ))}
-                    </div>
-                ) : filtered.length === 0 ? (
+                    viewMode === 'table' ? (
+                        <Card className="p-4">
+                            <SkeletonTable rows={6} />
+                        </Card>
+                    ) : (
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <SkeletonCard key={i} />
+                            ))}
+                        </div>
+                    )
+                ) : sorted.length === 0 ? (
                     <Card className="p-12 text-center">
-                        <Briefcase className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                        <p className="text-lg font-medium text-muted-foreground">
+                        <Briefcase className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                        <p className="text-lg font-medium text-foreground mb-1">
                             {q ? 'No leads match your search' : 'No leads in your portfolio yet'}
                         </p>
-                        <p className="text-sm text-muted-foreground/80 mt-1">
+                        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
                             Win auctions or purchase leads via Buy Now to build your portfolio.
                         </p>
                         <Button variant="outline" className="mt-6" asChild>
                             <Link to="/marketplace">Browse Marketplace</Link>
                         </Button>
                     </Card>
+                ) : viewMode === 'table' ? (
+                    /* ───────── TABLE VIEW ───────── */
+                    <Card className="overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th className="w-10">
+                                            <button onClick={toggleAll} className="p-1 hover:text-foreground transition-colors">
+                                                {allSelected
+                                                    ? <CheckSquare className="h-4 w-4 text-primary" />
+                                                    : <Square className="h-4 w-4" />}
+                                            </button>
+                                        </th>
+                                        <th className="sortable" onClick={() => handleSort('nftTokenId')}>
+                                            <span className="inline-flex items-center">NFT ID <SortIcon col="nftTokenId" /></span>
+                                        </th>
+                                        <th className="sortable" onClick={() => handleSort('vertical')}>
+                                            <span className="inline-flex items-center">Vertical <SortIcon col="vertical" /></span>
+                                        </th>
+                                        <th>Location</th>
+                                        <th className="sortable" onClick={() => handleSort('amount')}>
+                                            <span className="inline-flex items-center">Purchase Price <SortIcon col="amount" /></span>
+                                        </th>
+                                        <th className="sortable" onClick={() => handleSort('date')}>
+                                            <span className="inline-flex items-center">Date <SortIcon col="date" /></span>
+                                        </th>
+                                        <th className="sortable" onClick={() => handleSort('qualityScore')}>
+                                            <span className="inline-flex items-center">Quality <SortIcon col="qualityScore" /></span>
+                                        </th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sorted.map((bid) => {
+                                        const lead = bid.lead;
+                                        const geo = lead?.geo;
+                                        const location = [geo?.city, geo?.state].filter(Boolean).join(', ') || '—';
+                                        const isSelected = selected.has(bid.id);
+                                        return (
+                                            <tr key={bid.id} className={isSelected ? 'bg-primary/5' : ''}>
+                                                <td>
+                                                    <button onClick={() => toggleOne(bid.id)} className="p-1 hover:text-foreground transition-colors">
+                                                        {isSelected
+                                                            ? <CheckSquare className="h-4 w-4 text-primary" />
+                                                            : <Square className="h-4 w-4 text-muted-foreground" />}
+                                                    </button>
+                                                </td>
+                                                <td>
+                                                    {lead?.nftTokenId ? (
+                                                        <span className="font-mono text-xs text-violet-400">
+                                                            #{lead.nftTokenId.slice(0, 8)}…
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground text-xs">—</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <span className="font-medium capitalize">{lead?.vertical || 'Lead'}</span>
+                                                </td>
+                                                <td>
+                                                    <span className="flex items-center gap-1 text-muted-foreground">
+                                                        <MapPin className="h-3 w-3" />
+                                                        {location}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className="font-semibold">{formatCurrency(bid.amount || 0)}</span>
+                                                </td>
+                                                <td>
+                                                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                                        <Calendar className="h-3 w-3" />
+                                                        {new Date(bid.updatedAt || bid.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {lead?.qualityScore != null ? (
+                                                        <QualityBadge score={lead.qualityScore} />
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {lead?.id && (
+                                                            <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
+                                                                <Link to={`/lead/${lead.id}`}>
+                                                                    View <ArrowUpRight className="h-3 w-3 ml-0.5" />
+                                                                </Link>
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 px-2 text-xs"
+                                                            onClick={() => setCrmPushed(prev => new Set(prev).add(lead?.id || bid.id))}
+                                                            disabled={crmPushed.has(lead?.id || bid.id)}
+                                                        >
+                                                            {crmPushed.has(lead?.id || bid.id)
+                                                                ? <><CheckCircle className="h-3 w-3 text-emerald-500" /> Pushed</>
+                                                                : <><Send className="h-3 w-3" /> CRM</>}
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 ) : (
+                    /* ───────── CARD VIEW ───────── */
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filtered.map((bid) => {
+                        {sorted.map((bid) => {
                             const lead = bid.lead;
                             const geo = lead?.geo;
                             const location = [geo?.city, geo?.state]
