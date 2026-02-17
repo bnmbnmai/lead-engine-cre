@@ -1,9 +1,7 @@
-import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { aceService } from '../services/ace.service';
 import { creService } from '../services/cre.service';
 import { applyHolderPerks, HOLDER_EARLY_PING_SECONDS, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
-import { findNotifiableHolders } from '../services/notification.service';
 import { evaluateLeadForAutoBid } from '../services/auto-bid.service';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 
@@ -34,12 +32,12 @@ class RTBEngine {
                 return { success: false, error: 'Lead not found' };
             }
 
-            // Stage 1: CRE Pre-Auction Gate
-            // Runs real checks (data integrity, TCPA consent, geo validation).
-            // No numeric score — that's Stage 2 (post-NFT mint via CREVerifier.sol).
+            // Stage 1: CRE Pre-Auction Gate + Numeric Pre-Score
+            // Runs real checks (data integrity, TCPA consent, geo validation)
+            // and computes numeric score (0–10,000) using the same JS as the DON.
             const preScore = await creService.computePreScore(leadId);
             console.log(
-                `[RTB] Lead ${leadId} pre-score: ` +
+                `[RTB] Lead ${leadId} pre-score=${preScore.score}/10000: ` +
                 `data=${preScore.checks.dataIntegrity} tcpa=${preScore.checks.tcpaConsent} geo=${preScore.checks.geoValid} ` +
                 `→ ${preScore.admitted ? 'ADMITTED' : 'REJECTED'}`
             );
@@ -52,10 +50,10 @@ class RTBEngine {
                 return { success: false, error: preScore.reason || 'Failed CRE pre-gate' };
             }
 
-            // Mark lead as verified (same as verifyLead would do)
+            // Mark lead as verified + store numeric pre-score
             await prisma.lead.update({
                 where: { id: leadId },
-                data: { isVerified: true },
+                data: { isVerified: true, qualityScore: preScore.score },
             });
 
             // Check seller compliance with ACE
@@ -434,36 +432,11 @@ class RTBEngine {
                 return { success: false, error: 'Transaction not pending' };
             }
 
-            // TODO: Implement x402 payment protocol integration
-            // For now, simulate settlement
-
-            // Simulated escrow flow:
-            // 1. Buyer approves USDC transfer
-            // 2. Escrow contract holds funds
-            // 3. Lead data revealed to buyer
-            // 4. After confirmation period, funds released to seller
-
-            const mockTxHash = `0x${Date.now().toString(16)}${'0'.repeat(48)} `;
-
-            await prisma.transaction.update({
-                where: { id: transactionId },
-                data: {
-                    status: 'ESCROWED',
-                    txHash: mockTxHash,
-                    confirmedAt: new Date(),
-                },
-            });
-
-            // Update seller reputation
-            await prisma.sellerProfile.update({
-                where: { id: transaction.lead.seller.id },
-                data: {
-                    totalLeadsSold: { increment: 1 },
-                    reputationScore: { increment: 100 }, // Boost reputation
-                },
-            });
-
-            return { success: true, txHash: mockTxHash };
+            // ⚠️ DEPRECATED — settlement goes through client-side RTBEscrow signing.
+            // The real flow is: marketplace.routes.ts → x402Service.prepareEscrowTx()
+            // → buyer signs in MetaMask → x402Service.confirmEscrowTx().
+            console.error(`[ENGINE] ⚠️ initiateSettlement called for tx=${transactionId} — this method is deprecated. Use client-side escrow flow.`);
+            return { success: false, error: 'Settlement must go through client-side escrow flow (RTBEscrow). This method is deprecated.' };
         } catch (error) {
             console.error('Settlement error:', error);
             return { success: false, error: 'Settlement failed' };

@@ -231,6 +231,9 @@ export function AuctionPage() {
                                     <div>
                                         <div className="text-sm text-muted-foreground">Quality Score</div>
                                         <div className={`font-medium ${lead.qualityScore != null ? (Math.floor(lead.qualityScore / 100) >= 70 ? 'text-emerald-500' : Math.floor(lead.qualityScore / 100) >= 50 ? 'text-amber-500' : 'text-red-500') : 'text-muted-foreground'}`}>{lead.qualityScore != null ? `${Math.floor(lead.qualityScore / 100)} / 100` : 'Pending CRE'}</div>
+                                        {lead.qualityScore != null && !lead.nftTokenId && (
+                                            <div className="text-[10px] text-muted-foreground/60 mt-0.5">Pre-score — confirmed on-chain after purchase</div>
+                                        )}
                                     </div>
                                     <div>
                                         <div className="text-sm text-muted-foreground">Seller</div>

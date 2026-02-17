@@ -372,12 +372,12 @@ class X402Service {
 
         // Off-chain / unconfigured: DB-only refund
         if (!this.escrowContract || !this.signer || transaction.escrowId.startsWith('offchain-')) {
-            console.warn(`[x402] ⚠️  Off-chain refund for tx=${transactionId} (escrowId=${transaction.escrowId})`);
+            console.error(`[x402] ⚠️ DB-ONLY refund for tx=${transactionId} (escrowId=${transaction.escrowId}) — no on-chain refund executed`);
             await prisma.transaction.update({
                 where: { id: transactionId },
                 data: { status: 'REFUNDED' },
             });
-            return { success: true, offChain: true };
+            return { success: true, offChain: true, error: 'DB-only refund — no on-chain refund executed' };
         }
 
         try {

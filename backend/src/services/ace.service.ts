@@ -49,10 +49,9 @@ class ACEService {
     // ============================================
 
     async isKYCValid(walletAddress: string): Promise<boolean> {
-        // Demo mode bypass — skip KYC for dev/testing
+        // DEMO_MODE bypass removed — KYC always enforced
         if (process.env.DEMO_MODE === 'true') {
-            console.log(`[ACE] Demo KYC bypassed for ${walletAddress.slice(0, 10)}…`);
-            return true;
+            console.warn(`[ACE] ⚠️ DEMO_MODE is set but KYC is still enforced. Remove DEMO_MODE from production.`);
         }
 
         // Check local cache first
@@ -110,9 +109,9 @@ class ACEService {
         vertical: string,
         geoHash: string
     ): Promise<{ allowed: boolean; reason?: string }> {
-        // Demo mode bypass — skip all compliance for dev/testing
+        // DEMO_MODE bypass removed — compliance always enforced
         if (process.env.DEMO_MODE === 'true') {
-            return { allowed: true };
+            console.warn(`[ACE] ⚠️ DEMO_MODE is set but compliance is still enforced.`);
         }
 
         // Check blacklist first
@@ -138,8 +137,8 @@ class ACEService {
                     return { allowed: false, reason: 'Compliance check failed on-chain' };
                 }
             } catch (error) {
-                console.error('ACE canTransact check failed:', error);
-                // Continue with off-chain checks
+                console.error('[ACE] ⚠️ canTransact on-chain check FAILED — denying transaction:', error);
+                return { allowed: false, reason: 'ACE compliance contract unavailable' };
             }
         }
 
@@ -150,22 +149,22 @@ class ACEService {
     // Reputation
     // ============================================
 
-    async getReputationScore(walletAddress: string): Promise<number> {
+    async getReputationScore(walletAddress: string): Promise<number | null> {
         if (this.contract) {
             try {
                 const score = await this.contract.getReputationScore(walletAddress);
                 return Number(score);
             } catch (error) {
-                console.error('ACE reputation fetch failed:', error);
+                console.error('[ACE] ⚠️ Reputation fetch failed:', error);
             }
         }
 
-        // Fallback to database
+        // Fallback to database — no hardcoded default
         const seller = await prisma.sellerProfile.findFirst({
             where: { user: { walletAddress: walletAddress.toLowerCase() } },
         });
 
-        return seller ? Number(seller.reputationScore) : 5000; // Default 50%
+        return seller ? Number(seller.reputationScore) : null;
     }
 
     // ============================================
@@ -410,7 +409,7 @@ class ACEService {
                 await tx.wait();
 
                 const newScore = await this.getReputationScore(walletAddress);
-                return { success: true, newScore };
+                return { success: true, newScore: newScore ?? undefined };
             } catch (error: any) {
                 console.error('ACE updateReputation on-chain failed:', error);
                 return { success: false, error: error.message };

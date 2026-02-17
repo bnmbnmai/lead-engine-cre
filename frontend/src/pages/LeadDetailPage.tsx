@@ -74,11 +74,12 @@ interface LeadDetail {
 
 // ─── Quality Score Bar ──────────────────────
 
-function QualityBar({ score }: { score: number }) {
+function QualityBar({ score, nftTokenId }: { score: number; nftTokenId?: string | null }) {
     const displayed = Math.floor(score / 100); // 0-10,000 → 0-100
     const pct = Math.min(displayed, 100);
     const color = pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
     const textColor = pct >= 70 ? 'text-emerald-500' : pct >= 50 ? 'text-amber-500' : 'text-red-500';
+    const isPreScore = !nftTokenId;
     return (
         <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -88,6 +89,9 @@ function QualityBar({ score }: { score: number }) {
             <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
             </div>
+            {isPreScore && (
+                <div className="text-[10px] text-muted-foreground/60 mt-1">Pre-score — final score confirmed on-chain after purchase</div>
+            )}
         </div>
     );
 }
@@ -366,7 +370,7 @@ export default function LeadDetailPage() {
                                     {/* Quality Score */}
                                     {lead.qualityScore != null && (
                                         <div className="mb-5">
-                                            <QualityBar score={lead.qualityScore} />
+                                            <QualityBar score={lead.qualityScore} nftTokenId={lead.nftTokenId} />
                                         </div>
                                     )}
 

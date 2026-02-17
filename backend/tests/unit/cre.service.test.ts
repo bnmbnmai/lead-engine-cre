@@ -119,8 +119,9 @@ describe('CREService', () => {
 
             const result = await creService.verifyLead('lead-5');
             expect(result.isValid).toBe(true);
+            expect((result as any).score).toBeGreaterThan(0);
             expect(prisma.lead.update).toHaveBeenCalledWith(expect.objectContaining({
-                data: { isVerified: true },
+                data: { isVerified: true, qualityScore: expect.any(Number) },
             }));
         });
 
@@ -395,6 +396,7 @@ describe('CREService', () => {
 
             const result = await creService.computePreScore('nonexistent');
             expect(result.admitted).toBe(false);
+            expect(result.score).toBe(0);
             expect(result.checks.dataIntegrity).toBe(false);
             expect(result.checks.tcpaConsent).toBe(false);
             expect(result.checks.geoValid).toBe(false);
@@ -409,6 +411,7 @@ describe('CREService', () => {
 
             const result = await creService.computePreScore('lead-pre-1');
             expect(result.admitted).toBe(true);
+            expect(result.score).toBeGreaterThanOrEqual(0);
             expect(result.checks).toEqual({
                 dataIntegrity: true,
                 tcpaConsent: true,
@@ -429,6 +432,7 @@ describe('CREService', () => {
 
             const result = await creService.computePreScore('lead-pre-2');
             expect(result.admitted).toBe(true);
+            expect(result.score).toBeGreaterThan(0);
             expect(result.checks.dataIntegrity).toBe(true);
             expect(result.checks.tcpaConsent).toBe(true);
             expect(result.checks.geoValid).toBe(true);
@@ -448,6 +452,7 @@ describe('CREService', () => {
 
             const result = await creService.computePreScore('lead-pre-3');
             expect(result.admitted).toBe(false);
+            expect(result.score).toBe(0);
             expect(result.checks.dataIntegrity).toBe(true);
             expect(result.checks.tcpaConsent).toBe(false);
             expect(result.checks.geoValid).toBe(true);

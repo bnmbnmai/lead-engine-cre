@@ -15,7 +15,10 @@
         "@chainlink/contracts": "^1.1.0",
         "@nomicfoundation/hardhat-toolbox": "^4.0.0",
         "@openzeppelin/contracts": "^5.0.1",
-        "hardhat": "^2.20.1",
-        "dotenv": "^16.4.5"
+        "dotenv": "^16.4.5",
+        "hardhat": "^2.20.1"
+    },
+    "dependencies": {
+        "@chainlink/functions-toolkit": "^0.3.2"
     }
 }

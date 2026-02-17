@@ -128,14 +128,15 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                         </Badge>
                         {lead.qualityScore != null ? (
                             <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${lead.qualityScore >= 80
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${lead.qualityScore >= 7000
                                     ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                    : lead.qualityScore >= 60
+                                    : lead.qualityScore >= 5000
                                         ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                                         : 'bg-red-500/15 text-red-400 border-red-500/30'
                                     }`}
+                                title="CRE Pre-score — confirmed on-chain after purchase"
                             >
-                                QS {lead.qualityScore}
+                                QS {Math.floor(lead.qualityScore / 100)}
                             </span>
                         ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30">

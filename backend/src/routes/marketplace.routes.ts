@@ -1235,6 +1235,101 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
 });
 
 // ============================================
+// Lead Scoring Data (for Chainlink Functions DON)
+// ============================================
+
+/**
+ * GET /leads/:tokenId/scoring-data
+ *
+ * Returns the data the Chainlink Functions DON needs to compute
+ * the on-chain quality score. Protected by CRE API key.
+ * This is called by the DON when CREVerifier.requestQualityScore() fires.
+ */
+router.get('/leads/:tokenId/scoring-data', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const creKey = req.headers['x-cre-key'];
+        if (!creKey || creKey !== process.env.CRE_API_KEY) {
+            return res.status(403).json({ error: 'Invalid CRE API key' });
+        }
+
+        // tokenId can be the NFT token ID or the lead UUID
+        const { tokenId } = req.params;
+
+        // Try finding by nftTokenId first, then by lead id
+        let lead = await prisma.lead.findFirst({
+            where: { nftTokenId: tokenId },
+            select: {
+                id: true,
+                tcpaConsentAt: true,
+                geo: true,
+                encryptedData: true,
+                parameters: true,
+                source: true,
+            },
+        });
+
+        if (!lead) {
+            lead = await prisma.lead.findUnique({
+                where: { id: tokenId },
+                select: {
+                    id: true,
+                    tcpaConsentAt: true,
+                    geo: true,
+                    encryptedData: true,
+                    parameters: true,
+                    source: true,
+                },
+            });
+        }
+
+        if (!lead) {
+            return res.status(404).json({ error: 'Lead not found' });
+        }
+
+        // Build scoring data — same shape the DON source expects
+        const geo = lead.geo as any;
+        const params = lead.parameters as any;
+        const paramCount = params
+            ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length
+            : 0;
+
+        let encryptedDataValid = false;
+        if (lead.encryptedData) {
+            try {
+                const parsed = JSON.parse(lead.encryptedData as string);
+                encryptedDataValid = !!(parsed.ciphertext && parsed.iv && parsed.tag);
+            } catch { /* malformed */ }
+        }
+
+        // Cross-validate zip↔state
+        let zipMatchesState = false;
+        if (geo?.zip && geo?.state) {
+            const country = (geo.country || 'US').toUpperCase();
+            if (country === 'US') {
+                const { getStateForZip } = await import('../lib/geo-registry');
+                const expectedState = getStateForZip(geo.zip);
+                zipMatchesState = !!expectedState && expectedState === geo.state.toUpperCase();
+            } else {
+                zipMatchesState = true;
+            }
+        }
+
+        res.json({
+            tcpaConsentAt: lead.tcpaConsentAt,
+            geo: geo || null,
+            hasEncryptedData: !!lead.encryptedData,
+            encryptedDataValid,
+            parameterCount: paramCount,
+            source: lead.source || 'OTHER',
+            zipMatchesState,
+        });
+    } catch (err) {
+        console.error('[MARKETPLACE] scoring-data error:', err);
+        res.status(500).json({ error: 'Failed to build scoring data' });
+    }
+});
+
+// ============================================
 // Lead Preview (Redacted for Buyers)
 // ============================================
 

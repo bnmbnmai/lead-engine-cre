@@ -2,23 +2,23 @@ import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { zkService } from './zk.service';
 import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } from '../lib/geo-registry';
+import { computeCREQualityScore, LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 
 // ============================================
 // CRE Verification Service — Two-Stage Scoring
 // ============================================
 //
-// Stage 1: PRE-AUCTION GATE (verifyLead / computePreScore)
-//   Runs at lead submission (marketplace, hosted form, RTB engine).
-//   Performs real checks: data integrity, TCPA consent, geo validation.
-//   Boolean pass/fail — no numeric score. Rejected leads are deleted.
+// Stage 1: PRE-AUCTION GATE + NUMERIC PRE-SCORE
+//   verifyLead() — boolean pass/fail gate (data, TCPA, geo)
+//   computeNumericPreScore() — scores 0–10,000 using the SAME
+//   JavaScript that runs on the Chainlink Functions DON.
+//   See: lib/chainlink/cre-quality-score.ts
+//   Pre-score stored in lead.qualityScore immediately.
 //
-// Stage 2: ON-CHAIN NUMERIC SCORE (getQualityScore)
-//   Runs AFTER NFT mint via CREVerifier.sol contract.
-//   CREVerifier requires a tokenId — scoring is impossible pre-NFT.
-//   Until scored, qualityScore = null → UI shows "Pending CRE".
-//
-// There is NO synthetic formula. The old assessLeadQuality() was
-// removed because it faked a numeric score from off-chain data.
+// Stage 2: ON-CHAIN CONFIRMED SCORE
+//   getQualityScore(tokenId) — reads CREVerifier.sol after NFT mint.
+//   Confirms/updates the pre-score with the on-chain result.
+//   UI shows "Pre-score" badge until confirmed.
 // ============================================
 
 const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS || '';
@@ -105,9 +105,17 @@ class CREService {
             return failed;
         }
 
+        // Compute numeric pre-score using the shared CRE scoring JavaScript
+        const preScore = this.computeNumericPreScoreFromLead(lead);
+
+        console.log(`[CRE PRE-GATE] Lead ${leadId}: pre-score=${preScore}/10000`);
+
         await prisma.lead.update({
             where: { id: leadId },
-            data: { isVerified: true },
+            data: {
+                isVerified: true,
+                qualityScore: preScore,
+            },
         });
 
         await prisma.complianceCheck.create({
@@ -120,19 +128,17 @@ class CREService {
             },
         });
 
-        return { isValid: true };
+        return { isValid: true, score: preScore };
     }
 
     /**
      * Compute a structured pre-score for a lead.
-     * Returns the pass/fail result of each real CRE check.
-     * No synthetic formula — just real verification results.
-     *
-     * This is the public API for callers that need structured results
-     * (e.g., the RTB engine for logging, the admin dashboard for insight).
+     * Returns the pass/fail result of each real CRE check PLUS
+     * the numeric quality score (0–10,000) from the shared scoring JS.
      */
     async computePreScore(leadId: string): Promise<{
         admitted: boolean;
+        score: number;
         checks: { dataIntegrity: boolean; tcpaConsent: boolean; geoValid: boolean };
         reason?: string;
     }> {
@@ -141,15 +147,17 @@ class CREService {
         if (!lead) {
             return {
                 admitted: false,
+                score: 0,
                 checks: { dataIntegrity: false, tcpaConsent: false, geoValid: false },
                 reason: 'Lead not found',
             };
         }
 
-        // If already verified, skip re-checking
+        // If already verified, return the existing score
         if (lead.isVerified) {
             return {
                 admitted: true,
+                score: Number(lead.qualityScore) || this.computeNumericPreScoreFromLead(lead),
                 checks: { dataIntegrity: true, tcpaConsent: true, geoValid: true },
             };
         }
@@ -162,9 +170,11 @@ class CREService {
 
         const admitted = dataCheck.isValid && tcpaCheck.isValid && geoCheck.isValid;
         const failedCheck = [dataCheck, tcpaCheck, geoCheck].find(c => !c.isValid);
+        const score = admitted ? this.computeNumericPreScoreFromLead(lead) : 0;
 
         return {
             admitted,
+            score,
             checks: {
                 dataIntegrity: dataCheck.isValid,
                 tcpaConsent: tcpaCheck.isValid,
@@ -172,6 +182,49 @@ class CREService {
             },
             reason: failedCheck?.reason,
         };
+    }
+
+    /**
+     * Compute the numeric pre-score from a lead record.
+     * Uses the SAME algorithm as the CREVerifier DON source.
+     * See: lib/chainlink/cre-quality-score.ts
+     */
+    private computeNumericPreScoreFromLead(lead: any): number {
+        const geo = lead.geo as any;
+        const params = lead.parameters as any;
+        const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
+
+        let encryptedDataValid = false;
+        if (lead.encryptedData) {
+            try {
+                const parsed = JSON.parse(lead.encryptedData);
+                encryptedDataValid = !!(parsed.ciphertext && parsed.iv && parsed.tag);
+            } catch { /* invalid JSON */ }
+        }
+
+        // Cross-validate zip↔state for US leads
+        let zipMatchesState = false;
+        if (geo?.zip && geo?.state) {
+            const country = (geo.country || 'US').toUpperCase();
+            if (country === 'US') {
+                const expectedState = getStateForZip(geo.zip);
+                zipMatchesState = !!expectedState && expectedState === geo.state.toUpperCase();
+            } else {
+                zipMatchesState = true; // Non-US: assume valid
+            }
+        }
+
+        const input: LeadScoringInput = {
+            tcpaConsentAt: lead.tcpaConsentAt,
+            geo: geo || null,
+            hasEncryptedData: !!lead.encryptedData,
+            encryptedDataValid,
+            parameterCount: paramCount,
+            source: lead.source || 'OTHER',
+            zipMatchesState,
+        };
+
+        return computeCREQualityScore(input);
     }
 
     // ============================================

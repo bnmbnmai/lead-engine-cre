@@ -219,6 +219,20 @@ npm run dev
 Hardhat node + contracts already deployed locally.  
 Full environment variables and production deploy instructions are in `.env.example` and `DEPLOY.md`.
 
+### 🔑 DON Secrets Renewal
+
+Chainlink Functions DON secrets (used for on-chain quality scoring) **expire every 72 hours**. Renewal is automated but can also be done manually:
+
+```bash
+cd contracts
+npx ts-node scripts/upload-don-secrets.ts
+```
+
+**Automated renewal:** A GitHub Actions workflow (`.github/workflows/renew-don-secrets.yml`) runs every 48 hours to renew secrets before expiration. Add these secrets to your GitHub repo:
+- `DEPLOYER_PRIVATE_KEY` — CREVerifier owner wallet
+- `CRE_API_KEY` — scoring-data endpoint auth key
+- `API_BASE_URL` — backend URL (e.g. `https://lead-engine-cre-api.onrender.com`)
+
 ---
 
 ## 🏆 Hackathon — Chainlink Convergence 2026

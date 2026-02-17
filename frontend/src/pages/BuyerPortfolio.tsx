@@ -47,7 +47,7 @@ function QualityBadge({ score }: { score: number }) {
             displayed >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
                 'text-red-400 bg-red-500/15 border-red-500/30';
     return (
-        <Badge variant="outline" className={`text-xs ${color}`}>
+        <Badge variant="outline" className={`text-xs ${color}`} title="CRE Pre-score — confirmed on-chain after purchase">
             <Shield className="h-3 w-3 mr-1" />
             {displayed}/100
         </Badge>
