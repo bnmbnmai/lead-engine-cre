@@ -658,11 +658,13 @@ router.post('/seed', async (req: Request, res: Response) => {
             const status = r < 0.6 ? 'IN_AUCTION' : r < 0.9 ? 'UNSOLD' : 'SOLD';
 
             const now = new Date();
-            const createdAt = new Date(now.getTime() - rand(0, 3) * 86400000);
-            // Only IN_AUCTION leads get a ticking countdown; UNSOLD/SOLD don't have auction timers
-            const auctionEnd = status === 'IN_AUCTION'
+            // Auction timestamps: both anchored to `now` so the progress bar starts at 0%
+            const auctionStartAt = status === 'IN_AUCTION' ? now : undefined;
+            const auctionEndAt = status === 'IN_AUCTION'
                 ? new Date(now.getTime() + LEAD_AUCTION_DURATION_SECS * 1000)
-                : undefined;
+                : status === 'SOLD'
+                    ? new Date(now.getTime() - rand(1, 5) * 60_000) // ended in the past
+                    : undefined;
 
             // Build non-PII parameters
             const params = buildVerticalDemoParams(vertical);
@@ -671,7 +673,7 @@ router.post('/seed', async (req: Request, res: Response) => {
             const seedGeo = { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` };
             const paramCount = params ? Object.keys(params).filter((k: string) => (params as any)[k] != null && (params as any)[k] !== '').length : 0;
             const seedScoreInput: LeadScoringInput = {
-                tcpaConsentAt: createdAt,
+                tcpaConsentAt: now,
                 geo: { country: seedGeo.country, state: seedGeo.state, zip: seedGeo.zip },
                 hasEncryptedData: false,
                 encryptedDataValid: false,
@@ -719,14 +721,26 @@ router.post('/seed', async (req: Request, res: Response) => {
                     winningBid: status === 'SOLD' ? price * 1.2 : undefined,
                     isVerified: true,
                     qualityScore,
-                    tcpaConsentAt: createdAt,
-                    createdAt,
-                    auctionStartAt: createdAt,
-                    auctionEndAt: auctionEnd ?? undefined,
-                    soldAt: status === 'SOLD' ? new Date(createdAt.getTime() + rand(1, 3) * 86400000) : undefined,
+                    tcpaConsentAt: now,
+                    auctionStartAt,
+                    auctionEndAt,
+                    soldAt: status === 'SOLD' ? new Date(now.getTime() - rand(1, 5) * 60_000) : undefined,
                     parameters: params as any,
                 },
             });
+
+            // Create AuctionRoom for IN_AUCTION leads so the closure service can track phase
+            if (status === 'IN_AUCTION' && auctionEndAt) {
+                await prisma.auctionRoom.create({
+                    data: {
+                        leadId: lead.id,
+                        roomId: `auction_${lead.id}`,
+                        phase: 'BIDDING',
+                        biddingEndsAt: auctionEndAt,
+                        revealEndsAt: auctionEndAt,
+                    },
+                });
+            }
 
             leadIds.push(lead.id);
             leadCount++;
