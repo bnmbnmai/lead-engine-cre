@@ -1,25 +1,31 @@
 /**
  * Agent Service — LangChain orchestration layer for MCP agent.
  *
- * Uses ChatMoonshot (Kimi K2.5) as the LLM with 9 DynamicStructuredTools.
- * Falls back gracefully if LangChain or Kimi is unavailable.
+ * Uses ChatOpenAI pointed at Kimi K2.5's OpenAI-compatible API as the LLM,
+ * with 9 DynamicStructuredTools. Falls back gracefully if Kimi is unavailable.
+ *
+ * NOTE: We use @langchain/openai (NOT @langchain/community ChatMoonshot)
+ * because Kimi K2.5 exposes an OpenAI-compatible API at api.kimi.com that
+ * supports tool calling. ChatMoonshot from @langchain/community targets
+ * api.moonshot.cn and does NOT support tool calling.
  *
  * Exports: runAgent(message, history) — called from mcp.routes.ts
  */
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { ChatMoonshot } from '@langchain/community/chat_models/moonshot';
+import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor, createToolCallingAgent } from 'langchain/agents';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 
 // ── Config ──
 
 const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
+const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.kimi.com/coding/v1';
 const MCP_BASE = process.env.MCP_SERVER_URL || 'https://lead-engine-mcp.onrender.com';
 
-// ── PII sanitization (mirrors mcp.routes.ts) ──
+// ── PII sanitization (shared with mcp.routes.ts) ──
 
 const PII_FIELDS = new Set([
     'phone', 'email', 'firstName', 'lastName', 'fullName', 'name',
@@ -28,11 +34,11 @@ const PII_FIELDS = new Set([
     'contactName', 'contactEmail', 'contactPhone',
 ]);
 
-function sanitizeLeadData(data: any): any {
+function sanitizeLeadData(data: unknown): unknown {
     if (Array.isArray(data)) return data.map(sanitizeLeadData);
     if (data && typeof data === 'object') {
-        const clean: any = {};
-        for (const [key, value] of Object.entries(data)) {
+        const clean: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
             if (PII_FIELDS.has(key)) continue;
             clean[key] = sanitizeLeadData(value);
         }
@@ -41,17 +47,24 @@ function sanitizeLeadData(data: any): any {
     return data;
 }
 
-// ── Local search (Prisma) ──
+// ── Local search (Prisma — direct DB access for search_leads) ──
 
-async function searchLeadsLocal(params: Record<string, unknown>): Promise<any> {
-    const where: any = { status: 'IN_AUCTION' };
-    if (params.vertical) where.vertical = { contains: params.vertical as string, mode: 'insensitive' };
-    if (params.state) where.geo = { path: ['state'], equals: params.state };
-    if (params.minPrice || params.maxPrice) {
-        where.reservePrice = {};
-        if (params.minPrice) where.reservePrice.gte = Number(params.minPrice);
-        if (params.maxPrice) where.reservePrice.lte = Number(params.maxPrice);
+async function searchLeadsLocal(params: Record<string, unknown>) {
+    const where: Record<string, unknown> = { status: 'IN_AUCTION' };
+
+    if (params.vertical) {
+        where.vertical = { contains: params.vertical as string, mode: 'insensitive' };
     }
+    if (params.state) {
+        where.geo = { path: ['state'], equals: params.state };
+    }
+    if (params.minPrice !== undefined || params.maxPrice !== undefined) {
+        const price: Record<string, number> = {};
+        if (params.minPrice !== undefined) price.gte = Number(params.minPrice);
+        if (params.maxPrice !== undefined) price.lte = Number(params.maxPrice);
+        where.reservePrice = price;
+    }
+
     const limit = Math.min(Number(params.limit) || 5, 10);
     const leads = await prisma.lead.findMany({
         where,
@@ -67,7 +80,8 @@ async function searchLeadsLocal(params: Record<string, unknown>): Promise<any> {
 
 // ── MCP JSON-RPC execution ──
 
-async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<any> {
+async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<unknown> {
+    // search_leads runs locally for speed & accuracy
     if (name === 'search_leads') {
         try {
             return await searchLeadsLocal(params);
@@ -85,13 +99,18 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
             method: name,
             params,
         }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(10_000),
     });
-    const rpcData: any = await rpcResponse.json();
+
+    if (!rpcResponse.ok) {
+        throw new Error(`MCP RPC error: ${rpcResponse.status} ${rpcResponse.statusText}`);
+    }
+
+    const rpcData = await rpcResponse.json() as { result?: unknown; error?: unknown };
     return sanitizeLeadData(rpcData.result || rpcData.error || {});
 }
 
-// ── Tool definitions ──
+// ── Tool definitions (9 tools — mirrors MCP_TOOLS in mcp.routes.ts) ──
 
 const tools = [
     new DynamicStructuredTool({
@@ -102,7 +121,7 @@ const tools = [
             state: z.string().optional().describe('US state code (e.g., CA, FL, TX)'),
             minPrice: z.number().optional().describe('Minimum reserve price in USDC'),
             maxPrice: z.number().optional().describe('Maximum reserve price in USDC'),
-            limit: z.number().default(5).describe('Max results to return'),
+            limit: z.number().optional().default(5).describe('Max results to return (1-10)'),
         }),
         func: async (params) => JSON.stringify(await executeMcpTool('search_leads', params)),
     }),
@@ -111,7 +130,7 @@ const tools = [
         description: 'Get real-time bid floor pricing for a vertical. Returns floor, ceiling, and market index.',
         schema: z.object({
             vertical: z.string().describe('Lead vertical (solar, mortgage, etc.)'),
-            country: z.string().default('US').describe('Country code'),
+            country: z.string().optional().default('US').describe('Country code'),
         }),
         func: async (params) => JSON.stringify(await executeMcpTool('get_bid_floor', params)),
     }),
@@ -126,7 +145,7 @@ const tools = [
         description: 'Configure auto-bid rules for a vertical. The engine auto-bids on matching leads.',
         schema: z.object({
             vertical: z.string().describe('Lead vertical'),
-            autoBidEnabled: z.boolean().default(true),
+            autoBidEnabled: z.boolean().optional().default(true),
             autoBidAmount: z.number().describe('Bid amount in USDC'),
             minQualityScore: z.number().optional().describe('Min quality score 0-100'),
             dailyBudget: z.number().optional().describe('Daily budget cap in USDC'),
@@ -138,9 +157,9 @@ const tools = [
         name: 'export_leads',
         description: 'Export leads as CSV or JSON for CRM integration.',
         schema: z.object({
-            format: z.enum(['csv', 'json']).default('json'),
-            status: z.string().default('SOLD'),
-            days: z.number().default(30),
+            format: z.enum(['csv', 'json']).optional().default('json'),
+            status: z.string().optional().default('SOLD'),
+            days: z.number().optional().default(30),
         }),
         func: async (params) => JSON.stringify(await executeMcpTool('export_leads', params)),
     }),
@@ -158,7 +177,7 @@ const tools = [
         description: 'Register a CRM webhook (HubSpot, Zapier, or generic).',
         schema: z.object({
             url: z.string().describe('Webhook destination URL'),
-            format: z.enum(['hubspot', 'zapier', 'generic']).default('generic'),
+            format: z.enum(['hubspot', 'zapier', 'generic']).optional().default('generic'),
         }),
         func: async (params) => JSON.stringify(await executeMcpTool('configure_crm_webhook', params)),
     }),
@@ -167,7 +186,7 @@ const tools = [
         description: 'Get full details and current status for a specific lead.',
         schema: z.object({
             leadId: z.string().describe('The lead ID'),
-            action: z.enum(['status', 'evaluate']).default('status'),
+            action: z.enum(['status', 'evaluate']).optional().default('status'),
         }),
         func: async (params) => JSON.stringify(await executeMcpTool('ping_lead', params)),
     }),
@@ -181,7 +200,7 @@ const tools = [
     }),
 ];
 
-// ── System prompt (same as mcp.routes.ts) ──
+// ── System prompt (identical to SYSTEM_PROMPT in mcp.routes.ts) ──
 
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
@@ -241,18 +260,25 @@ const prompt = ChatPromptTemplate.fromMessages([
     new MessagesPlaceholder('agent_scratchpad'),
 ]);
 
-// ── Lazy-initialized executor ──
+// ── Lazy-initialized executor (created once, reused across requests) ──
 
 let executorInstance: AgentExecutor | null = null;
 
 function getExecutor(): AgentExecutor {
     if (executorInstance) return executorInstance;
 
-    const llm = new ChatMoonshot({
-        apiKey: KIMI_API_KEY,
-        model: 'kimi-k2.5',
+    if (!KIMI_API_KEY) {
+        throw new Error('KIMI_API_KEY not set — cannot initialize LangChain agent');
+    }
+
+    const llm = new ChatOpenAI({
+        openAIApiKey: KIMI_API_KEY,
+        modelName: 'kimi-k2.5',
         temperature: 0.2,
         maxTokens: 4096,
+        configuration: {
+            baseURL: KIMI_BASE_URL,
+        },
     });
 
     const agent = createToolCallingAgent({ llm, tools, prompt });
@@ -266,7 +292,7 @@ function getExecutor(): AgentExecutor {
     return executorInstance;
 }
 
-// ── Chat message interface (matches mcp.routes.ts) ──
+// ── Chat message interface (matches frontend + mcp.routes.ts) ──
 
 interface ChatMessage {
     role: 'user' | 'assistant' | 'tool';
@@ -279,14 +305,15 @@ interface ChatMessage {
 export async function runAgent(
     message: string,
     history: ChatMessage[] = [],
-): Promise<{ messages: ChatMessage[]; toolCalls: any[]; mode: string }> {
+): Promise<{ messages: ChatMessage[]; toolCalls: Array<{ name: string; params: Record<string, unknown>; result?: unknown }>; mode: string }> {
     const executor = getExecutor();
 
-    // Convert chat history to LangChain message format
+    // Convert recent chat history to LangChain message format
+    // Keep last 6 user/assistant messages for context window
     const chatHistory = history.slice(-6).flatMap((h) => {
         if (h.role === 'user') return [new HumanMessage(h.content)];
         if (h.role === 'assistant') return [new AIMessage(h.content)];
-        return []; // skip tool messages in history
+        return []; // tool messages are internal traces, not part of conversation history
     });
 
     const result = await executor.invoke({
@@ -296,14 +323,14 @@ export async function runAgent(
 
     // Extract tool call log from intermediate steps
     const toolCallLog: ChatMessage[] = [];
-    const toolCallsForResponse: any[] = [];
+    const toolCallsForResponse: Array<{ name: string; params: Record<string, unknown>; result?: unknown }> = [];
 
     if (result.intermediateSteps) {
         for (const step of result.intermediateSteps) {
             const action = step.action;
             const observation = step.observation;
 
-            let parsedResult: any;
+            let parsedResult: unknown;
             try {
                 parsedResult = typeof observation === 'string' ? JSON.parse(observation) : observation;
             } catch {
@@ -312,7 +339,7 @@ export async function runAgent(
 
             const tc = {
                 name: action.tool,
-                params: action.toolInput || {},
+                params: (action.toolInput as Record<string, unknown>) || {},
                 result: parsedResult,
             };
 
@@ -325,6 +352,7 @@ export async function runAgent(
         }
     }
 
+    // Build response messages (matches shape from raw Kimi handler)
     const outputMessages: ChatMessage[] = [
         { role: 'user', content: message },
         ...toolCallLog,

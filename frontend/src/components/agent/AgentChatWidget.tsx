@@ -11,7 +11,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { Bot, Send, Loader2, Wrench, User, Sparkles, X, Minus, MessageSquare } from 'lucide-react';
+import { Bot, Send, Loader2, Wrench, User, Sparkles, X, MessageSquare } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 import { RenderMarkdown } from './AgentMarkdown';
 
@@ -98,10 +98,10 @@ export function AgentChatWidget() {
         return () => window.removeEventListener('agent-chat:open', handler);
     }, []);
 
-    // Keyboard: Escape to minimize
+    // Keyboard: Escape to minimize (only when input not focused)
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
+            if (e.key === 'Escape' && isOpen && document.activeElement !== inputRef.current) {
                 setIsOpen(false);
             }
         };
@@ -192,6 +192,7 @@ export function AgentChatWidget() {
                     onClick={() => { setIsOpen(true); setHasUnread(false); }}
                     className="fixed bottom-20 right-6 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-blue-600 hover:from-violet-600 hover:to-blue-700 hover:scale-110 flex items-center justify-center shadow-lg shadow-violet-500/25 transition-all duration-300 group"
                     title="Open Agent Chat"
+                    aria-label="Open AI Agent chat"
                 >
                     <MessageSquare className="h-5 w-5 text-white" />
                     {hasUnread && (
@@ -206,7 +207,7 @@ export function AgentChatWidget() {
 
             {/* Expanded chat panel */}
             {isOpen && (
-                <div className="fixed z-40 bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-[380px] h-[calc(100vh-5rem)] sm:h-[550px] flex flex-col rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+                <div className="fixed z-40 bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-[380px] h-[calc(100vh-5rem)] sm:h-[550px] max-h-[700px] flex flex-col rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300" role="dialog" aria-label="Agent Chat">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border rounded-t-2xl bg-background/95 backdrop-blur-xl">
                         <div className="flex items-center gap-2">
@@ -219,8 +220,8 @@ export function AgentChatWidget() {
                                     <span className="text-[10px] text-muted-foreground">MCP tools</span>
                                     {agentMode && (
                                         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono ${agentMode === 'kimi-k2.5' || agentMode === 'langchain'
-                                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                             }`}>
                                             {agentMode === 'langchain' ? '🧠 LangChain' : agentMode === 'kimi-k2.5' ? '🧠 Kimi' : '⚡ Fallback'}
                                         </span>
@@ -239,14 +240,8 @@ export function AgentChatWidget() {
                             <button
                                 onClick={() => setIsOpen(false)}
                                 className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                                title="Minimize (Esc)"
-                            >
-                                <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                                title="Close"
+                                title="Close (Esc)"
+                                aria-label="Close chat panel"
                             >
                                 <X className="h-3.5 w-3.5" />
                             </button>
