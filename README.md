@@ -73,15 +73,15 @@ Traditional platforms lose billions to bots. Lead Engine stops them at the smart
 
 ```mermaid
 sequenceDiagram
-    participant BP as Buyer Bounty Pool
-    participant S as Seller
-    participant API as Lead Engine API
-    participant CRE as Chainlink CRE
-    participant ACE as Chainlink ACE
-    participant FN as Chainlink Functions
-    participant RTB as RTB Engine
-    participant B as Buyer
-    participant X as RTBEscrow
+    participant BP as 💰 Buyer Bounty Pool
+    participant S as 🟢 Seller
+    participant API as ⚡ Lead Engine API
+    participant CRE as 🔗 Chainlink CRE
+    participant ACE as 🔵 Chainlink ACE
+    participant FN as ⚙️ Chainlink Functions
+    participant RTB as 🟪 RTB Engine
+    participant B as 👤 Buyer
+    participant X as 🟩 RTBEscrow
 
     Note over BP: Buyer funds pool ($75, solar, CA, credit>720)
 
