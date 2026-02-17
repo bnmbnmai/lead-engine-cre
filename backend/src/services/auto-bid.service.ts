@@ -274,7 +274,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                     amount: bidAmount,
                     salt,
                     status: 'PENDING',
-                    source: 'AUTO_BID' as any,
+                    source: 'AUTO_BID',
                 },
             });
 
@@ -324,7 +324,7 @@ async function getDailySpend(buyerId: string): Promise<number> {
         where: {
             buyerId: buyerId,
             createdAt: { gte: todayStart },
-            source: 'AUTO_BID' as any,
+            source: 'AUTO_BID',
         },
         _sum: { amount: true },
     });
@@ -337,7 +337,7 @@ async function getDailySpend(buyerId: string): Promise<number> {
  */
 export async function batchEvaluateLeads(leadIds: string[]): Promise<AutoBidResult[]> {
     const leads = await prisma.lead.findMany({
-        where: { id: { in: leadIds }, status: 'PENDING_AUCTION' as any },
+        where: { id: { in: leadIds }, status: 'PENDING_AUCTION' },
     });
 
     const results: AutoBidResult[] = [];
