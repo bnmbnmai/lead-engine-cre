@@ -16,7 +16,7 @@ import useAuth from '@/hooks/useAuth';
 // On logout/disconnect → navigate to /marketplace.
 
 export function ConnectButton() {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, requestLogin } = useAuth();
     const navigate = useNavigate();
     const wasAuthenticated = useRef(isAuthenticated);
 
@@ -56,7 +56,7 @@ export function ConnectButton() {
                             if (!connected) {
                                 return (
                                     <button
-                                        onClick={openConnectModal}
+                                        onClick={() => { requestLogin(); openConnectModal(); }}
                                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#375BD2] to-[#5B7FE5] text-white font-medium text-sm shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
                                     >
                                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -48,11 +48,11 @@ const queryClient = new QueryClient({
 
 // Auth error dialog — must be inside AuthProvider to consume context
 function AuthErrorDialog() {
-    const { authError, clearAuthError, login } = useAuth();
+    const { authError, clearAuthError, requestLogin } = useAuth();
     return (
         <ErrorDialog
             error={authError}
-            onRetry={() => { clearAuthError(); login(); }}
+            onRetry={() => { clearAuthError(); requestLogin(); }}
             onDismiss={clearAuthError}
         />
     );

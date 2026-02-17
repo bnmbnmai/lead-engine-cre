@@ -25,6 +25,8 @@ interface AuthContextType {
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     clearAuthError: () => void;
+    /** Signal that the user explicitly wants to connect + sign in */
+    requestLogin: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -39,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [authError, setAuthError] = useState<AuthError | null>(null);
     const autoLoginAttempted = useRef(false);
     const loginInProgress = useRef(false);
+    // Only fire auto-SIWE when user explicitly clicked "Connect Wallet"
+    const pendingLogin = useRef(false);
 
     const { address, isConnected, status, chain } = useAccount();
     const { signMessageAsync } = useSignMessage();
@@ -126,7 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             wagmiReady &&
             !loginInProgress.current &&
             chain &&
-            SUPPORTED_CHAIN_IDS.includes(chain.id)
+            SUPPORTED_CHAIN_IDS.includes(chain.id) &&
+            pendingLogin.current // Only auto-SIWE when user explicitly requested login
         ) {
             // Short delay to let any chain-switch UI resolve in MetaMask
             const timer = setTimeout(() => {
@@ -145,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!isConnected) {
             autoLoginAttempted.current = false;
+            pendingLogin.current = false;
         }
     }, [isConnected]);
 
@@ -241,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setAuthToken(authData.token);
             setUser(authData.user);
             setAuthError(null);
+            pendingLogin.current = false;
             socketClient.connect();
         } catch (err: any) {
             const msg = err?.message || '';
@@ -279,6 +286,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const clearAuthError = () => setAuthError(null);
 
+    /** Signal explicit user intent to connect + sign in.
+     *  Sets pendingLogin so the auto-SIWE effect knows it's user-initiated.
+     *  If already connected, triggers login() immediately. */
+    const requestLogin = () => {
+        pendingLogin.current = true;
+        if (isConnected && address && !user && !loginInProgress.current) {
+            login();
+        }
+        // If not connected, RainbowKit's openConnectModal handles it —
+        // once the wallet connects, the auto-SIWE effect will fire
+        // because pendingLogin is now true.
+    };
+
     return (
         <AuthContext.Provider
             value={{
@@ -290,6 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 logout,
                 refreshUser,
                 clearAuthError,
+                requestLogin,
             }}
         >
             {children}
