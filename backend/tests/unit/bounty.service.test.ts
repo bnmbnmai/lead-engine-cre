@@ -352,6 +352,8 @@ describe('BountyService.depositBounty', () => {
 describe('BountyService.getVerticalBountyTotal', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        // Clear the in-memory TTL cache so each test starts fresh
+        (bountyService as any).totalCache?.clear?.();
     });
 
     it('sums active pool available balances', async () => {
