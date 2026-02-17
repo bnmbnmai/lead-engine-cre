@@ -260,10 +260,10 @@ describe('ACEService', () => {
             expect(score).toBe(7500);
         });
 
-        it('should return default 5000 for unknown wallet', async () => {
+        it('should return null for unknown wallet (no hardcoded default)', async () => {
             (prisma.sellerProfile.findFirst as jest.Mock).mockResolvedValue(null);
             const score = await aceService.getReputationScore('0xUnknown');
-            expect(score).toBe(5000);
+            expect(score).toBeNull();
         });
     });
 
