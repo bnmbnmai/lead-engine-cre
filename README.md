@@ -15,17 +15,23 @@ Lead Engine brings web3 trust, privacy, and compliance to the $200B+ global lead
 Sellers get paid in seconds. Buyers get verified, compliant leads with on-chain provenance.  
 Every purchased lead is minted as an **ERC-721 LeadNFT** — immutable quality score, resale rights, and royalties.
 
+**🆕 Buyer Bounties** — Buyers fund per-vertical USDC escrow pools to attract high-quality leads (e.g., extra $75 for solar leads in CA with credit >720). Bounties auto-release to sellers as a bonus on match. Unmatched funds refund to the buyer at any time.
+
 ### Key Differentiators
-- PII never touches the blockchain or the NFT (non-PII previews only)
-- Sealed-bid commit-reveal auctions for fairness
-- Real on-chain escrow + instant USDC settlement (client-side RTBEscrow signing)
-- LeadNFT as immutable provenance and royalty-bearing asset
+
+- **PII never touches the blockchain or the NFT** (non-PII previews only)
+- **Sealed-bid commit-reveal auctions** for fairness
+- **Real on-chain escrow + instant USDC settlement** (client-side RTBEscrow signing)
+- **LeadNFT** as immutable provenance and royalty-bearing asset
 - **Field-Level Filtering & Granular Autobidding**  
   Buyers can filter and auto-bid on specific attributes (credit score ranges, ZIP codes, roof condition, system size, etc.).  
   - Powered by the new VerticalField schema (automatically synced from admin-created verticals)  
   - Live "X leads match" counter on the marketplace  
   - Quality score filtering (0–100) via live Chainlink CREVerifier  
   - Works for both manual browsing and MCP autonomous agents
+- **Buyer Bounties for dynamic incentives**  
+  Standing USDC pools with criteria filters (geo, quality, credit, lead age). 2× stacking cap. Multiple buyers can stack bounties on the same vertical. On-chain via `VerticalBountyPool.sol`.
+- **Unified Marketplace Views** (all open leads visible to sellers and buyers)
 - **Dynamic Verticals – Horizontal Scaling**  
   50+ seeded verticals. New verticals are created instantly in the admin dashboard and become live seller templates with no code changes. VerticalNFT auctions let the community launch and own new verticals, with 2% royalties on secondary sales of the ownership token (contracts ready, full revenue-share flow post-hackathon).
 
@@ -56,11 +62,13 @@ Fraud is cryptographically prevented **before** any buyer sees the lead.
 | **Compliance**   | Manual reviews                       | ACE auto-KYC & jurisdiction rules |
 | **Automation**   | Basic rules                          | Field-level auto-bid rules + LangChain autonomous agent |
 | **Provenance**   | No audit trail                       | ERC-721 LeadNFT with full history |
+| **Incentives**   | Fixed pricing, no seller bonuses     | **Buyer Bounties** — per-vertical escrow pools with criteria-based auto-release |
 
 ### How a Lead Moves Through the System
 
 ```mermaid
 sequenceDiagram
+    participant BP as 💰 Buyer Bounty Pool
     participant S as 🟢 Seller
     participant API as ⚡ Lead Engine API
     participant CRE as 🔗 Chainlink CRE
@@ -68,6 +76,8 @@ sequenceDiagram
     participant RTB as 🟪 RTB Engine
     participant B as 👤 Buyer
     participant X as 🟩 RTBEscrow
+
+    Note over BP: Buyer funds per-vertical pool ($75, solar, CA, credit>720)
 
     S->>API: Submit lead
     API->>CRE: Quality + ZK fraud check
@@ -88,6 +98,10 @@ sequenceDiagram
     B->>X: Winner pays USDC
     X->>S: Instant settlement (minus 2.5% + $1 if auto-bid/API)
     X->>B: Decrypted lead + mint LeadNFT
+
+    Note over API: Match buyer bounties against lead criteria
+    API->>BP: matchBounties(lead) → criteria pass?
+    BP->>S: 🎁 Bounty bonus released to seller
 ```
 
 ## 💰 Pricing & Fees
@@ -148,6 +162,19 @@ Every purchased lead becomes an ERC-721 NFT with immutable quality proof and own
 
 Atomic escrow → release on win or Buy-It-Now. No wires, no chargebacks, no 30–60 day waits.
 
+### Buyer Bounties (VerticalBountyPool)
+
+Buyers fund standing USDC escrow pools per vertical with criteria filters:
+
+| Criteria | Example |
+|----------|---------|
+| Geo (state/country) | CA, TX only |
+| Min Quality Score | ≥7,000/10,000 |
+| Min Credit Score | ≥720 |
+| Max Lead Age | ≤24 hours |
+
+Multiple buyers can stack bounties on the same vertical (capped at 2× lead price). When a matching lead wins at auction, bounties auto-release to the seller as a bonus. Unmatched funds are refundable at any time on-chain.
+
 ### Field-Level Filtering & Granular Autobidding
 
 Buyers can now filter and auto-bid on specific lead attributes (credit score ranges, ZIP codes, roof condition, system size, etc.).
@@ -171,8 +198,9 @@ New verticals are created instantly in the admin dashboard and become live selle
 - Every lead minted as `LeadNFTv2.sol` (ERC-721)
 - Auto-bid engine with field-level rules (vertical, geo, quality, budget + granular field filters like roof_condition, system_size)
 - Field-level rule builder UI (multi-select chips, operator dropdowns, boolean toggles)
+- **Buyer Bounties** — per-vertical USDC pools with criteria matching, stacking, and auto-release (`VerticalBountyPool.sol`)
 - CRM webhooks (HubSpot, Zapier, custom)
-- 10 seeded verticals + AI dynamic vertical creation
+- 50+ seeded verticals + AI dynamic vertical creation
 
 ### Advanced
 
@@ -187,7 +215,7 @@ New verticals are created instantly in the admin dashboard and become live selle
 
 ---
 
-## 📜 Smart Contracts (9 deployed)
+## 📜 Smart Contracts (10 deployed)
 
 | Contract | Description |
 |----------|-------------|
@@ -195,6 +223,7 @@ New verticals are created instantly in the admin dashboard and become live selle
 | `ACECompliance.sol` | KYC & jurisdiction |
 | `CREVerifier.sol` | Quality + ZK proofs |
 | `RTBEscrow.sol` | USDC escrow settlement |
+| `VerticalBountyPool.sol` | **Buyer-funded per-vertical bounty pools** |
 | `VerticalNFT.sol` + `VerticalAuction.sol` | Optional vertical NFTs |
 | `CustomLeadFeed.sol` | Public metrics feed |
 
@@ -245,6 +274,7 @@ We contribute back by publishing anonymized market metrics as a public custom da
 1. Seller submits lead → CRE scores + ACE clears
 2. Buyers (or LangChain agent) receive non-PII preview via WebSocket
 3. Auction ends → winner pays USDC via RTBEscrow → lead minted as NFT
+4. **Buyer bounties auto-match → seller receives bonus on top of bid**
 
 **Live demo:** https://lead-engine-cre-frontend.vercel.app  
 **Repo:** https://github.com/bnmbnmai/lead-engine-cre
