@@ -224,7 +224,7 @@ export function AgentChatWidget() {
 
             {/* Expanded chat panel */}
             {isOpen && (
-                <div className="fixed z-50 bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-[380px] h-[calc(100vh-5rem)] sm:h-[550px] max-h-[700px] flex flex-col rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300" role="dialog" aria-label="Agent Chat">
+                <div className="fixed z-50 bottom-20 right-6 w-[calc(100vw-2rem)] sm:w-[380px] max-h-[calc(100vh-120px)] h-[550px] flex flex-col rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300" role="dialog" aria-label="Agent Chat">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border rounded-t-2xl bg-background/95 backdrop-blur-xl">
                         <div className="flex items-center gap-2">
