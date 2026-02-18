@@ -24,6 +24,15 @@ Lead Engine is the first **tokenized, real-time bidding marketplace for verified
 
 **Hackathon Focus:** CRE, ACE, and Automation are fully integrated with deployed contracts. Functions, VRF, and Data Feeds are functional with production contracts. DECO and Confidential HTTP are architecturally integrated as stubs ready for mainnet.
 
+### Recent Updates (Feb 18, 2026)
+
+- **On-Chain Vaults** — `PersonalEscrowVault.sol` deployed on Base Sepolia with pre-bid fund locking, atomic settlement, and full refunds
+- **Proof of Reserves** — Chainlink Automation verifies vault solvency every 24h via `verifyReserves()`
+- **Expired Lock Auto-Refunds** — Automation sweeps locks older than 7 days, gas-capped at 50 per upkeep
+- **Gas Sponsorship** — backend sponsors gas for all vault operations (`lockForBid`, `settleBid`, `refundBid`), so buyers never need ETH for bidding
+- **2-Pass Security Audit** — 11 findings identified, 10 fixed, 42 Hardhat tests passing
+- **Sealed-bid UX** — highest bid amount hidden during BIDDING phase; only revealed after auction ends
+
 ---
 
 ## Key Differentiators
@@ -33,6 +42,7 @@ Lead Engine is the first **tokenized, real-time bidding marketplace for verified
 - **PII never touches the blockchain** — non-PII previews only; full data revealed after escrow release
 - **Sealed-bid commit-reveal auctions** — keccak256 commitments prevent front-running
 - **Instant USDC settlement** — bid amount → seller, $1 fee → platform wallet, all on-chain
+- **Gas-sponsored bidding** — backend sponsors gas for all vault operations (lock, settle, refund) so buyers never need ETH in their wallet to participate
 - **LeadNFT provenance** — every lead = ERC-721 with quality proof and royalties
 - **Buyer-Funded Bounties** — standing USDC pools per vertical with criteria (geo, QS, credit, age); 2x stacking cap; auto-release to sellers on match; refundable anytime
 - **Unified Marketplace** — all open leads visible to sellers and buyers with real-time WebSocket streaming
@@ -54,6 +64,8 @@ Traditional platforms lose billions to bots. Lead Engine stops them at the smart
 | **Recycled Leads** | Same lead resold 50 times | Every purchase mints a unique ERC-721 with immutable ownership |
 | **Bounty Gaming** | Fabricating leads to drain bounty pools | Bounties release only after CRE scoring + auction completion + criteria match; 2x cap prevents over-incentivization |
 | **Fund Mismanagement** | Platforms commingle buyer deposits | On-chain PoR via Chainlink Automation; `verifyReserves()` checks USDC balance ≥ claimed deposits every 24h |
+| **Reserve Tampering** | Platforms misreport reserves or siphon funds | Verifiable on-chain PoR — `USDC.balanceOf(vault) ≥ totalDeposited - totalWithdrawn`, checked by Chainlink Automation; insolvency emits `ReservesVerified(false)` |
+| **Expired Lock Exploitation** | Stale fund locks drain buyer liquidity indefinitely | Chainlink Automation auto-refunds bid locks older than 7 days; gas-capped at 50 per upkeep to prevent block gas abuse |
 
 ---
 
@@ -63,10 +75,10 @@ Traditional platforms lose billions to bots. Lead Engine stops them at the smart
 |---|---|---|
 | **Speed** | 7–30 day payouts | Instant USDC via on-chain vault settlement |
 | **Trust** | Limited verification | CRE quality score (0–10,000) + ZK proofs |
-| **Solvency** | Trust the platform | On-chain Proof of Reserves verified every 24h by Chainlink Automation |
+| **Solvency** | Trust-based audits, opaque reserves | On-chain verifiable reserves (PoR) checked every 24h by Chainlink Automation |
 | **Privacy** | Full PII on submit | Non-PII previews; full data only after purchase |
 | **Compliance** | Manual reviews | ACE auto-KYC and jurisdiction policy engine |
-| **Escrow** | Platform holds funds (opaque) | Per-user on-chain vault; pre-bid fund locking; atomic settle/refund |
+| **Escrow** | Manual chargebacks, platform-held funds | Automated on-chain refunds via Chainlink Automation; per-user vault with pre-bid locking |
 | **Automation** | Basic rules | Field-level auto-bid + LangChain agents + Chainlink Automation |
 | **Provenance** | No audit trail | ERC-721 LeadNFT with full on-chain history |
 | **Incentives** | Fixed pricing | Buyer Bounties — per-vertical pools with criteria-based auto-release |
@@ -88,8 +100,8 @@ sequenceDiagram
     participant V as 🏦 PersonalEscrowVault
     participant AUTO as ⏰ Chainlink Automation
 
-    Note over BP: Buyer funds pool ($75, solar, CA, credit>720)
     Note over V: Buyer deposits USDC into vault
+    Note over BP: Buyer funds bounty pool ($75, solar, CA, credit>720)
 
     S->>API: Submit lead (non-PII preview)
     API->>CRE: Quality score + ZK fraud check
@@ -375,6 +387,8 @@ Hardhat node + contracts already deployed locally. Full configuration in `.env.e
 | `VAULT_ADDRESS_BASE_SEPOLIA` | `0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13` | PersonalEscrowVault contract |
 | `VAULT_PLATFORM_WALLET` | Your platform wallet address | Receives $1 bid fees |
 | `USDC_CONTRACT_ADDRESS` | USDC token address on Base Sepolia | ERC-20 payment token |
+| `AUTOMATION_REGISTRY` | Chainlink Automation registry address | Automation upkeep registration |
+| `POR_FEED_ADDRESS` | PoR feed address (post-hackathon) | External Proof-of-Reserves feed |
 
 ### DON Secrets Renewal
 
@@ -411,7 +425,7 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 | ✅ Done | Sealed-bid commit-reveal with pre-funded escrow | Working E2E |
 | High | DECO zkTLS attestations for off-site lead provenance | Stubbed, full integration planned |
 | High | Confidential HTTP for encrypted fraud signal aggregation | Stubbed, full integration planned |
-| Medium | Advanced PoR — Chainlink PoR Feed integration for external auditability | Architecture planned |
+| 🔄 In Progress | Advanced PoR — Chainlink PoR Feed integration for external auditability | Architecture designed, env var wired |
 | Medium | Secondary market for LeadNFT and VerticalNFT trading | Contracts ready |
 | Medium | Cross-chain settlement (Arbitrum, Optimism, Polygon) | Architecture planned |
 | Ready | VerticalNFT revenue-share flow (2% royalties) | Contracts deployed |
@@ -419,3 +433,18 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 
 See `ROADMAP.md` for high-volume scaling considerations and enterprise features (target: 10k+ leads/day).
 See `docs/MAINNET_MIGRATION.md` for the full migration plan.
+
+---
+
+## Stubs Migration Status
+
+See `current-stubs-audit.md` for the full 17-entry audit. Key migration highlights:
+
+| Stub | Previous State | Current State |
+|---|---|---|
+| Off-chain vault / escrow fallback | DB-only balance tracking | ✅ **Migrated** — on-chain `PersonalEscrowVault.sol` with PoR + Automation |
+| Chainlink Keepers (quarterly reset) | Simulated cron-based upkeep | ✅ **Migrated** — Chainlink Automation handles PoR (24h) + expired lock refunds (7d) |
+| Expired bids/bounties cleanup | Manual or unhandled | ✅ **Ready** — `_refundExpiredLocks()` in vault, gas-capped at 50 per upkeep |
+| DECO zkTLS attestation | Stub | 🔶 Stubbed (awaiting mainnet) |
+| Confidential HTTP (TEE) | Stub | 🔶 Stubbed (post-hackathon) |
+| ACE off-chain fallbacks | Implicit DB fallback | 🟡 Partial — on-chain preferred, DB fallback when contract unavailable |
