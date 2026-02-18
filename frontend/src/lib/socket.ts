@@ -193,6 +193,11 @@ class SocketClient {
         this.listeners.get(event)?.forEach((handler) => handler(data));
     }
 
+    /** Expose raw socket for dev-log and other untyped events */
+    getSocket(): Socket | null {
+        return this.socket;
+    }
+
     isConnected(): boolean {
         return this.socket?.connected ?? false;
     }

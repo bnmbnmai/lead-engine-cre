@@ -33,6 +33,7 @@ import SellerIntegrations from '@/pages/SellerIntegrations';
 import BuyerIntegrations from '@/pages/BuyerIntegrations';
 
 import { DemoPanel } from '@/components/demo/DemoPanel';
+import { DevLogPanel } from '@/components/demo/DevLogPanel';
 import { AgentChatWidget } from '@/components/agent/AgentChatWidget';
 import { Toaster } from '@/components/ui/Toaster';
 import { ErrorDialog } from '@/components/ui/ErrorDialog';
@@ -150,6 +151,7 @@ function GlobalOverlays() {
     return (
         <>
             {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
+            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DevLogPanel />}
             <AgentChatWidget />
         </>
     );

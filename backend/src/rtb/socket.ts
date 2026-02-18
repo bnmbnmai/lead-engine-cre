@@ -2,7 +2,7 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
-import { aceService } from '../services/ace.service';
+import { aceService, aceDevBus } from '../services/ace.service';
 import {
     applyHolderPerks,
     applyMultiplier,
@@ -122,6 +122,11 @@ class RTBSocketServer {
         this.setupMiddleware();
         this.setupEventHandlers();
         this.startAuctionMonitor();
+
+        // Forward ACE dev-log events to all connected clients (demo mode only)
+        aceDevBus.on('ace:dev-log', (entry) => {
+            this.io.emit('ace:dev-log', entry);
+        });
     }
 
     // ============================================

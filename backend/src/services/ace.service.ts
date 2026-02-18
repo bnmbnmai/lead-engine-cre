@@ -1,7 +1,16 @@
 import { ethers } from 'ethers';
+import { EventEmitter } from 'events';
 import { prisma } from '../lib/prisma';
 import { crossBorderRequirements, getPolicy } from '../lib/jurisdiction-policies';
 import { isValidRegion } from '../lib/geo-registry';
+
+// Global event bus for dev-log events (consumed by socket layer → frontend DevLog panel)
+export const aceDevBus = new EventEmitter();
+function devLog(action: string, data: Record<string, unknown>) {
+    const entry = { ts: new Date().toISOString(), action, ...data };
+    console.log(`[ACE:DEV] ${action}`, JSON.stringify(data));
+    aceDevBus.emit('ace:dev-log', entry);
+}
 
 // ============================================
 // ACE Compliance Service
@@ -11,17 +20,18 @@ const ACE_CONTRACT_ADDRESS = process.env.ACE_CONTRACT_ADDRESS_BASE_SEPOLIA || pr
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
-// ACE Contract ABI (read + write)
+// ACE Contract ABI — must match DEPLOYED contract at 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6
+// Signatures verified against Base Sepolia deployment (NOT the repo Solidity source).
 const ACE_ABI = [
     // Read
     'function isKYCValid(address user) view returns (bool)',
     'function checkKYCStatus(address user) view returns (uint8)',
-    'function canTransact(address user, bytes32 vertical, bytes32 geoHash) view returns (bool)',
+    'function canTransact(address wallet, string vertical) view returns (bool)',
     'function getReputationScore(address user) view returns (uint16)',
     'function getUserCompliance(address user) view returns (tuple(uint8 kycStatus, uint8 amlStatus, bytes32 jurisdictionHash, uint40 kycExpiresAt, uint40 lastChecked, uint16 reputationScore, bool isBlacklisted))',
     'function isJurisdictionAllowed(bytes32 jurisdictionHash, bytes32 verticalHash) view returns (bool)',
     // Write
-    'function verifyKYC(address user, bytes32 proofHash, bytes zkProof)',
+    'function verifyKYC(address wallet, bytes32 jurisdictionHash)',
     'function updateReputationScore(address user, int16 delta)',
     'function setJurisdictionPolicy(bytes32 jurisdictionHash, bytes32 verticalHash, bool allowed)',
 ];
@@ -36,11 +46,14 @@ class ACEService {
 
         if (ACE_CONTRACT_ADDRESS) {
             this.contract = new ethers.Contract(ACE_CONTRACT_ADDRESS, ACE_ABI, this.provider);
+            devLog('init', { contractAddress: ACE_CONTRACT_ADDRESS, rpc: RPC_URL, hasSigner: !!DEPLOYER_KEY });
 
             if (DEPLOYER_KEY) {
                 this.signer = new ethers.Wallet(DEPLOYER_KEY, this.provider);
                 this.contract = this.contract.connect(this.signer) as ethers.Contract;
             }
+        } else {
+            devLog('init', { contractAddress: 'NONE — contract disabled', rpc: RPC_URL });
         }
     }
 
@@ -126,17 +139,17 @@ class ACEService {
             return { allowed: false, reason: 'KYC verification required' };
         }
 
-        // Check on-chain if available
+        // Check on-chain — deployed canTransact(address, string)
         if (this.contract) {
             try {
-                const verticalHash = ethers.keccak256(ethers.toUtf8Bytes(vertical));
-                const geoHashBytes = ethers.keccak256(ethers.toUtf8Bytes(geoHash));
-
-                const canTx = await this.contract.canTransact(walletAddress, verticalHash, geoHashBytes);
+                devLog('canTransact:call', { wallet: walletAddress, vertical });
+                const canTx = await this.contract.canTransact(walletAddress, vertical);
+                devLog('canTransact:result', { wallet: walletAddress, vertical, allowed: canTx });
                 if (!canTx) {
                     return { allowed: false, reason: 'Compliance check failed on-chain' };
                 }
-            } catch (error) {
+            } catch (error: any) {
+                devLog('canTransact:error', { wallet: walletAddress, vertical, error: error.message });
                 console.error('[ACE] ⚠️ canTransact on-chain check FAILED — denying transaction:', error);
                 return { allowed: false, reason: 'ACE compliance contract unavailable' };
             }
@@ -303,11 +316,13 @@ class ACEService {
             ethers.toUtf8Bytes(`kyc-${walletAddress}-${Date.now()}`)
         );
 
-        // On-chain KYC tokenization
+        // On-chain KYC — deployed verifyKYC(address, bytes32)
         if (this.contract && this.signer) {
             try {
-                const tx = await this.contract.verifyKYC(walletAddress, kycProofHash, '0x');
+                devLog('verifyKYC:call', { wallet: walletAddress, proofHash: kycProofHash });
+                const tx = await this.contract.verifyKYC(walletAddress, kycProofHash);
                 const receipt = await tx.wait();
+                devLog('verifyKYC:result', { wallet: walletAddress, txHash: receipt?.hash });
 
                 // Cache in database
                 await prisma.complianceCheck.create({
@@ -324,6 +339,7 @@ class ACEService {
 
                 return { verified: true, txHash: receipt?.hash };
             } catch (error: any) {
+                devLog('verifyKYC:error', { wallet: walletAddress, error: error.message });
                 console.error('ACE autoKYC on-chain failed:', error);
                 return { verified: false, error: error.message };
             }

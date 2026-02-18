@@ -477,14 +477,15 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 ## 9. Major Work Completed in Recent Sessions
 
 ### Session: Feb 18 (Today)
-- Fixed **"ACE compliance contract unavailable" error** on bid placement — three root causes:
-  1. `ace.service.ts` read wrong env var (`ACE_CONTRACT_ADDRESS` = Sepolia) instead of Base Sepolia address
-  2. `verifyKYC` ABI had 2 params but contract expects 3 (added `bytes zkProof`)
-  3. Demo buyers never registered on-chain — added `aceService.autoKYC()` call during demo-login
+- Fixed **"ACE compliance contract unavailable" error** on bid placement — definitive root cause was **ABI mismatch** between code and deployed contract:
+  1. `canTransact` ABI used `(address, bytes32, bytes32)` but deployed contract uses `(address, string)` — different function selector → revert
+  2. `verifyKYC` ABI used `(address, bytes32, bytes)` but deployed contract uses `(address, bytes32)` — same issue
+  3. Env var read `ACE_CONTRACT_ADDRESS` (Sepolia) instead of `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA`
+  4. Demo buyers never registered on-chain — added `aceService.autoKYC()` during demo-login
+- Added **Dev Log panel** (bottom-left, toggleable) showing real-time ACE compliance events
 - Fixed `cre.service.ts` same env var pattern (now prioritizes `_BASE_SEPOLIA`)
 - Fixed sealed bid not-recorded bug (4-layer fix: buyer profile, KYC status, promise-based placeBid, error toasts)
-- Fixed WebSocket limit bug (`marketplace:lead:new`, `marketplace:refreshAll` events) where lead display defaulted to 20 instead of 100 after real-time updates
-- Corrected `refetchData` in socket event handlers to pass `limit=100` parameter
+- Fixed WebSocket limit bug where lead display defaulted to 20 instead of 100 after real-time updates
 
 ### Session: Feb 17
 - **Data Feeds terminology fix** — corrected all "Data Streams" references to "Data Feeds" across codebase and docs; fixed incorrect use of Data Streams verifier proxy address with Data Feeds ABI; updated contract address to correct Base Sepolia ETH/USD feed (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`)
