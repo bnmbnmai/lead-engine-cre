@@ -19,3 +19,5 @@ The current architecture is designed for demo and early-production traffic. Scal
 ## Enterprise Features (Post-Hackathon)
 
 **Enterprise Branded Verticals.** White-label verticals for large buyers and sellers — custom branding, dedicated lead pools, priority CRE scoring, and isolated auction rooms. VerticalNFT owners can configure branded landing pages, custom form fields, and exclusive buyer access lists. Revenue-share royalties (2%) flow automatically via the deployed VerticalNFT contracts.
+
+**Automatic Lead Requalification.** When a lead goes unsold at auction but active buyer autobid demand exists for that vertical and geo, the system automatically re-scores the lead via SMS, adjusts the reserve price to match current market demand, and re-lists it — no seller action required. Demand signals are derived from autobid configurations (target vertical, geo, max bid, daily budget) so that unsold inventory is continuously recycled into the highest-demand pools.
