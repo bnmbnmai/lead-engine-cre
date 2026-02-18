@@ -444,55 +444,57 @@ export function HomePage() {
                     </section>
                 )}
 
-                {/* Why Lead Engine — Trust Bar */}
-                <section>
-                    <div className="grid md:grid-cols-3 gap-5">
-                        {/* Card 1: Lead Quality */}
-                        <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
-                                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                {/* Why Lead Engine — Trust Bar (guest only) */}
+                {!isAuthenticated && (
+                    <section>
+                        <div className="grid md:grid-cols-3 gap-5">
+                            {/* Card 1: Lead Quality */}
+                            <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-emerald-500/30 hover:bg-emerald-500/[0.04]">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
+                                        <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                                    </div>
+                                    <h3 className="font-semibold text-sm text-foreground">Verified Lead Quality</h3>
                                 </div>
-                                <h3 className="font-semibold text-sm text-foreground">Verified Lead Quality</h3>
+                                <p className="text-sm leading-relaxed text-muted-foreground">
+                                    Every lead carries a Chainlink CRE quality score (0&ndash;100) that cryptographically
+                                    proves authenticity. No bots, no stuffed data, no junk &mdash; verified on-chain
+                                    before it reaches the marketplace.
+                                </p>
                             </div>
-                            <p className="text-sm leading-relaxed text-muted-foreground">
-                                Every lead carries a Chainlink CRE quality score (0&ndash;100) that cryptographically
-                                proves authenticity. No bots, no stuffed data, no junk &mdash; verified on-chain
-                                before it reaches the marketplace.
-                            </p>
-                        </div>
 
-                        {/* Card 2: Transparency */}
-                        <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-blue-500/30 hover:bg-blue-500/[0.04]">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
-                                    <Eye className="h-5 w-5 text-blue-400" />
+                            {/* Card 2: Transparency */}
+                            <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-blue-500/30 hover:bg-blue-500/[0.04]">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
+                                        <Eye className="h-5 w-5 text-blue-400" />
+                                    </div>
+                                    <h3 className="font-semibold text-sm text-foreground">Full Transparency</h3>
                                 </div>
-                                <h3 className="font-semibold text-sm text-foreground">Full Transparency</h3>
+                                <p className="text-sm leading-relaxed text-muted-foreground">
+                                    On-chain USDC settlement and LeadNFT provenance give both sides perfect
+                                    auditability. Atomic payments &mdash; no net terms, no chargebacks. Ownership
+                                    history and quality proof travel with the NFT.
+                                </p>
                             </div>
-                            <p className="text-sm leading-relaxed text-muted-foreground">
-                                On-chain USDC settlement and LeadNFT provenance give both sides perfect
-                                auditability. Atomic payments &mdash; no net terms, no chargebacks. Ownership
-                                history and quality proof travel with the NFT.
-                            </p>
-                        </div>
 
-                        {/* Card 3: Instant Settlement */}
-                        <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-amber-500/30 hover:bg-amber-500/[0.04]">
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10">
-                                    <Zap className="h-5 w-5 text-amber-400" />
+                            {/* Card 3: Instant Settlement */}
+                            <div className="group rounded-xl border border-border/50 bg-card/50 p-6 transition hover:border-amber-500/30 hover:bg-amber-500/[0.04]">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-500/10">
+                                        <Zap className="h-5 w-5 text-amber-400" />
+                                    </div>
+                                    <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
                                 </div>
-                                <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
+                                <p className="text-sm leading-relaxed text-muted-foreground">
+                                    RTBEscrow holds USDC in smart-contract escrow and releases
+                                    instantly on auction win or Buy-It-Now purchase. Sellers receive funds in
+                                    seconds, not weeks.
+                                </p>
                             </div>
-                            <p className="text-sm leading-relaxed text-muted-foreground">
-                                RTBEscrow holds USDC in smart-contract escrow and releases
-                                instantly on auction win or Buy-It-Now purchase. Sellers receive funds in
-                                seconds, not weeks.
-                            </p>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                )}
 
                 {/* Filters */}
                 <section className="relative z-10">
@@ -529,20 +531,20 @@ export function HomePage() {
                                         )}
                                     </button>
                                     <button
-                                        onClick={() => setView('metrics')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'metrics' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
-                                            }`}
-                                    >
-                                        <BarChart3 className="h-3.5 w-3.5" />
-                                        Metrics
-                                    </button>
-                                    <button
                                         onClick={() => setView('sellers')}
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'sellers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
                                         <Users className="h-3.5 w-3.5" />
                                         Sellers
+                                    </button>
+                                    <button
+                                        onClick={() => setView('metrics')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'metrics' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                            }`}
+                                    >
+                                        <BarChart3 className="h-3.5 w-3.5" />
+                                        Metrics
                                     </button>
                                 </div>
 
