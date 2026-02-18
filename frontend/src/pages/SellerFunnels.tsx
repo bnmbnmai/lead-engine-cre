@@ -11,7 +11,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import useVerticals from '@/hooks/useVerticals';
 import {
     Palette, Copy, CheckCircle2, Eye, Code, ExternalLink,
-    Sparkles, Shield, Plus, Activity, Tag, MapPin,
+    Sparkles, Plus, Activity, Tag, MapPin,
     Trash2, Save, X, DollarSign,
     Zap, ArrowRight,
 } from 'lucide-react';
@@ -192,12 +192,24 @@ export default function SellerFunnels() {
             setCustomBg(tc.bg);
             setCustomText(tc.text);
             setCustomAccent(tc.accent);
-            // Find matching preset by accent color, or keep first
             const match = COLOR_SCHEMES.find(s => s.vars['--form-accent'] === tc.accent);
             setColorScheme(match || COLOR_SCHEMES[0]);
         } else {
             applyPreset(COLOR_SCHEMES[0]);
         }
+
+        // Load saved branding / gamification / CTA
+        const params = funnel.parameters || {};
+        setCompanyName(params.companyName || '');
+        setLogoUrl(params.logoUrl || '');
+        setThankYouMessage(params.thankYouMessage || "Thank you! We'll be in touch shortly.");
+        setCtaText(params.ctaText || APPROVED_CTA_TEXTS[0]);
+        setGamification({
+            showProgress: params.gamification?.showProgress ?? true,
+            showNudges: params.gamification?.showNudges ?? true,
+            confetti: params.gamification?.confetti ?? true,
+        });
+
         setAdminFields(null);
         setAdminSteps(null);
         setPreviewMode('preview');
@@ -271,7 +283,6 @@ export default function SellerFunnels() {
                 reservePrice: rp,
                 acceptOffSite,
                 auctionDuration: 60,
-                revealWindow: 900,
                 expiresInDays: parseInt(expiresInDays) || 30,
                 parameters: {
                     templateConfig: {
@@ -282,6 +293,11 @@ export default function SellerFunnels() {
                         inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
                         muted: effectiveColors['--form-muted'] || '#94a3b8',
                     },
+                    companyName: companyName || undefined,
+                    logoUrl: logoUrl || undefined,
+                    thankYouMessage: thankYouMessage || undefined,
+                    ctaText,
+                    gamification,
                 },
             };
             const bnp = parseFloat(buyNowPrice);
@@ -320,6 +336,11 @@ export default function SellerFunnels() {
                     inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
                     muted: effectiveColors['--form-muted'] || '#94a3b8',
                 },
+                companyName: companyName || undefined,
+                logoUrl: logoUrl || undefined,
+                thankYouMessage: thankYouMessage || undefined,
+                ctaText,
+                gamification,
             };
 
             const { error: apiError } = await api.updateAsk(selectedFunnelId, payload);
@@ -377,6 +398,11 @@ export default function SellerFunnels() {
                             inputBg: effectiveColors['--form-input-bg'] || '#0f172a',
                             muted: effectiveColors['--form-muted'] || '#94a3b8',
                         },
+                        companyName: companyName || undefined,
+                        logoUrl: logoUrl || undefined,
+                        thankYouMessage: thankYouMessage || undefined,
+                        ctaText,
+                        gamification,
                     },
                 });
                 if (askErr) throw new Error(askErr.error);
@@ -830,9 +856,6 @@ export default function SellerFunnels() {
                                                 <Button size="sm" variant={previewMode === 'iframe' ? 'default' : 'ghost'} onClick={() => setPreviewMode('iframe')} className="text-xs">
                                                     <Code className="h-3.5 w-3.5 mr-1" /> Embed
                                                 </Button>
-                                                <Button size="sm" variant={previewMode === 'url' ? 'default' : 'ghost'} onClick={() => setPreviewMode('url')} className="text-xs">
-                                                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> URL
-                                                </Button>
                                             </div>
 
                                             {/* Preview */}
@@ -883,29 +906,7 @@ export default function SellerFunnels() {
                                                 </Card>
                                             )}
 
-                                            {/* Hosted URL */}
-                                            {previewMode === 'url' && (
-                                                <Card>
-                                                    <CardHeader className="pb-2">
-                                                        <CardTitle className="text-sm">Hosted Lander URL</CardTitle>
-                                                    </CardHeader>
-                                                    <CardContent className="space-y-3">
-                                                        <p className="text-xs text-muted-foreground">
-                                                            Share this link directly. The form is hosted and maintained by Lead Engine.
-                                                        </p>
-                                                        <div className="flex items-center gap-2">
-                                                            <Input value={hostedUrl} readOnly className="font-mono text-xs" />
-                                                            <Button size="sm" variant="outline" onClick={() => copyToClipboard(hostedUrl, 'url')}>
-                                                                {copiedUrl ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                                            </Button>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/20 rounded-lg px-3 py-2">
-                                                            <Shield className="h-3.5 w-3.5 text-green-400 shrink-0" />
-                                                            Platform-hosted for TCPA, CCPA, and consent compliance
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
-                                            )}
+
                                         </div>
                                     </div>
                                 )}

@@ -283,8 +283,19 @@ router.get('/asks/public/template-config', generalLimiter, async (req: Authentic
             select: { parameters: true },
         });
 
-        const templateConfig = (ask?.parameters as any)?.templateConfig || null;
-        res.json({ templateConfig });
+        const params = (ask?.parameters as any) || {};
+        const templateConfig = params.templateConfig || null;
+        res.json({
+            templateConfig: templateConfig ? {
+                ...templateConfig,
+                // Include branding / gamification / CTA alongside colors
+                companyName: params.companyName,
+                logoUrl: params.logoUrl,
+                thankYouMessage: params.thankYouMessage,
+                ctaText: params.ctaText,
+                gamification: params.gamification,
+            } : null,
+        });
     } catch (error) {
         console.error('Public template config error:', error);
         res.status(500).json({ error: 'Failed to fetch template config' });

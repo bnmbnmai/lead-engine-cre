@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle, Loader2, AlertCircle, Shield, Star } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle, Shield } from 'lucide-react';
 import api from '@/lib/api';
 import FormPreview from '@/components/forms/FormPreview';
 import type { FormPreviewColors } from '@/components/forms/FormPreview';
@@ -27,7 +27,7 @@ import { DEFAULT_CRO_CONFIG } from '@/types/formBuilder';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
 import { useUTMPrefill } from '@/hooks/useUTMPrefill';
 import TrustBar from '@/components/forms/TrustBar';
-import SocialProofBanner from '@/components/forms/SocialProofBanner';
+
 import ExitIntentModal from '@/components/forms/ExitIntentModal';
 import SpeedBadge from '@/components/forms/SpeedBadge';
 
@@ -104,6 +104,13 @@ export default function HostedForm() {
     // Color state — starts with defaults, overridden by seller's saved config
     const [colors, setColors] = useState<FormPreviewColors>(DEFAULT_COLORS);
 
+    // Seller branding — loaded from template config
+    const [sellerCompanyName, setSellerCompanyName] = useState<string | undefined>();
+    const [sellerLogoUrl, setSellerLogoUrl] = useState<string | undefined>();
+    const [sellerCtaText, setSellerCtaText] = useState<string | undefined>();
+    const [sellerThankYouMsg, setSellerThankYouMsg] = useState<string | undefined>();
+    const [sellerGamification, setSellerGamification] = useState<{ showProgress?: boolean; showNudges?: boolean; confetti?: boolean } | undefined>();
+
     const [currentStep, setCurrentStep] = useState(0);
     const [formData, setFormData] = useState<Record<string, string | boolean>>({});
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -154,6 +161,12 @@ export default function HostedForm() {
                         muted: tc.muted || DEFAULT_COLORS.muted,
                     });
                 }
+                // Load seller branding / gamification / CTA
+                if (tc?.companyName) setSellerCompanyName(tc.companyName);
+                if (tc?.logoUrl) setSellerLogoUrl(tc.logoUrl);
+                if (tc?.ctaText) setSellerCtaText(tc.ctaText);
+                if (tc?.thankYouMessage) setSellerThankYouMsg(tc.thankYouMessage);
+                if (tc?.gamification) setSellerGamification(tc.gamification);
                 // Merge any CRO overrides from seller config
                 if (tc?.croConfig) {
                     setCroConfig(prev => ({ ...prev, ...tc.croConfig }));
@@ -299,7 +312,7 @@ export default function HostedForm() {
     );
 
     // ─── Variant-specific CTA ─────────────────────────────────
-    const ctaText = variant === 'B' ? 'See My Options Now →' : 'Get My Free Quote';
+    const ctaText = sellerCtaText || (variant === 'B' ? 'See My Options Now →' : 'Get My Free Quote');
 
     // ─── Loading state ───────────────────────────────────────
     if (loading) {
@@ -347,7 +360,7 @@ export default function HostedForm() {
                         Thank You! 🎉
                     </h1>
                     <p style={{ color: colors.muted, fontSize: '0.9rem', lineHeight: 1.6 }}>
-                        Your information has been submitted successfully. A qualified specialist will be in touch shortly.
+                        {sellerThankYouMsg || 'Your information has been submitted successfully. A qualified specialist will be in touch shortly.'}
                     </p>
 
                     {/* Speed Badge */}
@@ -406,23 +419,10 @@ export default function HostedForm() {
                     </p>
                 </div>
 
-                {/* Trust Bar */}
+                {/* Trust bar + social proof — single compact line */}
                 {croConfig.showTrustBar && (
                     <TrustBar mutedColor={colors.muted} />
                 )}
-
-                {/* Social Proof */}
-                {croConfig.showSocialProof && (
-                    <SocialProofBanner accentColor={colors.accent} mutedColor={colors.muted} />
-                )}
-
-                {/* Star rating teaser */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '1rem' }}>
-                    {[1, 2, 3, 4, 5].map(i => (
-                        <Star key={i} style={{ width: 14, height: 14, color: '#facc15', fill: '#facc15' }} />
-                    ))}
-                    <span style={{ fontSize: '0.7rem', color: colors.muted, marginLeft: '0.3rem' }}>4.9/5 from 2,400+ reviews</span>
-                </div>
 
                 {/* The Form */}
                 <FormPreview
@@ -432,9 +432,11 @@ export default function HostedForm() {
                     steps={steps}
                     currentStep={currentStep}
                     colors={colors}
-                    showProgress={config.gamification?.showProgress !== false}
-                    showNudges={config.gamification?.showNudges !== false}
+                    showProgress={(sellerGamification?.showProgress ?? config.gamification?.showProgress) !== false}
+                    showNudges={(sellerGamification?.showNudges ?? config.gamification?.showNudges) !== false}
                     ctaText={ctaText}
+                    logoUrl={sellerLogoUrl}
+                    companyName={sellerCompanyName}
                     formData={formData}
                     fieldErrors={fieldErrors}
                     onFieldChange={updateField}
