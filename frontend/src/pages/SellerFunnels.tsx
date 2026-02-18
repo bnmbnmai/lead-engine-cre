@@ -111,6 +111,7 @@ export default function SellerFunnels() {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [detailTab, setDetailTab] = useState<'settings' | 'customize'>('settings');
 
     // ── Load funnel list ──
     const loadFunnels = useCallback(async () => {
@@ -507,151 +508,170 @@ export default function SellerFunnels() {
                                     </div>
                                 )}
 
-                                {/* ── Section 1: Core Settings ── */}
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg flex items-center gap-2">
-                                            <Tag className="h-5 w-5 text-primary" />
-                                            {panelMode === 'create' ? 'New Funnel' : `${displayName(activeVertical || '')} Funnel`}
-                                            {panelMode === 'view' && selectedFunnel && (
-                                                <Badge className={`${getStatusColor(selectedFunnel.status)} ml-2`}>
-                                                    {selectedFunnel.status}
-                                                </Badge>
-                                            )}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-5">
-                                        {/* Vertical */}
-                                        <div>
-                                            <label className="text-sm font-medium mb-2 block">Vertical</label>
-                                            {panelMode === 'create' ? (
-                                                <NestedVerticalSelect
-                                                    value={vertical}
-                                                    onValueChange={handleVerticalChange}
-                                                    placeholder="Select a vertical…"
-                                                    className="w-full max-w-md"
-                                                />
-                                            ) : (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg">{VERTICAL_EMOJI[activeVertical || ''] || '📋'}</span>
-                                                    <span className="font-medium capitalize">{displayName(activeVertical || '')}</span>
+                                {/* ── Detail Tab Bar ── */}
+                                <div className="flex gap-1 p-1 rounded-lg bg-muted/30 w-fit">
+                                    <button
+                                        onClick={() => setDetailTab('settings')}
+                                        className={`px-4 py-1.5 rounded-md text-xs font-medium transition ${detailTab === 'settings' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        Funnel Settings
+                                    </button>
+                                    <button
+                                        onClick={() => setDetailTab('customize')}
+                                        className={`px-4 py-1.5 rounded-md text-xs font-medium transition ${detailTab === 'customize' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                    >
+                                        Customize & Preview
+                                    </button>
+                                </div>
+
+                                {/* ── Tab: Funnel Settings ── */}
+                                {detailTab === 'settings' && (
+                                    <>
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="text-lg flex items-center gap-2">
+                                                    <Tag className="h-5 w-5 text-primary" />
+                                                    {panelMode === 'create' ? 'New Funnel' : `${displayName(activeVertical || '')} Funnel`}
+                                                    {panelMode === 'view' && selectedFunnel && (
+                                                        <Badge className={`${getStatusColor(selectedFunnel.status)} ml-2`}>
+                                                            {selectedFunnel.status}
+                                                        </Badge>
+                                                    )}
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-5">
+                                                {/* Vertical */}
+                                                <div>
+                                                    <label className="text-sm font-medium mb-2 block">Vertical</label>
+                                                    {panelMode === 'create' ? (
+                                                        <NestedVerticalSelect
+                                                            value={vertical}
+                                                            onValueChange={handleVerticalChange}
+                                                            placeholder="Select a vertical…"
+                                                            className="w-full max-w-md"
+                                                        />
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-lg">{VERTICAL_EMOJI[activeVertical || ''] || '📋'}</span>
+                                                            <span className="font-medium capitalize">{displayName(activeVertical || '')}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
 
-                                        {/* Pricing */}
-                                        <div className="grid sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-sm font-medium mb-1 block">Reserve Price (USDC)</label>
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="50.00"
-                                                    value={reservePrice}
-                                                    onChange={(e) => setReservePrice(e.target.value)}
-                                                />
-                                                <p className="text-xs text-muted-foreground mt-1">Min bid accepted</p>
-                                            </div>
-                                            <div>
-                                                <label className="text-sm font-medium mb-1 block">Buy Now Price (optional)</label>
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="100.00"
-                                                    value={buyNowPrice}
-                                                    onChange={(e) => setBuyNowPrice(e.target.value)}
-                                                />
-                                                <p className="text-xs text-muted-foreground mt-1">Instant purchase, skips auction</p>
-                                            </div>
-                                        </div>
+                                                {/* Pricing */}
+                                                <div className="grid sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-sm font-medium mb-1 block">Reserve Price (USDC)</label>
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            placeholder="50.00"
+                                                            value={reservePrice}
+                                                            onChange={(e) => setReservePrice(e.target.value)}
+                                                        />
+                                                        <p className="text-xs text-muted-foreground mt-1">Min bid accepted</p>
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-sm font-medium mb-1 block">Buy Now Price (optional)</label>
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            placeholder="100.00"
+                                                            value={buyNowPrice}
+                                                            onChange={(e) => setBuyNowPrice(e.target.value)}
+                                                        />
+                                                        <p className="text-xs text-muted-foreground mt-1">Instant purchase, skips auction</p>
+                                                    </div>
+                                                </div>
 
-                                        {/* Geo */}
-                                        <div>
-                                            <label className="text-sm font-medium mb-2 block">Target Geography</label>
-                                            <GeoFilter
-                                                country={geoCountry}
-                                                onCountryChange={(c) => { setGeoCountry(c); setGeoStates([]); }}
-                                                selectedRegions={geoStates}
-                                                onRegionsChange={setGeoStates}
-                                                mode="include"
-                                            />
-                                            <p className="text-xs text-muted-foreground mt-2">
-                                                Leave regions empty to accept all states.
-                                            </p>
-                                        </div>
+                                                {/* Geo */}
+                                                <div>
+                                                    <label className="text-sm font-medium mb-2 block">Target Geography</label>
+                                                    <GeoFilter
+                                                        country={geoCountry}
+                                                        onCountryChange={(c) => { setGeoCountry(c); setGeoStates([]); }}
+                                                        selectedRegions={geoStates}
+                                                        onRegionsChange={setGeoStates}
+                                                        mode="include"
+                                                    />
+                                                    <p className="text-xs text-muted-foreground mt-2">
+                                                        Leave regions empty to accept all states.
+                                                    </p>
+                                                </div>
 
-                                        {/* Settings */}
-                                        <div className="flex flex-wrap gap-6">
-                                            <LabeledSwitch
-                                                label="Accept Off-site Leads"
-                                                description="I'll send leads from external landers"
-                                                checked={acceptOffSite}
-                                                onCheckedChange={setAcceptOffSite}
-                                            />
-                                        </div>
+                                                {/* Settings */}
+                                                <div className="flex flex-wrap gap-6">
+                                                    <LabeledSwitch
+                                                        label="Accept Off-site Leads"
+                                                        description="I'll send leads from external landers"
+                                                        checked={acceptOffSite}
+                                                        onCheckedChange={setAcceptOffSite}
+                                                    />
+                                                </div>
 
-                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                            ⚡ Auction Duration: <strong>60 seconds</strong> (sealed-bid)
-                                        </div>
+                                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                                    ⚡ Auction Duration: <strong>60 seconds</strong> (sealed-bid)
+                                                </div>
 
-                                        {/* Error */}
-                                        {error && (
-                                            <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
-                                                {error}
-                                            </div>
-                                        )}
+                                                {/* Error */}
+                                                {error && (
+                                                    <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+                                                        {error}
+                                                    </div>
+                                                )}
 
-                                        {/* Actions */}
-                                        <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
-                                            {panelMode === 'create' ? (
-                                                <Button onClick={handleCreate} disabled={isSaving}>
-                                                    {isSaving ? 'Creating…' : 'Create Funnel'}
-                                                    <ArrowRight className="h-4 w-4 ml-1" />
-                                                </Button>
-                                            ) : (
-                                                <>
-                                                    <Button onClick={handleUpdate} disabled={isSaving} size="sm">
-                                                        <Save className="h-4 w-4 mr-1" />
-                                                        {isSaving ? 'Saving…' : 'Save Changes'}
-                                                    </Button>
+                                                {/* Actions */}
+                                                <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
+                                                    {panelMode === 'create' ? (
+                                                        <Button onClick={handleCreate} disabled={isSaving}>
+                                                            {isSaving ? 'Creating…' : 'Create Funnel'}
+                                                            <ArrowRight className="h-4 w-4 ml-1" />
+                                                        </Button>
+                                                    ) : (
+                                                        <>
+                                                            <Button onClick={handleUpdate} disabled={isSaving} size="sm">
+                                                                <Save className="h-4 w-4 mr-1" />
+                                                                {isSaving ? 'Saving…' : 'Save Changes'}
+                                                            </Button>
 
-                                                    {!confirmDelete ? (
+                                                            {!confirmDelete ? (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="text-destructive hover:text-destructive"
+                                                                    onClick={() => setConfirmDelete(true)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 mr-1" /> Delete
+                                                                </Button>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm text-destructive">Sure?</span>
+                                                                    <Button variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting}>
+                                                                        {isDeleting ? 'Deleting…' : 'Yes'}
+                                                                    </Button>
+                                                                    <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>No</Button>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                    {panelMode !== 'create' && (
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="text-destructive hover:text-destructive"
-                                                            onClick={() => setConfirmDelete(true)}
+                                                            className="ml-auto"
+                                                            onClick={() => { setPanelMode('idle'); setSelectedFunnelId(null); }}
                                                         >
-                                                            <Trash2 className="h-4 w-4 mr-1" /> Delete
+                                                            <X className="h-4 w-4 mr-1" /> Close
                                                         </Button>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm text-destructive">Sure?</span>
-                                                            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting}>
-                                                                {isDeleting ? 'Deleting…' : 'Yes'}
-                                                            </Button>
-                                                            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>No</Button>
-                                                        </div>
                                                     )}
-                                                </>
-                                            )}
-                                            {panelMode !== 'create' && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="ml-auto"
-                                                    onClick={() => { setPanelMode('idle'); setSelectedFunnelId(null); }}
-                                                >
-                                                    <X className="h-4 w-4 mr-1" /> Close
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </>)}
 
-                                {/* ── Section 2: Template Customization (only when vertical selected) ── */}
-                                {activeVertical && (
-                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                {/* ── Tab: Customize & Preview ── */}
+                                {detailTab === 'customize' && activeVertical && (
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                         {/* Customize */}
                                         <Card>
                                             <CardHeader>
