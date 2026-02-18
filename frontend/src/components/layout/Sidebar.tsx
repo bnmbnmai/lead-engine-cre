@@ -31,6 +31,7 @@ interface SidebarProps {
 
 const marketplaceItems: SidebarItem[] = [
     { href: '/marketplace', label: 'Marketplace', icon: <ShoppingCart className="h-5 w-5" /> },
+    { href: '/market-metrics', label: 'Market Metrics', icon: <BarChart3 className="h-5 w-5" /> },
     { href: '/buyer', label: 'Buyer Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-5 w-5" /> },
 ];

@@ -332,4 +332,20 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 | Ready | VerticalNFT revenue-share flow (2% royalties) | Contracts deployed |
 | Ready | Multi-language CRO landers | Frontend ready |
 
+### Scaling to High-Volume Operation (1,000+ leads/day)
+
+The current architecture handles demo-scale traffic (tens of leads per minute). Operating at production scale — thousands of leads per day across dozens of verticals — requires focused infrastructure work in these areas:
+
+**Database & Indexing.** The Prisma schema uses basic indexes. At high volume, composite indexes on `(vertical, status, createdAt)` and `(sellerId, status)` are needed. Auction close queries (`WHERE endsAt <= NOW() AND status = 'IN_AUCTION'`) require a dedicated partial index. The `qualityScore` filter benefits from a B-tree index for range queries.
+
+**Queue Architecture.** Lead ingestion, NFT minting, escrow settlement, and bounty matching currently run synchronously in request handlers. At scale, these become separate queue workers (BullMQ or similar) with retry policies and dead-letter handling. The `lead:status-changed` socket broadcast should also be decoupled from the database write.
+
+**Rate Limiting & Backpressure.** The current Express rate limiter is per-instance. A Redis-backed sliding window (e.g., `rate-limiter-flexible`) is needed for multi-instance deployments. Seller API ingestion should enforce per-vertical throughput caps to prevent hot-vertical floods.
+
+**On-Chain Gas Management.** NFT minting and escrow funding currently use a single deployer wallet. At volume, a nonce-managed wallet pool with gas price monitoring prevents transaction queueing bottlenecks. Batch minting (multiple leads per transaction) should be evaluated once Chainlink CRE supports batch workflow triggers.
+
+**Observability.** Structured logging (already partially implemented via Winston) needs correlation IDs across HTTP → WebSocket → on-chain flows. Auction-close latency, fill rate, and CRE scoring latency should be tracked as Prometheus metrics for alerting.
+
+**WebSocket Fan-Out.** Socket.IO currently broadcasts to all connected clients. At thousands of concurrent users, filtered subscriptions (per-vertical rooms) and a Redis adapter for multi-process fan-out are necessary.
+
 See `docs/MAINNET_MIGRATION.md` for the full migration plan.

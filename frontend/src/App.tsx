@@ -28,6 +28,7 @@ import AdminVerticals from '@/pages/AdminVerticals';
 import AskDetailPage from '@/pages/AskDetailPage';
 import HostedForm from '@/pages/HostedForm';
 import LeadDetailPage from '@/pages/LeadDetailPage';
+import MarketMetrics from '@/pages/MarketMetrics';
 import SellerIntegrations from '@/pages/SellerIntegrations';
 import BuyerIntegrations from '@/pages/BuyerIntegrations';
 
@@ -87,6 +88,9 @@ function App() {
 
                                 {/* Public hosted forms */}
                                 <Route path="/f/:slug" element={<HostedForm />} />
+
+                                {/* Public market metrics */}
+                                <Route path="/market-metrics" element={<MarketMetrics />} />
 
                                 {/* Buyer Routes (auth + role required) */}
                                 <Route path="/buyer" element={<ProtectedRoute role="BUYER"><BuyerDashboard /></ProtectedRoute>} />
