@@ -387,11 +387,14 @@ export function DemoPanel() {
                     )}
                     <span>{label}</span>
                 </button>
-                {action.message && (
-                    <p className={`text-xs mt-1 px-1 ${action.state === 'error' ? 'text-red-400' : 'text-muted-foreground'}`}>
-                        {action.message}
-                    </p>
-                )}
+                {/* Fixed-height slot prevents layout shift when messages appear/disappear */}
+                <div className="h-5 overflow-hidden">
+                    {action.message && (
+                        <p className={`text-xs mt-1 px-1 truncate ${action.state === 'error' ? 'text-red-400' : 'text-muted-foreground'}`}>
+                            {action.message}
+                        </p>
+                    )}
+                </div>
             </div>
         );
     }

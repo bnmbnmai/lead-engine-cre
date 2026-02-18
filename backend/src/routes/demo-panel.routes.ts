@@ -926,10 +926,12 @@ router.post('/lead', async (req: Request, res: Response) => {
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: params,
-                    qualityScore: demoScore,
+                    qualityScore: demoScore != null ? Math.floor(demoScore / 100) : null, // normalize 0-10000 → 0-100
                     _count: { bids: 0 },
                 },
             });
+            // Also emit refreshAll so the marketplace refetches even if lead:new handler misses
+            io.emit('marketplace:refreshAll');
         }
 
         res.json({ success: true, lead: { id: lead.id, vertical, geo: { country: geo.country, state: geo.state }, price, parameters: params } });
@@ -1027,10 +1029,12 @@ router.post('/auction', async (req: Request, res: Response) => {
                     isVerified: true,
                     auctionStartAt: new Date().toISOString(),
                     auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString(),
-                    qualityScore: auctionScore,
+                    qualityScore: auctionScore != null ? Math.floor(auctionScore / 100) : null, // normalize 0-10000 → 0-100
                     _count: { bids: 0 },
                 },
             });
+            // Also emit refreshAll so the marketplace refetches even if lead:new handler misses
+            io.emit('marketplace:refreshAll');
         }
 
         // Simulate bids arriving over auction window (conservative — user should outbid)
