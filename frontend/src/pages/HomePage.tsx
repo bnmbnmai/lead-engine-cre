@@ -112,11 +112,12 @@ export function HomePage() {
     const [matchCount, setMatchCount] = useState<number | null>(null);
 
     // ── Infinite scroll pagination ──
-    const LEADS_PAGE_SIZE = 100;
+    const LEADS_PAGE_SIZE = 30;
     const [leadsHasMore, setLeadsHasMore] = useState(false);
     const [buyNowHasMore, setBuyNowHasMore] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
-    const sentinelRef = useRef<HTMLDivElement>(null);
+    const observerRef = useRef<IntersectionObserver | null>(null);
+    const loadMoreRef = useRef<() => void>(() => { });
 
     // ── Reusable client-side filter guard ──
     // Matches the same logic as the backend vertical expansion.
@@ -292,19 +293,27 @@ export function HomePage() {
         }
     }, [view, leads, buyNowLeads, leadsHasMore, buyNowHasMore, loadingMore, country, region, debouncedSearch, sellerName, shouldIncludeLead]);
 
-    // ── IntersectionObserver for infinite scroll sentinel ──
-    useEffect(() => {
-        const sentinel = sentinelRef.current;
-        if (!sentinel) return;
+    // Keep loadMoreRef in sync so the observer callback never has a stale closure
+    loadMoreRef.current = loadMore;
+
+    // ── Callback ref for infinite scroll sentinel ──
+    // Attaches IntersectionObserver whenever the sentinel DOM element appears.
+    const sentinelCallbackRef = useCallback((node: HTMLDivElement | null) => {
+        // Disconnect any previous observer
+        if (observerRef.current) {
+            observerRef.current.disconnect();
+            observerRef.current = null;
+        }
+        if (!node) return;
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting) loadMore();
+                if (entries[0].isIntersecting) loadMoreRef.current();
             },
-            { rootMargin: '200px' }
+            { rootMargin: '300px' }
         );
-        observer.observe(sentinel);
-        return () => observer.disconnect();
-    }, [loadMore]);
+        observer.observe(node);
+        observerRef.current = observer;
+    }, []);  // stable — no deps needed since loadMoreRef is a ref
 
     // Wrap fetchData for polling fallback
     const refetchData = useCallback(() => {
@@ -1013,7 +1022,7 @@ export function HomePage() {
                             </div>
                             {/* Infinite scroll sentinel for Buy Now */}
                             {buyNowHasMore && (
-                                <div ref={sentinelRef} className="flex justify-center py-8">
+                                <div ref={sentinelCallbackRef} className="flex justify-center py-8">
                                     {loadingMore ? (
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1131,7 +1140,7 @@ export function HomePage() {
                                 </div>
                                 {/* Infinite scroll sentinel */}
                                 {leadsHasMore && (
-                                    <div ref={sentinelRef} className="flex justify-center py-8">
+                                    <div ref={sentinelCallbackRef} className="flex justify-center py-8">
                                         {loadingMore ? (
                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                 <Loader2 className="h-4 w-4 animate-spin" />
