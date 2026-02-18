@@ -16,12 +16,12 @@ Lead Engine is the first **tokenized, real-time bidding marketplace for verified
 | **CRE** | On-chain quality scoring (0–10,000) with ZK fraud proofs | Implemented |
 | **ACE** | Auto-KYC, jurisdiction policy enforcement, reputation gating | Implemented |
 | **Functions** | Bounty criteria matching triggered at auction close | Implemented |
-| **VRF** | Cryptographic tiebreaker for equal-amount bids | Implemented |
-| **Data Streams** | Real-time bidding floor prices per vertical | Implemented |
+| **VRF v2.5** | Provably fair tiebreaker for auction bids + bounty allocation | Implemented |
+| **Data Feeds** | Real-time ETH/USD → dynamic bid floor prices per vertical | Implemented |
 | **DECO** | zkTLS verification of off-site lead provenance | Stubbed for hackathon, full integration post-event |
 | **Confidential HTTP** | Off-chain fraud signal aggregation in a TEE | Stubbed for hackathon, full integration post-event |
 
-**Hackathon Focus:** CRE + ACE are fully integrated. Functions, VRF, and Data Streams are functional with production contracts. DECO and Confidential HTTP are architecturally integrated as stubs ready for mainnet.
+**Hackathon Focus:** CRE + ACE are fully integrated. Functions, VRF, and Data Feeds are functional with production contracts. DECO and Confidential HTTP are architecturally integrated as stubs ready for mainnet.
 
 ---
 
@@ -144,22 +144,39 @@ The $1 convenience fee covers gas and platform costs for server-side (non-MetaMa
 - **Reputation scoring** (0–10,000) with decay and boost mechanics
 - **Contract:** `ACECompliance.sol` (deployed on Base Sepolia)
 
-### Chainlink Functions
+### Chainlink Functions — Off-Chain Bounty Matching
 
-*Implemented.* Bounty criteria matching runs through **Chainlink Functions** at auction resolution:
+*Implemented.* `BountyMatcher.sol` runs bounty-criteria matching off-chain in the Chainlink DON and stores the verified result on-chain:
 
-- `matchBounties()` evaluates lead attributes against all active pool criteria
-- Triggered automatically when an auction closes with a winner
-- Matching pools release funds to the seller as a bonus
+- Backend sends lead attributes + pool criteria → DON executes AND-logic matching (quality score, geo state/country, credit score, lead age)
+- DON returns comma-separated matched pool IDs → contract splits and stores in `MatchResult`
+- `VerticalBountyPool.releaseBounty()` can optionally gate releases behind `BountyMatcher.isMatchVerified()` (toggled via `setRequireFunctionsAttestation`)
+- **Gas:** ~130k total (80k request + 50k callback) — all criteria evaluation runs off-chain
+- Falls back to in-memory matching when Functions is disabled (`BOUNTY_FUNCTIONS_ENABLED=false`)
 - **DON secrets** refreshed every 48h via GitHub Actions
 
-### VRF — Verifiable Random Function
 
-*Implemented.* When two or more bids tie at the same highest amount, **VRF** provides a provably fair, cryptographically random tiebreaker.
+### VRF v2.5 — Provably Fair Tie-Breaking
 
-### Data Streams
+*Implemented.* **`VRFTieBreaker.sol`** requests Chainlink VRF v2.5 randomness when two or more parties are tied:
 
-*Implemented.* Real-time bidding floor prices per vertical, used by the auto-bid engine to set competitive reserve minimums. Published as a custom data feed.
+- **Auction ties** — when 2+ bidders submit identical highest effective bids, VRF selects the winner: `candidates[randomWord % count]`
+- **Bounty allocation** — when 2+ bounty pools match a lead with equal amounts, VRF determines priority ordering
+- Winner selection is auditable on-chain via the `TieResolved` event (includes `randomWord`, `winner`, `leadIdHash`)
+- Graceful fallback: if VRF is unavailable or subscription unfunded, the backend uses deterministic ordering (earliest bid / existing sort)
+
+### Data Feeds — Dynamic Bid Floor Pricing
+
+*Implemented.* The ETH/USD Chainlink Price Feed on Base Sepolia (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`) drives dynamic, market-responsive floor prices across the platform:
+
+- **On-chain read:** `AggregatorV3Interface.latestRoundData()` returns ETH/USD with 8 decimals
+- **Market multiplier:** Compares current price to a $2,500 baseline; clamped to ±20% deviation. Bullish markets raise floors, bearish markets lower them
+- **Per-vertical base tables:** 10 verticals × 5 countries (US/CA/GB/DE/AU) with calibrated floor/ceiling pairs (e.g. solar US = $85/$200)
+- **Auto-bid integration:** The auto-bid engine reads the floor and adjusts bids upward to `max(autoBidAmount, floor)`, capped by `maxBidPerLead`
+- **MCP agent tools:** `get_bid_floor` and `suggest_bid_amount` let the LangChain agent query real-time floors and recommend quality-weighted bid amounts
+- **Frontend:** `useFloorPrice` hook auto-refreshes every 60s; LeadCard shows a "Floor $XX" badge; AuctionPage shows a dedicated Market Floor stat card
+- **Caching:** 60s in-memory TTL to avoid RPC spam; stale fallback when chain reads fail
+- **Service:** `datastreams.service.ts` — Data Feeds integration (15 unit tests covering floor calc, multiplier clamping, fallback, multi-vertical)
 
 ### DECO — zkTLS Verification
 
@@ -253,10 +270,12 @@ Horizontal gallery view with per-funnel conversion metrics, search and filtering
 | `ACECompliance.sol` | KYC, jurisdiction, reputation |
 | `RTBEscrow.sol` | Atomic USDC escrow settlement |
 | `LeadNFTv2.sol` | ERC-721 tokenized leads |
+| `BountyMatcher.sol` | Chainlink Functions bounty criteria matching |
 | `VerticalBountyPool.sol` | Buyer-funded bounty pools |
 | `CustomLeadFeed.sol` | Public market metrics feed |
 | `VerticalNFT.sol` | Community vertical ownership |
 | `VerticalAuction.sol` | Ascending auctions for verticals |
+| `VRFTieBreaker.sol` | Chainlink VRF v2.5 provably fair tie-breaking |
 
 ---
 
@@ -276,11 +295,11 @@ npm run dev
 - **Backend:** http://localhost:3001
 - **MCP Agent:** http://localhost:3002
 
-Hardhat node + contracts already deployed locally. Full configuration in `.env.example` and deployment instructions in `DEPLOY.md`.
+Hardhat node + contracts already deployed locally. Full configuration in `.env.example`.
 
 ### DON Secrets Renewal
 
-**Chainlink Functions** DON secrets expire every 72 hours. Renewal is automated via GitHub Actions (`.github/workflows/renew-don-secrets.yml`, runs every 48h) or can be done manually:
+**Chainlink Functions** DON secrets expire every 48 hours. Renewal is automated via GitHub Actions (`.github/workflows/renew-don-secrets.yml`, runs every 48h) or can be done manually:
 
 ```bash
 cd contracts && npx ts-node scripts/upload-don-secrets.ts
@@ -313,4 +332,4 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 | Ready | VerticalNFT revenue-share flow (2% royalties) | Contracts deployed |
 | Ready | Multi-language CRO landers | Frontend ready |
 
-See `ROADMAP.md` for the full breakdown.
+See `docs/MAINNET_MIGRATION.md` for the full migration plan.

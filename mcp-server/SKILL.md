@@ -54,7 +54,7 @@ Submit a bid on a lead.
 ```
 
 ### `get_bid_floor`
-Get real-time bid floor pricing (Data Streams stub).
+Get real-time bid floor pricing (Data Feeds stub).
 
 ```json
 {

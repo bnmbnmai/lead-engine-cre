@@ -423,9 +423,9 @@ class X402Service {
                     seller: escrow.seller,
                     buyer: escrow.buyer,
                     amount: ethers.formatUnits(escrow.amount, 6),
-                    status: statusMap[Number(escrow.status)] || 'PENDING',
+                    status: statusMap[Number(escrow.state)] || 'PENDING',
                     createdAt: new Date(Number(escrow.createdAt) * 1000),
-                    releasedAt: escrow.releasedAt > 0 ? new Date(Number(escrow.releasedAt) * 1000) : undefined,
+                    releasedAt: escrow.releaseTime > 0 ? new Date(Number(escrow.releaseTime) * 1000) : undefined,
                 };
             } catch (error) {
                 console.error('x402 getPaymentStatus on-chain failed:', error);

@@ -6,6 +6,7 @@
  * as a bonus on top of the winning bid. Unmatched funds refund to the buyer.
  *
  * On-chain: VerticalBountyPool.sol (deposit/release/withdraw)
+ * Matching: Chainlink Functions via BountyMatcher.sol (when enabled), else in-memory
  * Off-chain: Criteria matching engine (geo, QS, credit) + formConfig.bountyConfig storage
  */
 
@@ -13,6 +14,12 @@ import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
+import { isVrfConfigured, requestTieBreak, waitForResolution, ResolveType } from './vrf.service';
+import {
+    isFunctionsConfigured,
+    requestBountyMatch,
+    waitForMatchResult,
+} from './functions.service';
 
 // ============================================
 // Types & Schemas
@@ -71,6 +78,9 @@ const BOUNTY_POOL_ABI = [
 
 /** Bounty stacking cap: max total bounty = 2× lead price */
 const BOUNTY_STACKING_CAP_MULTIPLIER = 2;
+
+/** Toggle Chainlink Functions-based matching (env: BOUNTY_FUNCTIONS_ENABLED=true) */
+const FUNCTIONS_MATCHING_ENABLED = process.env.BOUNTY_FUNCTIONS_ENABLED === 'true';
 
 // ============================================
 // Service
@@ -209,6 +219,7 @@ class BountyService {
             const pools: any[] = config.bountyPools || [];
 
             const matched: MatchedBounty[] = [];
+            let functionsAttempted = false;
 
             for (const pool of pools) {
                 if (!pool.active) continue;
@@ -218,6 +229,65 @@ class BountyService {
                 if (availableAmount <= 0) continue;
 
                 const criteria: BountyCriteria = pool.criteria || {};
+
+                // ── Chainlink Functions Matching ──
+                // If Functions is enabled and configured, send criteria to the DON
+                // for on-chain attested matching. Falls back to in-memory if unavailable.
+                if (FUNCTIONS_MATCHING_ENABLED && isFunctionsConfigured() && lead.id) {
+                    // Only run Functions once — it evaluates all pools in one DON call
+                    if (!functionsAttempted) {
+                        functionsAttempted = true;
+                        try {
+                            const activePools = pools.filter((p: any) => p.active && ((p.amount || 0) - (p.totalReleased || 0)) > 0);
+                            const criteriaList = activePools.map((p: any) => ({
+                                poolId: p.poolId || p.buyerId,
+                                ...((p.criteria || {}) as BountyCriteria),
+                            }));
+                            const leadAgeHours = lead.createdAt
+                                ? (Date.now() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60)
+                                : 0;
+
+                            const txHash = await requestBountyMatch(lead.id, {
+                                qualityScore: lead.qualityScore || 0,
+                                creditScore: lead.parameters?.creditScore || 0,
+                                geoState: lead.state || '',
+                                geoCountry: lead.country || '',
+                                leadAgeHours,
+                            }, criteriaList);
+
+                            if (txHash) {
+                                const functionsResult = await waitForMatchResult(lead.id, 30_000);
+                                if (functionsResult?.matchFound) {
+                                    // Use Functions-attested pool IDs for matching
+                                    const verifiedPoolIds = new Set(functionsResult.matchedPoolIds);
+                                    for (const p of activePools) {
+                                        const pid = p.poolId || p.buyerId;
+                                        if (verifiedPoolIds.has(pid)) {
+                                            const avail = (p.amount || 0) - (p.totalReleased || 0);
+                                            matched.push({
+                                                poolId: pid,
+                                                buyerId: p.buyerId,
+                                                buyerWallet: p.buyerWallet || '',
+                                                amount: avail,
+                                                verticalSlug: vertical.slug,
+                                                criteria: p.criteria || {},
+                                            });
+                                        }
+                                    }
+                                    console.log(`[BountyService] Functions-matched ${matched.length} pools for lead ${lead.id}`);
+                                    // Sort and skip to VRF/cap (bypass in-memory matching)
+                                    matched.sort((a, b) => b.amount - a.amount);
+                                    break; // break out of the pool loop — we've matched via Functions
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('[BountyService] Functions matching failed, falling back to in-memory');
+                        }
+                    }
+                    continue; // Skip in-memory matching when Functions is enabled
+                }
+
+                // ── In-Memory Criteria Matching (fallback) ──
 
                 // Criteria matching engine (AND logic — all criteria must pass)
                 if (criteria.minQualityScore != null && (lead.qualityScore || 0) < criteria.minQualityScore) continue;
@@ -244,6 +314,46 @@ class BountyService {
 
             // Sort by amount descending (highest bounty first)
             matched.sort((a, b) => b.amount - a.amount);
+
+            // ── VRF Bounty Allocation ──
+            // If 2+ pools tie on amount, use Chainlink VRF to fairly order them
+            if (matched.length >= 2) {
+                const topAmount = matched[0].amount;
+                const tiedPools = matched.filter(m => m.amount === topAmount);
+
+                if (tiedPools.length >= 2 && isVrfConfigured() && lead.id) {
+                    const candidates = tiedPools
+                        .map(p => p.buyerWallet)
+                        .filter(w => !!w);
+
+                    if (candidates.length >= 2) {
+                        try {
+                            const bountyLeadId = `bounty-${lead.id}`;
+                            const txHash = await requestTieBreak(bountyLeadId, candidates, ResolveType.BOUNTY_ALLOCATION);
+                            if (txHash) {
+                                const vrfWinner = await waitForResolution(bountyLeadId, 15_000);
+                                if (vrfWinner) {
+                                    // Move VRF-selected pool to front of tied group
+                                    const winnerIdx = tiedPools.findIndex(
+                                        p => p.buyerWallet.toLowerCase() === vrfWinner.toLowerCase()
+                                    );
+                                    if (winnerIdx > 0) {
+                                        const [winner] = tiedPools.splice(winnerIdx, 1);
+                                        tiedPools.unshift(winner);
+                                        // Reconstruct matched array: VRF-reordered ties first, rest after
+                                        const rest = matched.filter(m => m.amount !== topAmount);
+                                        matched.length = 0;
+                                        matched.push(...tiedPools, ...rest);
+                                    }
+                                    console.log(`[BountyService] VRF allocated bounty priority to ${vrfWinner}`);
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('[BountyService] VRF bounty allocation failed, using default order');
+                        }
+                    }
+                }
+            }
 
             // Apply stacking cap: total bounty ≤ 2× lead price
             // Use explicit leadPrice (winning bid) if provided, else fall back to reservePrice

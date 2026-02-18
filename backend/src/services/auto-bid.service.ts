@@ -17,6 +17,7 @@
 import { prisma } from '../lib/prisma';
 import { ethers } from 'ethers';
 import { evaluateFieldFilters, FieldFilterRule } from './field-filter.service';
+import { dataStreamsService } from './datastreams.service';
 
 // ============================================
 // On-chain config for USDC allowance checks
@@ -203,8 +204,28 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             continue;
         }
 
-        // ── 6. Bid amount calculation ──
-        const bidAmount = Number(prefSet.autoBidAmount);
+        // ── 6. Bid amount calculation (Data Feeds floor-aware) ──
+        // Read real-time floor from Chainlink Data Feeds and adjust bid upward
+        // to be competitive — but never exceed the buyer's maxBidPerLead cap.
+        let bidAmount = Number(prefSet.autoBidAmount);
+        let floorAdjusted = false;
+        let floorPrice: number | undefined;
+        try {
+            const floorData = await dataStreamsService.getRealtimeBidFloor(lead.vertical, lead.geo.country);
+            floorPrice = floorData.bidFloor;
+            if (bidAmount < floorPrice) {
+                const cap = prefSet.maxBidPerLead ? Number(prefSet.maxBidPerLead) : Infinity;
+                const adjusted = Math.min(floorPrice, cap);
+                if (adjusted >= lead.reservePrice) {
+                    console.log(`[AUTO-BID] Floor-adjusted bid: $${bidAmount} → $${adjusted} (floor=$${floorPrice})`);
+                    bidAmount = adjusted;
+                    floorAdjusted = true;
+                }
+            }
+        } catch (err: any) {
+            // Graceful fallback: proceed with original bid amount if Data Feed unavailable
+            console.warn(`[AUTO-BID] Data Feed floor check failed: ${err.message}. Using original amount.`);
+        }
         if (bidAmount < lead.reservePrice) {
             result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Bid $${bidAmount} < reserve $${lead.reservePrice}` });
             continue;
@@ -291,6 +312,8 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                         amount: bidAmount,
                         qualityScore: lead.qualityScore,
                         geo: lead.geo,
+                        floorAdjusted,
+                        floorPrice,
                     },
                 },
             });

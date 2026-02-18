@@ -112,6 +112,14 @@ contract RTBEscrow is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Update fee recipient address
+     */
+    function setFeeRecipient(address _feeRecipient) external onlyOwner {
+        require(_feeRecipient != address(0), "Invalid fee recipient");
+        feeRecipient = _feeRecipient;
+    }
+
+    /**
      * @dev Create and fund an escrow for a winning bid
      * @param leadId Platform lead ID
      * @param seller The lead seller
@@ -214,7 +222,9 @@ contract RTBEscrow is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Release funds to seller after release delay
+     * @dev Release funds to seller after release delay.
+     *      NOTE: After releaseTime, anyone can trigger release — this is by design
+     *      to guarantee funds flow to the seller even if no party calls explicitly.
      * @param escrowId The escrow ID to release
      */
     function releaseEscrow(uint256 escrowId) external nonReentrant {

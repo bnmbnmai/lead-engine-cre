@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./interfaces/IBountyMatcher.sol";
 
 /**
  * @title VerticalBountyPool
@@ -53,6 +54,12 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     // Authorized callers (backend service for releases)
     mapping(address => bool) public authorizedCallers;
 
+    /// @notice Optional BountyMatcher contract for Functions attestation
+    IBountyMatcher public bountyMatcher;
+
+    /// @notice When true, releaseBounty requires BountyMatcher attestation
+    bool public requireFunctionsAttestation;
+
     // ============================================
     // Events
     // ============================================
@@ -99,6 +106,22 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
         authorizedCallers[caller] = authorized;
         emit CallerAuthorized(caller, authorized);
+    }
+
+    /**
+     * @notice Set the BountyMatcher contract for Functions-attested matching.
+     * @param _bountyMatcher Address of the BountyMatcher contract (0x0 to disable)
+     */
+    function setBountyMatcher(address _bountyMatcher) external onlyOwner {
+        bountyMatcher = IBountyMatcher(_bountyMatcher);
+    }
+
+    /**
+     * @notice Toggle whether releaseBounty requires Functions attestation.
+     * @param _required True to require BountyMatcher.isMatchVerified() before release
+     */
+    function setRequireFunctionsAttestation(bool _required) external onlyOwner {
+        requireFunctionsAttestation = _required;
     }
 
     modifier onlyAuthorizedCaller() {
@@ -195,6 +218,12 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         require(recipient != address(0), "Zero recipient");
         require(amount > 0, "Amount must be positive");
 
+        // Optional: require Chainlink Functions attestation before release
+        if (requireFunctionsAttestation && address(bountyMatcher) != address(0)) {
+            bytes32 leadIdHash = keccak256(abi.encodePacked(leadId));
+            require(bountyMatcher.isMatchVerified(leadIdHash), "Functions attestation required");
+        }
+
         uint256 available = pool.totalDeposited - pool.totalReleased;
         require(amount <= available, "Insufficient pool balance");
 
@@ -229,6 +258,8 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         require(withdrawAmount > 0, "Nothing to withdraw");
         require(withdrawAmount <= available, "Insufficient balance");
 
+        // NOTE: totalReleased tracks all outflows (releases + withdrawals) to maintain
+        // the invariant: availableBalance = totalDeposited - totalReleased
         pool.totalReleased += withdrawAmount;
         _verticalBountyTotals[pool.verticalSlugHash] -= withdrawAmount;
 

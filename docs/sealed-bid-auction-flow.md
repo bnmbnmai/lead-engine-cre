@@ -30,7 +30,7 @@ flowchart LR
 
     subgraph rtb["🔄 RTB Engine"]
         direction TB
-        r1["① Sealed-Bid Auction<br/>5 minutes"]
+        r1["① Sealed-Bid Auction<br/>60 seconds"]
         r2{"Auto-bid<br/>match?"}
         r3["② Reveal Phase"]
         r4{"Highest<br/>bid?"}

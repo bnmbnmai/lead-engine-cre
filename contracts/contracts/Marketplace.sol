@@ -275,7 +275,7 @@ contract Marketplace is IMarketplace, Ownable, ReentrancyGuard {
         require(bid.bidder == msg.sender, "Marketplace: Not bidder");
         require(
             bid.status == BidStatus.REJECTED || 
-            bid.status == BidStatus.PENDING && block.timestamp > listing.revealDeadline,
+            (bid.status == BidStatus.PENDING && block.timestamp > listing.revealDeadline),
             "Marketplace: Cannot withdraw"
         );
         
@@ -311,6 +311,7 @@ contract Marketplace is IMarketplace, Ownable, ReentrancyGuard {
         if (highestBidder == address(0)) {
             // No valid bids - return NFT to seller
             listing.status = ListingStatus.EXPIRED;
+            delete tokenToListing[listing.leadTokenId];
             IERC721(address(leadNFT)).transferFrom(
                 address(this),
                 listing.seller,
@@ -328,6 +329,7 @@ contract Marketplace is IMarketplace, Ownable, ReentrancyGuard {
         
         // Return deposit and collect full payment
         uint256 deposit = (uint256(listing.reservePrice) * bidDepositBps) / 10000;
+        // Safe: highestBid >= reservePrice (enforced in revealBid), deposit = reservePrice * 10%
         uint256 remaining = highestBid - deposit;
         paymentToken.safeTransferFrom(highestBidder, escrowContract, remaining);
         paymentToken.safeTransfer(escrowContract, deposit);  // Send held deposit to escrow
@@ -374,13 +376,12 @@ contract Marketplace is IMarketplace, Ownable, ReentrancyGuard {
     function canBidOnListing(address buyer, uint256 listingId) public view returns (bool, string memory) {
         Listing storage listing = _listings[listingId];
         BuyerPreferences storage prefs = _buyerPrefs[buyer];
+        ILeadNFT.LeadMetadata memory meta = leadNFT.getLead(listing.leadTokenId);
         
         // Check ACE compliance if available
         if (address(aceCompliance) != address(0)) {
-            ILeadNFT.LeadMetadata memory leadMeta = leadNFT.getLead(listing.leadTokenId);
-            
             // Check if buyer requires verified leads
-            if (prefs.requireVerified && !leadMeta.isVerified) {
+            if (prefs.requireVerified && !meta.isVerified) {
                 return (false, "Lead not verified");
             }
             
@@ -391,7 +392,6 @@ contract Marketplace is IMarketplace, Ownable, ReentrancyGuard {
         }
         
         // Check off-site toggle
-        ILeadNFT.LeadMetadata memory meta = leadNFT.getLead(listing.leadTokenId);
         if (meta.source == ILeadNFT.LeadSource.OFFSITE && !prefs.acceptOffsite) {
             return (false, "Buyer rejects off-site leads");
         }

@@ -15,6 +15,7 @@ import { calculateFees, type BidSourceType } from '../lib/fees';
 import { applyHolderPerks, applyMultiplier } from '../services/holder-perks.service';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { bountyService } from '../services/bounty.service';
+import { isVrfConfigured, requestTieBreak, waitForResolution, ResolveType } from '../services/vrf.service';
 
 // ============================================
 // Resolve Expired Auctions
@@ -226,15 +227,62 @@ async function resolveAuction(leadId: string, io?: Server) {
 
         const reservePrice = lead.reservePrice ? Number(lead.reservePrice) : 0;
 
-        // Find highest bidder who meets reserve
-        let winningBid: typeof rankedBids[0] | null = null;
-        for (const bid of rankedBids) {
+        // Filter bids that meet reserve
+        const eligibleBids = rankedBids.filter(bid => {
             if (reservePrice > 0 && Number(bid.amount) < reservePrice) {
                 console.log(`[AuctionClosure] ${leadId}: bid $${Number(bid.amount).toFixed(2)} < reserve $${reservePrice.toFixed(2)} — skipping`);
-                continue;
+                return false;
             }
-            winningBid = bid;
-            break;
+            return true;
+        });
+
+        // ── VRF Tie-Breaking ──
+        // Detect ties: 2+ bids with the same top effectiveBid
+        let winningBid: typeof rankedBids[0] | null = null;
+
+        if (eligibleBids.length === 0) {
+            // No eligible bids
+        } else if (eligibleBids.length === 1) {
+            winningBid = eligibleBids[0];
+        } else {
+            const topEffective = Number(eligibleBids[0].effectiveBid ?? eligibleBids[0].amount);
+            const tiedBids = eligibleBids.filter(
+                b => Number(b.effectiveBid ?? b.amount) === topEffective
+            );
+
+            if (tiedBids.length === 1) {
+                // Clear winner — no tie
+                winningBid = tiedBids[0];
+            } else {
+                // TIE DETECTED — use Chainlink VRF for provably fair resolution
+                console.log(`[AuctionClosure] ${leadId}: ${tiedBids.length}-way tie at $${topEffective} — requesting VRF tie-break`);
+
+                const candidates = tiedBids
+                    .map(b => b.buyer?.walletAddress)
+                    .filter((w): w is string => !!w);
+
+                if (candidates.length >= 2 && isVrfConfigured()) {
+                    const txHash = await requestTieBreak(leadId, candidates, ResolveType.AUCTION_TIE);
+                    if (txHash) {
+                        const vrfWinner = await waitForResolution(leadId, 30_000);
+                        if (vrfWinner) {
+                            winningBid = tiedBids.find(
+                                b => b.buyer?.walletAddress?.toLowerCase() === vrfWinner.toLowerCase()
+                            ) ?? tiedBids[0];
+                            console.log(`[AuctionClosure] ${leadId}: VRF selected winner ${vrfWinner}`);
+                        } else {
+                            console.warn(`[AuctionClosure] ${leadId}: VRF timeout — falling back to deterministic order`);
+                            winningBid = tiedBids[0];
+                        }
+                    } else {
+                        winningBid = tiedBids[0];
+                    }
+                } else {
+                    // VRF not configured or insufficient candidates — deterministic fallback
+                    console.warn(`[AuctionClosure] ${leadId}: VRF unavailable — using earliest bid as tiebreaker`);
+                    winningBid = tiedBids[0];
+                }
+            }
         }
 
         if (!winningBid) {

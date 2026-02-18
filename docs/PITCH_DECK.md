@@ -9,7 +9,7 @@
 **Lead Engine**
 *Decentralized Real-Time Bidding for the $200B+ Lead Marketplace*
 
-Built with Chainlink CRE + ACE + DECO + Data Streams + Confidential Compute
+Built with Chainlink CRE + ACE + Functions + VRF + Data Feeds + DECO + Confidential HTTP
 Chainlink Hackathon 2026 — Convergence
 
 ---
@@ -54,20 +54,20 @@ Chainlink Hackathon 2026 — Convergence
 ┌────────────────▼───────────────────────────┐
 │  Backend (Render) ─ Express + Prisma + WS  │
 │  RTB Engine · Privacy Suite · x402         │
-│  DECO Stub · Data Streams · Confid Compute │
+│  DECO Stub · Data Feeds · Confid HTTP  │
 └───┬───────────────────┬───────────────┬────┘
     │                   │               │
 ┌───▼──────────┐  ┌─────▼───────────┐  ┌▼──────────────┐
 │  Chainlink   │  │  Smart Contracts│  │  MCP Server   │
 │  CRE + ACE   │  │  CREVerifier    │  │  :3002        │
-│  DECO        │  │  ACECompliance  │  │  9 Agent Tools│
-│  Data Streams│  │  LeadNFTv2      │  │  CCIP-ready   │
-│  Confid Comp │  │  RTBEscrow      │  │  JSON-RPC     │
-└──────────────┘  │  Marketplace    │  └───────────────┘
+│  DECO        │  │  ACECompliance  │  │  12 Agent Tools│
+│  Data Feeds  │  │  Marketplace    │  │  CCIP-ready   │
+│  Confid HTTP │  │  RTBEscrow      │  │  JSON-RPC     │
+└──────────────┘  │  LeadNFTv2      │  └───────────────┘
                   └─────────────────┘
 ```
 
-**Stack:** React + Express + Prisma + Solidity + Chainlink (CRE + ACE + DECO + Data Streams + Confidential Compute)
+**Stack:** React + Express + Prisma + Solidity + Chainlink (CRE + ACE + Functions + VRF + Data Feeds + DECO + Confidential HTTP)
 
 ---
 
@@ -84,10 +84,10 @@ Chainlink Hackathon 2026 — Convergence
 - MiCA attestation for EU markets
 - On-chain reputation system (0–10000)
 
-### DECO + Data Streams + Confidential Compute
+### DECO + Data Feeds + Confidential HTTP
 - **DECO:** Web data attestation without content disclosure (e.g., solar subsidy proof)
-- **Data Streams:** Real-time bid floor pricing — 10 verticals × 5 countries
-- **Confidential Compute:** TEE-based lead scoring with privacy-preserving buyer matching
+- **Data Feeds:** Real-time bid floor pricing — 10 verticals × 5 countries
+- **Confidential HTTP:** TEE-based lead scoring with privacy-preserving buyer matching
 - All three running as production-ready stubs with deterministic mocks and fallbacks
 
 ---
@@ -117,7 +117,7 @@ Chainlink Hackathon 2026 — Convergence
 
 1. **Landing page** — geo-enhanced hero with live stats across 20+ countries
 2. **Mortgage lead** — seller submits $450K NY mortgage → CRE scores 7,850/10,000
-3. **DECO + Data Streams** — solar subsidy attestation + real-time bid floor $85–$220
+3. **DECO + Data Feeds** — solar subsidy attestation + real-time bid floor $85–$220
 4. **ACE auto-rules** — auto-bid: "FL mortgage, max $120, min quality 6,000"
 5. **MCP agent** — AI places solar bid via JSON-RPC in 3 tool calls
 6. **Encrypted bid** → commitment verified → NFT minted → USDC escrow settled
@@ -132,14 +132,14 @@ Chainlink Hackathon 2026 — Convergence
 |--------|-------|
 | Verticals | 10 (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial) |
 | Countries | 20+ (US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE) |
-| Chainlink Services | 5 (CRE, ACE, DECO, Data Streams, Confidential Compute) |
+| Chainlink Services | 7 (CRE, ACE, Functions, VRF, Data Feeds, DECO, Confidential HTTP) |
 | Security Sim | 29/29 tests passing (7 categories incl. off-site fraud, cross-border ACE) |
 | Load Test | 23+ scenarios, 10K peak concurrent users (Artillery) |
 | Testnet Sim | 500+ on-chain txs (mints, bids, escrows) via 10 HD wallets |
 | Cypress E2E | 82 UI tests (seller, buyer, stress, copy assertions) |
-| Smart Contracts | 5 (Sepolia + Base Sepolia) |
+| Smart Contracts | 10 (Base Sepolia) |
 | Mock Data | 200+ seeded entries across all verticals/geos |
-| MCP Agent Tools | 9 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status) |
+| MCP Agent Tools | 12 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status, vertical-fields, suggest-bid, bounty) |
 
 ---
 
@@ -151,7 +151,7 @@ Chainlink Hackathon 2026 — Convergence
 - **Global reach:** 20+ countries from day one — US, EU, APAC, LATAM, Africa
 - **Multi-chain:** Sepolia today → Base mainnet for low-cost production
 - **Revenue:** 2.5% platform fee on every transaction via `RTBEscrow.sol`
-- **Moat:** x402 instant settlement + 9-criteria auto-bid + MCP agent server + CCIP = no competitor has this stack
+- **Moat:** x402 instant settlement + 10-gate auto-bid + MCP agent server + CCIP = no competitor has this stack
 
 ---
 
@@ -187,8 +187,8 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 
 | Criteria | Lead Engine |
 |----------|-------------|
-| **Innovation** | 5 Chainlink services + MCP agent server + CCIP-ready + x402 instant settlement |
-| **Technical depth** | 5 smart contracts, ZK proofs, commit-reveal, TEE scoring, 9-criteria auto-bid |
+| **Innovation** | 7 Chainlink services + MCP agent server + CCIP-ready + x402 instant settlement |
+| **Technical depth** | 10 smart contracts, ZK proofs, commit-reveal, TEE scoring, 10-gate auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
 | **Traction** | 500+ testnet txs, 1,288+ tests passing, 10K concurrent users |
 | **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |

@@ -179,6 +179,10 @@ export const api = {
             body: JSON.stringify(data),
         }),
 
+    // Data Feeds — Chainlink real-time floor prices
+    getBidFloor: (vertical: string, country: string = 'US') =>
+        apiFetch<{ bidFloor: any; priceIndex: any }>(`/api/v1/bids/bid-floor?vertical=${vertical}&country=${country}`),
+
     // Analytics
     getOverview: (source?: 'real' | 'mock') =>
         apiFetch<any>(`/api/v1/analytics/overview${source ? `?source=${source}` : ''}`),

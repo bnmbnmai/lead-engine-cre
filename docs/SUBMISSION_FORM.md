@@ -17,22 +17,22 @@
 
 ## Description (for submission form)
 
-> Decentralized real-time bidding platform for the $100B+ global lead marketplace. Lead Engine brings web3 trust, privacy, and compliance to traditional lead generation using **5 Chainlink services** as its trust layer:
+> Decentralized real-time bidding platform for the $200B+ global lead marketplace. Lead Engine brings web3 trust, privacy, and compliance to traditional lead generation using **7 Chainlink services** as its trust layer:
 >
 > - **CRE (Custom Functions)** — On-chain lead verification, quality scoring (0–10,000), geo-parameter matching, fraud detection via `CREVerifier.sol`
 > - **ACE (Compliance Engine)** — Automated KYC, state-level jurisdiction enforcement, cross-border compliance matrix, on-chain reputation via `ACECompliance.sol`
 > - **DECO** *(stub-ready)* — Privacy-preserving attestation with production fallback; activates when access granted
-> - **Data Streams** *(stub-ready)* — Real-time bid floor pricing for 10 verticals × 15+ countries
-> - **Confidential Compute** *(stub-ready)* — TEE-based lead scoring preserving buyer/seller privacy
+> - **Data Feeds** *(stub-ready)* — Real-time bid floor pricing for 10 verticals × 20+ countries
+> - **Confidential HTTP** *(stub-ready)* — TEE-based lead scoring preserving buyer/seller privacy
 >
 > **Key innovations:**
-> - **Autonomous Bidding** — 9-criteria auto-bid engine + MCP agent server with 8 JSON-RPC tools + full LangChain autonomous bidding agent
+> - **Autonomous Bidding** — 10-gate auto-bid engine + MCP agent server with 12 JSON-RPC tools + full LangChain autonomous bidding agent
 > - **CRM Pipeline** — HubSpot and Zapier webhook integrations with format-specific payload transforms
 > - **Privacy-Preserving Auctions** — AES-256-GCM encrypted bids with commit-reveal and ZK fraud detection
 > - **Lead NFTs** — ERC-721 tokenized leads with on-chain provenance and quality scores
 > - **Cross-Border Compliance** — State-pair restriction matrix for mortgage, insurance, with automatic jurisdiction enforcement
 >
-> 10 verticals • 15+ countries • 151 tests • 500+ testnet txs • 1,500 peak concurrent users validated
+> 10 verticals • 20+ countries • 1,288+ tests • 500+ testnet txs • 10K peak concurrent users validated
 
 ---
 
@@ -77,9 +77,9 @@
 - MCP agent server bridges **AI automation** with **on-chain settlement**
 
 ### Production Readiness
-- 151 tests: unit, integration, E2E, security, compliance, load
+- 1,288+ tests (unit, integration, security sim, load, E2E, contract)
 - 500+ testnet transactions across 10 HD wallets
-- 1,500 peak concurrent users validated
+- 10K concurrent users validated (Artillery load test)
 - Live deployments: Render backend, Vercel frontend, Sepolia contracts
 - Autonomous bidding pipeline: Rules → Auto-bid → CRM webhook → Settlement
 

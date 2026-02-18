@@ -226,6 +226,7 @@ contract CustomLeadFeed is Ownable {
      * @param _updater New updater address
      */
     function setUpdater(address _updater) external onlyOwner {
+        require(_updater != address(0), "CustomLeadFeed: Zero updater");
         emit UpdaterChanged(updater, _updater);
         updater = _updater;
     }

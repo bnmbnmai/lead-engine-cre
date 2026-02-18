@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye, Gift } from 'lucide-react';
+import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye, Gift, TrendingUp } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,9 +36,11 @@ interface LeadCardProps {
     lead: Lead;
     showBidButton?: boolean;
     isAuthenticated?: boolean;
+    /** Real-time floor price from Chainlink Data Feeds */
+    floorPrice?: number | null;
 }
 
-export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }: LeadCardProps) {
+export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
     const isLive = lead.status === 'IN_AUCTION';
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
@@ -221,6 +223,18 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true }:
                             <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve</span>
                         </Tooltip>
                         <div className="text-lg font-bold">{formatCurrency(lead.reservePrice)}</div>
+                        {/* Chainlink Data Feeds floor price */}
+                        {floorPrice != null && (
+                            <Tooltip content="Chainlink Data Feeds — real-time market floor for this vertical">
+                                <div className={`flex items-center gap-1 text-[11px] mt-0.5 cursor-help ${floorPrice > lead.reservePrice
+                                    ? 'text-amber-400' // Underpriced — floor above reserve
+                                    : 'text-muted-foreground'
+                                    }`}>
+                                    <TrendingUp className="h-3 w-3" />
+                                    Floor {formatCurrency(floorPrice)}
+                                </div>
+                            </Tooltip>
+                        )}
                     </div>
 
                     {showBidButton && isLive && (

@@ -2,7 +2,7 @@
  * Agent Service — LangChain orchestration layer for MCP agent.
  *
  * Uses ChatOpenAI pointed at Kimi K2.5's OpenAI-compatible API as the LLM,
- * with 9 DynamicStructuredTools. Falls back gracefully if Kimi is unavailable.
+ * with 10 DynamicStructuredTools. Falls back gracefully if Kimi is unavailable.
  *
  * NOTE: We use @langchain/openai (NOT @langchain/community ChatMoonshot)
  * because Kimi K2.5 exposes an OpenAI-compatible API at api.kimi.com that
@@ -114,7 +114,14 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
 You help buyers discover, evaluate, and bid on commercial real-estate leads on a blockchain-verified marketplace powered by Chainlink.
-You have access to 9 MCP tools. Use them to answer the user's questions.
+You have access to 10 MCP tools. Use them to answer the user's questions.
+
+## CHAINLINK DATA FEEDS
+Bid floor prices are powered by **Chainlink Data Feeds** reading real-time ETH/USD on Base Sepolia.
+The ETH/USD price feed (0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1) drives a market multiplier
+that modulates per-vertical floor/ceiling prices. This ensures competitive, market-aware pricing.
+When asked about pricing, ALWAYS call get_bid_floor first to get the current market floor.
+When suggesting bid amounts, use suggest_bid_amount for quality-weighted recommendations.
 
 ## STRICT PII RULES
 - NEVER reveal phone numbers, emails, full names, street addresses, or any personally identifiable information.
@@ -226,12 +233,21 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'get_bid_floor',
-            description: 'Get real-time bid floor pricing for a vertical. Returns floor, ceiling, and market index.',
+            description: 'Get real-time bid floor pricing from Chainlink Data Feeds for a vertical. Returns floor, ceiling, market multiplier, and ETH/USD price.',
             schema: z.object({
                 vertical: z.string().describe('Lead vertical (solar, mortgage, etc.)'),
                 country: z.string().optional().default('US').describe('Country code'),
             }),
-            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('get_bid_floor', params)),
+            func: async (params: Record<string, unknown>) => {
+                // Call dataStreamsService directly — real on-chain Chainlink Data Feed
+                const { dataStreamsService } = await import('./datastreams.service');
+                const floor = await dataStreamsService.getRealtimeBidFloor(
+                    params.vertical as string,
+                    (params.country as string) || 'US'
+                );
+                const index = await dataStreamsService.getLeadPriceIndex(params.vertical as string);
+                return JSON.stringify({ floor, index });
+            },
         }),
         new _DynamicStructuredTool({
             name: 'get_preferences',
@@ -296,6 +312,49 @@ function buildTools() {
                 description: z.string().describe('Lead description text'),
             }),
             func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('suggest_vertical', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'suggest_bid_amount',
+            description: 'Suggest an optimal bid amount based on Chainlink Data Feeds floor price, lead quality score, and competition. Use this when a user asks "how much should I bid?"',
+            schema: z.object({
+                vertical: z.string().describe('Lead vertical'),
+                country: z.string().optional().default('US').describe('Country code'),
+                qualityScore: z.number().optional().describe('Lead quality score 0-100'),
+                bidCount: z.number().optional().describe('Current number of bids on the lead'),
+            }),
+            func: async (params: Record<string, unknown>) => {
+                const { dataStreamsService } = await import('./datastreams.service');
+                const floor = await dataStreamsService.getRealtimeBidFloor(
+                    params.vertical as string,
+                    (params.country as string) || 'US'
+                );
+                const qs = (params.qualityScore as number) || 50;
+                const bids = (params.bidCount as number) || 0;
+
+                // Quality premium: high-quality leads warrant bids above floor
+                const qualityMultiplier = 1 + (qs - 50) / 200; // QS 100 → 1.25x, QS 50 → 1.0x, QS 0 → 0.75x
+                // Competition premium: more bids → bid higher to win
+                const competitionMultiplier = 1 + Math.min(bids, 10) * 0.03; // +3% per bid, max +30%
+
+                const suggested = parseFloat(
+                    (floor.bidFloor * qualityMultiplier * competitionMultiplier).toFixed(2)
+                );
+                const aggressive = parseFloat(
+                    (floor.bidCeiling * 0.7 * qualityMultiplier).toFixed(2)
+                );
+
+                return JSON.stringify({
+                    suggestedBid: suggested,
+                    aggressiveBid: aggressive,
+                    floor: floor.bidFloor,
+                    ceiling: floor.bidCeiling,
+                    ethUsdPrice: floor.ethUsdPrice,
+                    marketMultiplier: floor.marketMultiplier,
+                    qualityMultiplier: parseFloat(qualityMultiplier.toFixed(3)),
+                    competitionMultiplier: parseFloat(competitionMultiplier.toFixed(3)),
+                    reasoning: `Floor $${floor.bidFloor} × quality ${qs}/100 × ${bids} competing bids`,
+                });
+            },
         }),
     ];
 }

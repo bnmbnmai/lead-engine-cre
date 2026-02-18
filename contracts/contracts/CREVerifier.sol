@@ -315,6 +315,7 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
         requestIds = new bytes32[](leadTokenIds.length);
         
         for (uint256 i = 0; i < leadTokenIds.length; i++) {
+            // External self-call required because requestParameterMatch is `external`
             requestIds[i] = this.requestParameterMatch(leadTokenIds[i], buyerParams);
         }
         

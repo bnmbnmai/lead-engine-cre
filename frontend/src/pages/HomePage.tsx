@@ -13,6 +13,7 @@ import { BuyNowCard } from '@/components/marketplace/BuyNowCard';
 import { VerticalSelector } from '@/components/marketplace/VerticalSelector';
 import { SuggestVerticalModal } from '@/components/marketplace/SuggestVerticalModal';
 import { DynamicFieldFilter } from '@/components/marketplace/DynamicFieldFilter';
+import { useFloorPrice } from '@/hooks/useFloorPrice';
 
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -75,6 +76,11 @@ export function HomePage() {
     const [view, setView] = useState<'asks' | 'leads' | 'buyNow' | 'nfts' | 'sellers'>('leads');
     const [layoutMode, setLayoutMode] = useState<'cards' | 'table'>('cards');
     const [vertical, setVertical] = useState('all');
+
+    // Chainlink Data Feeds — real-time floor price for the selected vertical
+    const { floor: floorPrice } = useFloorPrice(
+        vertical !== 'all' ? vertical : undefined
+    );
     const [country, setCountry] = useState('ALL');
     const [region, setRegion] = useState('All');
     const [search, setSearch] = useState('');
@@ -969,7 +975,7 @@ export function HomePage() {
                                         action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
                                     />
                                 ) : (
-                                    leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} />)
+                                    leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} />)
                                 )}
                             </div>
                         )

@@ -26,6 +26,9 @@ const LEAD_NFT_ABI = [
     'function recordSale(uint256 tokenId, address buyer, uint256 price)',
     'function setAuthorizedMinter(address minter, bool authorized)',
     'function verifyLead(uint256 tokenId)',
+    // v2 read helpers — used by getTokenMetadata() and updateQualityScoreOnChain()
+    'function getLeadMetadata(uint256 tokenId) view returns (tuple(bytes32 vertical, bytes32 geoHash, bytes32 dataHash, address seller, uint96 reservePrice, uint16 qualityScore, bool isVerified))',
+    'function updateQualityScore(uint256 tokenId, uint16 score)',
 ];
 
 // LeadSource enum values (mirrors ILeadNFT.sol)

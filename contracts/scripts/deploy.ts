@@ -28,6 +28,12 @@ async function main() {
         31337: "",  // Local - skip CREVerifier
     };
 
+    // DON IDs per network
+    const DON_IDS: { [key: number]: string } = {
+        11155111: "fun-ethereum-sepolia-1",
+        84532: "fun-base-sepolia-1",
+    };
+
     const chainId = Number((await ethers.provider.getNetwork()).chainId);
     const platformFeeBps = 250;  // 2.5%
 
@@ -101,7 +107,7 @@ async function main() {
         const CREVerifier = await ethers.getContractFactory("CREVerifier");
         const creVerifier = await CREVerifier.deploy(
             chainlinkRouter,
-            ethers.encodeBytes32String("fun-ethereum-sepolia-1"),  // DON ID
+            ethers.encodeBytes32String(DON_IDS[chainId] || "fun-ethereum-sepolia-1"),  // DON ID
             0,  // Subscription ID (set later)
             leadNFTAddress,
             deployer.address

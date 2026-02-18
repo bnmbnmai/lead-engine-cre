@@ -406,8 +406,10 @@ router.put('/preferences', authMiddleware, requireBuyer, async (req: Authenticat
 });
 
 // ============================================
-// Data Streams — Real-Time Bid Floor (Stub)
+// Data Feeds — Real-Time Bid Floor (Chainlink)
 // ============================================
+// Reads ETH/USD from Chainlink Price Feed on Base Sepolia,
+// then derives per-vertical floor/ceiling using a market multiplier.
 
 router.get('/bid-floor', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {

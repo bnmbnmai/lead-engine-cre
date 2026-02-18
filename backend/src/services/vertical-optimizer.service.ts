@@ -669,7 +669,7 @@ export async function suggestVertical(input: SuggestInput): Promise<SuggestionRe
         }
     }
 
-    // 3. Get market context (from Chainlink Data Streams stub)
+    // 3. Get market context (from Chainlink Data Feeds)
     let marketContext = 'No market data available.';
     if (parentHint) {
         try {

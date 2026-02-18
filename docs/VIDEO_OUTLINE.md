@@ -26,13 +26,13 @@
 |------|-------|--------|-----------|
 | 0:00 | Title | Landing page hero | Stats bar: 2,847 leads, $127 avg, 15 countries |
 | 0:25 | Seller Submit | Submit Lead form | Mortgage, NY, $450K, CRE score 7,850 |
-| 0:55 | DECO + Streams | Terminal / API response | `isStub: true`, bid floor $85-$220 |
+| 0:55 | DECO + Data Feeds | Terminal / API response | `isStub: true`, bid floor $85-$220 |
 | 1:25 | ACE + Auto-Rules | Compliance + Preferences | Cross-border block, auto-bid rule set |
 | 1:50 | EU Solar Auto-Bid | Seller submit → auto-bid | DE solar, score 8500, 2 bids auto-fire |
-| 2:05 | MCP Agent | Terminal + MCP calls | 8 tools, set_auto_bid_rules, configure_crm_webhook |
+| 2:05 | MCP Agent | Terminal + MCP calls | 12 tools, set_auto_bid_rules, configure_crm_webhook |
 | 2:25 | Encrypted Bid | Buyer Dashboard | Commitment hash → reveal → NFT mint |
 | 2:45 | CRM Webhooks | Webhook config + delivery | HubSpot properties, Zapier flat payload |
-| 3:10 | Global Scale | Marketplace filters + tests | 10 verticals, 151 tests, 1,500 users |
+| 3:10 | Global Scale | Marketplace filters + tests | 10 verticals, 1,288+ tests, 10K users |
 | 3:35 | Close | Architecture diagram | Repo link, thank you |
 
 ---
@@ -40,7 +40,7 @@
 ## Terminal Commands (pre-type before recording)
 
 ```bash
-# Scene 3: Data Streams bid floor
+# Scene 3: Data Feeds bid floor
 curl http://localhost:3001/api/v1/bids/bid-floor?vertical=mortgage&country=US
 
 # Scene 4B: Auto-bid evaluate

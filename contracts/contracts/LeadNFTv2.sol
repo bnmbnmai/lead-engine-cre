@@ -61,6 +61,7 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
     
     event MinterAuthorized(address indexed minter, bool authorized);
     event MarketplaceUpdated(address indexed oldMarketplace, address indexed newMarketplace);
+    event LeadStatusUpdated(uint256 indexed tokenId, LeadStatus oldStatus, LeadStatus newStatus);
 
     // ============================================
     // Constructor
@@ -100,6 +101,7 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
     }
     
     function setMarketplace(address _marketplace) external onlyOwner {
+        require(_marketplace != address(0), "LeadNFTv2: Zero marketplace");
         address old = marketplace;
         marketplace = _marketplace;
         emit MarketplaceUpdated(old, _marketplace);
@@ -191,7 +193,9 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
     
     function setLeadStatus(uint256 tokenId, LeadStatus status) external onlyMarketplace {
         require(_ownerOf(tokenId) != address(0), "LeadNFTv2: Nonexistent");
+        LeadStatus oldStatus = _leadMetadata[tokenId].status;
         _leadMetadata[tokenId].status = status;
+        emit LeadStatusUpdated(tokenId, oldStatus, status);
     }
 
     // ============================================

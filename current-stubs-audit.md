@@ -10,7 +10,7 @@ Comprehensive inventory of every stub, simulation, mock, and demo-only code path
 |---|-----------|----------|---------------|---------------|----------|
 | 1 | DECO Service | `services/deco.service.ts` | ✅ Clear | 🔴 High | Critical |
 | 2 | DECO KYC Verifier | `lib/chainlink/deco.stub.ts` | ✅ Clear | 🔴 High | Critical |
-| 3 | Data Streams Service | `services/datastreams.service.ts` | ✅ Clear | 🟡 Medium | High |
+| 3 | Data Feeds Service | `services/datastreams.service.ts` | ✅ Clear | 🟡 Medium | High |
 | 4 | Confidential Compute Service | `services/confidential.service.ts` | ✅ Clear | 🔴 High | Critical |
 | 5 | Confidential Privacy Service | `lib/chainlink/confidential.stub.ts` | ✅ Clear | 🔴 High | Critical |
 | 6 | Custom Data Feed (Producer) | `lib/chainlink/data-feed.stub.ts` | ✅ Clear | 🟡 Medium | High |
@@ -76,7 +76,7 @@ Comprehensive inventory of every stub, simulation, mock, and demo-only code path
 
 ---
 
-### 3. Data Streams Service (Pricing Stub)
+### 3. Data Feeds Service (Pricing Stub)
 
 **File:** [datastreams.service.ts](file:///c:/Users/Bruce/Projects/Lead%20Engine%20CRE/backend/src/services/datastreams.service.ts)
 **Lines:** 1–194 (entire file)

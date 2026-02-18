@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { MapPin, Shield, Users, ArrowLeft, ExternalLink } from 'lucide-react';
+import { MapPin, Shield, Users, ArrowLeft, ExternalLink, TrendingUp } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
+import { useFloorPrice } from '@/hooks/useFloorPrice';
 
 export function AuctionPage() {
     const { leadId } = useParams<{ leadId: string }>();
@@ -134,6 +135,9 @@ export function AuctionPage() {
     const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead._count?.bids ?? 0;
     const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead.highestBidAmount ?? null;
 
+    // Chainlink Data Feeds — real-time market floor for this vertical
+    const { floor: floorPrice } = useFloorPrice(lead?.vertical);
+
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -179,7 +183,7 @@ export function AuctionPage() {
                                 </div>
 
                                 {/* Stats */}
-                                <div className="grid grid-cols-3 gap-4">
+                                <div className="grid grid-cols-4 gap-4">
                                     <GlassCard className="p-4 text-center">
                                         <div className="text-2xl font-bold gradient-text">
                                             {displayBidCount}
@@ -201,6 +205,15 @@ export function AuctionPage() {
                                             {formatCurrency(lead.reservePrice)}
                                         </div>
                                         <div className="text-sm text-muted-foreground">Reserve</div>
+                                    </GlassCard>
+                                    {/* Chainlink Data Feeds — real-time market floor */}
+                                    <GlassCard className="p-4 text-center">
+                                        <div className="text-2xl font-bold text-blue-400 flex items-center justify-center gap-1.5">
+                                            <TrendingUp className="h-5 w-5" />
+                                            {floorPrice != null ? formatCurrency(floorPrice) : '—'}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground">Market Floor</div>
+                                        <div className="text-[10px] text-muted-foreground/60 mt-0.5">Chainlink Data Feeds</div>
                                     </GlassCard>
                                 </div>
                             </CardContent>

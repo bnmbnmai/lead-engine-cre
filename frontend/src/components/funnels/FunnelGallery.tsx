@@ -78,7 +78,10 @@ export function FunnelGallery({ selectedSlug, onSelectFunnel }: FunnelGalleryPro
         let list = flatList;
 
         // Category filter
-        if (category !== ALL_CATEGORY) {
+        if (category === '__pinned__') {
+            const pinnedSet = new Set(pinned);
+            list = list.filter(v => pinnedSet.has(v.value));
+        } else if (category !== ALL_CATEGORY) {
             list = list.filter(v =>
                 v.value === category || v.value.startsWith(`${category}.`) || v.parentSlug === category
             );
@@ -93,7 +96,7 @@ export function FunnelGallery({ selectedSlug, onSelectFunnel }: FunnelGalleryPro
         }
 
         return list;
-    }, [flatList, category, search]);
+    }, [flatList, category, search, pinned]);
 
     // Sort: pinned first, then alphabetical
     const sortedFunnels = useMemo(() => {

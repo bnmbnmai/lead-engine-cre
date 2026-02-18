@@ -34,16 +34,16 @@
 
 ---
 
-## Scene 3: DECO Attestation + Data Streams Pricing (0:55 – 1:25)
+## Scene 3: DECO Attestation + Data Feeds Pricing (0:55 – 1:25)
 
 **Show:** Backend logs or API responses showing stub services
 **Actions:**
 1. Show DECO attestation result: `verifySolarSubsidy` → proof hash + `isStub: true` badge
-2. Show Data Streams bid floor: `GET /api/v1/bids/bid-floor?vertical=mortgage&country=US` → floor $85, ceiling $220, index 1.12
+2. Show Data Feeds bid floor: `GET /api/v1/bids/bid-floor?vertical=mortgage&country=US` → floor $85, ceiling $220, index 1.12
 3. Mention Confidential Compute: TEE lead scoring running in background
 
 **Say:**
-> "Chainlink DECO attests external data without revealing content. Data Streams provides real-time bid floor pricing — $85 to $220 for US mortgage leads. And Confidential Compute runs privacy-preserving lead scoring in a TEE. All three are stub-ready for production once Chainlink access is granted."
+> "Chainlink DECO attests external data without revealing content. Data Feeds provides real-time bid floor pricing — $85 to $220 for US mortgage leads. And Confidential Compute runs privacy-preserving lead scoring in a TEE. All three are stub-ready for production once Chainlink access is granted."
 
 ---
 
@@ -81,7 +81,7 @@
 
 **Show:** Terminal with MCP server + curl/agent calls
 **Actions:**
-1. Show MCP server running on port 3002 → list 9 tools
+1. Show MCP server running on port 3002 → list 12 tools
 2. Agent call: `search_leads` → returns 3 solar leads in CA
 3. Agent call: `set_auto_bid_rules` → configure solar CA auto-bid at $120, min score 8000
 4. Agent call: `configure_crm_webhook` → register Zapier webhook
@@ -89,7 +89,7 @@
 6. Show agent log → structured JSONL entry with latency
 
 **Say:**
-> "For large buyers, we built an MCP agent server — 9 tools for full automation. AI agents can search leads, set auto-bid rules, register CRM webhooks, and ping leads for evaluation. This is the LangChain integration that makes Lead Engine a platform, not just an app."
+> "For large buyers, we built an MCP agent server — 12 tools for full automation. AI agents can search leads, set auto-bid rules, register CRM webhooks, and ping leads for evaluation. This is the LangChain integration that makes Lead Engine a platform, not just an app."
 
 ---
 
@@ -139,7 +139,7 @@
 **Show:** Marketplace filters + test results
 **Actions:**
 1. Show 10 verticals × 20+ countries in dropdowns
-2. 1,151 Jest + 141 Hardhat + 82 Cypress = **1,288+ tests passing**
+2. 1,288+ tests passing (Jest, Hardhat, Cypress)
 3. Artillery: 23+ scenarios, 10K concurrent users
 
 **Say:**
@@ -151,7 +151,7 @@
 
 **Show:** Architecture diagram + repo link
 **Say:**
-> "Lead Engine disrupts the $200 billion lead marketplace with instant x402 settlements, 9-criteria auto-bidding, and ZK fraud proofs — powered by 5 Chainlink services. Sellers reinvest in seconds. Buyers bid while they sleep. Enterprises plug in via MCP. Repo at github.com/bnmbnmai/lead-engine-cre. Thank you."
+> "Lead Engine disrupts the $200 billion lead marketplace with instant x402 settlements, 10-gate auto-bidding, and ZK fraud proofs — powered by 7 Chainlink services. Sellers reinvest in seconds. Buyers bid while they sleep. Enterprises plug in via MCP. Repo at github.com/bnmbnmai/lead-engine-cre. Thank you."
 
 ---
 

@@ -42,7 +42,7 @@
 
 ## 📜 Smart Contracts
 
-- [ ] All 5 contracts deployed and verified on target network
+- [ ] All 10 contracts deployed and verified on target network
 - [ ] Constructor arguments documented
 - [ ] Contract addresses updated in backend `.env`
 - [ ] Chainlink CRE subscription funded (≥ 5 LINK)
@@ -54,7 +54,7 @@
 - [ ] Alchemy RPC: API key valid, not rate-limited
 - [ ] WalletConnect: project ID configured
 - [ ] CRM webhooks: rate limiter + circuit breaker active
-- [ ] MCP server: 8 tools responding on port 3002
+- [ ] MCP server: 12 tools responding on port 3002
 - [ ] Socket.IO: WebSocket connections stable
 
 ## 🌍 i18n
