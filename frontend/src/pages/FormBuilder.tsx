@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
     GripVertical, Plus, Trash2, Eye, Code, Settings2, Palette,
-    Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, Sparkles,
+    Layers, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download,
     Save, CheckCircle,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LabeledSwitch } from '@/components/ui/switch';
 import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { LanderExport } from '@/components/forms/LanderExport';
-import { getContrastText, meetsWcagAA } from '@/lib/contrast';
+import { getContrastText } from '@/lib/contrast';
 import { useVerticals } from '@/hooks/useVerticals';
 import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import useAuth from '@/hooks/useAuth';
@@ -57,7 +57,7 @@ export function FormBuilder() {
         showNudges: true,
         confetti: false,
     });
-    const [colorScheme, setColorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
+    const [colorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
     const [submitted, setSubmitted] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -486,64 +486,7 @@ export function FormBuilder() {
                             </Button>
                         </div>
 
-                        {/* Gamification settings */}
-                        <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-                            <h3 className="text-sm font-semibold flex items-center gap-2">
-                                <Sparkles className="h-4 w-4 text-amber-500" />
-                                Gamification
-                            </h3>
-                            <LabeledSwitch
-                                label="Show Progress Bar"
-                                description="Display step progress with percentage"
-                                checked={gamification.showProgress}
-                                onCheckedChange={(v) => setGamification((g) => ({ ...g, showProgress: v }))}
-                            />
-                            <LabeledSwitch
-                                label="Show Nudge Messages"
-                                description="Dynamic encouragement: '13% Complete — almost there!'"
-                                checked={gamification.showNudges}
-                                onCheckedChange={(v) => setGamification((g) => ({ ...g, showNudges: v }))}
-                            />
-                            <LabeledSwitch
-                                label="Confetti on Submit"
-                                description="Celebration animation after form completion"
-                                checked={gamification.confetti}
-                                onCheckedChange={(v) => setGamification((g) => ({ ...g, confetti: v }))}
-                            />
-                        </div>
 
-                        {/* Color Scheme Picker */}
-                        <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-                            <h3 className="text-sm font-semibold flex items-center gap-2">
-                                <Palette className="h-4 w-4 text-primary" />
-                                Form Color Scheme
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                                Choose an independent color theme for the embedded form. This is separate from your dashboard theme.
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                {COLOR_SCHEMES.map((scheme) => (
-                                    <button
-                                        key={scheme.name}
-                                        onClick={() => setColorScheme(scheme)}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${colorScheme.name === scheme.name
-                                            ? 'border-primary ring-1 ring-primary bg-primary/5'
-                                            : 'border-border hover:border-primary/40'
-                                            }`}
-                                        title={scheme.name}
-                                    >
-                                        <span
-                                            className="w-4 h-4 rounded-full border border-border shrink-0"
-                                            style={{ backgroundColor: scheme.swatch }}
-                                        />
-                                        {scheme.name}
-                                        {!meetsWcagAA(scheme.vars['--form-text'], scheme.vars['--form-bg']) && (
-                                            <span title="Low contrast — text may be hard to read" className="text-amber-500">⚠️</span>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
                     </div>
 
                     {/* ─── Right: Live Preview ──────── */}
