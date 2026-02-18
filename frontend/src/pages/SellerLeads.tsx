@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, MapPin, Clock, ArrowUpRight, Plus, Download, CheckCircle, Send, Tag, Loader2, MessageSquare } from 'lucide-react';
+import { FileText, MapPin, Clock, ArrowUpRight, Plus, Download, CheckCircle, Send, Tag } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip } from '@/components/ui/Tooltip';
 import api from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
-import { toast } from '@/hooks/useToast';
+
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 
 export function SellerLeads() {
@@ -19,7 +19,7 @@ export function SellerLeads() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
     const [crmExporting, setCrmExporting] = useState(false);
-    const [requalifying, setRequalifying] = useState<Set<string>>(new Set());
+
 
     const handleCrmExportAll = () => {
         if (leads.length === 0) return;
@@ -51,29 +51,7 @@ export function SellerLeads() {
         // In production, this would POST to /api/v1/crm/push with the lead ID
     };
 
-    const handleRequalify = async (leadId: string) => {
-        setRequalifying((prev) => new Set(prev).add(leadId));
-        try {
-            const { data, error } = await api.requalifyLead(leadId);
-            if (error) {
-                toast({ type: 'error', title: 'Requalify Failed', description: error.error || 'Unknown error' });
-            } else {
-                toast({
-                    type: 'success',
-                    title: 'SMS Preview',
-                    description: data?.preview || 'Requalify request sent',
-                });
-            }
-        } catch {
-            toast({ type: 'error', title: 'Network Error', description: 'Failed to requalify lead' });
-        } finally {
-            setRequalifying((prev) => {
-                const next = new Set(prev);
-                next.delete(leadId);
-                return next;
-            });
-        }
-    };
+
 
     const fetchLeads = useCallback(async () => {
         setIsLoading(true);
@@ -252,22 +230,7 @@ export function SellerLeads() {
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        {lead.status === 'UNSOLD' && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => handleRequalify(lead.id)}
-                                                                disabled={requalifying.has(lead.id)}
-                                                                className="gap-1 text-amber-500 hover:text-amber-400"
-                                                                title="Send requalification SMS to lead"
-                                                            >
-                                                                {requalifying.has(lead.id) ? (
-                                                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending…</>
-                                                                ) : (
-                                                                    <><MessageSquare className="h-3.5 w-3.5" /> Requalify</>
-                                                                )}
-                                                            </Button>
-                                                        )}
+
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
