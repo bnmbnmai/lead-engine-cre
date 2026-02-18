@@ -169,7 +169,7 @@ graph TD
 
 ## 3. Smart Contracts — Status & Deployment
 
-All 12 contracts target **Solidity 0.8.24** with optimizer (200 runs, viaIR). Primary deployment is **Base Sepolia (chain 84532)**, with fallback on **Ethereum Sepolia (chain 11155111)**.
+All 13 contracts target **Solidity 0.8.24** with optimizer (200 runs, viaIR). Primary deployment is **Base Sepolia (chain 84532)**, with fallback on **Ethereum Sepolia (chain 11155111)**.
 
 ### Deployed Contracts (Base Sepolia)
 
@@ -186,7 +186,8 @@ All 12 contracts target **Solidity 0.8.24** with optimizer (200 runs, viaIR). Pr
 | 9 | `BountyMatcher.sol` | — | Chainlink Functions bounty matching | ✅ Compiled, deployment pending |
 | 10 | `VerticalBountyPool.sol` | — | Buyer-funded bounty pools | ✅ Compiled, deployment pending |
 | 11 | `VRFTieBreaker.sol` | — | VRF v2.5 tie-breaking | ✅ Compiled, deployment pending |
-| 12 | `LeadNFT.sol` | — | Legacy v1 NFT (superseded by v2) | Deprecated |
+| 12 | `PersonalEscrowVault.sol` | `0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13` | Per-user USDC vault with Chainlink Automation + PoR | ✅ Deployed, Implemented |
+| 13 | `LeadNFT.sol` | — | Legacy v1 NFT (superseded by v2) | Deprecated |
 
 Also present: `contracts/interfaces/` (6 interface files) and `contracts/mocks/` (4 mock contracts for testing).
 
@@ -208,6 +209,16 @@ Also present: `contracts/interfaces/` (6 interface files) and `contracts/mocks/`
 - `fundEscrow(uint256 escrowId, uint256 amount)` — buyer deposits USDC
 - `releaseEscrow(uint256 escrowId)` — releases to seller (minus 2.5% fee)
 - `refundEscrow(uint256 escrowId)` — refund on dispute
+
+**PersonalEscrowVault.sol** — Per-User Vault + Chainlink Automation:
+- `deposit(uint256 amount)` — buyer deposits USDC via USDC.approve + transferFrom
+- `withdraw(uint256 amount)` — buyer withdraws unlocked USDC
+- `lockForBid(address user, uint256 bidAmount)` → lockId — backend locks bid + $1 fee
+- `settleBid(uint256 lockId, address seller)` — transfers bid to seller, fee to platform
+- `refundBid(uint256 lockId)` — unlocks funds back to user's vault balance
+- `verifyReserves()` → bool — Proof of Reserves: USDC.balanceOf(vault) >= totalDeposited
+- `checkUpkeep(bytes)` / `performUpkeep(bytes)` — Chainlink Automation: 24h PoR checks + 7-day expired lock refunds
+- `canBid(address user, uint256 amount)` → bool — pre-bid balance check
 
 **LeadNFTv2.sol** — ERC-721:
 - `mintLeadNFT(address to, uint256 tokenId, string uri, uint256 qualityScore)` — mints with quality proof

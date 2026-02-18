@@ -267,11 +267,12 @@ class RTBSocketServer {
                     // Check holder perks
                     const perks = await applyHolderPerks(lead.vertical, socket.walletAddress);
 
-                    // ── Vault balance check ──
-                    // If bid has an amount, verify vault has enough (amount + $1 fee)
+                    // ── On-chain vault balance check + lock ──
+                    // If bid has an amount, lock funds on-chain (bid + $1 fee)
                     const bidAmount = data.amount ?? null;
-                    if (bidAmount && bidAmount > 0) {
-                        const vaultCheck = await vaultService.checkBidBalance(socket.userId!, bidAmount);
+                    let vaultLockId: number | undefined;
+                    if (bidAmount && bidAmount > 0 && socket.walletAddress) {
+                        const vaultCheck = await vaultService.checkBidBalance(socket.walletAddress, bidAmount);
                         if (!vaultCheck.ok) {
                             socket.emit('error', {
                                 message: `Insufficient vault balance: $${vaultCheck.balance.toFixed(2)} < $${vaultCheck.required.toFixed(2)} required (bid + $1 fee). Fund your vault first.`,
@@ -279,21 +280,15 @@ class RTBSocketServer {
                             return;
                         }
 
-                        // Deduct from vault immediately (bid + fee)
-                        const feeResult = await vaultService.chargeFee(socket.userId!, data.leadId);
-                        if (!feeResult.success) {
-                            socket.emit('error', { message: feeResult.error || 'Failed to charge vault fee' });
-                            return;
-                        }
-                        const deductResult = await vaultService.deduct(
-                            socket.userId!, bidAmount, data.leadId, `Bid on lead ${data.leadId}`
+                        // Atomic on-chain lock: bid amount + $1 fee
+                        const lockResult = await vaultService.lockForBid(
+                            socket.walletAddress, bidAmount, socket.userId!, data.leadId
                         );
-                        if (!deductResult.success) {
-                            // Refund the fee since bid deduction failed
-                            await vaultService.refund(socket.userId!, vaultService.VAULT_FEE, data.leadId, 'Fee refund — bid deduction failed');
-                            socket.emit('error', { message: deductResult.error || 'Failed to deduct from vault' });
+                        if (!lockResult.success) {
+                            socket.emit('error', { message: lockResult.error || 'Failed to lock vault funds on-chain' });
                             return;
                         }
+                        vaultLockId = lockResult.lockId;
                     }
 
                     // Create sealed bid (commit-reveal)
@@ -317,7 +312,7 @@ class RTBSocketServer {
                             amount: bidAmount,
                             effectiveBid,
                             isHolder: perks.isHolder,
-                            escrowTxHash: (data as any).escrowTxHash || null,
+                            escrowTxHash: vaultLockId ? `vaultLock:${vaultLockId}` : ((data as any).escrowTxHash || null),
                             status: 'PENDING',
                         },
                         update: {
@@ -325,7 +320,7 @@ class RTBSocketServer {
                             amount: bidAmount ?? undefined,
                             effectiveBid: effectiveBid ?? undefined,
                             isHolder: perks.isHolder,
-                            escrowTxHash: (data as any).escrowTxHash || undefined,
+                            escrowTxHash: vaultLockId ? `vaultLock:${vaultLockId}` : ((data as any).escrowTxHash || undefined),
                             status: 'PENDING',
                         },
                     });

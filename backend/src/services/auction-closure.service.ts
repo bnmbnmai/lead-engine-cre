@@ -424,15 +424,13 @@ async function resolveAuction(leadId: string, io?: Server) {
                         data: { escrowRefunded: true },
                     });
 
-                    // Refund vault (bid amount + $1 fee)
-                    const bidAmt = Number(loserBid.amount) || 0;
-                    if (bidAmt > 0) {
-                        await vaultService.refund(
-                            loserBid.buyerId,
-                            bidAmt + vaultService.VAULT_FEE,
-                            leadId,
-                            `Auction loss refund — lead ${leadId}`
-                        );
+                    // On-chain vault refund via lockId stored in escrowTxHash
+                    const escrowRef = loserBid.escrowTxHash || '';
+                    if (escrowRef.startsWith('vaultLock:')) {
+                        const lockId = parseInt(escrowRef.split(':')[1], 10);
+                        if (lockId > 0) {
+                            await vaultService.refundBid(lockId, loserBid.buyerId, leadId);
+                        }
                     }
 
                     aceDevBus.emit('ace:dev-log', {
@@ -441,7 +439,7 @@ async function resolveAuction(leadId: string, io?: Server) {
                         leadId,
                         bidId: loserBid.id,
                         buyerId: loserBid.buyerId,
-                        vaultRefund: bidAmt > 0 ? `$${(bidAmt + vaultService.VAULT_FEE).toFixed(2)}` : 'n/a',
+                        vaultRefund: loserBid.escrowTxHash?.startsWith('vaultLock:') ? 'on-chain' : 'n/a',
                     });
                 } catch (refundErr: any) {
                     console.error(`[AuctionClosure] Escrow refund failed for bid ${loserBid.id}:`, refundErr.message);

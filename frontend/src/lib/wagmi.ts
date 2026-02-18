@@ -13,6 +13,7 @@ export const CONTRACT_ADDRESSES = {
         escrow: import.meta.env.VITE_ESCROW_ADDRESS_SEPOLIA || '',
         ace: import.meta.env.VITE_ACE_ADDRESS_SEPOLIA || '',
         verticalNFT: import.meta.env.VITE_VERTICAL_NFT_ADDRESS_SEPOLIA || '',
+        vault: import.meta.env.VITE_VAULT_ADDRESS_SEPOLIA || '',
         usdc: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
     },
     baseSepolia: {
@@ -21,6 +22,7 @@ export const CONTRACT_ADDRESSES = {
         escrow: import.meta.env.VITE_ESCROW_ADDRESS_BASE || '',
         ace: import.meta.env.VITE_ACE_ADDRESS_BASE || '',
         verticalNFT: import.meta.env.VITE_VERTICAL_NFT_ADDRESS_BASE || '',
+        vault: import.meta.env.VITE_VAULT_ADDRESS_BASE || '0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13',
         usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     },
 } as const;

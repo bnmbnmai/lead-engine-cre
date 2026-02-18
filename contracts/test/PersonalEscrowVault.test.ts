@@ -1,0 +1,418 @@
+import { expect } from "chai";
+import { ethers } from "hardhat";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { PersonalEscrowVault, MockERC20 } from "../typechain-types";
+import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
+
+describe("PersonalEscrowVault", function () {
+    let vault: PersonalEscrowVault;
+    let usdc: MockERC20;
+    let owner: SignerWithAddress;
+    let platform: SignerWithAddress;
+    let buyer1: SignerWithAddress;
+    let buyer2: SignerWithAddress;
+    let seller: SignerWithAddress;
+    let backend: SignerWithAddress;
+
+    const CONVENIENCE_FEE = 1_000_000n; // $1 USDC
+    const DEPOSIT_AMOUNT = 100_000_000n; // $100 USDC
+    const BID_AMOUNT = 25_000_000n; // $25 USDC
+
+    beforeEach(async function () {
+        [owner, platform, buyer1, buyer2, seller, backend] = await ethers.getSigners();
+
+        // Deploy mock USDC
+        const MockERC20 = await ethers.getContractFactory("MockERC20");
+        usdc = await MockERC20.deploy("USD Coin", "USDC", 6);
+        await usdc.waitForDeployment();
+
+        // Deploy vault
+        const Vault = await ethers.getContractFactory("PersonalEscrowVault");
+        vault = await Vault.deploy(
+            await usdc.getAddress(),
+            platform.address,
+            owner.address
+        );
+        await vault.waitForDeployment();
+
+        // Authorize backend
+        await vault.setAuthorizedCaller(backend.address, true);
+
+        // Mint USDC to buyers and approve vault
+        const vaultAddr = await vault.getAddress();
+        await usdc.mint(buyer1.address, DEPOSIT_AMOUNT * 10n);
+        await usdc.mint(buyer2.address, DEPOSIT_AMOUNT * 10n);
+        await usdc.connect(buyer1).approve(vaultAddr, ethers.MaxUint256);
+        await usdc.connect(buyer2).approve(vaultAddr, ethers.MaxUint256);
+    });
+
+    // ============================================
+    // Deposit
+    // ============================================
+
+    describe("deposit", function () {
+        it("should accept USDC deposit and update balance", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+            expect(await vault.totalDeposited()).to.equal(DEPOSIT_AMOUNT);
+        });
+
+        it("should emit Deposited event", async function () {
+            await expect(vault.connect(buyer1).deposit(DEPOSIT_AMOUNT))
+                .to.emit(vault, "Deposited")
+                .withArgs(buyer1.address, DEPOSIT_AMOUNT, DEPOSIT_AMOUNT);
+        });
+
+        it("should revert on zero amount", async function () {
+            await expect(vault.connect(buyer1).deposit(0))
+                .to.be.revertedWith("Zero amount");
+        });
+
+        it("should accumulate multiple deposits", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT * 2n);
+        });
+    });
+
+    // ============================================
+    // Withdraw
+    // ============================================
+
+    describe("withdraw", function () {
+        beforeEach(async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+        });
+
+        it("should withdraw specified amount", async function () {
+            const withdrawAmt = 50_000_000n; // $50
+            await vault.connect(buyer1).withdraw(withdrawAmt);
+
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT - withdrawAmt);
+        });
+
+        it("should withdraw all when amount is 0", async function () {
+            await vault.connect(buyer1).withdraw(0);
+
+            expect(await vault.balanceOf(buyer1.address)).to.equal(0);
+        });
+
+        it("should revert on insufficient balance", async function () {
+            await expect(vault.connect(buyer1).withdraw(DEPOSIT_AMOUNT + 1n))
+                .to.be.revertedWith("Insufficient balance");
+        });
+
+        it("should emit Withdrawn event", async function () {
+            await expect(vault.connect(buyer1).withdraw(DEPOSIT_AMOUNT))
+                .to.emit(vault, "Withdrawn")
+                .withArgs(buyer1.address, DEPOSIT_AMOUNT, 0);
+        });
+    });
+
+    // ============================================
+    // Bid Lock
+    // ============================================
+
+    describe("lockForBid", function () {
+        beforeEach(async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+        });
+
+        it("should lock bidAmount + fee from user balance", async function () {
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            const expectedBalance = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
+            expect(await vault.balanceOf(buyer1.address)).to.equal(expectedBalance);
+            expect(await vault.lockedBalances(buyer1.address)).to.equal(BID_AMOUNT + CONVENIENCE_FEE);
+        });
+
+        it("should create a bid lock record", async function () {
+            const tx = await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+            const receipt = await tx.wait();
+
+            // lockId should be 1
+            const lock = await vault.bidLocks(1);
+            expect(lock.user).to.equal(buyer1.address);
+            expect(lock.amount).to.equal(BID_AMOUNT);
+            expect(lock.fee).to.equal(CONVENIENCE_FEE);
+            expect(lock.settled).to.be.false;
+        });
+
+        it("should revert if insufficient balance for bid + fee", async function () {
+            // Try to bid more than balance
+            await expect(
+                vault.connect(backend).lockForBid(buyer1.address, DEPOSIT_AMOUNT)
+            ).to.be.revertedWith("Insufficient vault balance");
+        });
+
+        it("should reject non-authorized callers", async function () {
+            await expect(
+                vault.connect(buyer1).lockForBid(buyer1.address, BID_AMOUNT)
+            ).to.be.revertedWith("Vault: not authorized");
+        });
+
+        it("should emit BidLocked event", async function () {
+            await expect(vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT))
+                .to.emit(vault, "BidLocked")
+                .withArgs(1, buyer1.address, BID_AMOUNT, CONVENIENCE_FEE);
+        });
+
+        it("should report canBid correctly", async function () {
+            expect(await vault.canBid(buyer1.address, BID_AMOUNT)).to.be.true;
+            expect(await vault.canBid(buyer1.address, DEPOSIT_AMOUNT)).to.be.false; // amount + fee > balance
+        });
+    });
+
+    // ============================================
+    // Settle Bid (Winner)
+    // ============================================
+
+    describe("settleBid", function () {
+        let lockId: bigint;
+
+        beforeEach(async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            const tx = await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+            const receipt = await tx.wait();
+            lockId = 1n;
+        });
+
+        it("should transfer bid to seller and fee to platform", async function () {
+            const sellerBefore = await usdc.balanceOf(seller.address);
+            const platformBefore = await usdc.balanceOf(platform.address);
+
+            await vault.connect(backend).settleBid(lockId, seller.address);
+
+            expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + BID_AMOUNT);
+            expect(await usdc.balanceOf(platform.address)).to.equal(platformBefore + CONVENIENCE_FEE);
+        });
+
+        it("should mark lock as settled", async function () {
+            await vault.connect(backend).settleBid(lockId, seller.address);
+            const lock = await vault.bidLocks(lockId);
+            expect(lock.settled).to.be.true;
+        });
+
+        it("should reduce locked balance", async function () {
+            await vault.connect(backend).settleBid(lockId, seller.address);
+            expect(await vault.lockedBalances(buyer1.address)).to.equal(0);
+        });
+
+        it("should revert on double-settle", async function () {
+            await vault.connect(backend).settleBid(lockId, seller.address);
+            await expect(
+                vault.connect(backend).settleBid(lockId, seller.address)
+            ).to.be.revertedWith("Already settled");
+        });
+
+        it("should emit BidSettled event", async function () {
+            await expect(vault.connect(backend).settleBid(lockId, seller.address))
+                .to.emit(vault, "BidSettled")
+                .withArgs(lockId, buyer1.address, seller.address, BID_AMOUNT, CONVENIENCE_FEE);
+        });
+    });
+
+    // ============================================
+    // Refund Bid (Loser)
+    // ============================================
+
+    describe("refundBid", function () {
+        let lockId: bigint;
+
+        beforeEach(async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+            lockId = 1n;
+        });
+
+        it("should return locked funds to user balance", async function () {
+            await vault.connect(backend).refundBid(lockId);
+
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+            expect(await vault.lockedBalances(buyer1.address)).to.equal(0);
+        });
+
+        it("should emit BidRefunded event", async function () {
+            await expect(vault.connect(backend).refundBid(lockId))
+                .to.emit(vault, "BidRefunded")
+                .withArgs(lockId, buyer1.address, BID_AMOUNT + CONVENIENCE_FEE);
+        });
+
+        it("should revert on double-refund", async function () {
+            await vault.connect(backend).refundBid(lockId);
+            await expect(
+                vault.connect(backend).refundBid(lockId)
+            ).to.be.revertedWith("Already settled");
+        });
+    });
+
+    // ============================================
+    // Proof of Reserves
+    // ============================================
+
+    describe("verifyReserves", function () {
+        it("should report solvent when deposits balance", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+
+            await expect(vault.verifyReserves())
+                .to.emit(vault, "ReservesVerified");
+
+            expect(await vault.lastPorSolvent()).to.be.true;
+        });
+
+        it("should set lastPorCheck timestamp", async function () {
+            await vault.verifyReserves();
+            expect(await vault.lastPorCheck()).to.be.gt(0);
+        });
+    });
+
+    // ============================================
+    // Chainlink Automation
+    // ============================================
+
+    describe("Automation (checkUpkeep / performUpkeep)", function () {
+        it("should report upkeep needed after POR_INTERVAL", async function () {
+            // Initially no upkeep (lastPorCheck = 0, so it IS needed)
+            const [needed] = await vault.checkUpkeep("0x");
+            expect(needed).to.be.true;
+        });
+
+        it("should not need upkeep right after PoR check", async function () {
+            await vault.verifyReserves();
+
+            const [needed] = await vault.checkUpkeep("0x");
+            expect(needed).to.be.false;
+        });
+
+        it("should need upkeep after 24 hours", async function () {
+            await vault.verifyReserves();
+
+            // Advance 24 hours
+            await time.increase(24 * 60 * 60);
+
+            const [needed] = await vault.checkUpkeep("0x");
+            expect(needed).to.be.true;
+        });
+
+        it("should detect expired locks", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.verifyReserves(); // Reset PoR timer
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Advance 7 days
+            await time.increase(7 * 24 * 60 * 60);
+
+            const [needed, data] = await vault.checkUpkeep("0x");
+            expect(needed).to.be.true;
+        });
+
+        it("should auto-refund expired locks via performUpkeep", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.verifyReserves(); // Reset PoR timer
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Not enough time = no refund
+            const balBefore = await vault.balanceOf(buyer1.address);
+
+            // Advance 7 days
+            await time.increase(7 * 24 * 60 * 60);
+
+            // Perform upkeep (action 2 = expired refunds)
+            await vault.performUpkeep(ethers.AbiCoder.defaultAbiCoder().encode(["uint8"], [2]));
+
+            // Balance should be restored
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+            expect(await vault.activeLockCount()).to.equal(0);
+        });
+    });
+
+    // ============================================
+    // Pausable
+    // ============================================
+
+    describe("Pausable", function () {
+        it("should prevent deposits when paused", async function () {
+            await vault.pause();
+            await expect(vault.connect(buyer1).deposit(DEPOSIT_AMOUNT))
+                .to.be.revertedWithCustomError(vault, "EnforcedPause");
+        });
+
+        it("should resume after unpause", async function () {
+            await vault.pause();
+            await vault.unpause();
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+        });
+    });
+
+    // ============================================
+    // Admin
+    // ============================================
+
+    describe("Admin", function () {
+        it("should only allow owner to set authorized callers", async function () {
+            await expect(
+                vault.connect(buyer1).setAuthorizedCaller(buyer1.address, true)
+            ).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
+        });
+
+        it("should update platform wallet", async function () {
+            await vault.setPlatformWallet(buyer2.address);
+            expect(await vault.platformWallet()).to.equal(buyer2.address);
+        });
+    });
+
+    // ============================================
+    // E2E Flow
+    // ============================================
+
+    describe("E2E: Full auction lifecycle", function () {
+        it("fund → bid → win → seller paid + fee collected", async function () {
+            // 1. Buyer deposits
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+
+            // 2. Backend locks funds for bid
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // 3. Buyer1 wins — settle
+            const sellerBefore = await usdc.balanceOf(seller.address);
+            await vault.connect(backend).settleBid(1, seller.address);
+
+            // 4. Verify final state
+            const expectedRemaining = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
+            expect(await vault.balanceOf(buyer1.address)).to.equal(expectedRemaining);
+            expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + BID_AMOUNT);
+        });
+
+        it("fund → bid → lose → fully refunded", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Buyer loses — refund
+            await vault.connect(backend).refundBid(1);
+
+            // Balance fully restored
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+            expect(await vault.lockedBalances(buyer1.address)).to.equal(0);
+        });
+
+        it("fund → bid → expire → auto-refunded by Automation", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.verifyReserves();
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Advance 7 days
+            await time.increase(7 * 24 * 60 * 60);
+
+            // Automation triggers refund
+            const [needed, data] = await vault.checkUpkeep("0x");
+            expect(needed).to.be.true;
+
+            await vault.performUpkeep(data);
+
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+        });
+    });
+});

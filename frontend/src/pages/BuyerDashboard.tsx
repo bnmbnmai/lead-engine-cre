@@ -305,18 +305,25 @@ export function BuyerDashboard() {
                 {/* Bounty Pools */}
                 <BountyPanel />
 
-                {/* ── Escrow Vault ── */}
+                {/* ── On-Chain Escrow Vault ── */}
                 <Card>
                     <CardHeader className="flex-row items-center justify-between">
                         <CardTitle className="flex items-center gap-2">
                             <Wallet className="h-5 w-5 text-teal-500" />
-                            Escrow Vault
+                            On-Chain Escrow Vault
                         </CardTitle>
-                        <Badge variant="outline" className="text-teal-500 border-teal-500/30 font-mono">
-                            {formatCurrency(vaultBalance)} USDC
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-teal-500 border-teal-500/30 font-mono">
+                                {formatCurrency(vaultBalance)} USDC
+                            </Badge>
+                        </div>
                     </CardHeader>
                     <CardContent>
+                        <p className="text-xs text-muted-foreground mb-4">
+                            Your vault balance is stored on-chain in the PersonalEscrowVault contract.
+                            Deposit USDC via the USDC Allowance card above, then record the deposit here.
+                            Bids automatically lock funds on-chain; losers are refunded automatically.
+                        </p>
                         <div className="grid sm:grid-cols-3 gap-4">
                             {/* Deposit */}
                             <div className="space-y-2">
@@ -336,12 +343,12 @@ export function BuyerDashboard() {
                                         onClick={async () => {
                                             setVaultLoading(true);
                                             const amt = Number(depositAmount);
-                                            const { data } = await api.depositVault(amt);
+                                            // For demo: record deposit via API (in production, this is triggered after on-chain tx)
+                                            const { data } = await api.depositVault(amt, 'demo-deposit');
                                             if (data?.success) {
                                                 setVaultBalance(data.balance);
                                                 setDepositAmount('');
                                                 toast({ type: 'success', title: 'Vault Funded', description: `Deposited $${amt.toFixed(2)} USDC` });
-                                                // Refresh txs
                                                 api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
                                             }
                                             setVaultLoading(false);
@@ -361,22 +368,13 @@ export function BuyerDashboard() {
                                     size="sm"
                                     disabled={vaultLoading || vaultBalance <= 0}
                                     onClick={async () => {
-                                        setVaultLoading(true);
-                                        const { data } = await api.withdrawVault(vaultBalance);
-                                        if (data?.success) {
-                                            setVaultBalance(data.balance);
-                                            toast({ type: 'success', title: 'Withdrawn', description: `Withdrew $${vaultBalance.toFixed(2)} to wallet` });
-                                            api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
-                                        } else if (data?.error) {
-                                            toast({ type: 'error', title: 'Withdraw Failed', description: data.error });
-                                        }
-                                        setVaultLoading(false);
+                                        toast({ type: 'info', title: 'Withdraw', description: 'Call vault.withdraw() from your wallet to withdraw on-chain' });
                                     }}
                                     className="w-full h-9"
                                 >
-                                    <ArrowUp className="h-4 w-4 mr-1" /> Withdraw All
+                                    <ArrowUp className="h-4 w-4 mr-1" /> Withdraw (via Wallet)
                                 </Button>
-                                <p className="text-xs text-muted-foreground">Funds return to your wallet</p>
+                                <p className="text-xs text-muted-foreground">Funds return to your wallet on-chain</p>
                             </div>
 
                             {/* Recent Vault Transactions */}
