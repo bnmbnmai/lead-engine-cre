@@ -490,12 +490,11 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 - Fixed `cre.service.ts` same env var pattern (now prioritizes `_BASE_SEPOLIA`)
 - Fixed sealed bid not-recorded bug (4-layer fix: buyer profile, KYC status, promise-based placeBid, error toasts)
 - Fixed WebSocket limit bug where lead display defaulted to 20 instead of 100 after real-time updates
-- **Fixed escrow 500 error** (`POST /api/v1/leads/{id}/prepare-escrow`):
-  - Root cause: Prisma query mixed `include` with nested `select` — changed to consistent `include` chains
-  - Added fallback query for partially-escrowed transactions (finds any unreleased tx if no `escrowId=null` tx)
-  - Added detailed `[PREPARE-ESCROW]` step-by-step logging at every decision point
-  - Added `[x402]` startup diagnostics logging env var status for `ESCROW_CONTRACT_ADDRESS`, `USDC_CONTRACT_ADDRESS`, `DEPLOYER_PRIVATE_KEY`, `PLATFORM_WALLET_ADDRESS`
-  - **Render env vars needed**: `ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA=0xff5d18a9fff7682a5285ccdafd0253e34761DbDB`, `USDC_CONTRACT_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+- **Fixed escrow 500 error** (`POST /api/v1/leads/{id}/prepare-escrow`) — **✅ CONFIRMED WORKING IN PRODUCTION**:
+  - **Root cause**: ethers.js v6 enforces EIP-55 checksummed addresses. The env var `0xff5d18a9fff7682a5285ccdafd0253e34761DbDB` had invalid mixed-case → `encodeFunctionData('approve', [ESCROW_ADDR, ...])` threw `bad address checksum`
+  - **Fix**: Added `safeChecksum()` helper — `ethers.getAddress(raw.toLowerCase())` normalizes any address to valid EIP-55 checksum before ABI encoding
+  - Also fixed Prisma query (`include`/`select` mix), added fallback query, detailed `[PREPARE-ESCROW]` logging, `[x402]` startup diagnostics
+  - **Production test**: buyer approved USDC (`gasLimit=84378`), called `createAndFundEscrow()` (`gasLimit=466911`), escrow confirmed on-chain
 - **Sealed-bid UX fix** — "Highest Bid" amount hidden on `AuctionPage` during BIDDING phase; only revealed after auction ends (REVEALING/RESOLVED)
 - **Escrow dev-log emissions** — `prepare-escrow` and `confirm-escrow` routes now emit `ace:dev-log` events (call/success/error) → visible in Chainlink Services Dev Log with teal "Escrow" badge
 - **README Mermaid** — Added "Service Integration Points" flowchart showing Chainlink service connections (CRE, ACE, Data Feeds, VRF, Functions, RTBEscrow, LeadNFT)
