@@ -477,12 +477,13 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 ## 9. Major Work Completed in Recent Sessions
 
 ### Session: Feb 18 (Today)
-- Fixed **"ACE compliance contract unavailable" error** on bid placement — definitive root cause was **ABI mismatch** between code and deployed contract:
-  1. `canTransact` ABI used `(address, bytes32, bytes32)` but deployed contract uses `(address, string)` — different function selector → revert
-  2. `verifyKYC` ABI used `(address, bytes32, bytes)` but deployed contract uses `(address, bytes32)` — same issue
-  3. Env var read `ACE_CONTRACT_ADDRESS` (Sepolia) instead of `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA`
-  4. Demo buyers never registered on-chain — added `aceService.autoKYC()` during demo-login
-- Added **Dev Log panel** (bottom-left, toggleable) showing real-time ACE compliance events
+- Fixed **"ACE compliance contract unavailable" error** on bid placement — multi-layer fix:
+  1. Env var read `ACE_CONTRACT_ADDRESS` (Sepolia) instead of `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA`
+  2. Demo buyers never registered on-chain — added `aceService.autoKYC()` during demo-login
+  3. ABI now Basescan-verified: `verifyKYC(address, bytes32, bytes)`, `canTransact(address, bytes32, bytes32)`
+  4. On-chain `canTransact` returned false because no default vertical policies were set — added `ensureVerticalPolicies()` to set common vertical policies via `setDefaultVerticalPolicy(bytes32, bool)`
+- Added **Dev Log panel** (bottom-left, auto-open in demo) with real-time ACE events, copy buttons, Basescan links
+  - Fixed socket wiring: added `ace:dev-log` to frontend `AuctionEventHandler` type and events relay array
 - Fixed `cre.service.ts` same env var pattern (now prioritizes `_BASE_SEPOLIA`)
 - Fixed sealed bid not-recorded bug (4-layer fix: buyer profile, KYC status, promise-based placeBid, error toasts)
 - Fixed WebSocket limit bug where lead display defaulted to 20 instead of 100 after real-time updates

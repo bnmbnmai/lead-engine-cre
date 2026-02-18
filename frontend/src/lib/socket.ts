@@ -49,6 +49,8 @@ type AuctionEventHandler = {
     'analytics:update': (data: { type: string; leadId: string; buyerId: string; amount: number; vertical: string; timestamp: string }) => void;
     // Escrow lifecycle
     'lead:escrow-confirmed': (data: { leadId: string }) => void;
+    // Dev log (ACE compliance events for DevLogPanel)
+    'ace:dev-log': (data: { ts: string; action: string;[key: string]: unknown }) => void;
 };
 
 // ============================================
@@ -108,6 +110,8 @@ class SocketClient {
             'lead:status-changed',
             'analytics:update',
             'lead:escrow-confirmed',
+            // Dev log events
+            'ace:dev-log',
         ];
 
         events.forEach((event) => {

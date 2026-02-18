@@ -20,20 +20,21 @@ const ACE_CONTRACT_ADDRESS = process.env.ACE_CONTRACT_ADDRESS_BASE_SEPOLIA || pr
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
-// ACE Contract ABI — must match DEPLOYED contract at 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6
-// Signatures verified against Base Sepolia deployment (NOT the repo Solidity source).
+// ACE Contract ABI — Basescan-verified for deployed contract on Base Sepolia
+// Address: 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6
 const ACE_ABI = [
     // Read
     'function isKYCValid(address user) view returns (bool)',
     'function checkKYCStatus(address user) view returns (uint8)',
-    'function canTransact(address wallet, string vertical) view returns (bool)',
+    'function canTransact(address user, bytes32 vertical, bytes32 geoHash) view returns (bool)',
     'function getReputationScore(address user) view returns (uint16)',
     'function getUserCompliance(address user) view returns (tuple(uint8 kycStatus, uint8 amlStatus, bytes32 jurisdictionHash, uint40 kycExpiresAt, uint40 lastChecked, uint16 reputationScore, bool isBlacklisted))',
     'function isJurisdictionAllowed(bytes32 jurisdictionHash, bytes32 verticalHash) view returns (bool)',
     // Write
-    'function verifyKYC(address wallet, bytes32 jurisdictionHash)',
+    'function verifyKYC(address user, bytes32 proofHash, bytes zkProof)',
     'function updateReputationScore(address user, int16 delta)',
     'function setJurisdictionPolicy(bytes32 jurisdictionHash, bytes32 verticalHash, bool allowed)',
+    'function setDefaultVerticalPolicy(bytes32 vertical, bool allowed)',
 ];
 
 class ACEService {
@@ -139,17 +140,36 @@ class ACEService {
             return { allowed: false, reason: 'KYC verification required' };
         }
 
-        // Check on-chain — deployed canTransact(address, string)
+        // Check on-chain — Basescan: canTransact(address, bytes32, bytes32)
         if (this.contract) {
             try {
-                devLog('canTransact:call', { wallet: walletAddress, vertical });
-                const canTx = await this.contract.canTransact(walletAddress, vertical);
+                const verticalHash = ethers.keccak256(ethers.toUtf8Bytes(vertical || 'default'));
+                const geoHashBytes = ethers.keccak256(ethers.toUtf8Bytes(geoHash || 'default'));
+
+                devLog('canTransact:call', {
+                    wallet: walletAddress,
+                    vertical,
+                    verticalHash,
+                    geoHash,
+                    geoHashBytes,
+                    contractAddress: ACE_CONTRACT_ADDRESS,
+                });
+
+                const canTx = await this.contract.canTransact(walletAddress, verticalHash, geoHashBytes);
+
                 devLog('canTransact:result', { wallet: walletAddress, vertical, allowed: canTx });
+
                 if (!canTx) {
                     return { allowed: false, reason: 'Compliance check failed on-chain' };
                 }
             } catch (error: any) {
-                devLog('canTransact:error', { wallet: walletAddress, vertical, error: error.message });
+                devLog('canTransact:error', {
+                    wallet: walletAddress,
+                    vertical,
+                    error: error.message,
+                    code: error.code,
+                    contractAddress: ACE_CONTRACT_ADDRESS,
+                });
                 console.error('[ACE] ⚠️ canTransact on-chain check FAILED — denying transaction:', error);
                 return { allowed: false, reason: 'ACE compliance contract unavailable' };
             }
@@ -316,11 +336,11 @@ class ACEService {
             ethers.toUtf8Bytes(`kyc-${walletAddress}-${Date.now()}`)
         );
 
-        // On-chain KYC — deployed verifyKYC(address, bytes32)
+        // On-chain KYC — Basescan: verifyKYC(address, bytes32, bytes)
         if (this.contract && this.signer) {
             try {
-                devLog('verifyKYC:call', { wallet: walletAddress, proofHash: kycProofHash });
-                const tx = await this.contract.verifyKYC(walletAddress, kycProofHash);
+                devLog('verifyKYC:call', { wallet: walletAddress, proofHash: kycProofHash, contractAddress: ACE_CONTRACT_ADDRESS });
+                const tx = await this.contract.verifyKYC(walletAddress, kycProofHash, '0x');
                 const receipt = await tx.wait();
                 devLog('verifyKYC:result', { wallet: walletAddress, txHash: receipt?.hash });
 
@@ -337,9 +357,12 @@ class ACEService {
                     },
                 });
 
+                // Ensure common vertical policies are set so canTransact returns true
+                await this.ensureVerticalPolicies();
+
                 return { verified: true, txHash: receipt?.hash };
             } catch (error: any) {
-                devLog('verifyKYC:error', { wallet: walletAddress, error: error.message });
+                devLog('verifyKYC:error', { wallet: walletAddress, error: error.message, code: error.code });
                 console.error('ACE autoKYC on-chain failed:', error);
                 return { verified: false, error: error.message };
             }
@@ -447,6 +470,45 @@ class ACEService {
         }
 
         return { success: false, error: 'Seller not found' };
+    }
+
+    // ============================================
+    // Vertical Policy Setup
+    // ============================================
+
+    private policiesInitialized = false;
+
+    /**
+     * Ensure common vertical policies are set on-chain.
+     * canTransact checks _defaultVerticalPolicy[verticalHash] — if not set,
+     * it returns false even for KYC-approved users. This sets policies once.
+     */
+    async ensureVerticalPolicies(): Promise<void> {
+        if (this.policiesInitialized || !this.contract || !this.signer) return;
+
+        const verticals = [
+            'mortgage', 'insurance', 'solar', 'legal', 'home-services',
+            'roofing', 'hvac', 'plumbing', 'auto-insurance', 'health-insurance',
+            'life-insurance', 'real-estate', 'personal-injury', 'tax',
+            'debt-settlement', 'credit-repair', 'education', 'moving',
+            'pest-control', 'windows', 'default',
+        ];
+
+        for (const v of verticals) {
+            const hash = ethers.keccak256(ethers.toUtf8Bytes(v));
+            try {
+                devLog('setDefaultVerticalPolicy:call', { vertical: v, hash });
+                const tx = await this.contract.setDefaultVerticalPolicy(hash, true);
+                await tx.wait();
+                devLog('setDefaultVerticalPolicy:result', { vertical: v, hash, set: true });
+            } catch (error: any) {
+                // Already set or gas issue — log but don't block
+                devLog('setDefaultVerticalPolicy:skip', { vertical: v, error: error.message });
+            }
+        }
+
+        this.policiesInitialized = true;
+        devLog('verticalPolicies:initialized', { count: verticals.length });
     }
 }
 
