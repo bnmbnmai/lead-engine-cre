@@ -480,12 +480,12 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 - Fixed **"ACE compliance contract unavailable" error** on bid placement — definitive multi-layer fix:
   1. **Render env var missing**: `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA` not set on Render → falls back to old Sepolia address `0x746...` which doesn't exist on Base Sepolia chain → revert. **User must add `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA=0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` to Render env vars.**
   2. ABI now Basescan-verified: `verifyKYC(address, bytes32, bytes)`, `canTransact(address, bytes32, bytes32)` — matches verified contract source
-  3. `ensureVerticalPolicies()` rewritten with **manual nonce management** (fetch once, increment per tx), **3-attempt retry with 2s delay** and nonce refresh. Now includes both hyphen and underscore variants (`home-services` + `home_services` etc.)
-  4. `canTransact` now **auto-sets missing vertical policies** on-chain and retries before denying — handles dynamic lander verticals
+  3. **Switched to lazy vertical policy**: removed batch `ensureVerticalPolicies()` (35 txs → nonce hell). Now `setVerticalPolicyIfNeeded()` sets policy on-demand with **1.5x gas bump, fresh nonce per attempt, 3 retries with 2s delay**
+  4. `canTransact` auto-sets missing vertical policies and retries before denying — any vertical string from landers works
   5. Demo buyers registered on-chain via `aceService.autoKYC()` during demo-login
   6. Hardened init logging: explicit warnings if address or deployer key missing
 - **ACE contract address confirmed** via Basescan: `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` (Base Sepolia, verified, creator `0x6BBcf283...`, 5 txns including deploy + setup)
-- Added **Dev Log panel** (bottom-left, auto-open in demo, 480×580px, 12px text) with copy buttons, Basescan links
+- **DevLogPanel rewritten** as **"Chainlink Services Dev Log"** (520×720px, service badges for ACE/CRE/Feeds/VRF/Fn, "Copy All Logs" button, per-entry copy, Basescan links, 200 entries, auto-open)
   - Fixed socket wiring: added `ace:dev-log` to frontend `AuctionEventHandler` type and events relay array
 - Fixed `cre.service.ts` same env var pattern (now prioritizes `_BASE_SEPOLIA`)
 - Fixed sealed bid not-recorded bug (4-layer fix: buyer profile, KYC status, promise-based placeBid, error toasts)

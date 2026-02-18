@@ -381,9 +381,6 @@ class ACEService {
                     },
                 });
 
-                // Ensure common vertical policies are set so canTransact returns true
-                await this.ensureVerticalPolicies();
-
                 return { verified: true, txHash: receipt?.hash };
             } catch (error: any) {
                 devLog('verifyKYC:error', { wallet: walletAddress, error: error.message, code: error.code });
@@ -497,105 +494,60 @@ class ACEService {
     }
 
     // ============================================
-    // Vertical Policy Setup
+    // Lazy Vertical Policy Setup
     // ============================================
 
-    private policiesInitialized = false;
     private setVerticals = new Set<string>();
 
     /**
-     * Ensure common vertical policies are set on-chain.
-     * canTransact checks _defaultVerticalPolicy[verticalHash] — if not set,
-     * it returns false even for KYC-approved users.
-     *
-     * Uses manual nonce management to avoid "replacement fee too low" /
-     * "nonce already used" from rapid sequential transactions.
-     */
-    async ensureVerticalPolicies(): Promise<void> {
-        if (this.policiesInitialized || !this.contract || !this.signer) return;
-
-        // Both hyphenated and underscored variants — landers may use either
-        const verticals = [
-            'mortgage', 'insurance', 'solar', 'legal',
-            'home-services', 'home_services',
-            'roofing', 'hvac', 'plumbing',
-            'auto-insurance', 'auto_insurance',
-            'health-insurance', 'health_insurance',
-            'life-insurance', 'life_insurance',
-            'real-estate', 'real_estate',
-            'personal-injury', 'personal_injury',
-            'tax',
-            'debt-settlement', 'debt_settlement',
-            'credit-repair', 'credit_repair',
-            'education', 'moving',
-            'pest-control', 'pest_control',
-            'windows',
-            'b2b_saas', 'b2b-saas',
-            'financial_services', 'financial-services',
-            'auto',
-            'default',
-        ];
-
-        let nonce = await this.signer.getNonce();
-        let successCount = 0;
-        let failCount = 0;
-
-        devLog('verticalPolicies:start', { count: verticals.length, startNonce: nonce });
-
-        for (const v of verticals) {
-            const hash = ethers.keccak256(ethers.toUtf8Bytes(v));
-            let success = false;
-
-            for (let attempt = 1; attempt <= 3 && !success; attempt++) {
-                try {
-                    devLog('setDefaultVerticalPolicy:call', { vertical: v, hash, attempt, nonce });
-                    const tx = await this.contract.setDefaultVerticalPolicy(hash, true, { nonce });
-                    await tx.wait();
-                    devLog('setDefaultVerticalPolicy:result', { vertical: v, hash, set: true, attempt, txHash: tx.hash });
-                    this.setVerticals.add(v);
-                    nonce++;
-                    successCount++;
-                    success = true;
-                } catch (error: any) {
-                    const msg = error.message || '';
-                    if (msg.includes('already been used') || msg.includes('replacement fee')) {
-                        // Nonce conflict — refresh nonce and retry
-                        devLog('setDefaultVerticalPolicy:retry', { vertical: v, attempt, error: msg.slice(0, 80) });
-                        await new Promise(r => setTimeout(r, 2000));
-                        nonce = await this.signer!.getNonce();
-                    } else {
-                        // Different error (e.g., already set, gas, revert) — skip
-                        devLog('setDefaultVerticalPolicy:skip', { vertical: v, attempt, error: msg.slice(0, 100) });
-                        failCount++;
-                        break;
-                    }
-                }
-            }
-        }
-
-        this.policiesInitialized = true;
-        devLog('verticalPolicies:initialized', { total: verticals.length, success: successCount, failed: failCount });
-    }
-
-    /**
-     * Dynamically set a vertical policy if it hasn't been set yet.
-     * Called from canTransact when a vertical is not in the pre-set list.
+     * Lazily set a vertical policy on-chain when canTransact returns false.
+     * Uses 1.5x gas bump and 3-attempt retry with nonce management.
      */
     async setVerticalPolicyIfNeeded(vertical: string): Promise<boolean> {
         if (this.setVerticals.has(vertical) || !this.contract || !this.signer) return false;
 
         const hash = ethers.keccak256(ethers.toUtf8Bytes(vertical));
-        try {
-            devLog('setDefaultVerticalPolicy:dynamic', { vertical, hash });
-            const tx = await this.contract.setDefaultVerticalPolicy(hash, true);
-            await tx.wait();
-            this.setVerticals.add(vertical);
-            devLog('setDefaultVerticalPolicy:dynamicResult', { vertical, hash, set: true, txHash: tx.hash });
-            return true;
-        } catch (error: any) {
-            devLog('setDefaultVerticalPolicy:dynamicFail', { vertical, error: error.message?.slice(0, 100) });
-            return false;
+
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                // Get fresh nonce + fee data each attempt
+                const nonce = await this.signer.getNonce();
+                const feeData = await this.provider.getFeeData();
+                const gasPrice = feeData.gasPrice
+                    ? (feeData.gasPrice * BigInt(15)) / BigInt(10)   // 1.5x bump
+                    : undefined;
+
+                devLog('setVerticalPolicy:call', {
+                    vertical, hash, attempt, nonce,
+                    gasPrice: gasPrice?.toString(),
+                });
+
+                const tx = await this.contract.setDefaultVerticalPolicy(hash, true, {
+                    nonce,
+                    ...(gasPrice ? { gasPrice } : {}),
+                });
+                const receipt = await tx.wait();
+
+                this.setVerticals.add(vertical);
+                devLog('setVerticalPolicy:result', {
+                    vertical, hash, set: true, attempt,
+                    txHash: receipt?.hash,
+                });
+                return true;
+            } catch (error: any) {
+                const msg = error.message || '';
+                devLog('setVerticalPolicy:retry', {
+                    vertical, attempt, error: msg.slice(0, 100),
+                });
+
+                if (attempt < 3) {
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
         }
+
+        devLog('setVerticalPolicy:failed', { vertical, hash, attempts: 3 });
+        return false;
     }
 }
 
