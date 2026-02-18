@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye, Gift, TrendingUp } from 'lucide-react';
+import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye, Gift, TrendingUp, ArrowRight } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,9 +38,11 @@ interface LeadCardProps {
     isAuthenticated?: boolean;
     /** Real-time floor price from Chainlink Data Feeds */
     floorPrice?: number | null;
+    /** Temporary feedback when an auction ends — 'UNSOLD' or 'SOLD' */
+    auctionEndFeedback?: 'UNSOLD' | 'SOLD';
 }
 
-export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice }: LeadCardProps) {
+export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice, auctionEndFeedback }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
     const isLive = lead.status === 'IN_AUCTION';
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
@@ -96,6 +98,16 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     return (
         <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow-ready' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
+                {/* Auction End Feedback Overlay */}
+                {auctionEndFeedback && (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 animate-pulse ${auctionEndFeedback === 'SOLD'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                        }`}>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                        {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
+                    </div>
+                )}
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">

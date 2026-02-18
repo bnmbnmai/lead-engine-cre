@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -89,6 +89,9 @@ export function HomePage() {
     const [leads, setLeads] = useState<any[]>([]);
     const [buyNowLeads, setBuyNowLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [buyNowSubTab, setBuyNowSubTab] = useState<'all' | 'recent'>('all');
+    // Track leads that just ended their auction for 10s overlay feedback
+    const [recentlyEndedMap, setRecentlyEndedMap] = useState<Record<string, 'UNSOLD' | 'SOLD'>>({});
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -359,6 +362,16 @@ export function HomePage() {
                     console.log('[setLeads:status-changed] lead:status-changed:', data.leadId, '->', data.newStatus);
                     // Remove from Live Leads when a lead is no longer active
                     setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
+                    // Track recently ended for 10s overlay banner on LeadCard
+                    const endStatus = data.newStatus === 'SOLD' ? 'SOLD' as const : 'UNSOLD' as const;
+                    setRecentlyEndedMap((prev) => ({ ...prev, [data.leadId]: endStatus }));
+                    setTimeout(() => {
+                        setRecentlyEndedMap((prev) => {
+                            const next = { ...prev };
+                            delete next[data.leadId];
+                            return next;
+                        });
+                    }, 10_000);
                     // Always refresh Buy It Now data when a lead moves to UNSOLD
                     if (data.newStatus === 'UNSOLD') {
                         console.log('[setLeads:status-changed] UNSOLD, calling refetchData');
@@ -490,17 +503,27 @@ export function HomePage() {
                                 <div className="flex gap-1 p-1 rounded-lg bg-muted shrink-0">
                                     <button
                                         onClick={() => setView('leads')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'leads' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'leads' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
                                         Live Leads
+                                        {leads.length > 0 && (
+                                            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${view === 'leads' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/15 text-muted-foreground'}`}>
+                                                {leads.length}
+                                            </span>
+                                        )}
                                     </button>
                                     <button
                                         onClick={() => setView('asks')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
                                         Seller Offers
+                                        {asks.length > 0 && (
+                                            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${view === 'asks' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/15 text-muted-foreground'}`}>
+                                                {asks.length}
+                                            </span>
+                                        )}
                                     </button>
                                     <button
                                         onClick={() => setView('buyNow')}
@@ -509,6 +532,11 @@ export function HomePage() {
                                     >
                                         <Tag className="h-3.5 w-3.5" />
                                         Buy Now
+                                        {buyNowLeads.length > 0 && (
+                                            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${view === 'buyNow' ? 'bg-green-500/20 text-green-400' : 'bg-muted-foreground/15 text-muted-foreground'}`}>
+                                                {buyNowLeads.length}
+                                            </span>
+                                        )}
                                     </button>
                                     <button
                                         onClick={() => setView('nfts')}
@@ -857,27 +885,64 @@ export function HomePage() {
                             )}
                         </div>
                     ) : view === 'buyNow' ? (
-                        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                            {buyNowLeads.length === 0 ? (
-                                <EmptyState
-                                    icon={Tag}
-                                    title={hasFilters ? "No Buy It Now leads match" : "No Buy It Now leads available"}
-                                    description={hasFilters
-                                        ? vertical !== 'all'
-                                            ? `No ${vertical} leads currently available for instant purchase. Try adjusting quality score, price range, or field filters.`
-                                            : "No leads match your current filters. Try selecting a vertical or broadening your criteria."
-                                        : "Buy It Now leads appear when auctions end without a winner, or when sellers offer instant purchase. Check back soon or browse Live Leads."}
-                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
-                                />
-                            ) : (
-                                buyNowLeads.map((lead) => (
-                                    <BuyNowCard
-                                        key={lead.id}
-                                        lead={lead}
-                                        onPurchased={(id) => setBuyNowLeads((prev) => prev.filter((l) => l.id !== id))}
-                                    />
-                                ))
-                            )}
+                        <div className="space-y-4">
+                            {/* Sub-tab: All / Recently Ended */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setBuyNowSubTab('all')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${buyNowSubTab === 'all'
+                                        ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                                        : 'text-muted-foreground hover:text-foreground border border-transparent'}`}
+                                >
+                                    All Buy Now
+                                </button>
+                                <button
+                                    onClick={() => setBuyNowSubTab('recent')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 ${buyNowSubTab === 'recent'
+                                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                        : 'text-muted-foreground hover:text-foreground border border-transparent'}`}
+                                >
+                                    <History className="h-3 w-3" />
+                                    Recently Ended
+                                    <span className="text-[10px] opacity-70">(24h)</span>
+                                </button>
+                            </div>
+                            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                                {(() => {
+                                    const filtered = buyNowSubTab === 'recent'
+                                        ? buyNowLeads.filter((l) => {
+                                            const created = l.createdAt ? new Date(l.createdAt).getTime() : 0;
+                                            return Date.now() - created < 24 * 60 * 60 * 1000;
+                                        })
+                                        : buyNowLeads;
+                                    return filtered.length === 0 ? (
+                                        <EmptyState
+                                            icon={Tag}
+                                            title={buyNowSubTab === 'recent'
+                                                ? "No recently ended auctions"
+                                                : hasFilters ? "No Buy It Now leads match" : "No Buy It Now leads available"}
+                                            description={buyNowSubTab === 'recent'
+                                                ? "No auctions have ended in the last 24 hours. Try the 'All Buy Now' tab."
+                                                : hasFilters
+                                                    ? vertical !== 'all'
+                                                        ? `No ${vertical} leads currently available for instant purchase. Try adjusting quality score, price range, or field filters.`
+                                                        : "No leads match your current filters. Try selecting a vertical or broadening your criteria."
+                                                    : "Buy It Now leads appear when auctions end without a winner, or when sellers offer instant purchase. Check back soon or browse Live Leads."}
+                                            action={buyNowSubTab === 'recent'
+                                                ? { label: 'View All', onClick: () => setBuyNowSubTab('all') }
+                                                : hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
+                                        />
+                                    ) : (
+                                        filtered.map((lead) => (
+                                            <BuyNowCard
+                                                key={lead.id}
+                                                lead={lead}
+                                                onPurchased={(id) => setBuyNowLeads((prev) => prev.filter((l) => l.id !== id))}
+                                            />
+                                        ))
+                                    );
+                                })()}
+                            </div>
                         </div>
                     ) : (
                         layoutMode === 'table' && (view === 'leads' || view === 'buyNow') ? (
@@ -979,7 +1044,7 @@ export function HomePage() {
                                         action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
                                     />
                                 ) : (
-                                    leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} />)
+                                    leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} auctionEndFeedback={recentlyEndedMap[lead.id]} />)
                                 )}
                             </div>
                         )
