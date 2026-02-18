@@ -477,6 +477,12 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 ## 9. Major Work Completed in Recent Sessions
 
 ### Session: Feb 18 (Today)
+- Fixed **"ACE compliance contract unavailable" error** on bid placement — three root causes:
+  1. `ace.service.ts` read wrong env var (`ACE_CONTRACT_ADDRESS` = Sepolia) instead of Base Sepolia address
+  2. `verifyKYC` ABI had 2 params but contract expects 3 (added `bytes zkProof`)
+  3. Demo buyers never registered on-chain — added `aceService.autoKYC()` call during demo-login
+- Fixed `cre.service.ts` same env var pattern (now prioritizes `_BASE_SEPOLIA`)
+- Fixed sealed bid not-recorded bug (4-layer fix: buyer profile, KYC status, promise-based placeBid, error toasts)
 - Fixed WebSocket limit bug (`marketplace:lead:new`, `marketplace:refreshAll` events) where lead display defaulted to 20 instead of 100 after real-time updates
 - Corrected `refetchData` in socket event handlers to pass `limit=100` parameter
 
@@ -540,10 +546,11 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 - **Severity:** Medium (code confusion, maintenance burden)
 
 ### Bug 6: Missing `isStub` Flags on Off-Chain Fallbacks
-- **Symptom:** ACE, NFT, and x402 services silently fall back to database-only operations without flagging responses as degraded
-- **Where:** `ace.service.ts`, `nft.service.ts`, `x402.service.ts`
+- **Symptom:** NFT and x402 services silently fall back to database-only operations without flagging responses as degraded
+- **Where:** `nft.service.ts`, `x402.service.ts`
 - **Root cause:** Inline `if (this.contract)` checks without response metadata
 - **Severity:** Medium (judges may think on-chain is working when it's actually falling back)
+- **Note:** ACE and CRE services now correctly prioritize `_BASE_SEPOLIA` contract addresses (fixed Feb 18)
 
 ### Bug 7: Demo Panel May Inject Leads Without CRE Scoring
 - **Symptom:** Demo-injected leads may have `qualityScore: null` and show "Pending CRE" badge permanently

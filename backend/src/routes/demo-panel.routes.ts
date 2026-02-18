@@ -14,6 +14,7 @@ import { clearAllCaches } from '../lib/cache';
 import { generateToken } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 import { creService } from '../services/cre.service';
+import { aceService } from '../services/ace.service';
 import { nftService } from '../services/nft.service';
 import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 
@@ -124,27 +125,36 @@ router.post('/demo-login', async (req: Request, res: Response) => {
                 },
             });
 
-            // Cache a ComplianceCheck so isKYCValid() fast-path returns true
-            const existingCheck = await prisma.complianceCheck.findFirst({
-                where: {
-                    entityType: 'user',
-                    entityId: walletAddress.toLowerCase(),
-                    checkType: 'KYC',
-                    status: 'PASSED',
-                    expiresAt: { gt: new Date() },
-                },
-            });
-            if (!existingCheck) {
-                await prisma.complianceCheck.create({
-                    data: {
+            // Register buyer on-chain via ACECompliance.verifyKYC()
+            // This calls the real contract so on-chain canTransact() passes.
+            // Also caches a ComplianceCheck in the DB as fallback.
+            try {
+                await aceService.autoKYC(walletAddress);
+                console.log(`[DEMO] On-chain KYC registered for buyer ${walletAddress}`);
+            } catch (err: any) {
+                console.warn(`[DEMO] On-chain KYC failed (will use DB fallback): ${err.message}`);
+                // Ensure DB compliance check exists even if on-chain fails
+                const existingCheck = await prisma.complianceCheck.findFirst({
+                    where: {
                         entityType: 'user',
                         entityId: walletAddress.toLowerCase(),
                         checkType: 'KYC',
                         status: 'PASSED',
-                        checkedAt: new Date(),
-                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+                        expiresAt: { gt: new Date() },
                     },
                 });
+                if (!existingCheck) {
+                    await prisma.complianceCheck.create({
+                        data: {
+                            entityType: 'user',
+                            entityId: walletAddress.toLowerCase(),
+                            checkType: 'KYC',
+                            status: 'PASSED',
+                            checkedAt: new Date(),
+                            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+                        },
+                    });
+                }
             }
         }
 

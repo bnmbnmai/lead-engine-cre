@@ -7,7 +7,7 @@ import { isValidRegion } from '../lib/geo-registry';
 // ACE Compliance Service
 // ============================================
 
-const ACE_CONTRACT_ADDRESS = process.env.ACE_CONTRACT_ADDRESS || '';
+const ACE_CONTRACT_ADDRESS = process.env.ACE_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ACE_CONTRACT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
@@ -21,7 +21,7 @@ const ACE_ABI = [
     'function getUserCompliance(address user) view returns (tuple(uint8 kycStatus, uint8 amlStatus, bytes32 jurisdictionHash, uint40 kycExpiresAt, uint40 lastChecked, uint16 reputationScore, bool isBlacklisted))',
     'function isJurisdictionAllowed(bytes32 jurisdictionHash, bytes32 verticalHash) view returns (bool)',
     // Write
-    'function verifyKYC(address user, bytes32 proofHash)',
+    'function verifyKYC(address user, bytes32 proofHash, bytes zkProof)',
     'function updateReputationScore(address user, int16 delta)',
     'function setJurisdictionPolicy(bytes32 jurisdictionHash, bytes32 verticalHash, bool allowed)',
 ];
@@ -306,7 +306,7 @@ class ACEService {
         // On-chain KYC tokenization
         if (this.contract && this.signer) {
             try {
-                const tx = await this.contract.verifyKYC(walletAddress, kycProofHash);
+                const tx = await this.contract.verifyKYC(walletAddress, kycProofHash, '0x');
                 const receipt = await tx.wait();
 
                 // Cache in database

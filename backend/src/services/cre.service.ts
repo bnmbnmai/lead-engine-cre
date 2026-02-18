@@ -22,7 +22,7 @@ import { executeQualityScoreWorkflow } from '../lib/chainlink/quality-score-work
 //   UI shows "Pre-score" badge until confirmed.
 // ============================================
 
-const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS || '';
+const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.CRE_CONTRACT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 const USE_CONFIDENTIAL_HTTP = process.env.USE_CONFIDENTIAL_HTTP === 'true';
