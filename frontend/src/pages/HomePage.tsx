@@ -329,16 +329,22 @@ export function HomePage() {
                     const { data } = await api.listAsks(params);
                     setAsks(data?.asks || []);
                 } else if (view === 'buyNow') {
+                    params.limit = String(LEADS_PAGE_SIZE);
+                    params.offset = '0';
                     const { data } = await api.listBuyNowLeads(params);
                     setBuyNowLeads(data?.leads || []);
+                    setBuyNowHasMore(data?.pagination?.hasMore ?? false);
                 } else {
                     // Live Leads: only fetch IN_AUCTION so ended auctions stay out
                     params.status = 'IN_AUCTION';
+                    params.limit = String(LEADS_PAGE_SIZE);
+                    params.offset = '0';
                     const { data } = await api.listLeads(params);
                     const allLeads = data?.leads || [];
                     const filteredLeads = allLeads.filter(shouldIncludeLead);
                     console.log('[setLeads:refetchData] setting', filteredLeads.length, 'leads (filtered from', allLeads.length, ')');
                     setLeads(filteredLeads);
+                    setLeadsHasMore(data?.pagination?.hasMore ?? false);
                 }
             } catch (error) {
                 console.error('Poll fetch error:', error);
