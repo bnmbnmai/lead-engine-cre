@@ -174,6 +174,8 @@ export function HomePage() {
                     setAsks(data?.asks || []);
                     setMatchCount(data?.pagination?.total || data?.asks?.length || 0);
                 } else if (view === 'leads' || view === 'buyNow') {
+                    // Live Leads tab: only fetch IN_AUCTION leads so ended auctions don't appear
+                    if (view === 'leads') params.status = 'IN_AUCTION';
                     // Use advanced search for leads (supports field filters, quality score, price range)
                     if (vertical === 'all') {
                         // Fallback to basic listLeads when no vertical selected
@@ -244,6 +246,8 @@ export function HomePage() {
                     const { data } = await api.listBuyNowLeads(params);
                     setBuyNowLeads(data?.leads || []);
                 } else {
+                    // Live Leads: only fetch IN_AUCTION so ended auctions stay out
+                    params.status = 'IN_AUCTION';
                     const { data } = await api.listLeads(params);
                     const allLeads = data?.leads || [];
                     const filteredLeads = allLeads.filter(shouldIncludeLead);
