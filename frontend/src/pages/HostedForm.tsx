@@ -388,8 +388,8 @@ export default function HostedForm() {
 
     // ─── Form wizard with CRO layers ───────────────────────
     return (
-        <div style={{ backgroundColor: colors.bg, minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1rem', width: '100%' }}>
+        <div style={{ backgroundColor: colors.bg, minHeight: '100dvh' }}>
+            <div style={{ maxWidth: 480, margin: '0 auto', padding: '2.5rem 1rem 2rem', width: '100%' }}>
                 {/* Vertical-specific headline */}
                 <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
                     <h1 style={{
