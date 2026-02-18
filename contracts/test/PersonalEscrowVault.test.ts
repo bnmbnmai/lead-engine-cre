@@ -415,4 +415,82 @@ describe("PersonalEscrowVault", function () {
             expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
         });
     });
+
+    // ============================================
+    // Audit-Critical: PoR after Settlement
+    // ============================================
+
+    describe("PoR after settlement", function () {
+        it("should remain solvent after settleBid (totalDeposited decremented)", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Settle — USDC leaves the contract
+            await vault.connect(backend).settleBid(1, seller.address);
+
+            // PoR must still pass: actual >= claimed
+            await vault.verifyReserves();
+            expect(await vault.lastPorSolvent()).to.be.true;
+
+            // Verify totalDeposited was decremented
+            const remaining = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
+            expect(await vault.totalDeposited()).to.equal(remaining);
+        });
+
+        it("should remain solvent after withdraw", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            const half = DEPOSIT_AMOUNT / 2n;
+            await vault.connect(buyer1).withdraw(half);
+
+            await vault.verifyReserves();
+            expect(await vault.lastPorSolvent()).to.be.true;
+        });
+    });
+
+    // ============================================
+    // Audit: Edge Cases
+    // ============================================
+
+    describe("Edge cases", function () {
+        it("should handle concurrent locks from two buyers", async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+            await vault.connect(buyer2).deposit(DEPOSIT_AMOUNT);
+
+            // Lock for both buyers
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+            await vault.connect(backend).lockForBid(buyer2.address, BID_AMOUNT);
+
+            expect(await vault.activeLockCount()).to.equal(2);
+
+            // Settle buyer1, refund buyer2
+            await vault.connect(backend).settleBid(1, seller.address);
+            await vault.connect(backend).refundBid(2);
+
+            expect(await vault.activeLockCount()).to.equal(0);
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE);
+            expect(await vault.balanceOf(buyer2.address)).to.equal(DEPOSIT_AMOUNT); // fully refunded
+        });
+
+        it("should reject lockForBid with zero bid amount (only fee)", async function () {
+            await vault.connect(buyer1).deposit(CONVENIENCE_FEE); // only enough for fee
+            // 0 bid + $1 fee = $1 total, but bidAmount = 0 is valid if balance >= fee
+            await vault.connect(backend).lockForBid(buyer1.address, 0);
+            const lock = await vault.bidLocks(1);
+            expect(lock.amount).to.equal(0);
+            expect(lock.fee).to.equal(CONVENIENCE_FEE);
+        });
+
+        it("should reject settle for non-existent lock", async function () {
+            await expect(
+                vault.connect(backend).settleBid(999, seller.address)
+            ).to.be.revertedWith("Invalid lock");
+        });
+
+        it("should reject refund for non-existent lock", async function () {
+            await expect(
+                vault.connect(backend).refundBid(999)
+            ).to.be.revertedWith("Invalid lock");
+        });
+    });
 });
+

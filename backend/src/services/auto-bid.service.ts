@@ -287,6 +287,22 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                 ethers.AbiCoder.defaultAbiCoder().encode(['uint96', 'bytes32'], [bidAmount, salt])
             );
 
+            // Lock vault funds on-chain (bid + $1 fee)
+            let vaultLockId: number | undefined;
+            if (buyerWallet) {
+                const vaultService = await import('./vault.service');
+                const lockResult = await vaultService.lockForBid(buyerWallet, bidAmount, buyerId, lead.id);
+                if (!lockResult.success) {
+                    result.skipped.push({
+                        buyerId,
+                        preferenceSetId: setId,
+                        reason: `Vault lock failed: ${lockResult.error}`,
+                    });
+                    continue;
+                }
+                vaultLockId = lockResult.lockId;
+            }
+
             await prisma.bid.create({
                 data: {
                     leadId: lead.id,
@@ -296,6 +312,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                     salt,
                     status: 'PENDING',
                     source: 'AUTO_BID',
+                    escrowTxHash: vaultLockId ? `vaultLock:${vaultLockId}` : null,
                 },
             });
 

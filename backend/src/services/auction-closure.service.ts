@@ -344,6 +344,44 @@ async function resolveAuction(leadId: string, io?: Server) {
 
         console.log(`[AuctionClosure] ${leadId} resolved. Winner: ${winningBid.buyerId}`);
 
+        // ── On-chain vault settlement for the winner ──
+        // Transfer locked bid amount → seller, convenience fee → platform wallet
+        try {
+            const winnerEscrowRef = winningBid.escrowTxHash || '';
+            const sellerWallet = (lead as any).seller?.user?.walletAddress || '';
+            if (winnerEscrowRef.startsWith('vaultLock:') && sellerWallet) {
+                const lockId = parseInt(winnerEscrowRef.split(':')[1], 10);
+                if (lockId > 0) {
+                    const settleResult = await vaultService.settleBid(lockId, sellerWallet, winningBid.buyerId, leadId);
+                    if (settleResult.success) {
+                        console.log(`[AuctionClosure] Vault settlement successful: lockId=${lockId}, txHash=${settleResult.txHash}`);
+                        aceDevBus.emit('ace:dev-log', {
+                            ts: new Date().toISOString(),
+                            action: 'vault:settle-winner',
+                            leadId,
+                            buyerId: winningBid.buyerId,
+                            lockId,
+                            txHash: settleResult.txHash,
+                            amount: winAmount,
+                        });
+                    } else {
+                        console.error(`[AuctionClosure] Vault settlement FAILED for lockId=${lockId}: ${settleResult.error}`);
+                        aceDevBus.emit('ace:dev-log', {
+                            ts: new Date().toISOString(),
+                            action: 'vault:settle-winner:error',
+                            leadId,
+                            buyerId: winningBid.buyerId,
+                            lockId,
+                            error: settleResult.error,
+                        });
+                    }
+                }
+            }
+        } catch (settleErr: any) {
+            // Non-blocking: DB already recorded the win — settlement can be retried
+            console.error('[AuctionClosure] Vault settlement error (non-blocking):', settleErr.message);
+        }
+
         // ── Bounty Release ──
         // Match active buyer bounty pools and auto-release to seller
         try {
@@ -419,27 +457,39 @@ async function resolveAuction(leadId: string, io?: Server) {
                         bidId: loserBid.id,
                         buyerId: loserBid.buyerId,
                     });
-                    await prisma.bid.update({
-                        where: { id: loserBid.id },
-                        data: { escrowRefunded: true },
-                    });
 
                     // On-chain vault refund via lockId stored in escrowTxHash
+                    // Attempt on-chain refund FIRST, then mark DB only on success
                     const escrowRef = loserBid.escrowTxHash || '';
+                    let onChainRefunded = false;
                     if (escrowRef.startsWith('vaultLock:')) {
                         const lockId = parseInt(escrowRef.split(':')[1], 10);
                         if (lockId > 0) {
-                            await vaultService.refundBid(lockId, loserBid.buyerId, leadId);
+                            const refundResult = await vaultService.refundBid(lockId, loserBid.buyerId, leadId);
+                            onChainRefunded = refundResult.success;
+                            if (!refundResult.success) {
+                                console.error(`[AuctionClosure] On-chain refund failed for lockId=${lockId}: ${refundResult.error}`);
+                            }
                         }
+                    } else {
+                        // No vault lock — legacy bid or no amount: skip on-chain, just mark DB
+                        onChainRefunded = true;
+                    }
+
+                    if (onChainRefunded) {
+                        await prisma.bid.update({
+                            where: { id: loserBid.id },
+                            data: { escrowRefunded: true },
+                        });
                     }
 
                     aceDevBus.emit('ace:dev-log', {
                         ts: new Date().toISOString(),
-                        action: 'escrow:refund:success',
+                        action: onChainRefunded ? 'escrow:refund:success' : 'escrow:refund:partial',
                         leadId,
                         bidId: loserBid.id,
                         buyerId: loserBid.buyerId,
-                        vaultRefund: loserBid.escrowTxHash?.startsWith('vaultLock:') ? 'on-chain' : 'n/a',
+                        vaultRefund: escrowRef.startsWith('vaultLock:') ? (onChainRefunded ? 'on-chain' : 'failed') : 'n/a',
                     });
                 } catch (refundErr: any) {
                     console.error(`[AuctionClosure] Escrow refund failed for bid ${loserBid.id}:`, refundErr.message);

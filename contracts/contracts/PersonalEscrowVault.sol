@@ -244,6 +244,9 @@ contract PersonalEscrowVault is
         uint256 total = lock.amount + lock.fee;
         lockedBalances[lock.user] -= total;
 
+        // Update PoR accounting: funds leaving the contract reduce the claimed total
+        totalDeposited -= total;
+
         // Transfer bid amount to seller
         paymentToken.safeTransfer(seller, lock.amount);
 
@@ -387,9 +390,10 @@ contract PersonalEscrowVault is
 
     function _refundExpiredLocks() internal {
         uint256 refundCount = 0;
+        uint256 maxBatch = 50; // Gas safety: cap per upkeep call
 
         // Iterate backwards to safely remove elements
-        for (uint256 i = _activeLockIds.length; i > 0; i--) {
+        for (uint256 i = _activeLockIds.length; i > 0 && refundCount < maxBatch; i--) {
             uint256 lockId = _activeLockIds[i - 1];
             BidLock storage lock = bidLocks[lockId];
 
