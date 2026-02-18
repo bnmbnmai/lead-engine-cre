@@ -323,7 +323,7 @@ export default function FormPreview({
     // ─── Render ──────────────────────────────────────────────
     const containerStyle: React.CSSProperties = compact
         ? { backgroundColor: bg, color: text, padding: '1.25rem', borderRadius: '0.75rem', minHeight: 300, fontFamily: 'inherit' }
-        : { backgroundColor: bg, color: text, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem', fontFamily: 'inherit' };
+        : { backgroundColor: bg, color: text, padding: '1rem', fontFamily: 'inherit' };
 
     return (
         <div style={containerStyle}>
