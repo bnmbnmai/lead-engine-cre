@@ -29,7 +29,7 @@ export const HOLDER_SCORE_BONUS = parseInt(process.env.HOLDER_SCORE_BONUS || '20
 
 /** Max bids per wallet per minute */
 export const SPAM_THRESHOLD_BIDS_PER_MINUTE = parseInt(
-    process.env.SPAM_THRESHOLD_BIDS_PER_MINUTE || '5', 10
+    process.env.SPAM_THRESHOLD_BIDS_PER_MINUTE || '50', 10
 );
 
 // ── Notifications ──────────────────────────────

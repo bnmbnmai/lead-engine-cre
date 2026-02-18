@@ -79,11 +79,11 @@ export const generalLimiter = rateLimit({
     },
 });
 
-// RTB Bidding - 10 per minute per user (aligned with LRU-based inner limit)
+// RTB Bidding - 50 per minute per user (aligned with SPAM_THRESHOLD_BIDS_PER_MINUTE default)
 export const rtbBiddingLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 10,
-    message: { error: 'Bid rate limit exceeded — max 10 bids per minute' },
+    max: isDemoMode ? 0 : 50, // 0 = unlimited in demo mode
+    message: { error: 'Bid rate limit exceeded — max 50 bids per minute' },
     standardHeaders: true,
     legacyHeaders: false,
     store: new LRURateLimitStore(60_000, 20000),
@@ -91,10 +91,7 @@ export const rtbBiddingLimiter = rateLimit({
         const authReq = req as AuthenticatedRequest;
         return authReq.user?.id || req.ip || 'anonymous';
     },
-    skip: (req: Request) => {
-        // Skip rate limiting for health checks
-        return req.path === '/health';
-    },
+    skip: () => isDemoMode,
 });
 
 // Auth endpoints - 10 per minute (prevent brute force)

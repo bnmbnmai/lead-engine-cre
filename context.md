@@ -498,6 +498,9 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 - **Sealed-bid UX fix** — "Highest Bid" amount hidden on `AuctionPage` during BIDDING phase; only revealed after auction ends (REVEALING/RESOLVED)
 - **Escrow dev-log emissions** — `prepare-escrow` and `confirm-escrow` routes now emit `ace:dev-log` events (call/success/error) → visible in Chainlink Services Dev Log with teal "Escrow" badge
 - **README Mermaid** — Added "Service Integration Points" flowchart showing Chainlink service connections (CRE, ACE, Data Feeds, VRF, Functions, RTBEscrow, LeadNFT)
+- **Rate limit raised 5→50** — `SPAM_THRESHOLD_BIDS_PER_MINUTE` default changed from 5 to 50 in `perks.env.ts`; `rtbBiddingLimiter` raised to 50, skips in demo mode; dynamic threshold in error messages
+- **Bid confirmation timeout fix** — increased from 5s to 10s, added 1 automatic retry before final rejection (`frontend/src/lib/socket.ts` placeBid)
+- **Dotted vertical ACE fix** — added 3-second delay in `ace.service.ts` between `setVerticalPolicyIfNeeded()` and `canTransact` retry; `home_services.plumbing` was failing because retry happened only 106ms after the on-chain policy tx confirmed
 
 ### Session: Feb 17
 - **Data Feeds terminology fix** — corrected all "Data Streams" references to "Data Feeds" across codebase and docs; fixed incorrect use of Data Streams verifier proxy address with Data Feeds ABI; updated contract address to correct Base Sepolia ETH/USD feed (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`)

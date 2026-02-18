@@ -175,6 +175,8 @@ class ACEService {
                     devLog('canTransact:policyMissing', { vertical, verticalHash, reason: 'Attempting to set vertical policy on-chain' });
                     const policySet = await this.setVerticalPolicyIfNeeded(vertical || 'default');
                     if (policySet) {
+                        // Wait 3s for RPC node to reflect new on-chain state
+                        await new Promise(r => setTimeout(r, 3000));
                         const retryResult = await this.contract.canTransact(walletAddress, verticalHash, geoHashBytes);
                         devLog('canTransact:retry', { wallet: walletAddress, vertical, allowed: retryResult });
                         if (retryResult) {

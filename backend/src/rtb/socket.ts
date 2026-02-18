@@ -8,6 +8,7 @@ import {
     applyMultiplier,
     checkActivityThreshold,
 } from '../services/holder-perks.service';
+import { SPAM_THRESHOLD_BIDS_PER_MINUTE } from '../config/perks.env';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 import { resolveExpiredAuctions, resolveStuckAuctions, resolveExpiredBuyNow } from '../services/auction-closure.service';
 
@@ -236,7 +237,7 @@ class RTBSocketServer {
 
                     // Spam prevention: check activity threshold
                     if (!checkActivityThreshold(socket.walletAddress || '')) {
-                        socket.emit('error', { message: 'Rate limit exceeded — max 5 bids per minute' });
+                        socket.emit('error', { message: `Rate limit exceeded — max ${SPAM_THRESHOLD_BIDS_PER_MINUTE} bids per minute` });
                         return;
                     }
 

@@ -144,33 +144,49 @@ class SocketClient {
     }
 
     placeBid(data: { leadId: string; commitment?: string; amount?: number }): Promise<{ bidId: string; status: string }> {
-        return new Promise((resolve, reject) => {
-            if (!this.socket?.connected) {
-                reject(new Error('Socket not connected'));
-                return;
+        const attempt = (): Promise<{ bidId: string; status: string }> => {
+            return new Promise((resolve, reject) => {
+                if (!this.socket?.connected) {
+                    reject(new Error('Socket not connected'));
+                    return;
+                }
+
+                const timeout = setTimeout(() => {
+                    cleanupConfirmed();
+                    cleanupError();
+                    reject(new Error('timeout'));
+                }, 10000);
+
+                const cleanupConfirmed = this.on('bid:confirmed', (confirmed: any) => {
+                    clearTimeout(timeout);
+                    cleanupConfirmed();
+                    cleanupError();
+                    resolve(confirmed);
+                });
+
+                const cleanupError = this.on('error', (err: any) => {
+                    clearTimeout(timeout);
+                    cleanupConfirmed();
+                    cleanupError();
+                    reject(new Error(err.message || 'Bid failed'));
+                });
+
+                this.socket!.emit('bid:place', data);
+            });
+        };
+
+        // Retry once on timeout
+        return attempt().catch((err) => {
+            if (err.message === 'timeout') {
+                console.warn('[socketClient] Bid confirmation timeout — retrying (1/1)');
+                return attempt();
             }
-
-            const timeout = setTimeout(() => {
-                cleanupConfirmed();
-                cleanupError();
-                reject(new Error('Bid confirmation timeout — please try again'));
-            }, 5000);
-
-            const cleanupConfirmed = this.on('bid:confirmed', (confirmed: any) => {
-                clearTimeout(timeout);
-                cleanupConfirmed();
-                cleanupError();
-                resolve(confirmed);
-            });
-
-            const cleanupError = this.on('error', (err: any) => {
-                clearTimeout(timeout);
-                cleanupConfirmed();
-                cleanupError();
-                reject(new Error(err.message || 'Bid failed'));
-            });
-
-            this.socket.emit('bid:place', data);
+            throw err;
+        }).catch((err) => {
+            if (err.message === 'timeout') {
+                throw new Error('Bid confirmation timeout — please try again');
+            }
+            throw err;
         });
     }
 

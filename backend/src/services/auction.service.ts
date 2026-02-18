@@ -24,6 +24,7 @@ import {
     LEAD_AUCTION_DURATION_SECS,
     AUTO_EXTEND_INCREMENT_SECS,
     AUTO_EXTEND_MAX,
+    SPAM_THRESHOLD_BIDS_PER_MINUTE,
 } from '../config/perks.env';
 
 // ============================================
@@ -204,7 +205,7 @@ export async function placeBid(
 
     // 2. Spam prevention
     if (!checkActivityThreshold(bidderAddress)) {
-        return { success: false, error: 'Rate limit exceeded — max 5 bids per minute' };
+        return { success: false, error: `Rate limit exceeded — max ${SPAM_THRESHOLD_BIDS_PER_MINUTE} bids per minute` };
     }
 
     // 3. Check holder perks (1.2× multiplier for NFT holders)
