@@ -294,6 +294,7 @@ router.get('/asks/public/template-config', generalLimiter, async (req: Authentic
                 thankYouMessage: params.thankYouMessage,
                 ctaText: params.ctaText,
                 gamification: params.gamification,
+                showTrustSignals: params.showTrustSignals,
             } : null,
         });
     } catch (error) {

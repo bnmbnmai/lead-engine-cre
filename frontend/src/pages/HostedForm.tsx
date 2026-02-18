@@ -60,25 +60,6 @@ function getVariant(): Variant {
     return 'A';
 }
 
-// ─── Vertical-specific CRO headlines ─────────────────────────────────
-const VERTICAL_HEADLINES: Record<string, { headline: string; subline: string }> = {
-    'solar': { headline: 'Get Your Free Solar Quote', subline: 'Compare top-rated installers in your area — no obligation.' },
-    'solar.residential': { headline: 'Get Your Free Solar Quote', subline: 'See how much you can save with residential solar.' },
-    'solar.commercial': { headline: 'Commercial Solar Savings', subline: 'Get custom proposals from certified commercial installers.' },
-    'roofing': { headline: 'Free Roofing Estimate', subline: 'Get matched with licensed roofers near you in 60 seconds.' },
-    'roofing.repair': { headline: 'Roof Repair Quotes', subline: 'Connect with vetted contractors for fast, affordable repairs.' },
-    'roofing.replacement': { headline: 'Time for a New Roof?', subline: 'Compare replacement quotes from top local roofers.' },
-    'mortgage': { headline: 'Find Your Best Mortgage Rate', subline: 'Compare offers from trusted lenders — no credit check to start.' },
-    'mortgage.refinance': { headline: 'Lower Your Mortgage Payment', subline: 'See today\'s refinance rates from competing lenders.' },
-    'mortgage.purchase': { headline: 'Get Pre-Approved Today', subline: 'Compare purchase rates from top lenders in minutes.' },
-    'insurance': { headline: 'Compare Insurance Quotes', subline: 'Find the best coverage at the lowest price.' },
-    'insurance.auto': { headline: 'Save on Auto Insurance', subline: 'Compare rates from top carriers in under 2 minutes.' },
-    'insurance.home': { headline: 'Protect Your Home for Less', subline: 'Compare homeowners insurance from top-rated providers.' },
-    'home_services': { headline: 'Get Free Estimates', subline: 'Connect with top-rated local pros in your area.' },
-};
-
-const DEFAULT_HEADLINE = { headline: 'Get Your Free Quote', subline: 'Takes less than 60 seconds — no obligation, no commitment.' };
-
 // ─── Component ────────────────────────────────────────────────────
 export default function HostedForm() {
     const { slug } = useParams<{ slug: string }>();
@@ -110,6 +91,7 @@ export default function HostedForm() {
     const [sellerCtaText, setSellerCtaText] = useState<string | undefined>();
     const [sellerThankYouMsg, setSellerThankYouMsg] = useState<string | undefined>();
     const [sellerGamification, setSellerGamification] = useState<{ showProgress?: boolean; showNudges?: boolean; confetti?: boolean } | undefined>();
+    const [sellerShowTrustSignals, setSellerShowTrustSignals] = useState<boolean>(true);
 
     const [currentStep, setCurrentStep] = useState(0);
     const [formData, setFormData] = useState<Record<string, string | boolean>>({});
@@ -167,6 +149,7 @@ export default function HostedForm() {
                 if (tc?.ctaText) setSellerCtaText(tc.ctaText);
                 if (tc?.thankYouMessage) setSellerThankYouMsg(tc.thankYouMessage);
                 if (tc?.gamification) setSellerGamification(tc.gamification);
+                if (tc?.showTrustSignals !== undefined) setSellerShowTrustSignals(tc.showTrustSignals);
                 // Merge any CRO overrides from seller config
                 if (tc?.croConfig) {
                     setCroConfig(prev => ({ ...prev, ...tc.croConfig }));
@@ -396,34 +379,10 @@ export default function HostedForm() {
         );
     }
 
-    // ─── Vertical headline ─────────────────────────────────────────────
-    const headlineConfig = VERTICAL_HEADLINES[verticalSlug] || DEFAULT_HEADLINE;
-
     // ─── Form wizard with CRO layers ───────────────────────
     return (
         <div style={{ backgroundColor: colors.bg, minHeight: '100dvh' }}>
             <div style={{ maxWidth: 480, margin: '0 auto', padding: '2.5rem 1rem 2rem', width: '100%' }}>
-                {/* Vertical-specific headline */}
-                <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-                    <h1 style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 700,
-                        color: colors.text,
-                        marginBottom: '0.35rem',
-                        lineHeight: 1.3,
-                    }}>
-                        {headlineConfig.headline}
-                    </h1>
-                    <p style={{ fontSize: '0.85rem', color: colors.muted, lineHeight: 1.5 }}>
-                        {headlineConfig.subline}
-                    </p>
-                </div>
-
-                {/* Trust bar + social proof — single compact line */}
-                {croConfig.showTrustBar && (
-                    <TrustBar mutedColor={colors.muted} />
-                )}
-
                 {/* The Form */}
                 <FormPreview
                     verticalName={verticalName}
@@ -445,6 +404,11 @@ export default function HostedForm() {
                     submitting={submitting}
                     submitError={submitError}
                 />
+
+                {/* Trust signals — below the form, toggled by seller */}
+                {sellerShowTrustSignals && (
+                    <TrustBar mutedColor={colors.muted} />
+                )}
 
                 {/* Exit Intent Modal */}
                 {croConfig.showExitIntent && (

@@ -92,6 +92,7 @@ export default function SellerFunnels() {
         showNudges: true,
         confetti: true,
     });
+    const [showTrustSignals, setShowTrustSignals] = useState(true);
     const [previewMode, setPreviewMode] = useState<'preview' | 'iframe' | 'url'>('preview');
     const [copiedIframe, setCopiedIframe] = useState(false);
     const [copiedUrl, setCopiedUrl] = useState(false);
@@ -209,6 +210,7 @@ export default function SellerFunnels() {
             showNudges: params.gamification?.showNudges ?? true,
             confetti: params.gamification?.confetti ?? true,
         });
+        setShowTrustSignals(params.showTrustSignals ?? true);
 
         setAdminFields(null);
         setAdminSteps(null);
@@ -298,6 +300,7 @@ export default function SellerFunnels() {
                     thankYouMessage: thankYouMessage || undefined,
                     ctaText,
                     gamification,
+                    showTrustSignals,
                 },
             };
             const bnp = parseFloat(buyNowPrice);
@@ -403,6 +406,7 @@ export default function SellerFunnels() {
                         thankYouMessage: thankYouMessage || undefined,
                         ctaText,
                         gamification,
+                        showTrustSignals,
                     },
                 });
                 if (askErr) throw new Error(askErr.error);
@@ -810,6 +814,7 @@ export default function SellerFunnels() {
                                                     <LabeledSwitch label="Step Progress Bar" checked={gamification.showProgress} onCheckedChange={(v) => setGamification(g => ({ ...g, showProgress: v }))} />
                                                     <LabeledSwitch label="Smart Nudges" checked={gamification.showNudges} onCheckedChange={(v) => setGamification(g => ({ ...g, showNudges: v }))} />
                                                     <LabeledSwitch label="Confetti on Submit" checked={gamification.confetti} onCheckedChange={(v) => setGamification(g => ({ ...g, confetti: v }))} />
+                                                    <LabeledSwitch label="Trust Signals" checked={showTrustSignals} onCheckedChange={(v) => setShowTrustSignals(v)} />
                                                 </div>
 
                                                 {/* Conversion Tracking */}
