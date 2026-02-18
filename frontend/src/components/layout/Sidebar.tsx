@@ -31,9 +31,6 @@ interface SidebarProps {
 
 const marketplaceItems: SidebarItem[] = [
     { href: '/marketplace', label: 'Marketplace', icon: <ShoppingCart className="h-5 w-5" /> },
-    { href: '/market-metrics', label: 'Market Metrics', icon: <BarChart3 className="h-5 w-5" /> },
-    { href: '/buyer', label: 'Buyer Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-5 w-5" /> },
 ];
 
 const buyerItems: SidebarItem[] = [
@@ -109,32 +106,35 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                 );
             })}
 
-            {/* Quick-switch section on non-marketplace pages */}
-            {label !== 'Marketplace' && (
-                <div className="pt-4 mt-4 border-t border-border space-y-1">
-                    <div className="px-4 py-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Quick Switch
-                        </span>
-                    </div>
-                    {[
-                        { href: '/marketplace', label: 'Marketplace', icon: <ShoppingCart className="h-4 w-4" /> },
-                        ...(label === 'Seller'
-                            ? [{ href: '/buyer', label: 'Buyer Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> }]
-                            : [{ href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-4 w-4" /> }]),
-                    ].map((item) => (
-                        <Link
-                            key={item.href}
-                            to={item.href}
-                            onClick={onClose}
-                            className="flex items-center gap-3 px-4 py-2 rounded-lg text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-foreground transition-all"
-                        >
-                            {item.icon}
-                            <span>{item.label}</span>
-                        </Link>
-                    ))}
+            {/* Quick-switch section */}
+            <div className="pt-4 mt-4 border-t border-border space-y-1">
+                <div className="px-4 py-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Quick Switch
+                    </span>
                 </div>
-            )}
+                {[
+                    ...(label !== 'Marketplace'
+                        ? [{ href: '/marketplace', label: 'Marketplace', icon: <ShoppingCart className="h-4 w-4" /> }]
+                        : []),
+                    ...(label !== 'Buyer'
+                        ? [{ href: '/buyer', label: 'Buyer Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> }]
+                        : []),
+                    ...(label !== 'Seller'
+                        ? [{ href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-4 w-4" /> }]
+                        : []),
+                ].map((item) => (
+                    <Link
+                        key={item.href}
+                        to={item.href}
+                        onClick={onClose}
+                        className="flex items-center gap-3 px-4 py-2 rounded-lg text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-foreground transition-all"
+                    >
+                        {item.icon}
+                        <span>{item.label}</span>
+                    </Link>
+                ))}
+            </div>
         </div>
     );
 
