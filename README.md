@@ -332,20 +332,21 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 | Ready | VerticalNFT revenue-share flow (2% royalties) | Contracts deployed |
 | Ready | Multi-language CRO landers | Frontend ready |
 
-### Scaling to High-Volume Operation (1,000+ leads/day)
+### High-Volume Scaling Considerations
 
-The current architecture handles demo-scale traffic (tens of leads per minute). Operating at production scale — thousands of leads per day across dozens of verticals — requires focused infrastructure work in these areas:
+The current architecture is designed for demo and early-production traffic. Scaling to 10,000+ leads per day across 50+ verticals requires the following infrastructure changes:
 
-**Database & Indexing.** The Prisma schema uses basic indexes. At high volume, composite indexes on `(vertical, status, createdAt)` and `(sellerId, status)` are needed. Auction close queries (`WHERE endsAt <= NOW() AND status = 'IN_AUCTION'`) require a dedicated partial index. The `qualityScore` filter benefits from a B-tree index for range queries.
+**Cursor-Based Pagination & Read Replicas.** The current offset-based pagination degrades at depth. Replace with cursor-based pagination on `(createdAt, id)` composite indexes. At 10k+ daily writes, introduce a PostgreSQL read replica behind PgBouncer for all marketplace list queries (`GET /leads`, `/asks`, `/buyNow`) to keep write latency unaffected by read load.
 
-**Queue Architecture.** Lead ingestion, NFT minting, escrow settlement, and bounty matching currently run synchronously in request handlers. At scale, these become separate queue workers (BullMQ or similar) with retry policies and dead-letter handling. The `lead:status-changed` socket broadcast should also be decoupled from the database write.
+**Async Job Queue.** Lead ingestion, CRE quality scoring, NFT minting, escrow settlement, and bounty matching currently execute synchronously in Express request handlers. At volume, each becomes an independent BullMQ worker with per-job retry (3× exponential backoff), dead-letter queues, and per-vertical concurrency limits. This decouples API response time from on-chain transaction latency.
 
-**Rate Limiting & Backpressure.** The current Express rate limiter is per-instance. A Redis-backed sliding window (e.g., `rate-limiter-flexible`) is needed for multi-instance deployments. Seller API ingestion should enforce per-vertical throughput caps to prevent hot-vertical floods.
+**Batch Minting & Gas Pooling.** Individual NFT mints (~80k gas each) are cost-prohibitive at scale. Aggregate pending mints into batches of 20–50 per transaction via a multicall wrapper on `LeadNFTv2.sol`. Maintain a nonce-managed wallet pool (5–10 hot wallets) with real-time gas price monitoring to prevent transaction queuing under network congestion.
 
-**On-Chain Gas Management.** NFT minting and escrow funding currently use a single deployer wallet. At volume, a nonce-managed wallet pool with gas price monitoring prevents transaction queueing bottlenecks. Batch minting (multiple leads per transaction) should be evaluated once Chainlink CRE supports batch workflow triggers.
+**WebSocket Sharding.** Socket.IO currently broadcasts all events to all connected clients. At thousands of concurrent connections, partition clients into per-vertical rooms and use the Redis adapter for multi-process fan-out. Target: ≤50ms p95 event delivery latency across 5,000+ concurrent WebSocket connections.
 
-**Observability.** Structured logging (already partially implemented via Winston) needs correlation IDs across HTTP → WebSocket → on-chain flows. Auction-close latency, fill rate, and CRE scoring latency should be tracked as Prometheus metrics for alerting.
+**Rate Limiting & Ingestion Throttling.** Replace the per-instance Express rate limiter with a Redis-backed sliding window (`rate-limiter-flexible`) for horizontal scaling. Enforce per-seller, per-vertical ingestion caps (configurable, default 500 leads/day/vertical) to prevent hot-vertical floods from degrading marketplace quality.
 
-**WebSocket Fan-Out.** Socket.IO currently broadcasts to all connected clients. At thousands of concurrent users, filtered subscriptions (per-vertical rooms) and a Redis adapter for multi-process fan-out are necessary.
+**Observability & Alerting.** Add correlation IDs spanning HTTP → WebSocket → on-chain flows. Track auction-close latency (p50/p95/p99), CRE scoring round-trip, escrow funding time, and NFT mint confirmation time as Prometheus metrics. Alert on fill-rate drops >10% and CRE scoring failures.
+
 
 See `docs/MAINNET_MIGRATION.md` for the full migration plan.

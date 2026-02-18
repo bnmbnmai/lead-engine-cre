@@ -514,18 +514,6 @@ export function HomePage() {
                                         )}
                                     </button>
                                     <button
-                                        onClick={() => setView('asks')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'asks' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
-                                            }`}
-                                    >
-                                        Seller Offers
-                                        {asks.length > 0 && (
-                                            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${view === 'asks' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/15 text-muted-foreground'}`}>
-                                                {asks.length}
-                                            </span>
-                                        )}
-                                    </button>
-                                    <button
                                         onClick={() => setView('buyNow')}
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'buyNow' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
