@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3 } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2 } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -103,13 +103,20 @@ export function HomePage() {
     const sellerDropdownRef = useRef<HTMLDivElement>(null);
 
     // Field-level filters + quality score + price range + sort
-    const [fieldFilters, setFieldFilters] = useState<Record<string, { op: string; value: string }>>({});
+    const [fieldFilters, setFieldFilters] = useState<Record<string, { op: string; value: string }>>({})
     const [qualityScore, setQualityScore] = useState<[number, number]>([0, 100]);
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
     const [sortBy, setSortBy] = useState('createdAt');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [matchCount, setMatchCount] = useState<number | null>(null);
+
+    // ── Infinite scroll pagination ──
+    const LEADS_PAGE_SIZE = 20;
+    const [leadsHasMore, setLeadsHasMore] = useState(false);
+    const [buyNowHasMore, setBuyNowHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const sentinelRef = useRef<HTMLDivElement>(null);
 
     // ── Reusable client-side filter guard ──
     // Matches the same logic as the backend vertical expansion.
@@ -165,6 +172,9 @@ export function HomePage() {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
+            // Reset pagination on fresh fetch
+            setLeadsHasMore(false);
+            setBuyNowHasMore(false);
             try {
                 const params: Record<string, string> = {};
                 if (country !== 'ALL') params.country = country;
@@ -180,6 +190,8 @@ export function HomePage() {
                 } else if (view === 'leads' || view === 'buyNow') {
                     // Live Leads tab: only fetch IN_AUCTION leads so ended auctions don't appear
                     if (view === 'leads') params.status = 'IN_AUCTION';
+                    params.limit = String(LEADS_PAGE_SIZE);
+                    params.offset = '0';
                     // Use advanced search for leads (supports field filters, quality score, price range)
                     if (vertical === 'all') {
                         // Fallback to basic listLeads when no vertical selected
@@ -188,6 +200,12 @@ export function HomePage() {
                         console.log('[setLeads:useEffect:basic] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
                         view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
                         setMatchCount(data?.pagination?.total || resultLeads.length);
+                        // Track pagination
+                        if (view === 'buyNow') {
+                            setBuyNowHasMore(data?.pagination?.hasMore ?? false);
+                        } else {
+                            setLeadsHasMore(data?.pagination?.hasMore ?? false);
+                        }
                     } else {
                         // Advanced search with field filters
                         const fieldFilterArray = Object.keys(fieldFilters).map(fieldKey => ({
@@ -220,6 +238,9 @@ export function HomePage() {
                         console.log('[setLeads:useEffect:advanced] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
                         view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
                         setMatchCount(data?.total ?? resultLeads.length);
+                        // Advanced search returns all matches; no cursor-based pagination
+                        if (view === 'buyNow') setBuyNowHasMore(false);
+                        else setLeadsHasMore(false);
                     }
                 }
             } catch (error) {
@@ -232,6 +253,58 @@ export function HomePage() {
 
         fetchData();
     }, [view, vertical, country, region, debouncedSearch, sellerName, fieldFilters, qualityScore, minPrice, maxPrice, sortBy, sortOrder, shouldIncludeLead]);
+
+    // ── Infinite scroll: load more leads ──
+    const loadMore = useCallback(async () => {
+        if (loadingMore) return;
+        const isBuyNow = view === 'buyNow';
+        const currentList = isBuyNow ? buyNowLeads : leads;
+        const hasMore = isBuyNow ? buyNowHasMore : leadsHasMore;
+        if (!hasMore) return;
+
+        setLoadingMore(true);
+        try {
+            const params: Record<string, string> = {};
+            if (country !== 'ALL') params.country = country;
+            if (region !== 'All') params.state = region;
+            if (debouncedSearch) params.search = debouncedSearch;
+            if (sellerName) params.sellerName = sellerName;
+            if (view === 'leads') params.status = 'IN_AUCTION';
+            params.limit = String(LEADS_PAGE_SIZE);
+            params.offset = String(currentList.length);
+
+            const { data } = isBuyNow
+                ? await api.listBuyNowLeads(params)
+                : await api.listLeads(params);
+
+            const newLeads = (data?.leads || []).filter(shouldIncludeLead);
+            if (isBuyNow) {
+                setBuyNowLeads(prev => [...prev, ...newLeads]);
+                setBuyNowHasMore(data?.pagination?.hasMore ?? false);
+            } else {
+                setLeads(prev => [...prev, ...newLeads]);
+                setLeadsHasMore(data?.pagination?.hasMore ?? false);
+            }
+        } catch (error) {
+            console.error('Load more error:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [view, leads, buyNowLeads, leadsHasMore, buyNowHasMore, loadingMore, country, region, debouncedSearch, sellerName, shouldIncludeLead]);
+
+    // ── IntersectionObserver for infinite scroll sentinel ──
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) loadMore();
+            },
+            { rootMargin: '200px' }
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [loadMore]);
 
     // Wrap fetchData for polling fallback
     const refetchData = useCallback(() => {
@@ -938,6 +1011,19 @@ export function HomePage() {
                                     );
                                 })()}
                             </div>
+                            {/* Infinite scroll sentinel for Buy Now */}
+                            {buyNowHasMore && (
+                                <div ref={sentinelRef} className="flex justify-center py-8">
+                                    {loadingMore ? (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Loading more leads…
+                                        </div>
+                                    ) : (
+                                        <div className="h-4" />
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         layoutMode === 'table' && (view === 'leads' || view === 'buyNow') ? (
@@ -1026,22 +1112,37 @@ export function HomePage() {
                                 </div>
                             )
                         ) : (
-                            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                                {leads.length === 0 ? (
-                                    <EmptyState
-                                        icon={Search}
-                                        title={hasFilters ? "No leads match your criteria" : "No active leads"}
-                                        description={hasFilters
-                                            ? vertical !== 'all'
-                                                ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
-                                                : "Select a vertical to unlock field-level filtering and see available leads."
-                                            : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
-                                        action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
-                                    />
-                                ) : (
-                                    leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} auctionEndFeedback={recentlyEndedMap[lead.id]} />)
+                            <>
+                                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                                    {leads.length === 0 ? (
+                                        <EmptyState
+                                            icon={Search}
+                                            title={hasFilters ? "No leads match your criteria" : "No active leads"}
+                                            description={hasFilters
+                                                ? vertical !== 'all'
+                                                    ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
+                                                    : "Select a vertical to unlock field-level filtering and see available leads."
+                                                : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
+                                            action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
+                                        />
+                                    ) : (
+                                        leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} auctionEndFeedback={recentlyEndedMap[lead.id]} />)
+                                    )}
+                                </div>
+                                {/* Infinite scroll sentinel */}
+                                {leadsHasMore && (
+                                    <div ref={sentinelRef} className="flex justify-center py-8">
+                                        {loadingMore ? (
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Loading more leads…
+                                            </div>
+                                        ) : (
+                                            <div className="h-4" />
+                                        )}
+                                    </div>
                                 )}
-                            </div>
+                            </>
                         )
                     )}
                 </section>
