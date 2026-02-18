@@ -67,9 +67,10 @@ interface VerticalCardData {
 // ── Helpers ──────────────────────────────
 
 function formatUSDC(amount: number): string {
-    if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
-    if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`;
-    if (amount > 0) return `$${amount.toFixed(2)}`;
+    const n = Number(amount) || 0;
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+    if (n > 0) return `$${n.toFixed(2)}`;
     return '$0.00';
 }
 
@@ -169,14 +170,16 @@ export function MarketMetricsPanel() {
             const headers: HeadersInit = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            // Fetch bounty data for all verticals in parallel
+            // Fetch bounty data only for root verticals (depth 0) to avoid request spam.
+            // Child verticals inherit their parent's bounty pool value.
+            const rootVerticals = flatList.filter(v => v.depth === 0);
             const bountyResults = await Promise.allSettled(
-                flatList.map(async (v) => {
+                rootVerticals.map(async (v) => {
                     try {
                         const res = await fetch(`${API_BASE_URL}/api/verticals/${v.value}/bounty`, { headers });
                         if (!res.ok) return { slug: v.value, totalBounty: 0 };
                         const data = await res.json();
-                        return { slug: v.value, totalBounty: data.totalBounty || 0 };
+                        return { slug: v.value, totalBounty: Number(data.totalBounty) || 0 };
                     } catch {
                         return { slug: v.value, totalBounty: 0 };
                     }
@@ -192,12 +195,14 @@ export function MarketMetricsPanel() {
 
             const cards: VerticalCardData[] = flatList.map((v) => {
                 const leadData = verticalLeadMap[v.value] || { auction: 0, buyNow: 0, demand: 0 };
+                // Child verticals inherit parent's bounty pool
+                const bounty = bountyMap[v.value] ?? (v.parentSlug ? bountyMap[v.parentSlug] ?? 0 : 0);
                 return {
                     slug: v.value,
                     name: v.label,
                     depth: v.depth,
                     parentSlug: v.parentSlug,
-                    bountyPool: bountyMap[v.value] || 0,
+                    bountyPool: bounty,
                     demand: leadData.demand,
                     auctionLeads: leadData.auction,
                     buyNowLeads: leadData.buyNow,
