@@ -6,11 +6,17 @@ import { prisma } from '../lib/prisma';
 // ============================================
 // Wraps RTBEscrow for HTTP-native payment flows
 
-const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
-const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
+// Normalize addresses with ethers.getAddress() — ethers v6 enforces EIP-55 checksums
+// and will throw if an address has incorrect mixed-case (e.g. from copy-paste or env vars)
+function safeChecksum(raw: string): string {
+    if (!raw) return '';
+    try { return ethers.getAddress(raw); } catch { return raw; }
+}
+const ESCROW_CONTRACT_ADDRESS = safeChecksum(process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '');
+const USDC_CONTRACT_ADDRESS = safeChecksum(process.env.USDC_CONTRACT_ADDRESS || '');
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
-const PLATFORM_WALLET_ADDRESS = process.env.PLATFORM_WALLET_ADDRESS || process.env.DEPLOYER_ADDRESS || '';
+const PLATFORM_WALLET_ADDRESS = safeChecksum(process.env.PLATFORM_WALLET_ADDRESS || process.env.DEPLOYER_ADDRESS || '');
 
 const ESCROW_ABI = [
     'function createEscrow(string calldata leadId, address seller, address buyer, uint256 amount) returns (uint256)',
@@ -479,10 +485,14 @@ class X402Service {
 
         const amountWei = BigInt(Math.floor(amountUSDC * 1e6));
 
+        // Normalize wallet addresses for ethers v6 EIP-55 checksum
+        const seller = safeChecksum(sellerAddress);
+        const buyer = safeChecksum(buyerAddress);
+
         // Encode legacy createEscrow calldata (backward compat)
         const escrowIface = new ethers.Interface(ESCROW_ABI);
         const createEscrowCalldata = escrowIface.encodeFunctionData('createEscrow', [
-            leadId, sellerAddress, buyerAddress, amountWei,
+            leadId, seller, buyer, amountWei,
         ]);
 
         // Look up convenience fee from the Transaction record
@@ -512,7 +522,7 @@ class X402Service {
 
         // Encode single-signature createAndFundEscrow calldata
         const createAndFundEscrowCalldata = escrowIface.encodeFunctionData('createAndFundEscrow', [
-            leadId, sellerAddress, amountWei, convenienceFeeWei,
+            leadId, seller, amountWei, convenienceFeeWei,
         ]);
 
         // Encode USDC approve calldata (approve escrow for amount + fee)
