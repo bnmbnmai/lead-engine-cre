@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag, Wallet, ArrowDown, ArrowUp } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -34,6 +34,12 @@ export function BuyerDashboard() {
     const sellerDropdownRef = useRef<HTMLDivElement>(null);
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
     const [csvExporting, setCsvExporting] = useState(false);
+
+    // Vault state
+    const [vaultBalance, setVaultBalance] = useState<number>(0);
+    const [vaultTxs, setVaultTxs] = useState<any[]>([]);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [vaultLoading, setVaultLoading] = useState(false);
 
     const handleCrmPushSingle = (leadId: string) => {
         setCrmPushed((prev) => new Set(prev).add(leadId));
@@ -114,6 +120,16 @@ export function BuyerDashboard() {
 
         fetchData();
     }, [debouncedSearch, sellerName]);
+
+    // Fetch vault info
+    useEffect(() => {
+        api.getVault().then(({ data }) => {
+            if (data) {
+                setVaultBalance(data.balance);
+                setVaultTxs(data.transactions?.slice(0, 5) || []);
+            }
+        }).catch(() => { });
+    }, []);
 
     // Re-fetch callback for socket events & polling fallback
     const refetchData = useCallback(() => {
@@ -288,6 +304,106 @@ export function BuyerDashboard() {
 
                 {/* Bounty Pools */}
                 <BountyPanel />
+
+                {/* ── Escrow Vault ── */}
+                <Card>
+                    <CardHeader className="flex-row items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                            <Wallet className="h-5 w-5 text-teal-500" />
+                            Escrow Vault
+                        </CardTitle>
+                        <Badge variant="outline" className="text-teal-500 border-teal-500/30 font-mono">
+                            {formatCurrency(vaultBalance)} USDC
+                        </Badge>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid sm:grid-cols-3 gap-4">
+                            {/* Deposit */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Fund Vault</label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        type="number"
+                                        placeholder="$50.00"
+                                        value={depositAmount}
+                                        onChange={(e) => setDepositAmount(e.target.value)}
+                                        min="1"
+                                        step="0.01"
+                                    />
+                                    <Button
+                                        size="sm"
+                                        disabled={vaultLoading || !depositAmount || Number(depositAmount) <= 0}
+                                        onClick={async () => {
+                                            setVaultLoading(true);
+                                            const amt = Number(depositAmount);
+                                            const { data } = await api.depositVault(amt);
+                                            if (data?.success) {
+                                                setVaultBalance(data.balance);
+                                                setDepositAmount('');
+                                                toast({ type: 'success', title: 'Vault Funded', description: `Deposited $${amt.toFixed(2)} USDC` });
+                                                // Refresh txs
+                                                api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
+                                            }
+                                            setVaultLoading(false);
+                                        }}
+                                        className="shrink-0"
+                                    >
+                                        <ArrowDown className="h-4 w-4 mr-1" /> Deposit
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Withdraw */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Withdraw</label>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={vaultLoading || vaultBalance <= 0}
+                                    onClick={async () => {
+                                        setVaultLoading(true);
+                                        const { data } = await api.withdrawVault(vaultBalance);
+                                        if (data?.success) {
+                                            setVaultBalance(data.balance);
+                                            toast({ type: 'success', title: 'Withdrawn', description: `Withdrew $${vaultBalance.toFixed(2)} to wallet` });
+                                            api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
+                                        } else if (data?.error) {
+                                            toast({ type: 'error', title: 'Withdraw Failed', description: data.error });
+                                        }
+                                        setVaultLoading(false);
+                                    }}
+                                    className="w-full h-9"
+                                >
+                                    <ArrowUp className="h-4 w-4 mr-1" /> Withdraw All
+                                </Button>
+                                <p className="text-xs text-muted-foreground">Funds return to your wallet</p>
+                            </div>
+
+                            {/* Recent Vault Transactions */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Recent Activity</label>
+                                {vaultTxs.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">No vault transactions yet</p>
+                                ) : (
+                                    <div className="space-y-1 max-h-32 overflow-auto">
+                                        {vaultTxs.map((tx: any) => (
+                                            <div key={tx.id} className="flex items-center justify-between text-xs py-1 border-b border-border/50 last:border-0">
+                                                <span className={
+                                                    tx.type === 'DEPOSIT' || tx.type === 'REFUND' ? 'text-emerald-500'
+                                                        : tx.type === 'DEDUCT' || tx.type === 'FEE' ? 'text-red-400'
+                                                            : 'text-amber-500'
+                                                }>
+                                                    {tx.type === 'DEPOSIT' ? '+' : tx.type === 'REFUND' ? '+' : '-'}${tx.amount.toFixed(2)}
+                                                </span>
+                                                <span className="text-muted-foreground truncate ml-2">{tx.type}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Recent Bids */}

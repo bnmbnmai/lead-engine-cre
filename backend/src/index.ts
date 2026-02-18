@@ -58,6 +58,7 @@ import demoPanelRoutes from './routes/demo-panel.routes';
 import verticalRoutes from './routes/vertical.routes';
 import buyerRoutes from './routes/buyer.routes';
 import mcpRoutes from './routes/mcp.routes';
+import vaultRoutes from './routes/vault.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -159,6 +160,7 @@ app.use('/api/v1/lander', landerRoutes);
 app.use('/api/v1/demo-panel', demoPanelRoutes);
 app.use('/api/v1/verticals', verticalRoutes);
 app.use('/api/v1/buyer', buyerRoutes);
+app.use('/api/v1/buyer/vault', vaultRoutes);
 app.use('/api/v1/mcp', mcpRoutes);
 
 

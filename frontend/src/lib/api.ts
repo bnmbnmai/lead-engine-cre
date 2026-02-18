@@ -438,6 +438,22 @@ export const api = {
     // Lead count (public, no auth — used by SocialProofBanner)
     getLeadCountToday: () =>
         apiFetch<{ count: number }>('/api/v1/leads/count-today'),
+
+    // ── Escrow Vault ──────────────────────────────
+    getVault: () =>
+        apiFetch<{ balance: number; totalDeposited: number; totalSpent: number; totalRefunded: number; transactions: any[] }>(
+            '/api/v1/buyer/vault',
+        ),
+    depositVault: (amount: number, txHash?: string) =>
+        apiFetch<{ success: boolean; balance: number }>(
+            '/api/v1/buyer/vault/deposit',
+            { method: 'POST', body: JSON.stringify({ amount, txHash }) },
+        ),
+    withdrawVault: (amount: number) =>
+        apiFetch<{ success: boolean; balance: number; error?: string }>(
+            '/api/v1/buyer/vault/withdraw',
+            { method: 'POST', body: JSON.stringify({ amount }) },
+        ),
 };
 
 export default api;

@@ -508,6 +508,11 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
   - Socket bid handler stores `escrowTxHash` on Bid record when provided
   - Auction closure auto-refunds losing bids with pre-funded escrow (`escrowRefunded=true`)
   - All escrow events logged to Dev Log via `aceDevBus`
+- **Personal Escrow Vault** — database-backed per-user USDC pool:
+  - New Prisma models: `EscrowVault` (userId, balance, totalDeposited/Spent/Refunded) + `VaultTransaction` (DEPOSIT/DEDUCT/REFUND/WITHDRAW/FEE audit trail)
+  - Backend: `vault.service.ts` (deposit/withdraw/deduct/refund/chargeFee/checkBidBalance functions) + `vault.routes.ts` (GET balance, POST deposit, POST withdraw), registered at `/api/v1/buyer/vault`
+  - Frontend: vault API methods in `api.ts` (getVault/depositVault/withdrawVault), Escrow Vault card in `BuyerDashboard.tsx` with deposit form, withdraw button, and transaction history
+  - All vault actions logged to Dev Log via `aceDevBus` with teal "Escrow" badges
 
 ### Session: Feb 17
 - **Data Feeds terminology fix** — corrected all "Data Streams" references to "Data Feeds" across codebase and docs; fixed incorrect use of Data Streams verifier proxy address with Data Feeds ABI; updated contract address to correct Base Sepolia ETH/USD feed (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`)
