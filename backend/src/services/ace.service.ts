@@ -20,6 +20,17 @@ const ACE_CONTRACT_ADDRESS = process.env.ACE_CONTRACT_ADDRESS_BASE_SEPOLIA || pr
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 
+if (!process.env.ACE_CONTRACT_ADDRESS_BASE_SEPOLIA) {
+    console.warn('[ACE] ⚠️ ACE_CONTRACT_ADDRESS_BASE_SEPOLIA not set! Falling back to ACE_CONTRACT_ADDRESS which may be on wrong chain.');
+    console.warn('[ACE]    Set ACE_CONTRACT_ADDRESS_BASE_SEPOLIA=0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6 in your env vars.');
+}
+if (!DEPLOYER_KEY) {
+    console.warn('[ACE] ⚠️ DEPLOYER_PRIVATE_KEY not set! On-chain verifyKYC will fail (no signer).');
+}
+console.log(`[ACE] Using contract address: ${ACE_CONTRACT_ADDRESS || '(none)'}`);
+console.log(`[ACE] Using RPC: ${RPC_URL}`);
+console.log(`[ACE] Deployer key: ${DEPLOYER_KEY ? 'SET' : 'NOT SET'}`);
+
 // ACE Contract ABI — Basescan-verified for deployed contract on Base Sepolia
 // Address: 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6
 const ACE_ABI = [

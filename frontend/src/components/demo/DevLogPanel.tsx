@@ -224,7 +224,7 @@ export function DevLogPanel() {
             left: '16px',
             zIndex: 9999,
             width: '440px',
-            maxHeight: '420px',
+            maxHeight: '520px',
             background: '#09080f',
             border: '1px solid #1e1b2e',
             borderRadius: '10px',
@@ -278,7 +278,7 @@ export function DevLogPanel() {
                 style={{
                     overflowY: 'auto',
                     flex: 1,
-                    maxHeight: '370px',
+                    maxHeight: '470px',
                     padding: '4px 0',
                 }}
             >
