@@ -153,7 +153,9 @@ export function DemoPanel() {
         await runAction('seed', async () => {
             const { data, error } = await api.demoSeed();
             if (error) throw new Error(error.message || error.error);
-            return `✅ Seeded ${data?.leads} leads, ${data?.bids} bids, ${data?.asks} asks`;
+            const auctionCount = (data as any)?.auctionLeads ?? '?';
+            const buyNowCount = (data as any)?.buyNowLeads ?? '?';
+            return `✅ Seeded ${auctionCount} auction leads + ${buyNowCount} buy-now leads, ${data?.bids} bids, ${data?.asks} asks`;
         });
     }
 

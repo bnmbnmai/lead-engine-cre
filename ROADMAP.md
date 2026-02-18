@@ -13,3 +13,9 @@ The current architecture is designed for demo and early-production traffic. Scal
 **Rate Limiting & Ingestion Throttling.** Replace the per-instance Express rate limiter with a Redis-backed sliding window (`rate-limiter-flexible`) for horizontal scaling. Enforce per-seller, per-vertical ingestion caps (configurable, default 500 leads/day/vertical) to prevent hot-vertical floods from degrading marketplace quality.
 
 **Observability & Alerting.** Add correlation IDs spanning HTTP → WebSocket → on-chain flows. Track auction-close latency (p50/p95/p99), CRE scoring round-trip, escrow funding time, and NFT mint confirmation time as Prometheus metrics. Alert on fill-rate drops >10% and CRE scoring failures.
+
+---
+
+## Enterprise Features (Post-Hackathon)
+
+**Enterprise Branded Verticals.** White-label verticals for large buyers and sellers — custom branding, dedicated lead pools, priority CRE scoring, and isolated auction rooms. VerticalNFT owners can configure branded landing pages, custom form fields, and exclusive buyer access lists. Revenue-share royalties (2%) flow automatically via the deployed VerticalNFT contracts.

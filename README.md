@@ -332,7 +332,7 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 | Ready | VerticalNFT revenue-share flow (2% royalties) | Contracts deployed |
 | Ready | Multi-language CRO landers | Frontend ready |
 
-See `ROADMAP.md` for detailed high-volume scaling considerations (target: 10k+ leads/day).
+See `ROADMAP.md` for high-volume scaling considerations and enterprise features (target: 10k+ leads/day).
 
 
 See `docs/MAINNET_MIGRATION.md` for the full migration plan.

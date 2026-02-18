@@ -781,6 +781,8 @@ router.post('/seed', async (req: Request, res: Response) => {
         res.json({
             success: true,
             leads: leadCount,
+            auctionLeads: auctionLeads.length,
+            buyNowLeads: leadCount - auctionLeads.length - (await prisma.lead.count({ where: { id: { in: leadIds }, status: 'SOLD' } })),
             bids: bidCount,
             asks: askCount,
         });

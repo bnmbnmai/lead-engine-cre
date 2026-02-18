@@ -527,14 +527,7 @@ export function HomePage() {
                                         )}
                                     </button>
                                     <button
-                                        onClick={() => setView('nfts')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'nfts' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
-                                            }`}
-                                        id="nfts-tab"
-                                    >
-                                        NFTs
-                                    </button>
-                                    <button
+
                                         onClick={() => setView('sellers')}
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'sellers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}

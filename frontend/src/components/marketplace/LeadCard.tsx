@@ -96,13 +96,13 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
 
 
     return (
-        <Card className={`group transition-all ${isLive ? 'border-blue-500/50 glow-ready' : ''} active:scale-[0.98]`}>
+        <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
                 {/* Auction End Feedback Overlay */}
                 {auctionEndFeedback && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 animate-pulse ${auctionEndFeedback === 'SOLD'
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                         }`}>
                         <ArrowRight className="h-3.5 w-3.5" />
                         {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
