@@ -10,7 +10,7 @@ import { prisma } from '../lib/prisma';
 // and will throw if an address has incorrect mixed-case (e.g. from copy-paste or env vars)
 function safeChecksum(raw: string): string {
     if (!raw) return '';
-    try { return ethers.getAddress(raw); } catch { return raw; }
+    try { return ethers.getAddress(raw.toLowerCase()); } catch { return raw; }
 }
 const ESCROW_CONTRACT_ADDRESS = safeChecksum(process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '');
 const USDC_CONTRACT_ADDRESS = safeChecksum(process.env.USDC_CONTRACT_ADDRESS || '');
