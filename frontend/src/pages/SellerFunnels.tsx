@@ -401,77 +401,75 @@ export default function SellerFunnels() {
 
     return (
         <DashboardLayout>
-            <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+            <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
                 {/* Header */}
-                <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">
-                            <Zap className="h-6 w-6 text-primary" />
+                            <Zap className="h-5 w-5 text-primary" />
                             My Funnels
                         </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Create and manage lead funnels — set pricing, customize your hosted form, and track conversions in one place.
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            Create funnels, set pricing, and share your hosted lead form.
                         </p>
                     </div>
-                    <Button onClick={startCreate}>
-                        <Plus className="h-4 w-4 mr-2" />
+                    <Button onClick={startCreate} size="sm">
+                        <Plus className="h-4 w-4 mr-1.5" />
                         New Funnel
                     </Button>
                 </div>
 
                 {/* Two-panel layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                     {/* ── Left: Funnel List ── */}
-                    <div className="lg:col-span-4 space-y-3">
+                    <div className="lg:col-span-4 space-y-2">
                         {listLoading ? (
                             <SkeletonCard />
                         ) : funnels.length === 0 && panelMode !== 'create' ? (
-                            <Card>
-                                <CardContent className="p-8 text-center">
-                                    <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                    <p className="text-muted-foreground mb-4">No funnels yet</p>
-                                    <Button onClick={startCreate}>Create Your First Funnel</Button>
+                            <Card className="border-dashed">
+                                <CardContent className="p-10 text-center">
+                                    <Zap className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                                    <p className="text-muted-foreground text-sm mb-4">No funnels yet — create one to start collecting leads.</p>
+                                    <Button onClick={startCreate} size="sm">Create Your First Funnel</Button>
                                 </CardContent>
                             </Card>
                         ) : (
                             <>
                                 {funnels.map(funnel => (
-                                    <Card
+                                    <div
                                         key={funnel.id}
-                                        className={`cursor-pointer transition-all hover:border-primary/40 ${selectedFunnelId === funnel.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : ''}`}
+                                        className={`group cursor-pointer rounded-lg border px-4 py-3 transition-all hover:border-primary/40 hover:bg-primary/5 ${selectedFunnelId === funnel.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border'}`}
                                         onClick={() => selectFunnel(funnel)}
                                     >
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg">{VERTICAL_EMOJI[funnel.vertical] || '📋'}</span>
-                                                    <span className="font-semibold capitalize text-sm">
-                                                        {displayName(funnel.vertical)}
-                                                    </span>
-                                                </div>
-                                                <Badge className={`${getStatusColor(funnel.status)} text-xs`}>
-                                                    {funnel.status}
-                                                </Badge>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                                <span className="flex items-center gap-1">
-                                                    <DollarSign className="h-3 w-3" />
-                                                    {formatCurrency(funnel.reservePrice)}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <MapPin className="h-3 w-3" />
-                                                    {funnel.geoTargets?.states?.length
-                                                        ? funnel.geoTargets.states.slice(0, 2).join(', ')
-                                                        : 'All US'}
-                                                    {(funnel.geoTargets?.states?.length || 0) > 2 && ` +${funnel.geoTargets.states.length - 2}`}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <Tag className="h-3 w-3" />
-                                                    {funnel._count?.leads || 0} leads
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="text-base shrink-0">{VERTICAL_EMOJI[funnel.vertical] || '📋'}</span>
+                                                <span className="font-medium capitalize text-sm truncate">
+                                                    {displayName(funnel.vertical)}
                                                 </span>
                                             </div>
-                                        </CardContent>
-                                    </Card>
+                                            <Badge className={`${getStatusColor(funnel.status)} text-[10px] shrink-0`}>
+                                                {funnel.status}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
+                                            <span className="flex items-center gap-0.5">
+                                                <DollarSign className="h-3 w-3" />
+                                                {formatCurrency(funnel.reservePrice)}
+                                            </span>
+                                            <span className="flex items-center gap-0.5">
+                                                <MapPin className="h-3 w-3" />
+                                                {funnel.geoTargets?.states?.length
+                                                    ? funnel.geoTargets.states.slice(0, 2).join(', ')
+                                                    : 'All US'}
+                                                {(funnel.geoTargets?.states?.length || 0) > 2 && ` +${funnel.geoTargets.states.length - 2}`}
+                                            </span>
+                                            <span className="flex items-center gap-0.5">
+                                                <Activity className="h-3 w-3" />
+                                                {funnel._count?.leads || 0} leads
+                                            </span>
+                                        </div>
+                                    </div>
                                 ))}
                             </>
                         )}
@@ -482,16 +480,33 @@ export default function SellerFunnels() {
                         {panelMode === 'idle' && (
                             <Card className="border-dashed">
                                 <CardContent className="p-12 text-center">
-                                    <Zap className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-                                    <p className="text-muted-foreground">
-                                        Select a funnel from the list or create a new one to get started.
+                                    <Zap className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                                    <p className="text-sm text-muted-foreground">
+                                        Select a funnel or create a new one.
                                     </p>
                                 </CardContent>
                             </Card>
                         )}
 
                         {(panelMode === 'create' || panelMode === 'view') && (
-                            <div className="space-y-6">
+                            <div className="space-y-4">
+                                {/* ── Promoted: Hosted URL Banner (view mode only) ── */}
+                                {panelMode === 'view' && activeVertical && (
+                                    <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                                        <ExternalLink className="h-4 w-4 text-primary shrink-0" />
+                                        <span className="text-xs text-muted-foreground shrink-0">Hosted URL:</span>
+                                        <code className="text-xs font-mono text-foreground truncate flex-1">{hostedUrl}</code>
+                                        <Button size="sm" variant="ghost" className="shrink-0 h-7 px-2" onClick={() => copyToClipboard(hostedUrl, 'url')}>
+                                            {copiedUrl ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                                        </Button>
+                                        <a href={hostedUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                            <Button size="sm" variant="ghost" className="h-7 px-2">
+                                                <ExternalLink className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </a>
+                                    </div>
+                                )}
+
                                 {/* ── Section 1: Core Settings ── */}
                                 <Card>
                                     <CardHeader>

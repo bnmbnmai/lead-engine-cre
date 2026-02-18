@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle, Loader2, AlertCircle, Shield } from 'lucide-react';
+import { CheckCircle, Loader2, AlertCircle, Shield, Star } from 'lucide-react';
 import api from '@/lib/api';
 import FormPreview from '@/components/forms/FormPreview';
 import type { FormPreviewColors } from '@/components/forms/FormPreview';
@@ -59,6 +59,25 @@ function getVariant(): Variant {
     if (stored === 'B') return 'B';
     return 'A';
 }
+
+// ─── Vertical-specific CRO headlines ─────────────────────────────────
+const VERTICAL_HEADLINES: Record<string, { headline: string; subline: string }> = {
+    'solar': { headline: 'Get Your Free Solar Quote', subline: 'Compare top-rated installers in your area — no obligation.' },
+    'solar.residential': { headline: 'Get Your Free Solar Quote', subline: 'See how much you can save with residential solar.' },
+    'solar.commercial': { headline: 'Commercial Solar Savings', subline: 'Get custom proposals from certified commercial installers.' },
+    'roofing': { headline: 'Free Roofing Estimate', subline: 'Get matched with licensed roofers near you in 60 seconds.' },
+    'roofing.repair': { headline: 'Roof Repair Quotes', subline: 'Connect with vetted contractors for fast, affordable repairs.' },
+    'roofing.replacement': { headline: 'Time for a New Roof?', subline: 'Compare replacement quotes from top local roofers.' },
+    'mortgage': { headline: 'Find Your Best Mortgage Rate', subline: 'Compare offers from trusted lenders — no credit check to start.' },
+    'mortgage.refinance': { headline: 'Lower Your Mortgage Payment', subline: 'See today\'s refinance rates from competing lenders.' },
+    'mortgage.purchase': { headline: 'Get Pre-Approved Today', subline: 'Compare purchase rates from top lenders in minutes.' },
+    'insurance': { headline: 'Compare Insurance Quotes', subline: 'Find the best coverage at the lowest price.' },
+    'insurance.auto': { headline: 'Save on Auto Insurance', subline: 'Compare rates from top carriers in under 2 minutes.' },
+    'insurance.home': { headline: 'Protect Your Home for Less', subline: 'Compare homeowners insurance from top-rated providers.' },
+    'home_services': { headline: 'Get Free Estimates', subline: 'Connect with top-rated local pros in your area.' },
+};
+
+const DEFAULT_HEADLINE = { headline: 'Get Your Free Quote', subline: 'Takes less than 60 seconds — no obligation, no commitment.' };
 
 // ─── Component ────────────────────────────────────────────────────
 export default function HostedForm() {
@@ -352,7 +371,7 @@ export default function HostedForm() {
                     }}>
                         <Shield style={{ width: 14, height: 14, color: '#3b82f6' }} />
                         <span style={{ fontSize: '0.7rem', color: colors.muted }}>
-                            Your data is encrypted and verified on-chain via Chainlink
+                            Your info is safe — we never share without your permission
                         </span>
                     </div>
 
@@ -364,11 +383,30 @@ export default function HostedForm() {
         );
     }
 
-    // ─── Form wizard with CRO layers ─────────────────────────
+    // ─── Vertical headline ─────────────────────────────────────────────
+    const headlineConfig = VERTICAL_HEADLINES[verticalSlug] || DEFAULT_HEADLINE;
+
+    // ─── Form wizard with CRO layers ───────────────────────
     return (
-        <div style={{ backgroundColor: colors.bg, minHeight: '100vh' }}>
-            <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1rem' }}>
-                {/* Trust Bar (Variant A: above, Variant B: below header would be handled in FormPreview) */}
+        <div style={{ backgroundColor: colors.bg, minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1rem', width: '100%' }}>
+                {/* Vertical-specific headline */}
+                <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                    <h1 style={{
+                        fontSize: '1.5rem',
+                        fontWeight: 700,
+                        color: colors.text,
+                        marginBottom: '0.35rem',
+                        lineHeight: 1.3,
+                    }}>
+                        {headlineConfig.headline}
+                    </h1>
+                    <p style={{ fontSize: '0.85rem', color: colors.muted, lineHeight: 1.5 }}>
+                        {headlineConfig.subline}
+                    </p>
+                </div>
+
+                {/* Trust Bar */}
                 {croConfig.showTrustBar && (
                     <TrustBar mutedColor={colors.muted} />
                 )}
@@ -377,6 +415,14 @@ export default function HostedForm() {
                 {croConfig.showSocialProof && (
                     <SocialProofBanner accentColor={colors.accent} mutedColor={colors.muted} />
                 )}
+
+                {/* Star rating teaser */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '1rem' }}>
+                    {[1, 2, 3, 4, 5].map(i => (
+                        <Star key={i} style={{ width: 14, height: 14, color: '#facc15', fill: '#facc15' }} />
+                    ))}
+                    <span style={{ fontSize: '0.7rem', color: colors.muted, marginLeft: '0.3rem' }}>4.9/5 from 2,400+ reviews</span>
+                </div>
 
                 {/* The Form */}
                 <FormPreview

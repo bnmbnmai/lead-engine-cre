@@ -74,7 +74,7 @@ export default function SocialProofBanner({ accentColor, mutedColor }: SocialPro
         >
             <Users style={{ width: 13, height: 13, color: accentColor }} />
             <span>
-                <strong style={{ color: accentColor }}>{count.toLocaleString()}</strong> leads verified today
+                <strong style={{ color: accentColor }}>{count.toLocaleString()}</strong> homeowners helped today
             </span>
         </div>
     );

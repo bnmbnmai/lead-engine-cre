@@ -12,9 +12,9 @@ interface TrustBarProps {
 }
 
 const BADGES = [
-    { icon: Lock, label: '256-bit Encrypted', color: '#22c55e' },
-    { icon: Shield, label: 'TCPA Compliant', color: '#3b82f6' },
-    { icon: CheckCircle, label: 'Chainlink Verified', color: '#a855f7' },
+    { icon: Lock, label: 'Your Info Is Safe', color: '#22c55e' },
+    { icon: Shield, label: 'Verified Providers Only', color: '#3b82f6' },
+    { icon: CheckCircle, label: 'Trusted by 10,000+', color: '#a855f7' },
 ];
 
 export default function TrustBar({ mutedColor }: TrustBarProps) {
