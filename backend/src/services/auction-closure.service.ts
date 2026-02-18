@@ -17,6 +17,7 @@ import { fireConversionEvents, ConversionPayload } from '../services/conversion-
 import { bountyService } from '../services/bounty.service';
 import { isVrfConfigured, requestTieBreak, waitForResolution, ResolveType } from '../services/vrf.service';
 import { aceDevBus } from '../services/ace.service';
+import * as vaultService from '../services/vault.service';
 
 // ============================================
 // Resolve Expired Auctions
@@ -396,14 +397,14 @@ async function resolveAuction(leadId: string, io?: Server) {
             console.error('[AuctionClosure] Bounty release error (non-blocking):', bountyErr);
         }
 
-        // ── Pre-Bid Escrow: Auto-refund losers ──
-        // Losers with pre-funded escrow get auto-refunded
+        // ── Vault + Escrow Refund: Auto-refund losers ──
+        // Losers get their vault deductions refunded (bid amount + $1 fee)
         try {
             const loserBids = await prisma.bid.findMany({
                 where: {
                     leadId,
                     status: 'OUTBID',
-                    escrowTxHash: { not: null },
+                    amount: { not: null },
                     escrowRefunded: false,
                 },
             });
@@ -422,12 +423,25 @@ async function resolveAuction(leadId: string, io?: Server) {
                         where: { id: loserBid.id },
                         data: { escrowRefunded: true },
                     });
+
+                    // Refund vault (bid amount + $1 fee)
+                    const bidAmt = Number(loserBid.amount) || 0;
+                    if (bidAmt > 0) {
+                        await vaultService.refund(
+                            loserBid.buyerId,
+                            bidAmt + vaultService.VAULT_FEE,
+                            leadId,
+                            `Auction loss refund — lead ${leadId}`
+                        );
+                    }
+
                     aceDevBus.emit('ace:dev-log', {
                         ts: new Date().toISOString(),
                         action: 'escrow:refund:success',
                         leadId,
                         bidId: loserBid.id,
                         buyerId: loserBid.buyerId,
+                        vaultRefund: bidAmt > 0 ? `$${(bidAmt + vaultService.VAULT_FEE).toFixed(2)}` : 'n/a',
                     });
                 } catch (refundErr: any) {
                     console.error(`[AuctionClosure] Escrow refund failed for bid ${loserBid.id}:`, refundErr.message);

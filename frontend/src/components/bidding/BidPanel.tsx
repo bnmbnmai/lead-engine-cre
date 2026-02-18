@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
+import api from '@/lib/api';
 
 const bidSchema = z.object({
     amount: z.number().positive('Amount must be positive'),
@@ -36,6 +37,14 @@ export function BidPanel({
 }: BidPanelProps) {
     const [revealData, setRevealData] = useState({ amount: '', salt: '' });
     const [bidSubmitted, setBidSubmitted] = useState(false);
+    const [vaultBalance, setVaultBalance] = useState<number | null>(null);
+
+    // Fetch vault balance on mount
+    useEffect(() => {
+        api.getVault().then(({ data }) => {
+            if (data) setVaultBalance(data.balance ?? 0);
+        }).catch(() => setVaultBalance(0));
+    }, []);
 
     // Auto-populate reveal data from localStorage when entering REVEAL phase
     useEffect(() => {
@@ -59,6 +68,8 @@ export function BidPanel({
 
     const currentAmount = watch('amount');
     const meetReserve = currentAmount >= reservePrice;
+    const requiredVault = currentAmount + 1; // bid + $1 convenience fee
+    const hasVaultFunds = vaultBalance !== null && vaultBalance >= requiredVault;
 
     const onSubmit = (data: BidFormData) => {
         // Generate proper sealed commitment: keccak256(abi.encode([uint96, bytes32], [amountWei, salt]))
@@ -197,6 +208,23 @@ export function BidPanel({
                             </div>
                         </div>
 
+                        {/* Vault Balance */}
+                        {vaultBalance !== null && (
+                            <div className={`flex items-center justify-between p-3 rounded-xl border ${hasVaultFunds ? 'border-teal-500/30 bg-teal-500/5' : 'border-red-500/30 bg-red-500/5'
+                                }`}>
+                                <span className="text-xs font-medium">Vault Balance</span>
+                                <span className={`font-mono text-sm ${hasVaultFunds ? 'text-teal-500' : 'text-red-500'}`}>
+                                    {formatCurrency(vaultBalance)} USDC
+                                </span>
+                            </div>
+                        )}
+                        {vaultBalance !== null && !hasVaultFunds && (
+                            <div className="text-xs text-red-400 text-center">
+                                Insufficient vault funds — need {formatCurrency(requiredVault)} (bid + $1 fee).{' '}
+                                <a href="/dashboard" className="underline text-teal-400">Fund vault →</a>
+                            </div>
+                        )}
+
                         {/* Bid Form */}
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                             <div>
@@ -216,7 +244,7 @@ export function BidPanel({
                                 </div>
                             </div>
 
-                            <Button type="submit" loading={isLoading} className="w-full" size="lg">
+                            <Button type="submit" loading={isLoading} className="w-full" size="lg" disabled={!meetReserve || !hasVaultFunds}>
                                 <Lock className="h-4 w-4 mr-2" />
                                 Submit Sealed Bid
                             </Button>

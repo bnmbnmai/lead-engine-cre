@@ -11,6 +11,7 @@ import {
 import { SPAM_THRESHOLD_BIDS_PER_MINUTE } from '../config/perks.env';
 import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
 import { resolveExpiredAuctions, resolveStuckAuctions, resolveExpiredBuyNow } from '../services/auction-closure.service';
+import * as vaultService from '../services/vault.service';
 
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
@@ -266,18 +267,41 @@ class RTBSocketServer {
                     // Check holder perks
                     const perks = await applyHolderPerks(lead.vertical, socket.walletAddress);
 
+                    // ── Vault balance check ──
+                    // If bid has an amount, verify vault has enough (amount + $1 fee)
+                    const bidAmount = data.amount ?? null;
+                    if (bidAmount && bidAmount > 0) {
+                        const vaultCheck = await vaultService.checkBidBalance(socket.userId!, bidAmount);
+                        if (!vaultCheck.ok) {
+                            socket.emit('error', {
+                                message: `Insufficient vault balance: $${vaultCheck.balance.toFixed(2)} < $${vaultCheck.required.toFixed(2)} required (bid + $1 fee). Fund your vault first.`,
+                            });
+                            return;
+                        }
 
+                        // Deduct from vault immediately (bid + fee)
+                        const feeResult = await vaultService.chargeFee(socket.userId!, data.leadId);
+                        if (!feeResult.success) {
+                            socket.emit('error', { message: feeResult.error || 'Failed to charge vault fee' });
+                            return;
+                        }
+                        const deductResult = await vaultService.deduct(
+                            socket.userId!, bidAmount, data.leadId, `Bid on lead ${data.leadId}`
+                        );
+                        if (!deductResult.success) {
+                            // Refund the fee since bid deduction failed
+                            await vaultService.refund(socket.userId!, vaultService.VAULT_FEE, data.leadId, 'Fee refund — bid deduction failed');
+                            socket.emit('error', { message: deductResult.error || 'Failed to deduct from vault' });
+                            return;
+                        }
+                    }
 
                     // Create sealed bid (commit-reveal)
-                    // Check if this is a new bid or update (for bidCount accuracy)
                     const existingBid = await prisma.bid.findUnique({
                         where: { leadId_buyerId: { leadId: data.leadId, buyerId: socket.userId! } },
                     });
                     const isNewBid = !existingBid;
 
-                    // When amount is sent alongside commitment, store it immediately
-                    // This ensures resolveAuction can find the bid even if auto-reveal fails
-                    const bidAmount = data.amount ?? null;
                     const effectiveBid = bidAmount && perks.isHolder
                         ? applyMultiplier(bidAmount, perks.multiplier)
                         : bidAmount;
