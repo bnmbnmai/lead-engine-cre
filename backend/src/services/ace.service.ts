@@ -171,7 +171,20 @@ class ACEService {
                 devLog('canTransact:result', { wallet: walletAddress, vertical, allowed: canTx });
 
                 if (!canTx) {
-                    return { allowed: false, reason: 'Compliance check failed on-chain' };
+                    // Try setting vertical policy dynamically and retry once
+                    devLog('canTransact:policyMissing', { vertical, verticalHash, reason: 'Attempting to set vertical policy on-chain' });
+                    const policySet = await this.setVerticalPolicyIfNeeded(vertical || 'default');
+                    if (policySet) {
+                        const retryResult = await this.contract.canTransact(walletAddress, verticalHash, geoHashBytes);
+                        devLog('canTransact:retry', { wallet: walletAddress, vertical, allowed: retryResult });
+                        if (retryResult) {
+                            // Policy was missing, now set — allow the transaction
+                        } else {
+                            return { allowed: false, reason: `Compliance check failed on-chain for vertical "${vertical}"` };
+                        }
+                    } else {
+                        return { allowed: false, reason: `Compliance check failed on-chain for vertical "${vertical}"` };
+                    }
                 }
             } catch (error: any) {
                 devLog('canTransact:error', {
@@ -488,38 +501,101 @@ class ACEService {
     // ============================================
 
     private policiesInitialized = false;
+    private setVerticals = new Set<string>();
 
     /**
      * Ensure common vertical policies are set on-chain.
      * canTransact checks _defaultVerticalPolicy[verticalHash] — if not set,
-     * it returns false even for KYC-approved users. This sets policies once.
+     * it returns false even for KYC-approved users.
+     *
+     * Uses manual nonce management to avoid "replacement fee too low" /
+     * "nonce already used" from rapid sequential transactions.
      */
     async ensureVerticalPolicies(): Promise<void> {
         if (this.policiesInitialized || !this.contract || !this.signer) return;
 
+        // Both hyphenated and underscored variants — landers may use either
         const verticals = [
-            'mortgage', 'insurance', 'solar', 'legal', 'home-services',
-            'roofing', 'hvac', 'plumbing', 'auto-insurance', 'health-insurance',
-            'life-insurance', 'real-estate', 'personal-injury', 'tax',
-            'debt-settlement', 'credit-repair', 'education', 'moving',
-            'pest-control', 'windows', 'default',
+            'mortgage', 'insurance', 'solar', 'legal',
+            'home-services', 'home_services',
+            'roofing', 'hvac', 'plumbing',
+            'auto-insurance', 'auto_insurance',
+            'health-insurance', 'health_insurance',
+            'life-insurance', 'life_insurance',
+            'real-estate', 'real_estate',
+            'personal-injury', 'personal_injury',
+            'tax',
+            'debt-settlement', 'debt_settlement',
+            'credit-repair', 'credit_repair',
+            'education', 'moving',
+            'pest-control', 'pest_control',
+            'windows',
+            'b2b_saas', 'b2b-saas',
+            'financial_services', 'financial-services',
+            'auto',
+            'default',
         ];
+
+        let nonce = await this.signer.getNonce();
+        let successCount = 0;
+        let failCount = 0;
+
+        devLog('verticalPolicies:start', { count: verticals.length, startNonce: nonce });
 
         for (const v of verticals) {
             const hash = ethers.keccak256(ethers.toUtf8Bytes(v));
-            try {
-                devLog('setDefaultVerticalPolicy:call', { vertical: v, hash });
-                const tx = await this.contract.setDefaultVerticalPolicy(hash, true);
-                await tx.wait();
-                devLog('setDefaultVerticalPolicy:result', { vertical: v, hash, set: true });
-            } catch (error: any) {
-                // Already set or gas issue — log but don't block
-                devLog('setDefaultVerticalPolicy:skip', { vertical: v, error: error.message });
+            let success = false;
+
+            for (let attempt = 1; attempt <= 3 && !success; attempt++) {
+                try {
+                    devLog('setDefaultVerticalPolicy:call', { vertical: v, hash, attempt, nonce });
+                    const tx = await this.contract.setDefaultVerticalPolicy(hash, true, { nonce });
+                    await tx.wait();
+                    devLog('setDefaultVerticalPolicy:result', { vertical: v, hash, set: true, attempt, txHash: tx.hash });
+                    this.setVerticals.add(v);
+                    nonce++;
+                    successCount++;
+                    success = true;
+                } catch (error: any) {
+                    const msg = error.message || '';
+                    if (msg.includes('already been used') || msg.includes('replacement fee')) {
+                        // Nonce conflict — refresh nonce and retry
+                        devLog('setDefaultVerticalPolicy:retry', { vertical: v, attempt, error: msg.slice(0, 80) });
+                        await new Promise(r => setTimeout(r, 2000));
+                        nonce = await this.signer!.getNonce();
+                    } else {
+                        // Different error (e.g., already set, gas, revert) — skip
+                        devLog('setDefaultVerticalPolicy:skip', { vertical: v, attempt, error: msg.slice(0, 100) });
+                        failCount++;
+                        break;
+                    }
+                }
             }
         }
 
         this.policiesInitialized = true;
-        devLog('verticalPolicies:initialized', { count: verticals.length });
+        devLog('verticalPolicies:initialized', { total: verticals.length, success: successCount, failed: failCount });
+    }
+
+    /**
+     * Dynamically set a vertical policy if it hasn't been set yet.
+     * Called from canTransact when a vertical is not in the pre-set list.
+     */
+    async setVerticalPolicyIfNeeded(vertical: string): Promise<boolean> {
+        if (this.setVerticals.has(vertical) || !this.contract || !this.signer) return false;
+
+        const hash = ethers.keccak256(ethers.toUtf8Bytes(vertical));
+        try {
+            devLog('setDefaultVerticalPolicy:dynamic', { vertical, hash });
+            const tx = await this.contract.setDefaultVerticalPolicy(hash, true);
+            await tx.wait();
+            this.setVerticals.add(vertical);
+            devLog('setDefaultVerticalPolicy:dynamicResult', { vertical, hash, set: true, txHash: tx.hash });
+            return true;
+        } catch (error: any) {
+            devLog('setDefaultVerticalPolicy:dynamicFail', { vertical, error: error.message?.slice(0, 100) });
+            return false;
+        }
     }
 }
 

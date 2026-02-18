@@ -223,14 +223,14 @@ export function DevLogPanel() {
             bottom: '16px',
             left: '16px',
             zIndex: 9999,
-            width: '440px',
-            maxHeight: '520px',
+            width: '480px',
+            maxHeight: '580px',
             background: '#09080f',
             border: '1px solid #1e1b2e',
             borderRadius: '10px',
             overflow: 'hidden',
             fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", "Cascadia Code", monospace',
-            fontSize: '11px',
+            fontSize: '12px',
             display: 'flex',
             flexDirection: 'column',
             boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
@@ -278,7 +278,7 @@ export function DevLogPanel() {
                 style={{
                     overflowY: 'auto',
                     flex: 1,
-                    maxHeight: '470px',
+                    maxHeight: '530px',
                     padding: '4px 0',
                 }}
             >
@@ -302,16 +302,16 @@ export function DevLogPanel() {
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                     >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <span style={{ color: '#3d3856', marginRight: '6px', fontSize: '10px' }}>
+                            <span style={{ color: '#3d3856', marginRight: '6px', fontSize: '11px' }}>
                                 {formatTime(entry.ts)}
                             </span>
-                            <span style={{ color: getActionColor(entry.action), fontWeight: 600 }}>
+                            <span style={{ color: getActionColor(entry.action), fontWeight: 600, fontSize: '12px' }}>
                                 {entry.action}
                             </span>
                             {Object.entries(entry)
                                 .filter(([k]) => k !== 'ts' && k !== 'action')
                                 .map(([k, v]) => (
-                                    <span key={k} style={{ marginLeft: '6px', fontSize: '10px' }}>
+                                    <span key={k} style={{ marginLeft: '6px', fontSize: '11px' }}>
                                         <span style={{ color: '#4a4560' }}>{k}=</span>
                                         {renderValue(k, v)}
                                     </span>
