@@ -176,7 +176,7 @@ export function MarketMetricsPanel() {
             const bountyResults = await Promise.allSettled(
                 rootVerticals.map(async (v) => {
                     try {
-                        const res = await fetch(`${API_BASE_URL}/api/verticals/${v.value}/bounty`, { headers });
+                        const res = await fetch(`${API_BASE_URL}/api/v1/verticals/${v.value}/bounty`, { headers });
                         if (!res.ok) return { slug: v.value, totalBounty: 0 };
                         const data = await res.json();
                         return { slug: v.value, totalBounty: Number(data.totalBounty) || 0 };
