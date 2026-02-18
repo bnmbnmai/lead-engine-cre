@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
-    Search, Users, DollarSign, TrendingUp,
-    Home, Sun, Shield, Wrench, Car, Scale, Briefcase, Building2, Sparkles,
+    Search, Users, DollarSign, TrendingUp, Eye,
+    Home, Sun, Shield, Wrench, Car, Scale, Briefcase, Building2, Sparkles, Layers,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import useVerticals from '@/hooks/useVerticals';
@@ -27,7 +28,6 @@ const VERTICAL_ICONS: Record<string, React.ElementType> = {
 };
 
 function getVerticalIcon(slug: string): React.ElementType {
-    // Check exact match first, then parent slug
     if (VERTICAL_ICONS[slug]) return VERTICAL_ICONS[slug];
     const root = slug.split('.')[0];
     return VERTICAL_ICONS[root] || Sparkles;
@@ -48,14 +48,21 @@ interface VerticalCardData {
 function formatUSDC(amount: number): string {
     if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
     if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`;
-    return `$${amount.toFixed(0)}`;
+    if (amount > 0) return `$${amount.toFixed(2)}`;
+    return '$0.00';
 }
 
-function demandLevel(buyers: number): { label: string; color: string } {
-    if (buyers >= 10) return { label: 'High Demand', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' };
-    if (buyers >= 3) return { label: 'Growing', color: 'bg-amber-500/10 text-amber-500 border-amber-500/30' };
-    if (buyers >= 1) return { label: 'Active', color: 'bg-blue-500/10 text-blue-500 border-blue-500/30' };
-    return { label: 'New', color: 'bg-muted text-muted-foreground border-border' };
+function demandLevel(buyers: number): { label: string; className: string; iconColor: string } {
+    if (buyers >= 10) return { label: 'High Demand', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', iconColor: 'bg-emerald-500/15' };
+    if (buyers >= 3) return { label: 'Growing', className: 'bg-amber-500/15 text-amber-400 border-amber-500/30', iconColor: 'bg-amber-500/15' };
+    if (buyers >= 1) return { label: 'Active', className: 'bg-blue-500/15 text-blue-400 border-blue-500/30', iconColor: 'bg-blue-500/15' };
+    return { label: 'New', className: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30', iconColor: 'bg-zinc-500/15' };
+}
+
+function formatTitle(name: string): string {
+    return name
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 // ── Component ──────────────────────────────
@@ -83,7 +90,6 @@ export function VerticalsGrid() {
             const headers: HeadersInit = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            // Fetch bounty info for top-level verticals only (depth 0)
             const topLevel = flatList.filter(v => v.depth === 0);
 
             const results = await Promise.allSettled(
@@ -115,16 +121,9 @@ export function VerticalsGrid() {
                         activePools: r.activePools,
                     };
                 }
-                return {
-                    slug: 'unknown',
-                    name: 'Unknown',
-                    activeBuyers: 0,
-                    totalBounty: 0,
-                    activePools: 0,
-                };
+                return { slug: 'unknown', name: 'Unknown', activeBuyers: 0, totalBounty: 0, activePools: 0 };
             });
 
-            // Sort by total bounty descending, then by name
             cardData.sort((a, b) => b.totalBounty - a.totalBounty || a.name.localeCompare(b.name));
             setCards(cardData);
             setLoading(false);
@@ -133,7 +132,6 @@ export function VerticalsGrid() {
         fetchBountyData();
     }, [flatList, verticalsLoading]);
 
-    // Filter cards by search
     const filtered = debouncedSearch
         ? cards.filter(c =>
             c.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
@@ -154,7 +152,7 @@ export function VerticalsGrid() {
             {/* Grid */}
             {loading || verticalsLoading ? (
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
                         <SkeletonCard key={i} />
                     ))}
                 </div>
@@ -169,65 +167,87 @@ export function VerticalsGrid() {
                     {filtered.map((card) => {
                         const demand = demandLevel(card.activeBuyers);
                         const VerticalIcon = getVerticalIcon(card.slug);
+                        const avgPerBuyer = card.activeBuyers > 0 ? card.totalBounty / card.activeBuyers : 0;
 
                         return (
-                            <Card key={card.slug} className="group transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5">
+                            <Card key={card.slug} className="group transition-all duration-500 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/5 active:scale-[0.98]">
                                 <CardContent className="p-6">
-                                    {/* Header */}
+                                    {/* Header — matches LeadCard header layout */}
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${demand.iconColor}`}>
                                                 <VerticalIcon className="h-6 w-6 text-primary" />
                                             </div>
                                             <div>
-                                                <h3 className="font-semibold">{card.name}</h3>
+                                                <h3 className="font-semibold">{formatTitle(card.name)}</h3>
                                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <Layers className="h-3 w-3" />
                                                     {card.slug.replace(/_/g, ' ')}
                                                 </div>
                                             </div>
                                         </div>
-                                        <Badge variant="outline" className={demand.color}>
-                                            {demand.label}
-                                        </Badge>
-                                    </div>
-
-                                    {/* Stats */}
-                                    <div className="grid grid-cols-3 gap-3 mb-4">
-                                        <div className="text-center p-2.5 rounded-lg bg-muted/50">
-                                            <Users className="h-3.5 w-3.5 text-blue-400 mx-auto mb-1" />
-                                            <div className="text-sm font-semibold">{card.activeBuyers}</div>
-                                            <div className="text-[10px] text-muted-foreground">Buyers</div>
-                                        </div>
-                                        <div className="text-center p-2.5 rounded-lg bg-muted/50">
-                                            <DollarSign className="h-3.5 w-3.5 text-emerald-400 mx-auto mb-1" />
-                                            <div className="text-sm font-semibold">{formatUSDC(card.totalBounty)}</div>
-                                            <div className="text-[10px] text-muted-foreground">Bounty Pool</div>
-                                        </div>
-                                        <div className="text-center p-2.5 rounded-lg bg-muted/50">
-                                            <TrendingUp className="h-3.5 w-3.5 text-amber-400 mx-auto mb-1" />
-                                            <div className="text-sm font-semibold">
-                                                {card.totalBounty > 0 ? formatUSDC(card.totalBounty / Math.max(card.activeBuyers, 1)) : '—'}
-                                            </div>
-                                            <div className="text-[10px] text-muted-foreground">Avg / Buyer</div>
-                                        </div>
-                                    </div>
-
-                                    {/* Bounty bar */}
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                            <span>Pool Depth</span>
-                                            <span className="font-medium text-foreground">
-                                                {card.totalBounty > 0 ? `${formatUSDC(card.totalBounty)} USDC` : 'No bounties yet'}
+                                        <div className="flex items-center gap-2">
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border ${demand.className}`}>
+                                                <Users className="h-3 w-3" />
+                                                {demand.label}
                                             </span>
                                         </div>
-                                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                                    </div>
+
+                                    {/* Detail rows — matches LeadCard source & stats layout */}
+                                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                                        <div className="flex items-center gap-1">
+                                            <Users className="h-4 w-4 text-blue-400" />
+                                            <span className="font-medium text-foreground">{card.activeBuyers}</span> active buyer{card.activeBuyers !== 1 ? 's' : ''}
+                                        </div>
+                                        {card.activePools > 0 && (
+                                            <div className="flex items-center gap-1 text-emerald-400">
+                                                <DollarSign className="h-4 w-4" />
+                                                <span className="font-medium">{card.activePools}</span> pool{card.activePools !== 1 ? 's' : ''}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/*  Bounty bar — matches LeadCard auction progress */}
+                                    <div className="mb-4">
+                                        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                                             <div
-                                                className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
-                                                style={{ width: `${Math.min(100, (card.totalBounty / 5000) * 100)}%` }}
+                                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-1000 ease-linear"
+                                                style={{ width: `${Math.min(card.totalBounty > 0 ? Math.max((card.totalBounty / 5000) * 100, 5) : 0, 100)}%` }}
                                             />
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                                            <span>Pool Depth</span>
+                                            <span>{card.totalBounty > 0 ? formatUSDC(card.totalBounty) + ' USDC' : 'No bounties yet'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Pricing section — matches LeadCard border-t pricing */}
+                                    <div className="flex items-center justify-between pt-4 border-t border-border">
+                                        <div>
+                                            <span className="text-xs text-muted-foreground">Total Bounty</span>
+                                            <div className="text-lg font-bold">{formatUSDC(card.totalBounty)}</div>
+                                            {avgPerBuyer > 0 && (
+                                                <div className="flex items-center gap-1 text-[11px] mt-0.5 text-muted-foreground">
+                                                    <TrendingUp className="h-3 w-3" />
+                                                    {formatUSDC(avgPerBuyer)} avg / buyer
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </CardContent>
+
+                                {/* Footer — matches BuyNowCard CardFooter with action buttons */}
+                                <CardFooter className="px-6 pb-6">
+                                    <div className="w-full space-y-2">
+                                        <Button asChild variant="outline" className="w-full">
+                                            <Link to={`/marketplace?vertical=${card.slug}`}>
+                                                <Eye className="h-4 w-4 mr-2" />
+                                                Browse Leads
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </CardFooter>
                             </Card>
                         );
                     })}
