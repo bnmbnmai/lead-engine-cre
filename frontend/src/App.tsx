@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
@@ -125,10 +125,8 @@ function App() {
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
 
-                            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
-
-                            {/* Persistent AI Agent chat widget */}
-                            <AgentChatWidget />
+                            {/* Hide demo tools on public hosted forms */}
+                            <GlobalOverlays />
 
                             {/* Toast notifications */}
                             <Toaster />
@@ -144,3 +142,15 @@ function App() {
 }
 
 export default App;
+
+/** Hide DemoPanel + AgentChatWidget on public hosted landers (/f/*) */
+function GlobalOverlays() {
+    const { pathname } = useLocation();
+    if (pathname.startsWith('/f/')) return null;
+    return (
+        <>
+            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
+            <AgentChatWidget />
+        </>
+    );
+}
