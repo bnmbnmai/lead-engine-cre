@@ -61,13 +61,18 @@ class LRURateLimitStore implements Store {
 // ============================================
 
 // General API - 100 requests per minute
+// In demo mode (non-production or DEMO_MODE=true), rate limiting is bypassed
+// to prevent "Too many requests" errors when using the Demo Control Panel.
+const isDemoMode = process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true';
+
 export const generalLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
+    max: isDemoMode ? 0 : 100, // 0 = unlimited in demo mode
     message: { error: 'Too many requests, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
     store: new LRURateLimitStore(60_000),
+    skip: () => isDemoMode,
     keyGenerator: (req: Request) => {
         const authReq = req as AuthenticatedRequest;
         return authReq.user?.id || req.ip || 'anonymous';
