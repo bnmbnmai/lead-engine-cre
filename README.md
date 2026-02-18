@@ -1,41 +1,42 @@
 # Lead Engine CRE: Decentralized Real-Time Bidding for the $200B+ Lead Marketplace with Deep Chainlink Integration
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-![Tests](https://img.shields.io/badge/tests-1288%20passing-brightgreen)
 ![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)
 ![Chainlink ACE](https://img.shields.io/badge/Chainlink-ACE-blue)
+![Chainlink Automation](https://img.shields.io/badge/Chainlink-Automation-orange)
 ![Chainlink Functions](https://img.shields.io/badge/Chainlink-Functions-purple)
-![RTBEscrow](https://img.shields.io/badge/RTBEscrow-USDC%20Settlement-orange)
+![On-Chain Vault](https://img.shields.io/badge/Vault-USDC%20Escrow-teal)
 
 > **Built for Chainlink Convergence Hackathon 2026 · Mandatory CRE + ACE Track**
 
-Lead Engine is the first **tokenized, real-time bidding marketplace for verified leads** — powered by seven **Chainlink** services. Sellers submit leads, **Chainlink CRE** scores them cryptographically, **ACE** clears compliance, and buyers compete in sealed-bid auctions settled instantly in USDC. Every purchased lead is minted as an **ERC-721 LeadNFT** with immutable quality proof, resale rights, and royalties.
+Lead Engine is the first **tokenized, real-time bidding marketplace for verified leads** — powered by eight **Chainlink** services. Sellers submit leads, **Chainlink CRE** scores them cryptographically, **ACE** clears compliance, and buyers compete in sealed-bid auctions with **pre-funded on-chain USDC vaults**. Every purchased lead is minted as an **ERC-721 LeadNFT** with immutable quality proof, resale rights, and royalties.
 
 | Chainlink Service | Role | Status |
 |---|---|---|
-| **CRE** | On-chain quality scoring (0–10,000) with ZK fraud proofs | Implemented |
-| **ACE** | Auto-KYC, jurisdiction policy enforcement, reputation gating | Implemented |
-| **Functions** | Bounty criteria matching triggered at auction close | Implemented |
-| **VRF v2.5** | Provably fair tiebreaker for auction bids + bounty allocation | Implemented |
-| **Data Feeds** | Real-time ETH/USD → dynamic bid floor prices per vertical | Implemented |
-| **DECO** | zkTLS verification of off-site lead provenance | Stubbed for hackathon, full integration post-event |
-| **Confidential HTTP** | Off-chain fraud signal aggregation in a TEE | Stubbed for hackathon, full integration post-event |
+| **CRE** | On-chain quality scoring (0–10,000) with ZK fraud proofs | ✅ Implemented |
+| **ACE** | Auto-KYC, jurisdiction policy enforcement, reputation gating | ✅ Implemented |
+| **Automation** | 24h Proof-of-Reserves checks + 7-day expired lock auto-refunds | ✅ Implemented |
+| **Functions** | Bounty criteria matching triggered at auction close | ✅ Implemented |
+| **VRF v2.5** | Provably fair tiebreaker for auction bids + bounty allocation | ✅ Implemented |
+| **Data Feeds** | Real-time ETH/USD → dynamic bid floor prices per vertical | ✅ Implemented |
+| **DECO** | zkTLS verification of off-site lead provenance | 🔶 Stubbed (post-event) |
+| **Confidential HTTP** | Off-chain fraud signal aggregation in a TEE | 🔶 Stubbed (post-event) |
 
-**Hackathon Focus:** CRE + ACE are fully integrated. Functions, VRF, and Data Feeds are functional with production contracts. DECO and Confidential HTTP are architecturally integrated as stubs ready for mainnet.
+**Hackathon Focus:** CRE, ACE, and Automation are fully integrated with deployed contracts. Functions, VRF, and Data Feeds are functional with production contracts. DECO and Confidential HTTP are architecturally integrated as stubs ready for mainnet.
 
 ---
 
 ## Key Differentiators
 
+- **On-Chain USDC Vault** — `PersonalEscrowVault.sol` holds buyer funds; bids are pre-funded and locked before auction, settled or refunded atomically on-chain
+- **Proof of Reserves** — Chainlink Automation verifies vault solvency every 24h; expired locks auto-refund after 7 days
 - **PII never touches the blockchain** — non-PII previews only; full data revealed after escrow release
 - **Sealed-bid commit-reveal auctions** — keccak256 commitments prevent front-running
-- **Instant USDC settlement** — client-side RTBEscrow signing, zero chargebacks
+- **Instant USDC settlement** — bid amount → seller, $1 fee → platform wallet, all on-chain
 - **LeadNFT provenance** — every lead = ERC-721 with quality proof and royalties
 - **Buyer-Funded Bounties** — standing USDC pools per vertical with criteria (geo, QS, credit, age); 2x stacking cap; auto-release to sellers on match; refundable anytime
 - **Unified Marketplace** — all open leads visible to sellers and buyers with real-time WebSocket streaming
 - **MCP LangChain Agents** — 12-tool JSON-RPC server for autonomous bidding, monitoring, and portfolio management
-- **CRO Lander System** — hosted lead capture forms with trust badges, social proof, auto-format validation, and A/B toggles
-- **My Funnels Redesign** — horizontal gallery with per-funnel metrics, search, pinning, and mobile-first cards
 - **Field-Level Filtering** — buyers filter and auto-bid on granular attributes (credit ranges, ZIP codes, roof condition, system size)
 - **50+ Dynamic Verticals** — admin-created instantly, auto-synced to seller templates, no code changes
 
@@ -52,6 +53,7 @@ Traditional platforms lose billions to bots. Lead Engine stops them at the smart
 | **Lead Farming / Sybil** | One seller recycles leads across wallets | ACE auto-KYC + wallet reputation (0–10,000) + NFT royalty deterrence |
 | **Recycled Leads** | Same lead resold 50 times | Every purchase mints a unique ERC-721 with immutable ownership |
 | **Bounty Gaming** | Fabricating leads to drain bounty pools | Bounties release only after CRE scoring + auction completion + criteria match; 2x cap prevents over-incentivization |
+| **Fund Mismanagement** | Platforms commingle buyer deposits | On-chain PoR via Chainlink Automation; `verifyReserves()` checks USDC balance ≥ claimed deposits every 24h |
 
 ---
 
@@ -59,11 +61,13 @@ Traditional platforms lose billions to bots. Lead Engine stops them at the smart
 
 | Dimension | Legacy Marketplaces | Lead Engine |
 |---|---|---|
-| **Speed** | 7–30 day payouts | Instant USDC via on-chain escrow |
+| **Speed** | 7–30 day payouts | Instant USDC via on-chain vault settlement |
 | **Trust** | Limited verification | CRE quality score (0–10,000) + ZK proofs |
+| **Solvency** | Trust the platform | On-chain Proof of Reserves verified every 24h by Chainlink Automation |
 | **Privacy** | Full PII on submit | Non-PII previews; full data only after purchase |
 | **Compliance** | Manual reviews | ACE auto-KYC and jurisdiction policy engine |
-| **Automation** | Basic rules | Field-level auto-bid + LangChain autonomous agents |
+| **Escrow** | Platform holds funds (opaque) | Per-user on-chain vault; pre-bid fund locking; atomic settle/refund |
+| **Automation** | Basic rules | Field-level auto-bid + LangChain agents + Chainlink Automation |
 | **Provenance** | No audit trail | ERC-721 LeadNFT with full on-chain history |
 | **Incentives** | Fixed pricing | Buyer Bounties — per-vertical pools with criteria-based auto-release |
 
@@ -81,9 +85,11 @@ sequenceDiagram
     participant FN as ⚙️ Chainlink Functions
     participant RTB as 🟪 RTB Engine
     participant B as 👤 Buyer
-    participant X as 🟩 RTBEscrow
+    participant V as 🏦 PersonalEscrowVault
+    participant AUTO as ⏰ Chainlink Automation
 
     Note over BP: Buyer funds pool ($75, solar, CA, credit>720)
+    Note over V: Buyer deposits USDC into vault
 
     S->>API: Submit lead (non-PII preview)
     API->>CRE: Quality score + ZK fraud check
@@ -95,19 +101,26 @@ sequenceDiagram
 
     RTB->>B: Non-PII preview (WebSocket)
     B->>RTB: Sealed bid (keccak256 commitment)
+    RTB->>V: lockForBid (bid + $1 fee)
+    V-->>RTB: lockId
 
     Note over RTB: Auction closes, reveal phase
 
     B->>RTB: Reveal (amount + salt)
     RTB->>RTB: Verify commitments, pick winner
 
-    B->>X: Winner pays USDC
-    X->>S: Instant settlement (minus 2.5%)
-    X->>B: Decrypted PII + mint LeadNFT
+    RTB->>V: settleBid (lockId, seller)
+    V->>S: Bid amount in USDC
+    V->>API: $1 fee to platform wallet
+    RTB->>B: Decrypted PII + mint LeadNFT
+    RTB->>V: refundBid (loser lockIds)
 
     API->>FN: matchBounties(lead, criteria)
     FN-->>API: Matching pools found
     BP->>S: Bounty bonus auto-released
+
+    Note over AUTO: Every 24h: verifyReserves()
+    Note over AUTO: Every check: refund expired locks (7d)
 ```
 
 ### Service Integration Points
@@ -126,43 +139,46 @@ flowchart TB
         DF["Data Feeds<br/>ETH/USD Floor Price"]
         VRF["VRF v2.5<br/>Provably Fair Tiebreak"]
         FN["Functions<br/>Bounty Matching"]
+        AUT["Automation<br/>PoR + Expired Locks"]
     end
 
     subgraph Buyer["Buyer Flow"]
         B1["Connect Wallet"] --> B2["ACE KYC Check"]
-        B2 --> B3["Place Sealed Bid"]
-        B3 --> B4["Win Auction"]
-        B4 --> B5["Fund Escrow via USDC"]
+        B2 --> B3["Deposit USDC to Vault"]
+        B3 --> B4["Place Sealed Bid"]
+        B4 --> B5["Win Auction"]
         B5 --> B6["Receive Decrypted PII"]
     end
 
     subgraph Settlement["On-Chain Settlement"]
-        ESC["RTBEscrow.sol<br/>USDC Escrow"]
+        VAULT["PersonalEscrowVault.sol<br/>Pre-Bid USDC Locking"]
         NFT["LeadNFTv2.sol<br/>ERC-721 Provenance"]
     end
 
     S2 -.->|"zkProof + score"| CRE
     B2 -.->|"verifyKYC + canTransact"| ACE
     S4 -.->|"dynamic floor price"| DF
-    B3 -.->|"tied bids"| VRF
-    B4 -.->|"criteria match"| FN
-    B5 -->|"approve + createAndFundEscrow"| ESC
-    ESC -->|"instant USDC settlement"| S1
-    B4 -->|"recordSale"| NFT
+    B4 -.->|"tied bids"| VRF
+    B5 -.->|"criteria match"| FN
+    B4 -->|"lockForBid + settleBid"| VAULT
+    VAULT -->|"USDC to seller + fee to platform"| S1
+    B5 -->|"recordSale"| NFT
+    AUT -.->|"24h PoR + 7d refunds"| VAULT
 ```
 
 ---
 
 ## Pricing and Fees
 
-| Purchase Channel | Platform Fee | Convenience Fee | Bounty Cut | Total |
+| Purchase Channel | Platform Fee | Vault Fee | Bounty Cut | Total |
 |---|---|---|---|---|
-| Manual (browser bid / Buy It Now) | 2.5% | — | — | 2.5% |
-| Auto-bid engine | 2.5% | $1.00 | — | 2.5% + $1 |
-| API / MCP agent | 2.5% | $1.00 | — | 2.5% + $1 |
+| Manual (browser bid) | — | $1.00 | — | $1 (locked on-chain at bid time) |
+| Auto-bid engine | — | $1.00 | — | $1 (locked on-chain at bid time) |
+| API / MCP agent | — | $1.00 | — | $1 (locked on-chain at bid time) |
+| Buy It Now | 2.5% | — | — | 2.5% |
 | Buyer Bounty release | — | — | 1% | 1% of bounty amount |
 
-The $1 convenience fee covers gas and platform costs for server-side (non-MetaMask) purchases. The 1% bounty cut is taken when bounty funds are released to a seller.
+The $1 vault fee is locked on-chain alongside the bid amount in `PersonalEscrowVault.sol` when the bid is placed. On settlement, the bid amount goes to the seller and the $1 fee goes to the platform wallet. Losing bids are fully refunded (including the $1 fee). The 1% bounty cut is taken when bounty funds are released to a seller.
 
 ---
 
@@ -184,6 +200,19 @@ The $1 convenience fee covers gas and platform costs for server-side (non-MetaMa
 - **Jurisdiction policy engine** per vertical — mortgage/insurance restricted by state, solar/roofing unrestricted
 - **Reputation scoring** (0–10,000) with decay and boost mechanics
 - **Contract:** `ACECompliance.sol` (deployed on Base Sepolia)
+
+### Chainlink Automation + PersonalEscrowVault
+
+*Implemented.* `PersonalEscrowVault.sol` is a per-user on-chain USDC pool that replaces post-bid escrow with **pre-bid fund locking**. Chainlink Automation handles two recurring jobs:
+
+- **Proof of Reserves (every 24h):** `verifyReserves()` checks that `USDC.balanceOf(vault)` ≥ `totalDeposited - totalWithdrawn`. Insolvency sets `lastPorSolvent = false` and emits `ReservesVerified(false)`
+- **Expired Lock Auto-Refunds (every check):** `_refundExpiredLocks()` scans active bid locks older than 7 days and refunds them to the buyer’s vault balance. Gas-capped at 50 locks per upkeep to stay within block gas limits
+- **Pre-bid locking:** `lockForBid(user, bidAmount)` atomically locks the bid + $1 fee from the buyer’s vault balance. Re-bids refund the old lock before creating a new one
+- **Atomic settlement:** `settleBid(lockId, seller)` transfers bid amount to seller, $1 fee to platform wallet, and updates `totalDeposited` for accurate PoR
+- **Full refunds:** `refundBid(lockId)` returns bid + fee back to the buyer’s vault balance
+- **2-pass security audit** completed (11 findings, 10 fixed, 3 acknowledged low-risk)
+- **Contract:** `PersonalEscrowVault.sol` (`0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13` on Base Sepolia)
+- **Tests:** 42 Hardhat tests covering deposit, withdraw, lock, settle, refund, PoR, Automation, edge cases
 
 ### Chainlink Functions — Off-Chain Bounty Matching
 
@@ -243,8 +272,9 @@ Lead Engine publishes anonymized market metrics as a **public custom data feed**
 |---|---|---|
 | **Lead Quality** | CRE + CREVerifier.sol | Cryptographic quality scoring + ZK fraud rejection |
 | **Identity** | ACE + ACECompliance.sol | Auto-KYC, jurisdiction gating, reputation |
+| **Escrow** | PersonalEscrowVault.sol | Per-user on-chain USDC vault; pre-bid locking, atomic settle/refund |
+| **Solvency** | Chainlink Automation + PoR | 24h on-chain reserve verification; 7-day expired lock auto-refunds |
 | **Economic Deterrence** | LeadNFTv2.sol | Immutable ownership history + royalties on resale |
-| **Settlement** | RTBEscrow.sol | Atomic USDC escrow, instant payout, zero chargebacks |
 | **Bounty Incentives** | VerticalBountyPool.sol | Per-vertical USDC pools, criteria matching, auto-release |
 | **Privacy** | AES-256-GCM + commit-reveal | PII encrypted at rest, sealed bids prevent front-running |
 
@@ -302,20 +332,21 @@ Horizontal gallery view with per-funnel conversion metrics, search and filtering
 
 ---
 
-## Smart Contracts (10 deployed on Base Sepolia)
+## Smart Contracts (11 on Base Sepolia)
 
-| Contract | Description |
-|---|---|
-| `CREVerifier.sol` | Quality scoring + ZK fraud proofs |
-| `ACECompliance.sol` | KYC, jurisdiction, reputation |
-| `RTBEscrow.sol` | Atomic USDC escrow settlement |
-| `LeadNFTv2.sol` | ERC-721 tokenized leads |
-| `BountyMatcher.sol` | Chainlink Functions bounty criteria matching |
-| `VerticalBountyPool.sol` | Buyer-funded bounty pools |
-| `CustomLeadFeed.sol` | Public market metrics feed |
-| `VerticalNFT.sol` | Community vertical ownership |
-| `VerticalAuction.sol` | Ascending auctions for verticals |
-| `VRFTieBreaker.sol` | Chainlink VRF v2.5 provably fair tie-breaking |
+| Contract | Description | Status |
+|---|---|---|
+| `PersonalEscrowVault.sol` | Per-user USDC vault with pre-bid locking, Chainlink Automation PoR + auto-refunds | ✅ Deployed |
+| `CREVerifier.sol` | Quality scoring + ZK fraud proofs | ✅ Deployed |
+| `ACECompliance.sol` | KYC, jurisdiction, reputation | ✅ Deployed |
+| `RTBEscrow.sol` | Atomic USDC escrow settlement (legacy) | ✅ Deployed |
+| `LeadNFTv2.sol` | ERC-721 tokenized leads | ✅ Deployed |
+| `BountyMatcher.sol` | Chainlink Functions bounty criteria matching | ✅ Compiled |
+| `VerticalBountyPool.sol` | Buyer-funded bounty pools | ✅ Compiled |
+| `CustomLeadFeed.sol` | Public market metrics feed | ✅ Deployed |
+| `VerticalNFT.sol` | Community vertical ownership | ✅ Deployed |
+| `VerticalAuction.sol` | Ascending auctions for verticals | ✅ Deployed |
+| `VRFTieBreaker.sol` | Chainlink VRF v2.5 provably fair tie-breaking | ✅ Compiled |
 
 ---
 
@@ -337,6 +368,14 @@ npm run dev
 
 Hardhat node + contracts already deployed locally. Full configuration in `.env.example`.
 
+**Required vault env vars** (in `backend/.env`):
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `VAULT_ADDRESS_BASE_SEPOLIA` | `0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13` | PersonalEscrowVault contract |
+| `VAULT_PLATFORM_WALLET` | Your platform wallet address | Receives $1 bid fees |
+| `USDC_CONTRACT_ADDRESS` | USDC token address on Base Sepolia | ERC-20 payment token |
+
 ### DON Secrets Renewal
 
 **Chainlink Functions** DON secrets expire every 48 hours. Renewal is automated via GitHub Actions (`.github/workflows/renew-don-secrets.yml`, runs every 48h) or can be done manually:
@@ -349,12 +388,14 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 
 ## Hackathon Demo Flow (2 minutes)
 
-1. **Buyer deposits bounty** — $75 pool on `solar.residential` with criteria: CA only, QS 7,000+
-2. **Seller submits lead** — CRE scores (8,200/10,000) + ACE clears KYC
-3. **Auction opens** — buyers (or LangChain agent) receive non-PII preview via WebSocket
-4. **Sealed bids submitted** — keccak256 commitments prevent front-running
-5. **Auction closes** — winner pays USDC via RTBEscrow, lead minted as LeadNFT
-6. **Bounty auto-matches** — seller receives $75 bonus on top of winning bid
+1. **Buyer deposits USDC** — funds `PersonalEscrowVault.sol` via MetaMask
+2. **Buyer sets bounty** — $75 pool on `solar.residential` with criteria: CA only, QS 7,000+
+3. **Seller submits lead** — CRE scores (8,200/10,000) + ACE clears KYC
+4. **Auction opens** — buyers (or LangChain agent) receive non-PII preview via WebSocket
+5. **Sealed bids submitted** — vault locks bid + $1 fee on-chain, keccak256 commitments prevent front-running
+6. **Auction closes** — vault settles winner (USDC → seller), refunds losers, mints LeadNFT
+7. **Bounty auto-matches** — seller receives $75 bonus on top of winning bid
+8. **PoR check** — Chainlink Automation verifies vault solvency (runs every 24h)
 
 **Live demo:** https://lead-engine-cre-frontend.vercel.app
 **Repo:** https://github.com/bnmbnmai/lead-engine-cre
@@ -365,14 +406,16 @@ cd contracts && npx ts-node scripts/upload-don-secrets.ts
 
 | Priority | Item | Current State |
 |---|---|---|
+| ✅ Done | On-chain PersonalEscrowVault with pre-bid locking | Deployed + audited (2-pass) |
+| ✅ Done | Chainlink Automation — PoR (24h) + expired lock refunds (7d) | Implemented in vault |
+| ✅ Done | Sealed-bid commit-reveal with pre-funded escrow | Working E2E |
 | High | DECO zkTLS attestations for off-site lead provenance | Stubbed, full integration planned |
 | High | Confidential HTTP for encrypted fraud signal aggregation | Stubbed, full integration planned |
+| Medium | Advanced PoR — Chainlink PoR Feed integration for external auditability | Architecture planned |
 | Medium | Secondary market for LeadNFT and VerticalNFT trading | Contracts ready |
 | Medium | Cross-chain settlement (Arbitrum, Optimism, Polygon) | Architecture planned |
 | Ready | VerticalNFT revenue-share flow (2% royalties) | Contracts deployed |
 | Ready | Multi-language CRO landers | Frontend ready |
 
 See `ROADMAP.md` for high-volume scaling considerations and enterprise features (target: 10k+ leads/day).
-
-
 See `docs/MAINNET_MIGRATION.md` for the full migration plan.
