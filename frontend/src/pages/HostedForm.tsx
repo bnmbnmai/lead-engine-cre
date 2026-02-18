@@ -219,6 +219,10 @@ export default function HostedForm() {
                 errors[f.key] = 'Please enter a valid phone number';
             }
         }
+        // TCPA consent is mandatory on last step
+        if (isLastStep && !formData['__tcpaConsent']) {
+            errors['__tcpaConsent'] = 'TCPA consent is required';
+        }
         setFieldErrors(errors);
         return Object.keys(errors).length === 0;
     }
@@ -268,6 +272,7 @@ export default function HostedForm() {
                     ...formData,
                     _variant: variant,
                     _completionMs: Date.now() - formStartTime.current,
+                    tcpaConsentAt: new Date().toISOString(),
                 } as Record<string, unknown>,
                 geo,
             });

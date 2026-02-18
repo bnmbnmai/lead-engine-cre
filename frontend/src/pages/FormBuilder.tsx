@@ -6,14 +6,15 @@ import {
     Save, CheckCircle,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LabeledSwitch } from '@/components/ui/switch';
-import { StepProgress, VERTICAL_EMOJI } from '@/components/forms/StepProgress';
+import FormPreview from '@/components/forms/FormPreview';
+import { VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import { LanderExport } from '@/components/forms/LanderExport';
-import { getContrastText } from '@/lib/contrast';
+
 import { useVerticals } from '@/hooks/useVerticals';
 import { NestedVerticalSelect } from '@/components/ui/NestedVerticalSelect';
 import useAuth from '@/hooks/useAuth';
@@ -58,8 +59,7 @@ export function FormBuilder() {
         confetti: false,
     });
     const [colorScheme] = useState<FormColorScheme>(COLOR_SCHEMES[0]);
-    const [submitted, setSubmitted] = useState(false);
-    const [showConfetti, setShowConfetti] = useState(false);
+
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const [hasAdminConfig, setHasAdminConfig] = useState(false);
@@ -261,11 +261,8 @@ export function FormBuilder() {
     };
 
     // ─── Preview helpers ─────────────────────
-    const currentStepFields = steps[previewStep]
-        ? steps[previewStep].fieldIds.map((fid) => fields.find((f) => f.id === fid)).filter(Boolean) as FormField[]
-        : [];
-
     const emoji = VERTICAL_EMOJI[vertical] || '📋';
+
 
     return (
         <DashboardLayout>
@@ -530,147 +527,50 @@ export function FormBuilder() {
                             </div>
                         </div>
 
-                        <Card
-                            className="sticky top-24 overflow-hidden"
-                            style={previewMode === 'preview' ? {
-                                backgroundColor: colorScheme.vars['--form-bg'],
-                                color: colorScheme.vars['--form-text'],
-                                borderColor: colorScheme.vars['--form-border'],
-                                ...colorScheme.vars as any,
-                            } : undefined}
-                        >
+                        <Card className="sticky top-24 overflow-hidden">
                             {previewMode === 'preview' ? (
                                 <>
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-lg capitalize" style={{ color: colorScheme.vars['--form-text'] }}>
-                                            Get Your Free {vertical.replace('_', ' ')} Quote
-                                        </CardTitle>
-                                        <p className="text-sm" style={{ color: colorScheme.vars['--form-muted'] }}>
-                                            Fill out the form below and we'll connect you with top providers in your area.
-                                        </p>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {/* Step Progress */}
-                                        {gamification.showProgress && (
-                                            <StepProgress
-                                                steps={steps}
-                                                currentStep={previewStep}
-                                                vertical={vertical}
-                                                showNudges={gamification.showNudges}
-                                                colorVars={colorScheme.vars}
-                                            />
+                                    <FormPreview
+                                        verticalName={vertical.replace('_', ' ')}
+                                        verticalSlug={vertical}
+                                        fields={fields}
+                                        steps={steps}
+                                        currentStep={previewStep}
+                                        colors={{
+                                            bg: colorScheme.vars['--form-bg'],
+                                            text: colorScheme.vars['--form-text'],
+                                            accent: colorScheme.vars['--form-accent'],
+                                            border: colorScheme.vars['--form-border'],
+                                            inputBg: colorScheme.vars['--form-input-bg'],
+                                            muted: colorScheme.vars['--form-muted'],
+                                        }}
+                                        showProgress={gamification.showProgress}
+                                        showNudges={gamification.showNudges}
+                                        ctaText="Get My Free Quote"
+                                        isAdminConfigured={hasAdminConfig}
+                                    />
+                                    {/* Step navigation for preview */}
+                                    <div className="flex gap-2 p-4 pt-0">
+                                        {previewStep > 0 && (
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1"
+                                                onClick={() => setPreviewStep((p) => Math.max(0, p - 1))}
+                                            >
+                                                <ChevronLeft className="h-4 w-4 mr-1" />
+                                                Back
+                                            </Button>
                                         )}
-
-                                        {/* Step label */}
-                                        <h3 className="text-sm font-semibold" style={{ color: colorScheme.vars['--form-accent'] }}>
-                                            {steps[previewStep]?.label || 'Step'}
-                                        </h3>
-
-                                        {/* Current step fields */}
-                                        {currentStepFields.map((field) => (
-                                            <div key={field.id}>
-                                                <label className="text-sm font-medium mb-1.5 block" style={{ color: colorScheme.vars['--form-text'] }}>
-                                                    {field.label}
-                                                    {field.required && <span style={{ color: '#ef4444' }} className="ml-0.5">*</span>}
-                                                </label>
-
-                                                {(field.type === 'text' || field.type === 'email' || field.type === 'phone' || field.type === 'number') && (
-                                                    <div className="h-10 rounded-lg border px-3 flex items-center text-sm" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'], color: colorScheme.vars['--form-muted'] }}>
-                                                        {field.placeholder || field.label}
-                                                    </div>
-                                                )}
-
-                                                {field.type === 'select' && (
-                                                    <div className="h-10 rounded-lg border px-3 flex items-center justify-between text-sm" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'], color: colorScheme.vars['--form-muted'] }}>
-                                                        <span>Select {field.label.toLowerCase()}</span>
-                                                        <span className="text-xs">▼</span>
-                                                    </div>
-                                                )}
-
-                                                {field.type === 'boolean' && (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-9 h-5 rounded-full border" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'] }} />
-                                                        <span className="text-sm" style={{ color: colorScheme.vars['--form-muted'] }}>No</span>
-                                                    </div>
-                                                )}
-
-                                                {field.type === 'textarea' && (
-                                                    <div className="h-20 rounded-lg border px-3 pt-2 text-sm" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'], color: colorScheme.vars['--form-muted'] }}>
-                                                        {field.placeholder || field.label}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-
-                                        {/* TCPA on last step */}
-                                        {previewStep === steps.length - 1 && (
-                                            <div className="pt-2 space-y-3">
-                                                <div className="flex items-start gap-2 p-3 rounded-lg border" style={{ backgroundColor: colorScheme.vars['--form-input-bg'], borderColor: colorScheme.vars['--form-border'] }}>
-                                                    <div className="w-4 h-4 rounded border mt-0.5 flex-shrink-0" style={{ borderColor: colorScheme.vars['--form-border'] }} />
-                                                    <p className="text-[11px] leading-tight" style={{ color: colorScheme.vars['--form-muted'] }}>
-                                                        By submitting, I consent to being contacted by phone, text, or email.
-                                                        I understand I may receive automated communications. Consent is not a
-                                                        condition of purchase.
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    className="h-11 rounded-lg flex items-center justify-center text-sm font-medium w-full cursor-pointer transition-all hover:opacity-90 active:scale-[0.98] relative overflow-hidden"
-                                                    style={{ backgroundColor: colorScheme.vars['--form-accent'], color: getContrastText(colorScheme.vars['--form-accent']) }}
-                                                    onClick={() => {
-                                                        setSubmitted(true);
-                                                        if (gamification.confetti) {
-                                                            setShowConfetti(true);
-                                                            setTimeout(() => setShowConfetti(false), 2000);
-                                                        }
-                                                        setTimeout(() => setSubmitted(false), 2000);
-                                                    }}
-                                                >
-                                                    {submitted ? '✅ Submitted!' : 'Get My Free Quote'}
-                                                    {showConfetti && (
-                                                        <span className="absolute inset-0 pointer-events-none" aria-hidden="true">
-                                                            {['🎉', '✨', '🎊', '⭐', '🎈', '💫'].map((e, i) => (
-                                                                <span
-                                                                    key={i}
-                                                                    className="absolute text-lg animate-bounce"
-                                                                    style={{
-                                                                        left: `${15 + i * 13}%`,
-                                                                        top: `${-10 - (i % 3) * 20}%`,
-                                                                        animationDelay: `${i * 0.1}s`,
-                                                                        animationDuration: '0.6s',
-                                                                    }}
-                                                                >
-                                                                    {e}
-                                                                </span>
-                                                            ))}
-                                                        </span>
-                                                    )}
-                                                </button>
-                                            </div>
+                                        {previewStep < steps.length - 1 && (
+                                            <Button
+                                                className="flex-1"
+                                                onClick={() => setPreviewStep((p) => Math.min(steps.length - 1, p + 1))}
+                                            >
+                                                Next
+                                                <ChevronRight className="h-4 w-4 ml-1" />
+                                            </Button>
                                         )}
-
-                                        {/* Navigation buttons */}
-                                        <div className="flex gap-2 pt-2">
-                                            {previewStep > 0 && (
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex-1"
-                                                    onClick={() => setPreviewStep((p) => Math.max(0, p - 1))}
-                                                >
-                                                    <ChevronLeft className="h-4 w-4 mr-1" />
-                                                    Back
-                                                </Button>
-                                            )}
-                                            {previewStep < steps.length - 1 && (
-                                                <Button
-                                                    className="flex-1"
-                                                    onClick={() => setPreviewStep((p) => Math.min(steps.length - 1, p + 1))}
-                                                >
-                                                    Next
-                                                    <ChevronRight className="h-4 w-4 ml-1" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </CardContent>
+                                    </div>
                                 </>
                             ) : previewMode === 'json' ? (
                                 <CardContent className="pt-6">

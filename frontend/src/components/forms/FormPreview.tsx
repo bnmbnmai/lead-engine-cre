@@ -439,6 +439,46 @@ export default function FormPreview({
                         </p>
                     )}
 
+                    {/* TCPA Consent — always on last step, cannot be removed */}
+                    {isLastStep && !compact && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.5rem',
+                            padding: compact ? '0.5rem' : '0.75rem',
+                            marginTop: compact ? '0.5rem' : '1rem',
+                            borderRadius: '0.5rem',
+                            border: `1px solid ${withAlpha(text, 0.08)}`,
+                            backgroundColor: withAlpha(text, 0.02),
+                        }}>
+                            <input
+                                type="checkbox"
+                                checked={isInteractive ? !!formData['__tcpaConsent'] : false}
+                                onChange={isInteractive
+                                    ? (e) => onFieldChange?.('__tcpaConsent', e.target.checked)
+                                    : undefined}
+                                readOnly={!isInteractive}
+                                style={{
+                                    width: 16,
+                                    height: 16,
+                                    marginTop: 2,
+                                    flexShrink: 0,
+                                    accentColor: accent,
+                                    cursor: isInteractive ? 'pointer' : 'default',
+                                }}
+                            />
+                            <span style={{
+                                fontSize: '0.65rem',
+                                lineHeight: 1.4,
+                                color: muted,
+                            }}>
+                                By submitting, I consent to being contacted by phone, text, or email.
+                                I understand I may receive automated communications. Consent is not a
+                                condition of purchase.
+                            </span>
+                        </div>
+                    )}
+
                     {/* Navigation buttons */}
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: compact ? '0.75rem' : '1.25rem' }}>
                         {!compact && currentStep > 0 && (
@@ -469,7 +509,7 @@ export default function FormPreview({
                         <button
                             type="button"
                             onClick={isInteractive ? onNext : undefined}
-                            disabled={submitting}
+                            disabled={submitting || (isInteractive && isLastStep && !formData['__tcpaConsent'])}
                             style={{
                                 flex: 1,
                                 padding: compact ? '0.5rem' : '0.7rem',
@@ -487,7 +527,7 @@ export default function FormPreview({
                                 gap: '0.35rem',
                                 boxShadow: `0 4px 12px ${withAlpha(accent, 0.25)}`,
                                 transition: 'opacity 0.2s, transform 0.1s',
-                                opacity: submitting ? 0.6 : 1,
+                                opacity: (submitting || (isInteractive && isLastStep && !formData['__tcpaConsent'])) ? 0.6 : 1,
                             }}
                         >
                             {submitting ? (
