@@ -268,7 +268,40 @@ export async function settleBid(
     try {
         const contract = getSignedVaultContract();
         const tx = await contract.settleBid(lockId, sellerAddress);
-        await tx.wait();
+        const receipt = await tx.wait();
+
+        // Parse settlement amount from BidSettled event
+        let settledAmount = 0;
+        let settledFee = 0;
+        const settleEvent = receipt.logs.find((log: any) => {
+            try {
+                return contract.interface.parseLog(log)?.name === 'BidSettled';
+            } catch { return false; }
+        });
+        if (settleEvent) {
+            const parsed = contract.interface.parseLog(settleEvent);
+            if (parsed) {
+                settledAmount = unitsToUsdc(parsed.args[3]); // amount
+                settledFee = unitsToUsdc(parsed.args[4]); // fee
+            }
+        }
+
+        // Update DB cache: record the settlement transaction
+        try {
+            const vault = await getOrCreateVault(userId);
+            await prisma.vaultTransaction.create({
+                data: {
+                    vaultId: vault.id,
+                    type: 'SETTLE',
+                    amount: settledAmount + settledFee,
+                    reference,
+                    note: `Bid settled #${lockId}: $${settledAmount.toFixed(2)} to seller + $${settledFee.toFixed(2)} fee (on-chain)`,
+                },
+            });
+        } catch (dbErr) {
+            // Non-blocking: on-chain settlement succeeded, DB cache is secondary
+            console.warn('[VaultService] settleBid DB cache update failed:', (dbErr as Error).message);
+        }
 
         aceDevBus.emit('ace:dev-log', {
             ts: new Date().toISOString(),
@@ -276,6 +309,8 @@ export async function settleBid(
             userId,
             lockId,
             sellerAddress,
+            settledAmount,
+            settledFee,
             txHash: tx.hash,
             reference,
             source: 'on-chain',
@@ -299,12 +334,32 @@ export async function refundBid(
     try {
         const contract = getSignedVaultContract();
         const tx = await contract.refundBid(lockId);
-        await tx.wait();
+        const receipt = await tx.wait();
+
+        // Parse refund amount from BidRefunded event (authoritative source)
+        let refundAmount = 0;
+        const refundEvent = receipt.logs.find((log: any) => {
+            try {
+                return contract.interface.parseLog(log)?.name === 'BidRefunded';
+            } catch { return false; }
+        });
+        if (refundEvent) {
+            const parsed = contract.interface.parseLog(refundEvent);
+            if (parsed) {
+                refundAmount = unitsToUsdc(parsed.args[2]); // totalRefunded
+            }
+        }
+
+        // Fallback: read from on-chain lock if event parsing failed
+        if (refundAmount === 0) {
+            try {
+                const lock = await contract.bidLocks(lockId);
+                refundAmount = unitsToUsdc(lock.amount + lock.fee);
+            } catch { /* swallow — amount will be 0 in DB record */ }
+        }
 
         // Update DB cache
         const vault = await getOrCreateVault(userId);
-        const lock = await contract.bidLocks(lockId);
-        const refundAmount = unitsToUsdc(lock.amount + lock.fee);
 
         await prisma.$transaction([
             prisma.escrowVault.update({

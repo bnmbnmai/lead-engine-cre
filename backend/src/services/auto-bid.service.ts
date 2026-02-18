@@ -250,25 +250,9 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             }
         }
 
-        // ── 8b. On-chain USDC allowance check ──
+        // Note: USDC allowance check removed — vault model uses balance-based locking,
+        // not ERC20 approvals. Vault balance is checked during lockForBid below.
         const buyerWallet = prefSet.buyerProfile.user?.walletAddress;
-        if (buyerWallet && ESCROW_CONTRACT_ADDRESS) {
-            try {
-                const allowance = await getUsdcAllowance(buyerWallet, ESCROW_CONTRACT_ADDRESS);
-                const bidAmountWei = BigInt(Math.floor(bidAmount * 1e6));
-                if (allowance < bidAmountWei) {
-                    result.skipped.push({
-                        buyerId,
-                        preferenceSetId: setId,
-                        reason: `Insufficient USDC allowance: $${Number(allowance) / 1e6} < $${bidAmount}`,
-                    });
-                    continue;
-                }
-            } catch (err: any) {
-                // Graceful fallback: don't block auto-bids on RPC errors
-                console.warn(`[AUTO-BID] Allowance check failed for ${buyerWallet}: ${err.message}. Proceeding anyway.`);
-            }
-        }
 
         // ── 9. Check for duplicate bid ──
         const existingBid = await prisma.bid.findFirst({

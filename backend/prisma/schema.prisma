@@ -79,6 +79,7 @@ model VaultTransaction {
 enum VaultTransactionType {
   DEPOSIT   // Buyer funds vault
   DEDUCT    // Bid won or bounty matched
+  SETTLE    // Bid settlement (transfer to seller + fee to platform)
   REFUND    // Bid lost refund
   WITHDRAW  // Buyer withdraws to wallet
   FEE       // $1 convenience fee

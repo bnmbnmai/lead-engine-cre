@@ -66,13 +66,16 @@ router.get('/contract', async (_req, res: Response) => {
 
 router.get('/reserves', async (_req, res: Response) => {
     try {
-        const contract = new (await import('ethers')).Contract(
-            vaultService.getContractAddress(),
-            vaultService.getContractAbi(),
-            new (await import('ethers')).JsonRpcProvider(
-                process.env.RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org'
-            ),
+        const { ethers } = await import('ethers');
+        const address = vaultService.getContractAddress();
+        if (!address) {
+            res.status(503).json({ error: 'Vault contract not configured' });
+            return;
+        }
+        const provider = new ethers.JsonRpcProvider(
+            process.env.RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org'
         );
+        const contract = new ethers.Contract(address, vaultService.getContractAbi(), provider);
         const [solvent, lastCheck, totalDep, totalWith] = await Promise.all([
             contract.lastPorSolvent(),
             contract.lastPorCheck(),

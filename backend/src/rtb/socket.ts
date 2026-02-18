@@ -272,6 +272,23 @@ class RTBSocketServer {
                     const bidAmount = data.amount ?? null;
                     let vaultLockId: number | undefined;
                     if (bidAmount && bidAmount > 0 && socket.walletAddress) {
+                        // If re-bidding, refund the previous lock first to avoid orphan locks
+                        const existingBidForLock = await prisma.bid.findUnique({
+                            where: { leadId_buyerId: { leadId: data.leadId, buyerId: socket.userId! } },
+                            select: { escrowTxHash: true },
+                        });
+                        if (existingBidForLock?.escrowTxHash?.startsWith('vaultLock:')) {
+                            const oldLockId = parseInt(existingBidForLock.escrowTxHash.split(':')[1], 10);
+                            if (oldLockId > 0) {
+                                try {
+                                    await vaultService.refundBid(oldLockId, socket.userId!, data.leadId);
+                                    console.log(`[Socket] Refunded old vault lock #${oldLockId} before re-bid`);
+                                } catch (refundErr: any) {
+                                    console.warn(`[Socket] Failed to refund old lock #${oldLockId}:`, refundErr.message);
+                                }
+                            }
+                        }
+
                         const vaultCheck = await vaultService.checkBidBalance(socket.walletAddress, bidAmount);
                         if (!vaultCheck.ok) {
                             socket.emit('error', {
