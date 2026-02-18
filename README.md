@@ -247,7 +247,6 @@ Buyers can run (or write their own) agents that watch the live non-PII stream an
 
 Hosted lead capture forms with conversion optimization:
 
-- **Trust badges** — Chainlink verification seal, on-chain quality guarantee
 - **Social proof** — live lead count, recent activity feed
 - **Auto-format validation** — phone, email, ZIP auto-correction on input
 - **A/B toggles** — sellers enable/disable CRO features per funnel
