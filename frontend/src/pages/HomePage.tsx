@@ -112,7 +112,7 @@ export function HomePage() {
     const [matchCount, setMatchCount] = useState<number | null>(null);
 
     // ── Infinite scroll pagination ──
-    const LEADS_PAGE_SIZE = 30;
+    const LEADS_PAGE_SIZE = 100;
     const [leadsHasMore, setLeadsHasMore] = useState(false);
     const [buyNowHasMore, setBuyNowHasMore] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);

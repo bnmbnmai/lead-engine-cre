@@ -345,7 +345,7 @@ export function MarketMetricsPanel() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 max-h-[800px] overflow-y-auto pr-1">
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                         {verticalCards.map((card) => {
                             const VerticalIcon = getVerticalIcon(card.slug);
                             const totalLeads = card.auctionLeads + card.buyNowLeads;

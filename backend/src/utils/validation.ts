@@ -73,7 +73,7 @@ export const LeadQuerySchema = z.object({
     sellerId: z.string().optional(),
     sellerName: z.string().max(100).optional(),
     minReputation: z.coerce.number().min(0).max(10000).optional(),
-    limit: z.coerce.number().min(1).max(100).optional().default(20),
+    limit: z.coerce.number().min(1).max(500).optional().default(20),
     offset: z.coerce.number().min(0).optional().default(0),
     sortBy: z.enum(['createdAt', 'reservePrice', 'auctionEndAt']).optional().default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
@@ -117,7 +117,7 @@ export const AskQuerySchema = z.object({
     state: z.string().length(2).optional(),
     country: z.string().optional(),
     search: z.string().max(100).optional(),
-    limit: z.coerce.number().min(1).max(100).optional().default(20),
+    limit: z.coerce.number().min(1).max(500).optional().default(20),
     offset: z.coerce.number().min(0).optional().default(0),
 });
 
