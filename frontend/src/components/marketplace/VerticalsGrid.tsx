@@ -1,19 +1,43 @@
 import { useState, useEffect } from 'react';
-import { Search, Users, DollarSign, TrendingUp } from 'lucide-react';
+import {
+    Search, Users, DollarSign, TrendingUp,
+    Home, Sun, Shield, Wrench, Car, Scale, Briefcase, Building2, Sparkles,
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { VERTICAL_EMOJI } from '@/components/forms/StepProgress';
 import useVerticals from '@/hooks/useVerticals';
 import { API_BASE_URL, getAuthToken } from '@/lib/api';
+
+// ── Vertical Icons (same map as admin StepProgress) ──────────────────────────────
+
+const VERTICAL_ICONS: Record<string, React.ElementType> = {
+    roofing: Home,
+    mortgage: DollarSign,
+    solar: Sun,
+    insurance: Shield,
+    home_services: Wrench,
+    auto: Car,
+    legal: Scale,
+    financial_services: TrendingUp,
+    b2b_saas: Briefcase,
+    real_estate: Building2,
+};
+
+function getVerticalIcon(slug: string): React.ElementType {
+    // Check exact match first, then parent slug
+    if (VERTICAL_ICONS[slug]) return VERTICAL_ICONS[slug];
+    const root = slug.split('.')[0];
+    return VERTICAL_ICONS[root] || Sparkles;
+}
 
 // ── Types ──────────────────────────────
 
 interface VerticalCardData {
     slug: string;
     name: string;
-    emoji: string;
     activeBuyers: number;
     totalBounty: number;
     activePools: number;
@@ -28,10 +52,10 @@ function formatUSDC(amount: number): string {
 }
 
 function demandLevel(buyers: number): { label: string; color: string } {
-    if (buyers >= 10) return { label: 'High Demand', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' };
-    if (buyers >= 3) return { label: 'Growing', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' };
-    if (buyers >= 1) return { label: 'Active', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' };
-    return { label: 'New', color: 'text-muted-foreground border-border bg-muted/50' };
+    if (buyers >= 10) return { label: 'High Demand', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' };
+    if (buyers >= 3) return { label: 'Growing', color: 'bg-amber-500/10 text-amber-500 border-amber-500/30' };
+    if (buyers >= 1) return { label: 'Active', color: 'bg-blue-500/10 text-blue-500 border-blue-500/30' };
+    return { label: 'New', color: 'bg-muted text-muted-foreground border-border' };
 }
 
 // ── Component ──────────────────────────────
@@ -86,7 +110,6 @@ export function VerticalsGrid() {
                     return {
                         slug: r.slug,
                         name: r.name,
-                        emoji: VERTICAL_EMOJI[r.slug] || '📋',
                         activeBuyers: r.activePools,
                         totalBounty: r.totalBounty,
                         activePools: r.activePools,
@@ -95,7 +118,6 @@ export function VerticalsGrid() {
                 return {
                     slug: 'unknown',
                     name: 'Unknown',
-                    emoji: '📋',
                     activeBuyers: 0,
                     totalBounty: 0,
                     activePools: 0,
@@ -131,7 +153,7 @@ export function VerticalsGrid() {
 
             {/* Grid */}
             {loading || verticalsLoading ? (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
                         <SkeletonCard key={i} />
                     ))}
@@ -143,82 +165,70 @@ export function VerticalsGrid() {
                     description={search ? 'Try a different search term.' : 'No verticals are available yet.'}
                 />
             ) : (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                     {filtered.map((card) => {
                         const demand = demandLevel(card.activeBuyers);
+                        const VerticalIcon = getVerticalIcon(card.slug);
 
                         return (
-                            <div
-                                key={card.slug}
-                                className="glass rounded-xl p-5 flex flex-col gap-3 hover:ring-1 hover:ring-primary/30 transition-all group"
-                            >
-                                {/* Header: emoji + name + demand badge */}
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <span className="text-2xl shrink-0">{card.emoji}</span>
-                                        <div className="min-w-0">
-                                            <h3 className="font-semibold text-foreground truncate capitalize">
-                                                {card.name}
-                                            </h3>
-                                            <span className="text-xs text-muted-foreground">{card.slug}</span>
+                            <Card key={card.slug} className="group transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5">
+                                <CardContent className="p-6">
+                                    {/* Header */}
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                                <VerticalIcon className="h-6 w-6 text-primary" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold">{card.name}</h3>
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    {card.slug.replace(/_/g, ' ')}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <Badge
-                                        variant="outline"
-                                        className={`text-[10px] px-1.5 py-0 shrink-0 ${demand.color}`}
-                                    >
-                                        {demand.label}
-                                    </Badge>
-                                </div>
-
-                                {/* Stats row */}
-                                <div className="grid grid-cols-3 gap-2 text-center">
-                                    {/* Active Buyers / Pools */}
-                                    <div className="p-2 rounded-lg bg-muted/40">
-                                        <div className="flex items-center justify-center gap-1 text-blue-400 mb-0.5">
-                                            <Users className="h-3 w-3" />
-                                        </div>
-                                        <div className="text-sm font-semibold">{card.activeBuyers}</div>
-                                        <div className="text-[10px] text-muted-foreground">Buyers</div>
+                                        <Badge variant="outline" className={demand.color}>
+                                            {demand.label}
+                                        </Badge>
                                     </div>
 
-                                    {/* Total Bounty */}
-                                    <div className="p-2 rounded-lg bg-muted/40">
-                                        <div className="flex items-center justify-center gap-1 text-emerald-400 mb-0.5">
-                                            <DollarSign className="h-3 w-3" />
+                                    {/* Stats */}
+                                    <div className="grid grid-cols-3 gap-3 mb-4">
+                                        <div className="text-center p-2.5 rounded-lg bg-muted/50">
+                                            <Users className="h-3.5 w-3.5 text-blue-400 mx-auto mb-1" />
+                                            <div className="text-sm font-semibold">{card.activeBuyers}</div>
+                                            <div className="text-[10px] text-muted-foreground">Buyers</div>
                                         </div>
-                                        <div className="text-sm font-semibold">{formatUSDC(card.totalBounty)}</div>
-                                        <div className="text-[10px] text-muted-foreground">Bounty Pool</div>
+                                        <div className="text-center p-2.5 rounded-lg bg-muted/50">
+                                            <DollarSign className="h-3.5 w-3.5 text-emerald-400 mx-auto mb-1" />
+                                            <div className="text-sm font-semibold">{formatUSDC(card.totalBounty)}</div>
+                                            <div className="text-[10px] text-muted-foreground">Bounty Pool</div>
+                                        </div>
+                                        <div className="text-center p-2.5 rounded-lg bg-muted/50">
+                                            <TrendingUp className="h-3.5 w-3.5 text-amber-400 mx-auto mb-1" />
+                                            <div className="text-sm font-semibold">
+                                                {card.totalBounty > 0 ? formatUSDC(card.totalBounty / Math.max(card.activeBuyers, 1)) : '—'}
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground">Avg / Buyer</div>
+                                        </div>
                                     </div>
 
-                                    {/* Demand Trend */}
-                                    <div className="p-2 rounded-lg bg-muted/40">
-                                        <div className="flex items-center justify-center gap-1 text-amber-400 mb-0.5">
-                                            <TrendingUp className="h-3 w-3" />
-                                        </div>
-                                        <div className="text-sm font-semibold">
-                                            {card.totalBounty > 0 ? formatUSDC(card.totalBounty / Math.max(card.activeBuyers, 1)) : '—'}
-                                        </div>
-                                        <div className="text-[10px] text-muted-foreground">Avg / Buyer</div>
-                                    </div>
-                                </div>
-
-                                {/* Bounty bar — visual indicator of pool depth */}
-                                {card.totalBounty > 0 && (
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                    {/* Bounty bar */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between text-xs text-muted-foreground">
                                             <span>Pool Depth</span>
-                                            <span className="font-medium text-emerald-400">{formatUSDC(card.totalBounty)} USDC</span>
+                                            <span className="font-medium text-foreground">
+                                                {card.totalBounty > 0 ? `${formatUSDC(card.totalBounty)} USDC` : 'No bounties yet'}
+                                            </span>
                                         </div>
                                         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                                             <div
-                                                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
+                                                className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-500"
                                                 style={{ width: `${Math.min(100, (card.totalBounty / 5000) * 100)}%` }}
                                             />
                                         </div>
                                     </div>
-                                )}
-                            </div>
+                                </CardContent>
+                            </Card>
                         );
                     })}
                 </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, Layers } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -507,6 +507,7 @@ export function HomePage() {
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'leads' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
+                                        <Zap className="h-3.5 w-3.5" />
                                         Live Leads
                                         {leads.length > 0 && (
                                             <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${view === 'leads' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/15 text-muted-foreground'}`}>
@@ -532,13 +533,15 @@ export function HomePage() {
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'verticals' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
+                                        <Layers className="h-3.5 w-3.5" />
                                         Verticals
                                     </button>
                                     <button
                                         onClick={() => setView('sellers')}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'sellers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'sellers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
                                     >
+                                        <Users className="h-3.5 w-3.5" />
                                         Sellers
                                     </button>
                                 </div>
