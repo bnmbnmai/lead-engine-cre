@@ -497,6 +497,8 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
   - Added `[x402]` startup diagnostics logging env var status for `ESCROW_CONTRACT_ADDRESS`, `USDC_CONTRACT_ADDRESS`, `DEPLOYER_PRIVATE_KEY`, `PLATFORM_WALLET_ADDRESS`
   - **Render env vars needed**: `ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA=0xff5d18a9fff7682a5285ccdafd0253e34761DbDB`, `USDC_CONTRACT_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - **Sealed-bid UX fix** — "Highest Bid" amount hidden on `AuctionPage` during BIDDING phase; only revealed after auction ends (REVEALING/RESOLVED)
+- **Escrow dev-log emissions** — `prepare-escrow` and `confirm-escrow` routes now emit `ace:dev-log` events (call/success/error) → visible in Chainlink Services Dev Log with teal "Escrow" badge
+- **README Mermaid** — Added "Service Integration Points" flowchart showing Chainlink service connections (CRE, ACE, Data Feeds, VRF, Functions, RTBEscrow, LeadNFT)
 
 ### Session: Feb 17
 - **Data Feeds terminology fix** — corrected all "Data Streams" references to "Data Feeds" across codebase and docs; fixed incorrect use of Data Streams verifier proxy address with Data Feeds ABI; updated contract address to correct Base Sepolia ETH/USD feed (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`)

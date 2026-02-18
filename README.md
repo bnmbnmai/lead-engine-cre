@@ -110,6 +110,47 @@ sequenceDiagram
     BP->>S: Bounty bonus auto-released
 ```
 
+### Service Integration Points
+
+```mermaid
+flowchart TB
+    subgraph Seller["Seller Flow"]
+        S1["Submit Lead"] --> S2["CRE Quality Score"]
+        S2 --> S3["Mint LeadNFT"]
+        S3 --> S4["Open Auction"]
+    end
+
+    subgraph Chainlink["Chainlink Services"]
+        CRE["CRE Verifier<br/>Quality 0-10,000"]
+        ACE["ACE Compliance<br/>KYC + Jurisdiction"]
+        DF["Data Feeds<br/>ETH/USD Floor Price"]
+        VRF["VRF v2.5<br/>Provably Fair Tiebreak"]
+        FN["Functions<br/>Bounty Matching"]
+    end
+
+    subgraph Buyer["Buyer Flow"]
+        B1["Connect Wallet"] --> B2["ACE KYC Check"]
+        B2 --> B3["Place Sealed Bid"]
+        B3 --> B4["Win Auction"]
+        B4 --> B5["Fund Escrow via USDC"]
+        B5 --> B6["Receive Decrypted PII"]
+    end
+
+    subgraph Settlement["On-Chain Settlement"]
+        ESC["RTBEscrow.sol<br/>USDC Escrow"]
+        NFT["LeadNFTv2.sol<br/>ERC-721 Provenance"]
+    end
+
+    S2 -.->|"zkProof + score"| CRE
+    B2 -.->|"verifyKYC + canTransact"| ACE
+    S4 -.->|"dynamic floor price"| DF
+    B3 -.->|"tied bids"| VRF
+    B4 -.->|"criteria match"| FN
+    B5 -->|"approve + createAndFundEscrow"| ESC
+    ESC -->|"instant USDC settlement"| S1
+    B4 -->|"recordSale"| NFT
+```
+
 ---
 
 ## Pricing and Fees

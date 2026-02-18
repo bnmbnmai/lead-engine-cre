@@ -35,6 +35,8 @@ function getActionColor(action: string): string {
         return '#a855f7'; // VRF — purple
     if (a.includes('function') || a.includes('bounty'))
         return '#ec4899'; // Functions — pink
+    if (a.includes('escrow') || a.includes('fund') || a.includes('approve'))
+        return '#14b8a6'; // Escrow — teal
     if (a.includes('error') || a.includes('fail'))
         return '#ef4444'; // Errors — red
     if (a.includes('result') || a.includes('success'))
@@ -55,6 +57,8 @@ function getServiceBadge(action: string): { label: string; color: string } | nul
         return { label: 'VRF', color: '#a855f7' };
     if (a.includes('function') || a.includes('bounty'))
         return { label: 'Fn', color: '#ec4899' };
+    if (a.includes('escrow') || a.includes('fund') || a.includes('approve'))
+        return { label: 'Escrow', color: '#14b8a6' };
     return null;
 }
 

@@ -5,7 +5,7 @@ import { authMiddleware, optionalAuthMiddleware, apiKeyMiddleware, Authenticated
 import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } from '../utils/validation';
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
-import { aceService } from '../services/ace.service';
+import { aceService, aceDevBus } from '../services/ace.service';
 import { x402Service } from '../services/x402.service';
 import { nftService } from '../services/nft.service';
 import { marketplaceAsksCache } from '../lib/cache';
@@ -1583,7 +1583,9 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
 
 router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
     const leadId = req.params.id;
-    console.log(`[PREPARE-ESCROW] START: leadId=${leadId}, userId=${req.user!.id}, wallet=${req.user!.walletAddress}`);
+    const buyerWallet = req.user!.walletAddress;
+    console.log(`[PREPARE-ESCROW] START: leadId=${leadId}, userId=${req.user!.id}, wallet=${buyerWallet}`);
+    aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prepare:call', leadId, wallet: buyerWallet });
 
     try {
         // 1. Find the buyer's transaction for this lead
@@ -1631,6 +1633,7 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
 
         if (!transaction) {
             console.warn(`[PREPARE-ESCROW] No transaction found for lead=${leadId} buyer=${req.user!.id}`);
+            aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prepare:error', leadId, error: 'No pending transaction found' });
             res.status(404).json({
                 error: 'No pending transaction found for this lead',
                 hint: 'The auction may not have resolved yet, or escrow is already created.',
@@ -1641,10 +1644,10 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
         console.log(`[PREPARE-ESCROW] Found tx=${transaction.id}, amount=${transaction.amount}, escrowId=${transaction.escrowId}, status=${transaction.status}`);
 
         const sellerWallet = (transaction.lead as any)?.seller?.user?.walletAddress;
-        const buyerWallet = req.user!.walletAddress;
 
         if (!sellerWallet || !buyerWallet) {
             console.warn(`[PREPARE-ESCROW] Missing wallets: seller=${sellerWallet || 'MISSING'}, buyer=${buyerWallet || 'MISSING'}`);
+            aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prepare:error', leadId, error: 'Missing wallet addresses' });
             res.status(400).json({
                 error: 'Missing wallet addresses',
                 hint: `seller=${sellerWallet || 'MISSING'}, buyer=${buyerWallet || 'MISSING'}`,
@@ -1663,15 +1666,24 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
 
         if (!result.success) {
             console.error(`[PREPARE-ESCROW] prepareEscrowTx failed: ${result.error}`);
+            aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prepare:error', leadId, error: result.error });
             res.status(503).json({ error: result.error });
             return;
         }
 
-        console.log(`[PREPARE-ESCROW] SUCCESS — escrowContract=${result.data?.escrowContractAddress}, usdc=${result.data?.usdcContractAddress}`);
+        console.log(`[PREPARE-ESCROW] SUCCESS — escrowContract=${result.data?.escrowContractAddress}, amount=$${result.data?.amountUSDC}`);
+        aceDevBus.emit('ace:dev-log', {
+            ts: new Date().toISOString(),
+            action: 'escrow:prepare:success',
+            leadId,
+            amount: `$${result.data?.amountUSDC}`,
+            contractAddress: result.data?.escrowContractAddress,
+        });
         res.json(result.data);
     } catch (error: any) {
         console.error(`[PREPARE-ESCROW] UNHANDLED ERROR for lead=${leadId}:`, error.message || error);
         console.error(`[PREPARE-ESCROW] Stack:`, error.stack);
+        aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prepare:fail', leadId, error: error.message || 'Unknown error' });
         res.status(500).json({
             error: 'Failed to prepare escrow transaction',
             detail: error.message || 'Unknown error',
@@ -1684,9 +1696,10 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
 // ============================================
 
 router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    const leadId = req.params.id;
     try {
-        const leadId = req.params.id;
         const { escrowTxHash, fundTxHash, convenienceFeeTxHash } = req.body as { escrowTxHash: string; fundTxHash?: string; convenienceFeeTxHash?: string };
+        aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:confirm:call', leadId, txHash: escrowTxHash });
 
         if (!escrowTxHash) {
             res.status(400).json({ error: 'escrowTxHash is required' });
@@ -1716,6 +1729,7 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
         );
 
         if (!result.success) {
+            aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:confirm:error', leadId, error: result.error });
             res.status(400).json({ error: result.error });
             return;
         }
@@ -1769,6 +1783,7 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
             });
         }
 
+        aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:confirm:success', leadId, escrowId: result.escrowId, txHash: result.txHash });
         res.json({
             success: true,
             escrowId: result.escrowId,
@@ -1776,6 +1791,7 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
         });
     } catch (error: any) {
         console.error('Confirm escrow error:', error);
+        aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:confirm:fail', leadId, error: error.message || 'Unknown error' });
         res.status(500).json({ error: 'Failed to confirm escrow transaction' });
     }
 });
