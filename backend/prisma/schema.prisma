@@ -574,6 +574,10 @@ model Bid {
   status       BidStatus @default(PENDING)
   source       BidSource @default(MANUAL)
   
+  // Pre-bid escrow
+  escrowTxHash     String?   // Tx hash of pre-bid escrow funding
+  escrowRefunded   Boolean   @default(false) // True if escrow was refunded (loser)
+  
   // Timestamps
   createdAt    DateTime  @default(now())
   revealedAt   DateTime?

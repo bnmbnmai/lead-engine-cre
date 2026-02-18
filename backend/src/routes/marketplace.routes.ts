@@ -1692,6 +1692,89 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
 });
 
 // ============================================
+// Prepare Pre-Bid Escrow (before bidding)
+// ============================================
+
+router.post('/leads/:id/prepare-prebid-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    const leadId = req.params.id;
+    try {
+        const bidAmount = Number(req.body.bidAmount);
+        if (!bidAmount || bidAmount <= 0) {
+            res.status(400).json({ error: 'bidAmount is required and must be positive' });
+            return;
+        }
+
+        const buyerWallet = req.user!.walletAddress;
+        console.log(`[PREPARE-PREBID-ESCROW] START: leadId=${leadId}, buyer=${buyerWallet}, bidAmount=$${bidAmount}`);
+        aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prebid:call', leadId, wallet: buyerWallet, amount: `$${bidAmount}` });
+
+        const lead = await prisma.lead.findUnique({
+            where: { id: leadId },
+            include: { seller: { include: { user: { select: { walletAddress: true } } } } },
+        });
+
+        if (!lead || lead.status !== 'IN_AUCTION') {
+            res.status(404).json({ error: 'Lead not found or not in auction' });
+            return;
+        }
+
+        const sellerWallet = lead.seller?.user?.walletAddress;
+        if (!sellerWallet || !buyerWallet) {
+            res.status(400).json({ error: `Missing wallet: seller=${sellerWallet || 'MISSING'}, buyer=${buyerWallet || 'MISSING'}` });
+            return;
+        }
+
+        // $1 convenience fee
+        const convenienceFee = 1.0;
+        const totalAmount = bidAmount + convenienceFee;
+
+        // Create a PENDING transaction to track this pre-bid escrow
+        const transaction = await prisma.transaction.create({
+            data: {
+                leadId,
+                buyerId: req.user!.id,
+                amount: bidAmount,
+                platformFee: 0, // calculated on win
+                convenienceFee,
+                convenienceFeeType: 'ALWAYS',
+                status: 'PENDING',
+            },
+        });
+
+        const result = await x402Service.prepareEscrowTx(
+            sellerWallet,
+            buyerWallet,
+            totalAmount,
+            leadId,
+            transaction.id,
+        );
+
+        if (!result.success) {
+            console.error(`[PREPARE-PREBID-ESCROW] Failed: ${result.error}`);
+            aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prebid:error', leadId, error: result.error });
+            res.status(503).json({ error: result.error });
+            return;
+        }
+
+        console.log(`[PREPARE-PREBID-ESCROW] SUCCESS — amount=$${totalAmount} (bid=$${bidAmount} + fee=$${convenienceFee})`);
+        aceDevBus.emit('ace:dev-log', {
+            ts: new Date().toISOString(),
+            action: 'escrow:prebid:success',
+            leadId,
+            amount: `$${totalAmount}`,
+            bidAmount: `$${bidAmount}`,
+            fee: `$${convenienceFee}`,
+            contractAddress: result.data?.escrowContractAddress,
+        });
+        res.json({ ...result.data, bidAmount, convenienceFee, totalAmount });
+    } catch (error: any) {
+        console.error(`[PREPARE-PREBID-ESCROW] Error:`, error.message);
+        aceDevBus.emit('ace:dev-log', { ts: new Date().toISOString(), action: 'escrow:prebid:fail', leadId, error: error.message });
+        res.status(500).json({ error: 'Failed to prepare pre-bid escrow', detail: error.message });
+    }
+});
+
+// ============================================
 // Confirm Escrow (after buyer signs with MetaMask)
 // ============================================
 

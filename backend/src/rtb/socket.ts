@@ -293,6 +293,7 @@ class RTBSocketServer {
                             amount: bidAmount,
                             effectiveBid,
                             isHolder: perks.isHolder,
+                            escrowTxHash: (data as any).escrowTxHash || null,
                             status: 'PENDING',
                         },
                         update: {
@@ -300,6 +301,7 @@ class RTBSocketServer {
                             amount: bidAmount ?? undefined,
                             effectiveBid: effectiveBid ?? undefined,
                             isHolder: perks.isHolder,
+                            escrowTxHash: (data as any).escrowTxHash || undefined,
                             status: 'PENDING',
                         },
                     });

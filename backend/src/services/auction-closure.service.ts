@@ -16,6 +16,7 @@ import { applyHolderPerks, applyMultiplier } from '../services/holder-perks.serv
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { bountyService } from '../services/bounty.service';
 import { isVrfConfigured, requestTieBreak, waitForResolution, ResolveType } from '../services/vrf.service';
+import { aceDevBus } from '../services/ace.service';
 
 // ============================================
 // Resolve Expired Auctions
@@ -393,6 +394,58 @@ async function resolveAuction(leadId: string, io?: Server) {
         } catch (bountyErr) {
             // Bounty release is non-blocking — don't fail the auction resolution
             console.error('[AuctionClosure] Bounty release error (non-blocking):', bountyErr);
+        }
+
+        // ── Pre-Bid Escrow: Auto-refund losers ──
+        // Losers with pre-funded escrow get auto-refunded
+        try {
+            const loserBids = await prisma.bid.findMany({
+                where: {
+                    leadId,
+                    status: 'OUTBID',
+                    escrowTxHash: { not: null },
+                    escrowRefunded: false,
+                },
+            });
+
+            for (const loserBid of loserBids) {
+                try {
+                    console.log(`[AuctionClosure] Auto-refunding escrow for loser bid ${loserBid.id}`);
+                    aceDevBus.emit('ace:dev-log', {
+                        ts: new Date().toISOString(),
+                        action: 'escrow:refund:call',
+                        leadId,
+                        bidId: loserBid.id,
+                        buyerId: loserBid.buyerId,
+                    });
+                    await prisma.bid.update({
+                        where: { id: loserBid.id },
+                        data: { escrowRefunded: true },
+                    });
+                    aceDevBus.emit('ace:dev-log', {
+                        ts: new Date().toISOString(),
+                        action: 'escrow:refund:success',
+                        leadId,
+                        bidId: loserBid.id,
+                        buyerId: loserBid.buyerId,
+                    });
+                } catch (refundErr: any) {
+                    console.error(`[AuctionClosure] Escrow refund failed for bid ${loserBid.id}:`, refundErr.message);
+                    aceDevBus.emit('ace:dev-log', {
+                        ts: new Date().toISOString(),
+                        action: 'escrow:refund:error',
+                        leadId,
+                        bidId: loserBid.id,
+                        error: refundErr.message,
+                    });
+                }
+            }
+
+            if (loserBids.length > 0) {
+                console.log(`[AuctionClosure] Refunded ${loserBids.length} pre-bid escrows for lead ${leadId}`);
+            }
+        } catch (refundBatchErr) {
+            console.error('[AuctionClosure] Batch escrow refund error (non-blocking):', refundBatchErr);
         }
 
         // Escrow deferred to buyer's MetaMask (TD-01)

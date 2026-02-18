@@ -128,8 +128,8 @@ export function BuyerBids() {
                                                 </td>
                                                 <td className="p-4">
                                                     <Button variant="ghost" size="sm" asChild>
-                                                        <Link to={`/auction/${bid.leadId}`}>
-                                                            View <ArrowUpRight className="h-4 w-4 ml-1" />
+                                                        <Link to={bid.status === 'ACCEPTED' ? `/lead/${bid.leadId}` : `/auction/${bid.leadId}`}>
+                                                            {bid.status === 'ACCEPTED' ? 'View Lead' : 'View'} <ArrowUpRight className="h-4 w-4 ml-1" />
                                                         </Link>
                                                     </Button>
                                                 </td>
