@@ -231,6 +231,41 @@ export function MarketMetricsPanel() {
 
     return (
         <div className="space-y-6">
+            {/* CustomLeadFeed On-Chain Info */}
+            <section>
+                <Card className="border-dashed border-blue-500/20">
+                    <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                                <Users className="h-5 w-5 text-blue-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-sm mb-1">CustomLeadFeed.sol — Public Data Producer</h3>
+                                <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                                    Lead Engine publishes anonymized market metrics as a Chainlink-compatible on-chain data feed.
+                                    Other dApps can call <code className="text-blue-400 font-mono text-[11px]">latestAnswer()</code> to
+                                    read aggregate quality scores, settlement volume, leads tokenized, and fill rate.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                        avgQualityScore
+                                    </Badge>
+                                    <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30">
+                                        totalVolumeSettled
+                                    </Badge>
+                                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/30">
+                                        totalLeadsTokenized
+                                    </Badge>
+                                    <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30">
+                                        auctionFillRate
+                                    </Badge>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </section>
+
             {/* Data Source Notice */}
             <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-blue-500/20 bg-blue-500/5">
                 <Clock className="h-4 w-4 text-blue-400 shrink-0" />
@@ -393,41 +428,6 @@ export function MarketMetricsPanel() {
                         })}
                     </div>
                 )}
-            </section>
-
-            {/* CustomLeadFeed On-Chain Info */}
-            <section>
-                <Card className="border-dashed border-blue-500/20">
-                    <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                                <Users className="h-5 w-5 text-blue-400" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-sm mb-1">CustomLeadFeed.sol — Public Data Producer</h3>
-                                <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                                    Lead Engine publishes anonymized market metrics as a Chainlink-compatible on-chain data feed.
-                                    Other dApps can call <code className="text-blue-400 font-mono text-[11px]">latestAnswer()</code> to
-                                    read aggregate quality scores, settlement volume, leads tokenized, and fill rate.
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                                        avgQualityScore
-                                    </Badge>
-                                    <Badge variant="outline" className="text-[10px] bg-violet-500/10 text-violet-400 border-violet-500/30">
-                                        totalVolumeSettled
-                                    </Badge>
-                                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/30">
-                                        totalLeadsTokenized
-                                    </Badge>
-                                    <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30">
-                                        auctionFillRate
-                                    </Badge>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
             </section>
         </div>
     );
