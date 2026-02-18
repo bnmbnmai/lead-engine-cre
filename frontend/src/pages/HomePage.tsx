@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import NFTMarketplace from '@/components/marketplace/NFTMarketplace';
 import { BrowseSellers } from '@/components/marketplace/BrowseSellers';
+import { VerticalsGrid } from '@/components/marketplace/VerticalsGrid';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AskCard } from '@/components/marketplace/AskCard';
 import { LeadCard } from '@/components/marketplace/LeadCard';
@@ -73,7 +74,7 @@ function getRegions(country: string) {
 // ============================================
 
 export function HomePage() {
-    const [view, setView] = useState<'asks' | 'leads' | 'buyNow' | 'nfts' | 'sellers'>('leads');
+    const [view, setView] = useState<'asks' | 'leads' | 'buyNow' | 'verticals' | 'nfts' | 'sellers'>('leads');
     const [layoutMode, setLayoutMode] = useState<'cards' | 'table'>('cards');
     const [vertical, setVertical] = useState('all');
 
@@ -527,7 +528,13 @@ export function HomePage() {
                                         )}
                                     </button>
                                     <button
-
+                                        onClick={() => setView('verticals')}
+                                        className={`px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-1.5 ${view === 'verticals' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
+                                            }`}
+                                    >
+                                        Verticals
+                                    </button>
+                                    <button
                                         onClick={() => setView('sellers')}
                                         className={`px-4 py-2 rounded-md text-sm font-medium transition ${view === 'sellers' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
                                             }`}
@@ -840,6 +847,8 @@ export function HomePage() {
                                 <SkeletonCard key={i} />
                             ))}
                         </div>
+                    ) : view === 'verticals' ? (
+                        <VerticalsGrid />
                     ) : view === 'sellers' ? (
                         <BrowseSellers
                             onViewLeads={(_sellerId, sellerDisplayName) => {
