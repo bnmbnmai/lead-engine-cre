@@ -139,8 +139,35 @@ class SocketClient {
         this.socket?.emit('leave:auction', leadId);
     }
 
-    placeBid(data: { leadId: string; commitment?: string; amount?: number }) {
-        this.socket?.emit('bid:place', data);
+    placeBid(data: { leadId: string; commitment?: string; amount?: number }): Promise<{ bidId: string; status: string }> {
+        return new Promise((resolve, reject) => {
+            if (!this.socket?.connected) {
+                reject(new Error('Socket not connected'));
+                return;
+            }
+
+            const timeout = setTimeout(() => {
+                cleanupConfirmed();
+                cleanupError();
+                reject(new Error('Bid confirmation timeout — please try again'));
+            }, 5000);
+
+            const cleanupConfirmed = this.on('bid:confirmed', (confirmed: any) => {
+                clearTimeout(timeout);
+                cleanupConfirmed();
+                cleanupError();
+                resolve(confirmed);
+            });
+
+            const cleanupError = this.on('error', (err: any) => {
+                clearTimeout(timeout);
+                cleanupConfirmed();
+                cleanupError();
+                reject(new Error(err.message || 'Bid failed'));
+            });
+
+            this.socket.emit('bid:place', data);
+        });
     }
 
     // ============================================

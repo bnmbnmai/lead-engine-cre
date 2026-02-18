@@ -103,7 +103,7 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
     const placeBid = useCallback(
         (data: { commitment?: string; amount?: number }) => {
             setError(null);
-            socketClient.placeBid({ leadId, ...data });
+            return socketClient.placeBid({ leadId, ...data });
         },
         [leadId]
     );

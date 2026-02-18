@@ -73,13 +73,13 @@ export function AuctionPage() {
     const handlePlaceBid = async (data: { amount?: number; commitment?: string }) => {
         setBidLoading(true);
         try {
-            placeBid(data);
+            // Await server confirmation — resolves on bid:confirmed, rejects on error/timeout
+            await placeBid(data);
 
-            // Always increment bid count — works for both sealed and open bids
+            // Only update UI after server confirms the bid was persisted
             setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
 
             if (data.amount) {
-                // Optimistic UI updates — don't wait for socket roundtrip
                 setMyBidAmount(data.amount);
                 if (!localHighestBid || data.amount > localHighestBid) {
                     setLocalHighestBid(data.amount);
@@ -99,6 +99,13 @@ export function AuctionPage() {
                     description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
                 });
             }
+        } catch (err: any) {
+            // Bid was rejected by backend (KYC, rate limit, auction expired, etc.)
+            toast({
+                type: 'error',
+                title: '❌ Bid Failed',
+                description: err?.message || 'Failed to place bid. Please try again.',
+            });
         } finally {
             setTimeout(() => setBidLoading(false), 600);
         }

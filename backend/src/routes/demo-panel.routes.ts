@@ -106,6 +106,48 @@ router.post('/demo-login', async (req: Request, res: Response) => {
             });
         }
 
+        // Ensure buyer has a profile with KYC VERIFIED so ACE canTransact() passes.
+        // Without this, isKYCValid() falls back to checking buyerProfile.kycStatus,
+        // finds no profile (or PENDING), and silently blocks all bids.
+        if (isBuyer) {
+            await prisma.buyerProfile.upsert({
+                where: { userId: user.id },
+                create: {
+                    userId: user.id,
+                    companyName: 'Demo Buyer',
+                    verticals: [],
+                    acceptOffSite: true,
+                    kycStatus: 'VERIFIED',
+                },
+                update: {
+                    kycStatus: 'VERIFIED',
+                },
+            });
+
+            // Cache a ComplianceCheck so isKYCValid() fast-path returns true
+            const existingCheck = await prisma.complianceCheck.findFirst({
+                where: {
+                    entityType: 'user',
+                    entityId: walletAddress.toLowerCase(),
+                    checkType: 'KYC',
+                    status: 'PASSED',
+                    expiresAt: { gt: new Date() },
+                },
+            });
+            if (!existingCheck) {
+                await prisma.complianceCheck.create({
+                    data: {
+                        entityType: 'user',
+                        entityId: walletAddress.toLowerCase(),
+                        checkType: 'KYC',
+                        status: 'PASSED',
+                        checkedAt: new Date(),
+                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+                    },
+                });
+            }
+        }
+
         // Generate real JWT
         const token = generateToken({ userId: user.id, walletAddress, role: targetRole });
 
@@ -564,6 +606,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                             companyName: 'Demo Buyer Corp.',
                             verticals: VERTICALS,
                             acceptOffSite: true,
+                            kycStatus: 'VERIFIED',
                         },
                     },
                 },
@@ -580,7 +623,7 @@ router.post('/seed', async (req: Request, res: Response) => {
             const existingBuyer = await prisma.buyerProfile.findFirst({ where: { userId: demoUser.id } });
             if (!existingBuyer) {
                 await prisma.buyerProfile.create({
-                    data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true },
+                    data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true, kycStatus: 'VERIFIED' },
                 });
             }
         }
@@ -605,6 +648,7 @@ router.post('/seed', async (req: Request, res: Response) => {
                                 companyName: buyer.company,
                                 verticals: VERTICALS.slice(0, 5),
                                 acceptOffSite: true,
+                                kycStatus: 'VERIFIED',
                             },
                         },
                     },
