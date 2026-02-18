@@ -28,6 +28,11 @@ export function AuctionPage() {
     const [localHighestBid, setLocalHighestBid] = useState<number | null>(null);
     const [localBidCount, setLocalBidCount] = useState<number | null>(null);
 
+    // Chainlink Data Feeds — real-time market floor for this vertical
+    // IMPORTANT: This hook MUST be called before any early returns to satisfy React Rules of Hooks.
+    // When lead is null (initial load), vertical is undefined and the hook gracefully no-ops.
+    const { floor: floorPrice } = useFloorPrice(lead?.vertical);
+
     const { state: auctionState, placeBid, error: socketError } = useAuction({
         leadId: leadId!,
         onBidPlaced: (event) => {
@@ -99,6 +104,12 @@ export function AuctionPage() {
         }
     };
 
+    const phase = auctionState?.phase || 'BIDDING';
+
+    // Derived bid stats — prefer optimistic local → socket state → lead data
+    const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0;
+    const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead?.highestBidAmount ?? null;
+
     if (isLoading) {
         return (
             <DashboardLayout>
@@ -128,15 +139,6 @@ export function AuctionPage() {
             </DashboardLayout>
         );
     }
-
-    const phase = auctionState?.phase || 'BIDDING';
-
-    // Derived bid stats — prefer optimistic local → socket state → lead data
-    const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead._count?.bids ?? 0;
-    const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead.highestBidAmount ?? null;
-
-    // Chainlink Data Feeds — real-time market floor for this vertical
-    const { floor: floorPrice } = useFloorPrice(lead?.vertical);
 
     return (
         <DashboardLayout>
