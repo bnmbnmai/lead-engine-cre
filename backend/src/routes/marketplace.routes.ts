@@ -1582,30 +1582,55 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
 // Called when buyer wins an auction or before Buy It Now escrow.
 
 router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const leadId = req.params.id;
+    const leadId = req.params.id;
+    console.log(`[PREPARE-ESCROW] START: leadId=${leadId}, userId=${req.user!.id}, wallet=${req.user!.walletAddress}`);
 
-        // Find the buyer's pending transaction for this lead
-        const transaction = await prisma.transaction.findFirst({
+    try {
+        // 1. Find the buyer's transaction for this lead
+        //    First try unfunded (escrowId null), then any unreleased
+        let transaction = await prisma.transaction.findFirst({
             where: {
                 leadId,
                 buyerId: req.user!.id,
                 escrowReleased: false,
-                escrowId: null, // not yet escrowed
+                escrowId: null,
             },
             orderBy: { createdAt: 'desc' },
             include: {
                 lead: {
-                    select: {
+                    include: {
                         seller: {
-                            select: { user: { select: { walletAddress: true } } },
+                            include: { user: { select: { walletAddress: true } } },
                         },
                     },
                 },
             },
         });
 
+        // Fallback: find any unreleased transaction for this buyer+lead
         if (!transaction) {
+            console.log(`[PREPARE-ESCROW] No escrowId=null tx found, checking for any unreleased tx`);
+            transaction = await prisma.transaction.findFirst({
+                where: {
+                    leadId,
+                    buyerId: req.user!.id,
+                    escrowReleased: false,
+                },
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    lead: {
+                        include: {
+                            seller: {
+                                include: { user: { select: { walletAddress: true } } },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        if (!transaction) {
+            console.warn(`[PREPARE-ESCROW] No transaction found for lead=${leadId} buyer=${req.user!.id}`);
             res.status(404).json({
                 error: 'No pending transaction found for this lead',
                 hint: 'The auction may not have resolved yet, or escrow is already created.',
@@ -1613,10 +1638,13 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
             return;
         }
 
+        console.log(`[PREPARE-ESCROW] Found tx=${transaction.id}, amount=${transaction.amount}, escrowId=${transaction.escrowId}, status=${transaction.status}`);
+
         const sellerWallet = (transaction.lead as any)?.seller?.user?.walletAddress;
         const buyerWallet = req.user!.walletAddress;
 
         if (!sellerWallet || !buyerWallet) {
+            console.warn(`[PREPARE-ESCROW] Missing wallets: seller=${sellerWallet || 'MISSING'}, buyer=${buyerWallet || 'MISSING'}`);
             res.status(400).json({
                 error: 'Missing wallet addresses',
                 hint: `seller=${sellerWallet || 'MISSING'}, buyer=${buyerWallet || 'MISSING'}`,
@@ -1624,6 +1652,7 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
             return;
         }
 
+        // 2. Build escrow tx data
         const result = await x402Service.prepareEscrowTx(
             sellerWallet,
             buyerWallet,
@@ -1633,14 +1662,20 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
         );
 
         if (!result.success) {
+            console.error(`[PREPARE-ESCROW] prepareEscrowTx failed: ${result.error}`);
             res.status(503).json({ error: result.error });
             return;
         }
 
+        console.log(`[PREPARE-ESCROW] SUCCESS — escrowContract=${result.data?.escrowContractAddress}, usdc=${result.data?.usdcContractAddress}`);
         res.json(result.data);
     } catch (error: any) {
-        console.error('Prepare escrow error:', error);
-        res.status(500).json({ error: 'Failed to prepare escrow transaction' });
+        console.error(`[PREPARE-ESCROW] UNHANDLED ERROR for lead=${leadId}:`, error.message || error);
+        console.error(`[PREPARE-ESCROW] Stack:`, error.stack);
+        res.status(500).json({
+            error: 'Failed to prepare escrow transaction',
+            detail: error.message || 'Unknown error',
+        });
     }
 });
 

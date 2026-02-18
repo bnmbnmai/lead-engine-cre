@@ -102,6 +102,17 @@ class X402Service {
                 USDC_CONTRACT_ADDRESS, ERC20_ABI, this.signer
             );
         }
+
+        // Startup diagnostics
+        console.log(`[x402] Service initialized:`);
+        console.log(`[x402]   ESCROW_CONTRACT = ${ESCROW_CONTRACT_ADDRESS || '⚠️  NOT SET'}`);
+        console.log(`[x402]   USDC_CONTRACT   = ${USDC_CONTRACT_ADDRESS || '⚠️  NOT SET'}`);
+        console.log(`[x402]   RPC_URL         = ${RPC_URL}`);
+        console.log(`[x402]   DEPLOYER_KEY    = ${DEPLOYER_KEY ? '✓ set' : '⚠️  NOT SET'}`);
+        console.log(`[x402]   PLATFORM_WALLET = ${PLATFORM_WALLET_ADDRESS || '⚠️  NOT SET'}`);
+        if (!ESCROW_CONTRACT_ADDRESS || !USDC_CONTRACT_ADDRESS || !DEPLOYER_KEY) {
+            console.warn(`[x402] ⚠️  Missing env vars — prepareEscrowTx will return 503. Set ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA, USDC_CONTRACT_ADDRESS, and DEPLOYER_PRIVATE_KEY on Render.`);
+        }
     }
 
     // ============================================

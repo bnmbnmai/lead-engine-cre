@@ -477,7 +477,7 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 ## 9. Major Work Completed in Recent Sessions
 
 ### Session: Feb 18 (Today)
-- Fixed **"ACE compliance contract unavailable" error** on bid placement — definitive multi-layer fix:
+- Fixed **\"ACE compliance contract unavailable\" error** on bid placement — definitive multi-layer fix:
   1. **Render env var missing**: `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA` not set on Render → falls back to old Sepolia address `0x746...` which doesn't exist on Base Sepolia chain → revert. **User must add `ACE_CONTRACT_ADDRESS_BASE_SEPOLIA=0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` to Render env vars.**
   2. ABI now Basescan-verified: `verifyKYC(address, bytes32, bytes)`, `canTransact(address, bytes32, bytes32)` — matches verified contract source
   3. **Switched to lazy vertical policy**: removed batch `ensureVerticalPolicies()` (35 txs → nonce hell). Now `setVerticalPolicyIfNeeded()` sets policy on-demand with **1.5x gas bump, fresh nonce per attempt, 3 retries with 2s delay**
@@ -490,6 +490,13 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
 - Fixed `cre.service.ts` same env var pattern (now prioritizes `_BASE_SEPOLIA`)
 - Fixed sealed bid not-recorded bug (4-layer fix: buyer profile, KYC status, promise-based placeBid, error toasts)
 - Fixed WebSocket limit bug where lead display defaulted to 20 instead of 100 after real-time updates
+- **Fixed escrow 500 error** (`POST /api/v1/leads/{id}/prepare-escrow`):
+  - Root cause: Prisma query mixed `include` with nested `select` — changed to consistent `include` chains
+  - Added fallback query for partially-escrowed transactions (finds any unreleased tx if no `escrowId=null` tx)
+  - Added detailed `[PREPARE-ESCROW]` step-by-step logging at every decision point
+  - Added `[x402]` startup diagnostics logging env var status for `ESCROW_CONTRACT_ADDRESS`, `USDC_CONTRACT_ADDRESS`, `DEPLOYER_PRIVATE_KEY`, `PLATFORM_WALLET_ADDRESS`
+  - **Render env vars needed**: `ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA=0xff5d18a9fff7682a5285ccdafd0253e34761DbDB`, `USDC_CONTRACT_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+- **Sealed-bid UX fix** — "Highest Bid" amount hidden on `AuctionPage` during BIDDING phase; only revealed after auction ends (REVEALING/RESOLVED)
 
 ### Session: Feb 17
 - **Data Feeds terminology fix** — corrected all "Data Streams" references to "Data Feeds" across codebase and docs; fixed incorrect use of Data Streams verifier proxy address with Data Feeds ABI; updated contract address to correct Base Sepolia ETH/USD feed (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`)

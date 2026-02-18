@@ -81,8 +81,11 @@ export function AuctionPage() {
 
             if (data.amount) {
                 setMyBidAmount(data.amount);
-                if (!localHighestBid || data.amount > localHighestBid) {
-                    setLocalHighestBid(data.amount);
+                // Only track highest bid after bidding closes — sealed-bid UX
+                if (phase !== 'BIDDING') {
+                    if (!localHighestBid || data.amount > localHighestBid) {
+                        setLocalHighestBid(data.amount);
+                    }
                 }
             }
 
@@ -115,7 +118,8 @@ export function AuctionPage() {
 
     // Derived bid stats — prefer optimistic local → socket state → lead data
     const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0;
-    const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead?.highestBidAmount ?? null;
+    // Sealed-bid UX: highest bid hidden during BIDDING, only shown after reveal/resolved
+    const displayHighestBid = phase === 'BIDDING' ? null : (localHighestBid ?? auctionState?.highestBid ?? lead?.highestBidAmount ?? null);
 
     if (isLoading) {
         return (
