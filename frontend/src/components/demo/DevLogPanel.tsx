@@ -130,6 +130,9 @@ function renderValue(key: string, value: unknown): JSX.Element {
 }
 
 export function DevLogPanel() {
+    // isDemo controls initial open state only — set VITE_DEMO_MODE=true in Vercel env
+    // to auto-open the panel. The panel always mounts so Guest viewers receive socket
+    // broadcasts (ace:dev-log, demo:log) without needing to switch persona first.
     const isDemo = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
     const [open, setOpen] = useState(isDemo);
     const [entries, setEntries] = useState<DevLogEntry[]>([]);
@@ -226,7 +229,12 @@ export function DevLogPanel() {
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    if (!isDemo) return null;
+    // ↑ Removed: do NOT gate panel render on isDemo.
+    // The panel must always mount so socket subscriptions are established for all
+    // viewers including Guest persona. Missing this gate is Root Cause 1a from the
+    // deep-dive analysis — without it, Guest viewers see no Dev Log events on Vercel.
+    // The panel stays hidden (collapsed) by default; set VITE_DEMO_MODE=true on
+    // Vercel to auto-open it, or use Ctrl+Shift+L to toggle manually.
 
     // Collapsed → toggle button
     if (!open) {

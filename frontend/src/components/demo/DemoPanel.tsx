@@ -282,8 +282,14 @@ export function DemoPanel() {
         } else if (persona === 'guest') {
             setAuthToken(null);
             localStorage.removeItem('le_auth_user');
+            // Disconnect first so the old JWT is dropped from the socket auth handshake.
+            // Then reconnect immediately with no token so the backend downgrades this
+            // socket to 'GUEST' role — it can then receive all io.emit() broadcasts
+            // (ace:dev-log, demo:log, demo:status) without needing to re-mount DevLogPanel.
+            // Root Cause 1b: without this reconnect, the socket is dead after Guest switch.
             socketClient.disconnect();
-            if (import.meta.env.DEV) console.log('[DemoPanel] Guest persona — cleared auth');
+            socketClient.connect();
+            if (import.meta.env.DEV) console.log('[DemoPanel] Guest persona — socket reconnected as GUEST role');
         }
 
         // Force useAuth to re-read by dispatching a synthetic storage event
