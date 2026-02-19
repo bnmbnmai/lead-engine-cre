@@ -534,18 +534,25 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
-        // ── Step 1: Auto-deposit if needed ──
-        const requiredUsdc = cycles * 3 * 20; // budget: 3 bids × $20 per cycle
-        if (deployerUsdc < requiredUsdc) {
-            const depositAmount = Math.max(50, requiredUsdc - Math.floor(deployerUsdc));
-            const depositUnits = ethers.parseUnits(String(depositAmount), 6);
-            const usdcBal = await usdc.balanceOf(signer.address);
+        // ── Step 1: Auto-deposit — ensure vault has enough USDC for all cycles ──
+        // Check contract's actual available USDC (not just deployer shares)
+        const contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
+        const obligations = await vault.totalObligations();
+        const availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
+        const requiredUsdc = cycles * 3 * 10; // budget: 3 bids × $10 per cycle
+        const deficit = Math.max(0, requiredUsdc - availableInVault);
 
-            if (Number(usdcBal) / 1e6 >= depositAmount) {
+        if (deficit > 0) {
+            const depositAmount = Math.max(50, Math.ceil(deficit));
+            const depositUnits = ethers.parseUnits(String(depositAmount), 6);
+            const walletUsdcBal = await usdc.balanceOf(signer.address);
+            const walletUsdc = Number(walletUsdcBal) / 1e6;
+
+            if (walletUsdc >= depositAmount) {
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'step',
-                    message: `📥 Auto-depositing ${depositAmount} USDC into vault...`,
+                    message: `📥 Vault needs top-up ($${availableInVault.toFixed(0)} available, need $${requiredUsdc}). Depositing $${depositAmount}...`,
                 });
 
                 await sendTx(io, 'Approve USDC', () => usdc.approve(VAULT_ADDRESS, depositUnits));
@@ -556,13 +563,35 @@ export async function runFullDemo(
                     level: 'success',
                     message: `✅ Deposited $${depositAmount} USDC into vault`,
                 });
+            } else if (walletUsdc >= 10) {
+                // Deposit whatever we have
+                const partialUnits = ethers.parseUnits(String(Math.floor(walletUsdc)), 6);
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'step',
+                    message: `📥 Depositing all available wallet USDC ($${Math.floor(walletUsdc)}) into vault...`,
+                });
+                await sendTx(io, 'Approve USDC', () => usdc.approve(VAULT_ADDRESS, partialUnits));
+                await sendTx(io, 'Deposit USDC', () => vault.deposit(partialUnits));
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Deposited $${Math.floor(walletUsdc)} USDC into vault`,
+                });
             } else {
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'warn',
-                    message: `⚠️ Low USDC balance ($${(Number(usdcBal) / 1e6).toFixed(2)}). Some cycles may fail.`,
+                    message: `⚠️ Low USDC — vault: $${availableInVault.toFixed(2)}, wallet: $${walletUsdc.toFixed(2)}. Some cycles may be skipped.`,
                 });
             }
+        } else {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'success',
+                message: `✅ Vault has sufficient USDC ($${availableInVault.toFixed(0)} available, need $${requiredUsdc})`,
+            });
         }
 
         // ── Step 2: Start staggered lead drip (runs in background) ──
@@ -765,7 +794,7 @@ export async function runFullDemo(
             const { receipt: settleReceipt, gasUsed: settleGas } = await sendTx(
                 io,
                 `Settle winner (lock #${winnerLockId} → seller)`,
-                () => vault.settleBid(winnerLockId, DEMO_SELLER_WALLET),
+                () => vault.settleBid(winnerLockId, signer.address),  // Settle back to deployer so USDC recycles
                 cycle,
                 cycles,
             );
