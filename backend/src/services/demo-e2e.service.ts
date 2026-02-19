@@ -577,16 +577,18 @@ export async function runFullDemo(
             const buyerWallet = DEMO_BUYER_WALLETS[(cycle - 1) % DEMO_BUYER_WALLETS.length];
 
             // ── Pre-cycle vault balance check — cap bid to available ──
-            let bidAmount = rand(5, 15); // $5–$15 per bid
+            let bidAmount = rand(3, 10); // $3–$10 per bid (conservative to avoid exhaustion)
             try {
-                const vaultBal = await vault.balanceOf(signer.address);
-                const availableUsdc = Number(vaultBal) / 1e6;
+                // Check contract's ACTUAL available USDC (what lockForBid checks)
+                const contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
+                const obligations = await vault.totalObligations();
+                const availableUsdc = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
                 const maxPerBid = Math.floor(availableUsdc / 3); // 3 bids per cycle
-                if (maxPerBid < 5) {
+                if (maxPerBid < 1) {
                     emit(io, {
                         ts: new Date().toISOString(),
                         level: 'warn',
-                        message: `⚠️ Vault balance too low ($${availableUsdc.toFixed(2)}). Skipping cycle ${cycle}.`,
+                        message: `⚠️ Vault USDC too low ($${availableUsdc.toFixed(2)} available). Skipping cycle ${cycle}.`,
                         cycle,
                         totalCycles: cycles,
                     });
