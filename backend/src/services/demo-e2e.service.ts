@@ -16,6 +16,8 @@ import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { aceDevBus } from './ace.service';
 import * as vaultService from './vault.service';
+import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
+import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 
 // ── Config ─────────────────────────────────────────
 
@@ -39,11 +41,25 @@ const DEMO_BUYER_WALLETS = [
 // Demo seller wallet (faucet wallet 6)
 const DEMO_SELLER_WALLET = '0x089B6Bdb4824628c5535acF60aBF80683452e862';
 
-// Demo verticals for cycling through
 const DEMO_VERTICALS = [
     'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
     'hvac', 'legal', 'financial_services',
 ];
+
+interface GeoInfo { country: string; state: string; city: string }
+const GEOS: GeoInfo[] = [
+    { country: 'US', state: 'CA', city: 'Los Angeles' },
+    { country: 'US', state: 'TX', city: 'Houston' },
+    { country: 'US', state: 'FL', city: 'Miami' },
+    { country: 'US', state: 'NY', city: 'New York' },
+    { country: 'US', state: 'IL', city: 'Chicago' },
+    { country: 'GB', state: 'London', city: 'London' },
+    { country: 'AU', state: 'NSW', city: 'Sydney' },
+];
+
+const FALLBACK_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'home_services', 'b2b_saas', 'real_estate', 'auto', 'legal', 'financial_services'];
+
+function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
 const VAULT_ABI = [
     'function deposit(uint256 amount) external',
@@ -137,7 +153,115 @@ function rand(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// ── Emit Helper ────────────────────────────────────
+// ── Lead Helpers ──────────────────────────────────
+
+/** Build realistic demo form parameters for a given vertical */
+function buildDemoParams(vertical: string): Record<string, string | boolean> {
+    const root = vertical.split('.')[0];
+    switch (root) {
+        case 'solar':
+            return {
+                roofType: pick(['Asphalt Shingle', 'Metal', 'Tile', 'Flat/TPO']),
+                roofAge: `${rand(2, 25)} years`,
+                sqft: `${rand(1200, 4500)}`,
+                electricBill: `$${rand(100, 400)}/mo`,
+                creditScore: pick(['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)']),
+                timeline: pick(['ASAP', '1-3 months', '3-6 months']),
+            };
+        case 'mortgage':
+            return {
+                propertyType: pick(['Single Family', 'Condo', 'Townhouse']),
+                homeValue: `$${rand(200, 900) * 1000}`,
+                loanAmount: `$${rand(150, 750) * 1000}`,
+                creditScore: pick(['Excellent (750+)', 'Good (700-749)', 'Fair (650-699)']),
+                occupancy: pick(['Primary Residence', 'Second Home', 'Investment Property']),
+            };
+        case 'insurance':
+            return {
+                coverageType: pick(['Full Coverage', 'Liability Only', 'Comprehensive']),
+                currentCarrier: pick(['State Farm', 'Allstate', 'Progressive', 'None']),
+                claimsHistory: pick(['No claims', '1 claim', '2+ claims']),
+            };
+        case 'real_estate':
+            return {
+                propertyType: pick(['Single Family', 'Condo', 'Townhouse', 'Land']),
+                transactionType: pick(['Buying', 'Selling', 'Both']),
+                priceRange: `$${rand(150, 500) * 1000}-$${rand(500, 1200) * 1000}`,
+                timeline: pick(['Immediately', '1-3 months', '3-6 months']),
+            };
+        case 'roofing':
+            return {
+                roofType: pick(['Asphalt Shingle', 'Metal', 'Tile']),
+                roofAge: `${rand(5, 35)} years`,
+                projectType: pick(['Full Replacement', 'Repair', 'Inspection']),
+                urgency: pick(['Emergency', 'This week', 'Flexible']),
+            };
+        case 'hvac':
+            return {
+                serviceType: pick(['Installation', 'Repair', 'Maintenance']),
+                systemAge: `${rand(3, 20)} years`,
+                propertyType: pick(['Single Family', 'Condo', 'Commercial']),
+                urgency: pick(['Emergency', 'This week', 'Flexible']),
+            };
+        case 'legal':
+            return {
+                caseType: pick(['Personal Injury', 'Family Law', 'Criminal Defense', 'Estate Planning']),
+                urgency: pick(['Emergency', 'This week', 'Flexible']),
+                consultationType: pick(['In-person', 'Virtual', 'Phone']),
+            };
+        case 'financial_services':
+            return {
+                serviceType: pick(['Tax Planning', 'Retirement Planning', 'Wealth Management']),
+                investmentRange: pick(['<$50K', '$50K-$250K', '$250K-$1M', '$1M+']),
+                timeline: pick(['Immediately', '1-3 months', 'Long-term planning']),
+            };
+        default:
+            return { serviceType: 'General', urgency: 'Flexible' };
+    }
+}
+
+/** Ensure a demo seller user + profile exists, return sellerId */
+async function ensureDemoSeller(walletAddress: string): Promise<string> {
+    // Check if seller profile already exists
+    let seller = await prisma.sellerProfile.findFirst({
+        where: { user: { walletAddress } },
+    });
+    if (seller) return seller.id;
+
+    // Auto-create user + profile
+    let user = await prisma.user.findFirst({ where: { walletAddress } });
+    if (!user) {
+        user = await prisma.user.create({
+            data: {
+                walletAddress,
+                role: 'SELLER',
+                sellerProfile: {
+                    create: {
+                        companyName: 'Demo Seller Co.',
+                        verticals: FALLBACK_VERTICALS,
+                        isVerified: true,
+                        kycStatus: 'VERIFIED',
+                    },
+                },
+            },
+            include: { sellerProfile: true },
+        });
+        seller = (user as any).sellerProfile;
+    } else {
+        seller = await prisma.sellerProfile.create({
+            data: {
+                userId: user.id,
+                companyName: 'Demo Seller Co.',
+                verticals: FALLBACK_VERTICALS,
+                isVerified: true,
+                kycStatus: 'VERIFIED',
+            },
+        });
+    }
+
+    if (!seller) throw new Error('Failed to create demo seller profile');
+    return seller.id;
+}
 
 function emit(io: SocketServer, entry: DemoLogEntry) {
     // Add basescan link if txHash present
@@ -311,6 +435,93 @@ export async function runFullDemo(
                 cycle,
                 totalCycles: cycles,
             });
+
+            // ── Inject lead into DB + marketplace ──
+            let demoLeadId: string | null = null;
+            try {
+                const geo = pick(GEOS);
+                const params = buildDemoParams(vertical);
+                const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
+                const demoScoreInput: LeadScoringInput = {
+                    tcpaConsentAt: new Date(),
+                    geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` },
+                    hasEncryptedData: false,
+                    encryptedDataValid: false,
+                    parameterCount: paramCount,
+                    source: 'PLATFORM',
+                    zipMatchesState: false,
+                };
+                const qualityScore = computeCREQualityScore(demoScoreInput);
+
+                // Ensure seller exists
+                const sellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
+
+                const lead = await prisma.lead.create({
+                    data: {
+                        sellerId,
+                        vertical,
+                        geo: { country: geo.country, state: geo.state, city: geo.city } as any,
+                        source: 'DEMO',
+                        status: 'IN_AUCTION',
+                        reservePrice: bidAmount,
+                        isVerified: true,
+                        qualityScore,
+                        tcpaConsentAt: new Date(),
+                        auctionStartAt: new Date(),
+                        auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                        parameters: params as any,
+                    },
+                });
+
+                demoLeadId = lead.id;
+
+                // Create auction room
+                await prisma.auctionRoom.create({
+                    data: {
+                        leadId: lead.id,
+                        roomId: `auction_${lead.id}`,
+                        phase: 'BIDDING',
+                        biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                        revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                    },
+                });
+
+                // Emit marketplace events so the lead appears in real time
+                io.emit('marketplace:lead:new', {
+                    lead: {
+                        id: lead.id,
+                        vertical,
+                        status: 'IN_AUCTION',
+                        reservePrice: bidAmount,
+                        geo: { country: geo.country, state: geo.state },
+                        isVerified: true,
+                        sellerId,
+                        auctionStartAt: lead.auctionStartAt?.toISOString(),
+                        auctionEndAt: lead.auctionEndAt?.toISOString(),
+                        parameters: params,
+                        qualityScore: qualityScore != null ? Math.floor(qualityScore / 100) : null,
+                        _count: { bids: 0 },
+                    },
+                });
+                io.emit('marketplace:refreshAll');
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `📝 Lead injected → ${lead.id.slice(0, 8)}… (${vertical}, $${bidAmount}, ${geo.country}/${geo.state})`,
+                    cycle,
+                    totalCycles: cycles,
+                    data: { leadId: lead.id, vertical },
+                });
+            } catch (leadErr: any) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Lead injection skipped: ${leadErr.message?.slice(0, 100)}`,
+                    cycle,
+                    totalCycles: cycles,
+                });
+            }
 
             // ── Lock 3 bids ──
             const lockIds: number[] = [];
