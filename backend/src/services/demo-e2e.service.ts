@@ -331,108 +331,144 @@ async function sendTx(
     throw new Error(`${label} failed after ${retries} attempts`);
 }
 
-// ── Seed Marketplace Upfront ──────────────────────
+// ── Staggered Lead Drip (Background) ──────────────
 
-/** Create 12-15 leads upfront so the marketplace looks populated immediately */
-async function seedLeadsUpfront(
+/**
+ * Start a background drip that injects 1 new lead every 8-15 seconds.
+ * Runs concurrently with vault cycles. Returns an abort handle.
+ *
+ * @param maxLeads   Total leads to create (default 20)
+ * @param maxMinutes Stop dripping after this many minutes (default 5)
+ */
+function startLeadDrip(
     io: SocketServer,
-    cycles: number,
     signal: AbortSignal,
-): Promise<void> {
-    const SEED_COUNT = Math.max(12, cycles + 7); // at least 12, more if cycles > 5
-    const capped = Math.min(SEED_COUNT, 15);
+    maxLeads: number = 20,
+    maxMinutes: number = 5,
+): { stop: () => void; promise: Promise<void> } {
+    let stopped = false;
+    const stop = () => { stopped = true; };
 
-    emit(io, {
-        ts: new Date().toISOString(),
-        level: 'step',
-        message: `📦 Seeding marketplace with ${capped} leads...`,
+    const promise = (async () => {
+        const sellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
+        const deadline = Date.now() + maxMinutes * 60 * 1000;
+        let created = 0;
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'step',
+            message: `📦 Starting lead drip — 1 new lead every 8-15s for ~${maxMinutes} minutes`,
+        });
+
+        // Seed 3 leads immediately so marketplace isn't empty at launch
+        for (let i = 0; i < 3 && !stopped && !signal.aborted; i++) {
+            try {
+                await injectOneLead(io, sellerId, created);
+                created++;
+            } catch { /* non-fatal */ }
+            await sleep(300);
+        }
+
+        // Then drip the rest at random intervals
+        while (created < maxLeads && Date.now() < deadline && !stopped && !signal.aborted) {
+            const delaySec = rand(8, 15);
+            // Sleep in 1-second ticks so we can respond to abort quickly
+            for (let t = 0; t < delaySec && !stopped && !signal.aborted; t++) {
+                await sleep(1000);
+            }
+            if (stopped || signal.aborted) break;
+
+            try {
+                await injectOneLead(io, sellerId, created);
+                created++;
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `📋 Lead ${created}/${maxLeads} dripped into marketplace`,
+                });
+            } catch (err: any) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Lead drip #${created + 1} failed: ${err.message?.slice(0, 80)}`,
+                });
+            }
+        }
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'success',
+            message: `✅ Lead drip finished — ${created} leads added to marketplace`,
+        });
+    })();
+
+    return { stop, promise };
+}
+
+/** Create a single demo lead and emit marketplace:lead:new */
+async function injectOneLead(
+    io: SocketServer,
+    sellerId: string,
+    index: number,
+): Promise<void> {
+    const vertical = DEMO_VERTICALS[index % DEMO_VERTICALS.length];
+    const geo = GEOS[index % GEOS.length];
+    const reservePrice = rand(12, 45);
+    const params = buildDemoParams(vertical);
+    const paramCount = Object.keys(params).filter(k => params[k] != null && params[k] !== '').length;
+    const scoreInput: LeadScoringInput = {
+        tcpaConsentAt: new Date(),
+        geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` },
+        hasEncryptedData: false,
+        encryptedDataValid: false,
+        parameterCount: paramCount,
+        source: 'PLATFORM',
+        zipMatchesState: false,
+    };
+    const qualityScore = computeCREQualityScore(scoreInput);
+
+    const lead = await prisma.lead.create({
+        data: {
+            sellerId,
+            vertical,
+            geo: { country: geo.country, state: geo.state, city: geo.city } as any,
+            source: 'DEMO',
+            status: 'IN_AUCTION',
+            reservePrice,
+            isVerified: true,
+            qualityScore,
+            tcpaConsentAt: new Date(),
+            auctionStartAt: new Date(),
+            auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+            parameters: params as any,
+        },
     });
 
-    const sellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
+    await prisma.auctionRoom.create({
+        data: {
+            leadId: lead.id,
+            roomId: `auction_${lead.id}`,
+            phase: 'BIDDING',
+            biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+            revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+        },
+    });
 
-    for (let i = 0; i < capped; i++) {
-        if (signal.aborted) throw new Error('Demo aborted');
-
-        const vertical = DEMO_VERTICALS[i % DEMO_VERTICALS.length];
-        const geo = GEOS[i % GEOS.length];
-        const reservePrice = rand(12, 45);
-        const params = buildDemoParams(vertical);
-        const paramCount = Object.keys(params).filter(k => params[k] != null && params[k] !== '').length;
-        const scoreInput: LeadScoringInput = {
-            tcpaConsentAt: new Date(),
-            geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` },
-            hasEncryptedData: false,
-            encryptedDataValid: false,
-            parameterCount: paramCount,
-            source: 'PLATFORM',
-            zipMatchesState: false,
-        };
-        const qualityScore = computeCREQualityScore(scoreInput);
-
-        try {
-            const lead = await prisma.lead.create({
-                data: {
-                    sellerId,
-                    vertical,
-                    geo: { country: geo.country, state: geo.state, city: geo.city } as any,
-                    source: 'DEMO',
-                    status: 'IN_AUCTION',
-                    reservePrice,
-                    isVerified: true,
-                    qualityScore,
-                    tcpaConsentAt: new Date(),
-                    auctionStartAt: new Date(),
-                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
-                    parameters: params as any,
-                },
-            });
-
-            await prisma.auctionRoom.create({
-                data: {
-                    leadId: lead.id,
-                    roomId: `auction_${lead.id}`,
-                    phase: 'BIDDING',
-                    biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
-                    revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
-                },
-            });
-
-            io.emit('marketplace:lead:new', {
-                lead: {
-                    id: lead.id,
-                    vertical,
-                    status: 'IN_AUCTION',
-                    reservePrice,
-                    geo: { country: geo.country, state: geo.state },
-                    isVerified: true,
-                    sellerId,
-                    auctionStartAt: lead.auctionStartAt?.toISOString(),
-                    auctionEndAt: lead.auctionEndAt?.toISOString(),
-                    parameters: params,
-                    qualityScore: qualityScore != null ? Math.floor(qualityScore / 100) : null,
-                    _count: { bids: 0 },
-                },
-            });
-
-            // Stagger emissions slightly so frontend doesn't miss events
-            await sleep(100);
-        } catch (err: any) {
-            // Non-fatal — continue seeding
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'warn',
-                message: `⚠️ Seed lead #${i + 1} failed: ${err.message?.slice(0, 80)}`,
-            });
-        }
-    }
-
-    // Final refresh to ensure marketplace state is in sync
-    io.emit('marketplace:refreshAll');
-
-    emit(io, {
-        ts: new Date().toISOString(),
-        level: 'success',
-        message: `✅ Marketplace seeded with ${capped} leads across ${DEMO_VERTICALS.length} verticals`,
+    io.emit('marketplace:lead:new', {
+        lead: {
+            id: lead.id,
+            vertical,
+            status: 'IN_AUCTION',
+            reservePrice,
+            geo: { country: geo.country, state: geo.state },
+            isVerified: true,
+            sellerId,
+            auctionStartAt: lead.auctionStartAt?.toISOString(),
+            auctionEndAt: lead.auctionEndAt?.toISOString(),
+            parameters: params,
+            qualityScore: qualityScore != null ? Math.floor(qualityScore / 100) : null,
+            _count: { bids: 0 },
+        },
     });
 }
 
@@ -529,11 +565,11 @@ export async function runFullDemo(
             }
         }
 
-        // ── Step 2: Seed marketplace with 12-15 leads upfront ──
+        // ── Step 2: Start staggered lead drip (runs in background) ──
         if (signal.aborted) throw new Error('Demo aborted');
-        await seedLeadsUpfront(io, cycles, signal);
+        const drip = startLeadDrip(io, signal, cycles + 15, 5);
 
-        // ── Auction Cycles ──
+        // ── Auction Cycles (run concurrently with lead drip) ──
         for (let cycle = 1; cycle <= cycles; cycle++) {
             if (signal.aborted) throw new Error('Demo aborted');
 
@@ -801,6 +837,10 @@ export async function runFullDemo(
             // Brief pause between cycles
             if (cycle < cycles) await sleep(1000);
         }
+
+        // ── Stop background lead drip ──
+        drip.stop();
+        await drip.promise;
 
         // ── Final Summary ──
         emit(io, {

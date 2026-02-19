@@ -84,8 +84,22 @@ app.use(helmet({
     },
 }));
 
+const ALLOWED_ORIGINS = [
+    'https://lead-engine-cre-frontend.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, server-to-server)
+        if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
+            callback(null, true);
+        } else {
+            callback(null, true); // permissive in demo — tighten for prod
+        }
+    },
     credentials: true,
 }));
 
