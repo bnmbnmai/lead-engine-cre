@@ -536,49 +536,53 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
-        // ── Step 1: Recycle USDC from seller wallet back to deployer ──
-        // In the demo, settlements send USDC to the seller wallet. We recycle it
-        // back so the vault stays funded across runs. (Not needed in production.)
+        // ── Step 1: Gas top-up for seller ──
         try {
-            const provider = getProvider();
-            const sellerSigner = new ethers.Wallet(DEMO_SELLER_KEY, provider);
-            const sellerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerSigner);
-            const sellerBal = await sellerUsdc.balanceOf(DEMO_SELLER_WALLET);
-            const sellerUsdcAmount = Number(sellerBal) / 1e6;
+            const sellerWallet = new ethers.Wallet(DEMO_SELLER_KEY, provider);
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerWallet);
 
-            if (sellerUsdcAmount >= 1) {
-                // Ensure seller has ETH for gas (deployer sponsors)
-                const sellerEth = await provider.getBalance(DEMO_SELLER_WALLET);
-                if (sellerEth < ethers.parseEther('0.0005')) {
-                    const gasAmount = ethers.parseEther('0.001');
-                    emit(io, {
-                        ts: new Date().toISOString(),
-                        level: 'step',
-                        message: `⛽ Sending 0.001 ETH to seller wallet for gas...`,
-                    });
-                    const gasTx = await signer.sendTransaction({
-                        to: DEMO_SELLER_WALLET,
-                        value: gasAmount,
-                    });
-                    await gasTx.wait();
-                }
-
-
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'step',
-                    message: `♻️ Recycling $${sellerUsdcAmount.toFixed(2)} USDC from seller wallet back to deployer...`,
+            if ((await provider.getBalance(sellerWallet.address)) < ethers.parseEther('0.0005')) {
+                const gasTx = await signer.sendTransaction({
+                    to: sellerWallet.address,
+                    value: ethers.parseEther('0.001'),
                 });
-
-                const transferTx = await sellerUsdc.transfer(signer.address, sellerBal);
-                await transferTx.wait();
-
+                await gasTx.wait();
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'success',
-                    message: `✅ Recycled $${sellerUsdcAmount.toFixed(2)} USDC from seller → deployer`,
+                    message: `✅ Gas top-up sent to seller ${sellerWallet.address}`,
                 });
             }
+
+            // ── Step 2: Recycle USDC from seller to deployer ──
+            const sellerUsdcBalance = await usdcContract.balanceOf(sellerWallet.address);
+            if (sellerUsdcBalance > 0n) {
+                const tx = await usdcContract.transfer(signer.address, sellerUsdcBalance);
+                await tx.wait();
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Recycled ${ethers.formatUnits(sellerUsdcBalance, 6)} USDC from seller to deployer`,
+                });
+            }
+
+            // ── Step 3: Redistribute to buyer wallets (so they can deposit into their own vaults) ──
+            if (sellerUsdcBalance > 0n) {
+                const amountPerBuyer = sellerUsdcBalance / BigInt(DEMO_BUYER_WALLETS.length);
+                for (const buyerAddr of DEMO_BUYER_WALLETS) {
+                    if (amountPerBuyer > 0n) {
+                        const tx = await usdc.transfer(buyerAddr, amountPerBuyer);
+                        await tx.wait();
+                        emit(io, {
+                            ts: new Date().toISOString(),
+                            level: 'success',
+                            message: `✅ Topped up buyer ${buyerAddr} with ${ethers.formatUnits(amountPerBuyer, 6)} USDC`,
+                        });
+                    }
+                }
+            }
+
+            // Step 4: Each buyer deposits into their own vault (handled in cycle logic below)
         } catch (err: any) {
             emit(io, {
                 ts: new Date().toISOString(),
