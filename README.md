@@ -232,11 +232,11 @@ Institutional-grade foundation:
 
 ## Pricing
 
-| Channel                  | Platform Fee | Convenience Fee | Bounty Cut | Total          |
-|--------------------------|--------------|-----------------|------------|----------------|
-| Manual / Buy It Now      | 2.5%         | —               | —          | 2.5%           |
-| Auto-bid / MCP Agent     | 2.5%         | $1.00           | —          | 2.5% + $1      |
-| Bounty Release           | —            | —               | 1%         | 1% of bounty   |
+| Channel                  | Platform Fee | Convenience Fee | Total          |
+|--------------------------|--------------|-----------------|----------------|
+| Manual / Buy It Now      | 5%           | $1.00           | 5% + $1        |
+| Auto-bid / MCP Agent     | 5%           | $1.00           | 5% + $1        |
+| Bounty Release           | 5%           | $1.00           | 5% + $1        |
 
 ---
 
