@@ -188,7 +188,7 @@ graph TD
     D --> E[LeadNFTv2 + VerticalBountyPool]
     F[WebSocket] <--> B
     G[Dynamic Verticals Admin] --> B
-    style C fill:#f0f8ff
+    style C fill:#375BD2,color:#fff,stroke:#2a4aa0
 ```
 
 ---
