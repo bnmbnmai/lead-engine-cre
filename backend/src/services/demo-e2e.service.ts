@@ -12,6 +12,8 @@
 
 import { Server as SocketServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { aceDevBus } from './ace.service';
@@ -133,6 +135,30 @@ export interface DemoResult {
 let isRunning = false;
 let currentAbort: AbortController | null = null;
 const resultsStore = new Map<string, DemoResult>();
+
+// ── File Persistence (survive server restarts) ─────
+const RESULTS_FILE = path.join(process.cwd(), 'demo-results.json');
+
+function saveResultsToDisk() {
+    try {
+        const all = Array.from(resultsStore.values());
+        fs.writeFileSync(RESULTS_FILE, JSON.stringify(all, null, 2));
+    } catch { /* non-fatal */ }
+}
+
+function loadResultsFromDisk() {
+    try {
+        if (fs.existsSync(RESULTS_FILE)) {
+            const raw = fs.readFileSync(RESULTS_FILE, 'utf-8');
+            const arr: DemoResult[] = JSON.parse(raw);
+            for (const r of arr) resultsStore.set(r.runId, r);
+            console.log(`[DEMO E2E] Loaded ${arr.length} cached results from disk`);
+        }
+    } catch { /* non-fatal */ }
+}
+
+// Load on module init
+loadResultsFromDisk();
 
 // ── Helpers ────────────────────────────────────────
 
@@ -1065,6 +1091,7 @@ export async function runFullDemo(
         };
 
         resultsStore.set(runId, result);
+        saveResultsToDisk();
 
         // Emit completion event
         io.emit('demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
@@ -1094,7 +1121,7 @@ export async function runFullDemo(
         };
 
         resultsStore.set(runId, result);
-
+        saveResultsToDisk();
         io.emit('demo:complete', {
             runId,
             status: result.status,
