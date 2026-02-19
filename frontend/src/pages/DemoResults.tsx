@@ -61,7 +61,9 @@ interface RunSummary {
 }
 
 // ── Retry config ──────────────────────────────
-const RETRY_DELAYS = [800, 1600, 3200]; // ms
+// 5 attempts: handles Render free-tier cold boots (can take 30+ s to wake)
+// Total wait budget: 800ms + 2s + 4s + 8s + 15s ≈ 30s before showing error
+const RETRY_DELAYS = [800, 2000, 4000, 8000, 15000]; // ms
 
 export default function DemoResults() {
     const { runId: paramRunId } = useParams<{ runId: string }>();

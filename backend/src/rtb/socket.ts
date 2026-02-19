@@ -114,12 +114,8 @@ class RTBSocketServer {
     constructor(httpServer: HttpServer) {
         this.io = new Server(httpServer, {
             cors: {
-                origin: [
-                    'https://lead-engine-cre-frontend.vercel.app',
-                    'http://localhost:5173',
-                    'http://localhost:3000',
-                    process.env.FRONTEND_URL || '',
-                ].filter(Boolean),
+                // Permissive for demo — matches Express CORS policy in index.ts
+                origin: true,
                 credentials: true,
             },
             pingTimeout: 60000,
@@ -145,8 +141,13 @@ class RTBSocketServer {
             try {
                 const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
 
+                // Allow unauthenticated (guest) connections — they can receive
+                // broadcast events (demo:log, demo:complete, ace:dev-log) but
+                // cannot bid or join auction rooms (guarded per-event below).
                 if (!token) {
-                    return next(new Error('Authentication required'));
+                    socket.userId = undefined;
+                    socket.role = 'GUEST';
+                    return next();
                 }
 
                 const decoded = jwt.verify(token, JWT_SECRET) as any;
@@ -161,7 +162,10 @@ class RTBSocketServer {
                 });
 
                 if (!session) {
-                    return next(new Error('Invalid session'));
+                    // Expired session — downgrade to guest rather than hard-disconnect
+                    socket.userId = undefined;
+                    socket.role = 'GUEST';
+                    return next();
                 }
 
                 socket.userId = decoded.userId;
@@ -170,7 +174,10 @@ class RTBSocketServer {
 
                 next();
             } catch (error) {
-                next(new Error('Authentication failed'));
+                // JWT verify failed — downgrade to guest
+                socket.userId = undefined;
+                socket.role = 'GUEST';
+                next();
             }
         });
     }
@@ -186,6 +193,11 @@ class RTBSocketServer {
             // Join auction room
             socket.on('join:auction', async (leadId: string) => {
                 try {
+                    // Guests can observe broadcasts but cannot join auction rooms
+                    if (!socket.userId || socket.role === 'GUEST') {
+                        socket.emit('error', { message: 'Authentication required to join auction rooms' });
+                        return;
+                    }
                     const lead = await prisma.lead.findUnique({
                         where: { id: leadId },
                         include: { auctionRoom: true },
@@ -236,6 +248,11 @@ class RTBSocketServer {
             // Place bid via socket (for real-time)
             socket.on('bid:place', async (data: BidEvent) => {
                 try {
+                    if (!socket.userId || socket.role === 'GUEST') {
+                        socket.emit('error', { message: 'Authentication required to place bids' });
+                        return;
+                    }
+
                     if (socket.role !== 'BUYER') {
                         socket.emit('error', { message: 'Only buyers can place bids' });
                         return;

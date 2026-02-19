@@ -139,6 +139,11 @@ export function DevLogPanel() {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        // Ensure the socket is connected — critical for Guest persona who never
+        // goes through useDemo (which normally calls connect). With the backend
+        // now accepting no-auth connections as 'GUEST', this is safe for all users.
+        socketClient.connect();
+
         const handler = (data: DevLogEntry) => {
             setEntries(prev => {
                 const next = [...prev, data];
