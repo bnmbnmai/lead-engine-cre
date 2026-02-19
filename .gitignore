@@ -84,3 +84,8 @@ frontend/vite.config.js
 balances.txt
 consolidate-usdc.js
 faucet-wallets.txt
+
+# Internal working docs — not for GitHub
+README-old.md
+context.md
+SELF_REVIEW_FIELD_FILTERS.md
