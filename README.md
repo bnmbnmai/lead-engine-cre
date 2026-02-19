@@ -141,8 +141,8 @@ sequenceDiagram
 flowchart TB
     subgraph Seller["Seller Flow"]
         S1["Submit Lead"] --> S2["CRE Quality Score"]
-        S2 --> S3["Mint LeadNFT"]
-        S3 --> S4["Open Auction"]
+        S2 --> S3["Open Auction"]
+        S3 --> S4["Mint LeadNFT"]
     end
 
     subgraph Chainlink["Chainlink Services"]
@@ -169,13 +169,14 @@ flowchart TB
 
     S2 -.->|"zkProof + score"| CRE
     B2 -.->|"verifyKYC + canTransact"| ACE
-    S4 -.->|"dynamic floor price"| DF
+    S3 -.->|"dynamic floor price"| DF
     B4 -.->|"tied bids"| VRF
     B5 -.->|"criteria match"| FN
     B4 -->|"lockForBid + settleBid"| VAULT
-    VAULT -->|"USDC to seller + fee to platform"| S1
-    B5 -->|"recordSale"| NFT
-    AUT -.->|"24h PoR + 7d refunds"| VAULT
+    VAULT -->|"USDC to seller + $1 fee to platform"| S1
+    S4 -->|"recordSale"| NFT
+    AUT -.->|"24h PoR checks"| VAULT
+    AUT -.->|"7d expired lock refunds"| VAULT
 ```
 
 ---
@@ -346,19 +347,19 @@ Horizontal gallery view with per-funnel conversion metrics, search and filtering
 
 ## Smart Contracts (11 on Base Sepolia)
 
-| Contract | Description | Status |
-|---|---|---|
-| `PersonalEscrowVault.sol` | Per-user USDC vault with pre-bid locking, Chainlink Automation PoR + auto-refunds | ✅ Deployed |
-| `CREVerifier.sol` | Quality scoring + ZK fraud proofs | ✅ Deployed |
-| `ACECompliance.sol` | KYC, jurisdiction, reputation | ✅ Deployed |
-| `RTBEscrow.sol` | Atomic USDC escrow settlement (legacy) | ✅ Deployed |
-| `LeadNFTv2.sol` | ERC-721 tokenized leads | ✅ Deployed |
-| `BountyMatcher.sol` | Chainlink Functions bounty criteria matching | ✅ Compiled |
-| `VerticalBountyPool.sol` | Buyer-funded bounty pools | ✅ Compiled |
-| `CustomLeadFeed.sol` | Public market metrics feed | ✅ Deployed |
-| `VerticalNFT.sol` | Community vertical ownership | ✅ Deployed |
-| `VerticalAuction.sol` | Ascending auctions for verticals | ✅ Deployed |
-| `VRFTieBreaker.sol` | Chainlink VRF v2.5 provably fair tie-breaking | ✅ Compiled |
+| Contract | Description | Chainlink Dep. | Status |
+|---|---|---|---|
+| `PersonalEscrowVault.sol` | Per-user USDC vault with pre-bid locking, PoR + auto-refunds | Automation | ✅ Deployed |
+| `CREVerifier.sol` | Quality scoring + ZK fraud proofs | CRE | ✅ Deployed |
+| `ACECompliance.sol` | KYC, jurisdiction, reputation | ACE | ✅ Deployed |
+| `RTBEscrow.sol` | Atomic USDC escrow settlement (legacy) | — | ✅ Deployed |
+| `LeadNFTv2.sol` | ERC-721 tokenized leads | — | ✅ Deployed |
+| `BountyMatcher.sol` | Chainlink Functions bounty criteria matching | Functions | ✅ Compiled |
+| `VerticalBountyPool.sol` | Buyer-funded bounty pools | Functions | ✅ Compiled |
+| `CustomLeadFeed.sol` | Public market metrics feed | — | ✅ Deployed |
+| `VerticalNFT.sol` | Community vertical ownership | — | ✅ Deployed |
+| `VerticalAuction.sol` | Ascending auctions for verticals | — | ✅ Deployed |
+| `VRFTieBreaker.sol` | Chainlink VRF v2.5 provably fair tie-breaking | VRF v2.5 | ✅ Compiled |
 
 ---
 
@@ -445,6 +446,7 @@ See `current-stubs-audit.md` for the full 17-entry audit. Key migration highligh
 | Off-chain vault / escrow fallback | DB-only balance tracking | ✅ **Migrated** — on-chain `PersonalEscrowVault.sol` with PoR + Automation |
 | Chainlink Keepers (quarterly reset) | Simulated cron-based upkeep | ✅ **Migrated** — Chainlink Automation handles PoR (24h) + expired lock refunds (7d) |
 | Expired bids/bounties cleanup | Manual or unhandled | ✅ **Ready** — `_refundExpiredLocks()` in vault, gas-capped at 50 per upkeep |
+| Expired Bids/Bounties Automation | Not implemented | ✅ **Ready** — Chainlink Automation upkeep registered; runs on every `checkUpkeep` call |
 | DECO zkTLS attestation | Stub | 🔶 Stubbed (awaiting mainnet) |
 | Confidential HTTP (TEE) | Stub | 🔶 Stubbed (post-hackathon) |
 | ACE off-chain fallbacks | Implicit DB fallback | 🟡 Partial — on-chain preferred, DB fallback when contract unavailable |
