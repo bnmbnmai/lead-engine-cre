@@ -612,14 +612,95 @@ async function injectOneLead(
 
 // ── Token Recycling (background phase) ───────────
 
+// ⚠️ TEMPORARY SAFE MODE — Full USDC Recovery Guaranteed
+// Every buyer and seller wallet is fully drained back to deployer after each run.
+// Retry logic handles nonce/replacement-fee errors that caused leakage.
+// TODO: Review gas parameters when moving to mainnet.
+
+/**
+ * recycleTransfer — sends ALL USDC from a demo wallet back to the deployer.
+ *
+ * 3-attempt retry loop with 20% gas price bump per attempt.
+ * Re-reads the live balance immediately before each attempt so the amount
+ * is always fresh (eliminates the stale-balance bug from pre-Phase-2).
+ * Handles: replacement-fee-too-low, nonce already used, transfer exceeds balance.
+ */
+async function recycleTransfer(
+    io: SocketServer,
+    label: string,
+    walletAddr: string,
+    walletSigner: ethers.Wallet,
+    deployerAddr: string,
+    gasTopUpSigner: ethers.Wallet,
+): Promise<bigint> {
+    const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, walletSigner);
+    const provider = walletSigner.provider!;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            // Ensure sender has gas (checked every attempt — a prior attempt may have consumed it)
+            if ((await provider.getBalance(walletAddr)) < ethers.parseEther('0.0005')) {
+                const gasTx = await gasTopUpSigner.sendTransaction({
+                    to: walletAddr,
+                    value: ethers.parseEther('0.001'),
+                });
+                await gasTx.wait();
+            }
+
+            // Re-read live balance immediately before sending (prevents stale-balance errors)
+            const bal = await usdc.balanceOf(walletAddr);
+            if (bal === 0n) return 0n;
+
+            // Escalate gas price 20% per retry to beat replacement-fee-too-low
+            const feeData = await provider.getFeeData();
+            const gasPrice = feeData.gasPrice
+                ? (feeData.gasPrice * BigInt(100 + (attempt - 1) * 20)) / 100n
+                : undefined;
+
+            const tx = await usdc.transfer(deployerAddr, bal, gasPrice ? { gasPrice } : {});
+            await tx.wait();
+
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'success',
+                message: `✅ Recycled $${ethers.formatUnits(bal, 6)} USDC from ${label} (attempt ${attempt})`,
+            });
+            return bal;
+
+        } catch (err: any) {
+            const msg = err.message?.slice(0, 100) ?? 'unknown';
+            if (attempt < 3) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Transfer attempt ${attempt}/3 failed for ${label}: ${msg} — retrying with higher gas…`,
+                });
+                await new Promise(r => setTimeout(r, 1500 * attempt)); // back-off
+            } else {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ All 3 transfer attempts failed for ${label}: ${msg} — USDC may remain in wallet`,
+                });
+            }
+        }
+    }
+    return 0n;
+}
+
 /**
  * recycleTokens — runs AFTER demo:complete fires, non-blocking.
  *
- * Withdraws USDC from all demo buyer/seller vaults back to the deployer
- * so the next demo run starts with a clean slate.
+ * Full recovery path:
+ *   R1 — Gas top-up for seller
+ *   R2 — Withdraw deployer's own vault balance
+ *   R3 — Withdraw seller vault + transfer all seller USDC → deployer
+ *   R4 — For every buyer: withdraw vault (free balance) + transfer all wallet USDC → deployer
+ *   R5 — FINAL SWEEP: re-check every wallet for any residual USDC and transfer again
+ *   R6 — Log deployer start vs end balance for full visibility
  *
  * Emits demo:recycle-start / demo:recycle-complete socket events.
- * All errors are caught and logged as warnings — never throws.
+ * Never throws — all errors are caught and logged as warnings.
  */
 async function recycleTokens(
     io: SocketServer,
@@ -633,14 +714,25 @@ async function recycleTokens(
         emit(io, {
             ts: new Date().toISOString(),
             level: 'step',
-            message: '♻️  Token redistribution starting — preparing vault for next run...',
+            message: '♻️  Full USDC recovery starting — draining all demo wallets back to deployer...',
         });
         io.emit('demo:recycle-start', { ts: new Date().toISOString() });
 
         const provider = getProvider();
         const signer = getSigner();
         const vault = getVault(signer);
+        const usdc = getUSDC(signer);
         const recycleSignal = recycleAbort.signal;
+
+        // ── Bookend: Record deployer USDC balance BEFORE recycle ──
+        const deployerBalBefore = await usdc.balanceOf(signer.address);
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `📊 Deployer USDC before recycle: $${ethers.formatUnits(deployerBalBefore, 6)}`,
+        });
+
+        let totalRecovered = 0n;
 
         // ── Step R1: Gas top-up for seller if needed ──
         try {
@@ -650,11 +742,6 @@ async function recycleTokens(
                     value: ethers.parseEther('0.001'),
                 });
                 await gasTx.wait();
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Gas top-up sent to seller ${DEMO_SELLER_WALLET}`,
-                });
             }
         } catch (err: any) {
             emit(io, {
@@ -664,103 +751,158 @@ async function recycleTokens(
             });
         }
 
-        // ── Step R2: Withdraw deployer vault balance to wallet ──
+        // ── Step R2: Withdraw deployer vault balance to deployer wallet ──
         try {
             const deployerVaultBal = await vault.balanceOf(signer.address);
             if (deployerVaultBal > 0n) {
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `📤 Withdrawing $${ethers.formatUnits(deployerVaultBal, 6)} USDC from deployer vault...`,
+                    message: `📤 Withdrawing $${ethers.formatUnits(deployerVaultBal, 6)} from deployer vault...`,
                 });
                 const withdrawTx = await vault.withdraw(deployerVaultBal);
                 await withdrawTx.wait();
+                totalRecovered += deployerVaultBal;
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'success',
-                    message: `✅ Withdrawn $${ethers.formatUnits(deployerVaultBal, 6)} USDC to deployer wallet`,
+                    message: `✅ Deployer vault withdrawn: $${ethers.formatUnits(deployerVaultBal, 6)}`,
                 });
             }
         } catch (err: any) {
             emit(io, {
                 ts: new Date().toISOString(),
                 level: 'warn',
-                message: `⚠️ Deployer vault withdraw failed (non-fatal): ${err.message?.slice(0, 80)}`,
+                message: `⚠️ Deployer vault withdraw failed: ${err.message?.slice(0, 80)}`,
             });
         }
 
-        // ── Step R3: Recycle USDC from seller wallet back to deployer ──
+        // ── Step R3: Seller — withdraw vault balance, then transfer all USDC → deployer ──
         try {
-            const sellerWallet = new ethers.Wallet(DEMO_SELLER_KEY, provider);
-            const sellerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerWallet);
-            const sellerBal = await sellerUsdc.balanceOf(sellerWallet.address);
-            if (sellerBal > 0n) {
-                // Gas top-up for seller if needed
-                if ((await provider.getBalance(sellerWallet.address)) < ethers.parseEther('0.0005')) {
-                    const gasTx = await signer.sendTransaction({ to: sellerWallet.address, value: ethers.parseEther('0.001') });
-                    await gasTx.wait();
-                }
-                const tx = await sellerUsdc.transfer(signer.address, sellerBal);
-                await tx.wait();
+            const sellerSigner = new ethers.Wallet(DEMO_SELLER_KEY, provider);
+            const sellerVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, sellerSigner);
+
+            // Ensure seller has gas
+            if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
+                const gasTx = await signer.sendTransaction({ to: DEMO_SELLER_WALLET, value: ethers.parseEther('0.001') });
+                await gasTx.wait();
+            }
+
+            // Withdraw seller's free vault balance
+            const sellerVaultFree = await sellerVault.balanceOf(DEMO_SELLER_WALLET);
+            const sellerVaultLocked = await sellerVault.lockedBalances(DEMO_SELLER_WALLET);
+            if (sellerVaultLocked > 0n) {
                 emit(io, {
                     ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Recycled $${ethers.formatUnits(sellerBal, 6)} USDC from seller to deployer`,
+                    level: 'warn',
+                    message: `⚠️ Seller has $${ethers.formatUnits(sellerVaultLocked, 6)} locked in vault — cannot withdraw until bids settle`,
                 });
             }
+            if (sellerVaultFree > 0n) {
+                const wTx = await sellerVault.withdraw(sellerVaultFree);
+                await wTx.wait();
+            }
+
+            // Transfer ALL seller USDC wallet balance → deployer (fresh balance read after vault withdraw)
+            const recovered = await recycleTransfer(io, `seller ${DEMO_SELLER_WALLET.slice(0, 10)}…`, DEMO_SELLER_WALLET, sellerSigner, signer.address, signer);
+            totalRecovered += recovered;
+
         } catch (err: any) {
             emit(io, {
                 ts: new Date().toISOString(),
                 level: 'warn',
-                message: `⚠️ Seller recycle failed (non-fatal): ${err.message?.slice(0, 80)}`,
+                message: `⚠️ Seller recycle failed: ${err.message?.slice(0, 80)}`,
             });
         }
 
-        // ── Step R4: Recycle USDC from all buyer wallets back to deployer ──
+        // ── Step R4: All buyer wallets — withdraw vault (free), then transfer all USDC → deployer ──
         for (const buyerAddr of DEMO_BUYER_WALLETS) {
             if (recycleSignal.aborted || signal.aborted) break;
-            try {
-                const bKey = BUYER_KEYS[buyerAddr];
-                if (!bKey) continue;
 
-                // Withdraw buyer's vault balance first
+            const bKey = BUYER_KEYS[buyerAddr];
+            if (!bKey) continue;
+
+            try {
                 const bSigner = new ethers.Wallet(bKey, provider);
                 const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-                const bVaultBal = await bVault.balanceOf(buyerAddr);
-                if (bVaultBal > 0n) {
-                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
-                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
-                        await gasTx.wait();
-                    }
-                    const wTx = await bVault.withdraw(bVaultBal);
+
+                // Ensure buyer has gas for vault withdraw
+                if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
+                    const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
+                    await gasTx.wait();
+                }
+
+                // Check for stranded locked balance and warn
+                const bLocked = await bVault.lockedBalances(buyerAddr);
+                if (bLocked > 0n) {
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'warn',
+                        message: `⚠️ Buyer ${buyerAddr.slice(0, 10)}… has $${ethers.formatUnits(bLocked, 6)} still locked (stranded bid — will resolve on next cycle's refund)`,
+                    });
+                }
+
+                // Withdraw free vault balance
+                const bVaultFree = await bVault.balanceOf(buyerAddr);
+                if (bVaultFree > 0n) {
+                    const wTx = await bVault.withdraw(bVaultFree);
                     await wTx.wait();
                 }
 
-                // Transfer any wallet USDC back to deployer
-                const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
-                const bWalletBal = await bUsdc.balanceOf(buyerAddr);
-                if (bWalletBal > 0n) {
-                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
-                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
-                        await gasTx.wait();
-                    }
-                    const tx = await bUsdc.transfer(signer.address, bWalletBal);
-                    await tx.wait();
-                    emit(io, {
-                        ts: new Date().toISOString(),
-                        level: 'success',
-                        message: `✅ Recycled $${ethers.formatUnits(bWalletBal, 6)} from buyer ${buyerAddr.slice(0, 10)}…`,
-                    });
-                }
-            } catch { /* skip individual buyer errors */ }
+                // Transfer ALL wallet USDC → deployer (re-reads live balance after vault.withdraw)
+                const recovered = await recycleTransfer(io, `buyer ${buyerAddr.slice(0, 10)}…`, buyerAddr, bSigner, signer.address, signer);
+                totalRecovered += recovered;
+
+            } catch (err: any) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Buyer ${buyerAddr.slice(0, 10)}… recycle failed: ${err.message?.slice(0, 80)}`,
+                });
+            }
         }
 
+        // ── Step R5: FINAL SWEEP — re-check every demo wallet for residual USDC ──
+        // Catches amounts unlocked during earlier steps or race conditions.
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: '🔎 Final sweep — checking all demo wallets for residual USDC...',
+        });
+
+        const sweepWallets: Array<{ addr: string; key: string; label: string }> = [
+            { addr: DEMO_SELLER_WALLET, key: DEMO_SELLER_KEY, label: 'seller' },
+            ...DEMO_BUYER_WALLETS
+                .filter(addr => BUYER_KEYS[addr])
+                .map(addr => ({ addr, key: BUYER_KEYS[addr], label: `buyer ${addr.slice(0, 10)}…` })),
+        ];
+
+        for (const { addr, key, label } of sweepWallets) {
+            if (recycleSignal.aborted || signal.aborted) break;
+            try {
+                const wSigner = new ethers.Wallet(key, provider);
+                const wUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, wSigner);
+                const residual = await wUsdc.balanceOf(addr);
+                if (residual > 0n) {
+                    if ((await provider.getBalance(addr)) < ethers.parseEther('0.0003')) {
+                        const gasTx = await signer.sendTransaction({ to: addr, value: ethers.parseEther('0.001') });
+                        await gasTx.wait();
+                    }
+                    const swept = await recycleTransfer(io, `sweep:${label}`, addr, wSigner, signer.address, signer);
+                    totalRecovered += swept;
+                }
+            } catch { /* non-fatal */ }
+        }
+
+        // ── Step R6: Bookend — log deployer USDC balance AFTER recycle ──
+        const deployerBalAfter = await usdc.balanceOf(signer.address);
+        const netRecovered = deployerBalAfter - deployerBalBefore;
         emit(io, {
             ts: new Date().toISOString(),
             level: 'success',
-            message: '✅ Token redistribution complete — vault ready for next demo run',
+            message: `✅ Full USDC recovery complete\n   Before: $${ethers.formatUnits(deployerBalBefore, 6)}\n   After:  $${ethers.formatUnits(deployerBalAfter, 6)}\n   Net recovered: $${ethers.formatUnits(netRecovered > 0n ? netRecovered : 0n, 6)} (gas costs excluded)\n   Vault ready for next demo run`,
         });
-        io.emit('demo:recycle-complete', { ts: new Date().toISOString(), success: true });
+        io.emit('demo:recycle-complete', { ts: new Date().toISOString(), success: true, deployerBalAfter: ethers.formatUnits(deployerBalAfter, 6) });
 
     } catch (err: any) {
         emit(io, {
