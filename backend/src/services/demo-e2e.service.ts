@@ -535,7 +535,7 @@ export async function runFullDemo(
         });
 
         // ── Step 1: Auto-deposit if needed ──
-        const requiredUsdc = cycles * 3 * 15; // worst case: 3 bids × $15 per cycle
+        const requiredUsdc = cycles * 3 * 20; // budget: 3 bids × $20 per cycle
         if (deployerUsdc < requiredUsdc) {
             const depositAmount = Math.max(50, requiredUsdc - Math.floor(deployerUsdc));
             const depositUnits = ethers.parseUnits(String(depositAmount), 6);
@@ -574,9 +574,27 @@ export async function runFullDemo(
             if (signal.aborted) throw new Error('Demo aborted');
 
             const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
-            const bidAmount = rand(10, 30); // $10–$30 per bid
-            const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
             const buyerWallet = DEMO_BUYER_WALLETS[(cycle - 1) % DEMO_BUYER_WALLETS.length];
+
+            // ── Pre-cycle vault balance check — cap bid to available ──
+            let bidAmount = rand(5, 15); // $5–$15 per bid
+            try {
+                const vaultBal = await vault.balanceOf(signer.address);
+                const availableUsdc = Number(vaultBal) / 1e6;
+                const maxPerBid = Math.floor(availableUsdc / 3); // 3 bids per cycle
+                if (maxPerBid < 5) {
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'warn',
+                        message: `⚠️ Vault balance too low ($${availableUsdc.toFixed(2)}). Skipping cycle ${cycle}.`,
+                        cycle,
+                        totalCycles: cycles,
+                    });
+                    continue;
+                }
+                bidAmount = Math.min(bidAmount, maxPerBid);
+            } catch { /* proceed with default bid amount */ }
+            const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
 
             emit(io, {
                 ts: new Date().toISOString(),
