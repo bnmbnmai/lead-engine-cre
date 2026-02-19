@@ -393,6 +393,39 @@ function emit(io: SocketServer, entry: DemoLogEntry) {
     });
 }
 
+/**
+ * emitStatus — broadcast global demo state to ALL connected sockets.
+ *
+ * Received by useDemoStatus (frontend) to disable/enable the Run Demo
+ * button and show live cycle progress for every viewer regardless of
+ * persona or auth state.
+ *
+ * Shape mirrors the GET /full-e2e/status response so the frontend can
+ * use either the HTTP poll (on mount) or the socket event (real-time).
+ */
+function emitStatus(
+    io: SocketServer,
+    payload: {
+        running: boolean;
+        recycling?: boolean;
+        currentCycle?: number;
+        totalCycles?: number;
+        percent?: number;
+        phase?: string;
+        runId?: string;
+    },
+) {
+    io.emit('demo:status', {
+        ...payload,
+        recycling: payload.recycling ?? false,
+        currentCycle: payload.currentCycle ?? 0,
+        totalCycles: payload.totalCycles ?? 0,
+        percent: payload.percent ?? 0,
+        phase: payload.phase ?? (payload.running ? 'running' : 'idle'),
+        ts: new Date().toISOString(),
+    });
+}
+
 // ── Transaction Helper (with retry) ────────────────
 
 async function sendTx(
@@ -781,6 +814,9 @@ export async function runFullDemo(
     isRunning = true;
     currentAbort = new AbortController();
     const signal = currentAbort.signal;
+
+    // Notify ALL connected viewers the demo has started
+    emitStatus(io, { running: true, totalCycles: cycles, currentCycle: 0, percent: 0, phase: 'starting', runId });
 
     try {
         // ── Validate chain ──
@@ -1234,6 +1270,9 @@ export async function runFullDemo(
             message: '🎉 Demo showcase complete! Preparing next run — token redistribution starting in background...',
         });
 
+        // Broadcast global status (running=false) before demo:complete so button re-enables
+        emitStatus(io, { running: false, phase: 'idle', totalCycles: cycles, currentCycle: cycles, percent: 100, runId });
+
         // Emit completion event FIRST so frontend navigates immediately
         io.emit('demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
 
@@ -1266,6 +1305,10 @@ export async function runFullDemo(
         };
 
         await saveResultsToDB(result);
+
+        // Broadcast global status (running=false) before demo:complete
+        emitStatus(io, { running: false, phase: 'idle', totalCycles: cycleResults.length, currentCycle: cycleResults.length, percent: 100, runId });
+
         io.emit('demo:complete', {
             runId,
             status: result.status,
@@ -1284,6 +1327,8 @@ export async function runFullDemo(
     } finally {
         isRunning = false;
         currentAbort = null;
+        // Safety net — emit idle in case the above emitStatus calls were skipped
+        emitStatus(io, { running: false, phase: 'idle' });
     }
 }
 

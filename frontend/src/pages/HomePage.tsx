@@ -28,6 +28,7 @@ import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import ConnectButton from '@/components/wallet/ConnectButton';
 import { useDemo } from '@/hooks/useDemo';
+import { useDemoStatus } from '@/hooks/useDemoStatus';
 
 const COUNTRIES = [
     { code: 'ALL', label: 'All Countries' },
@@ -1183,8 +1184,29 @@ export function HomePage() {
 // ── Demo Button Banner ──────────────────────────
 function DemoButtonBanner() {
     const { isRunning, isComplete, startDemo, stopDemo, progress, completedRunId } = useDemo();
+    const { isRunning: isGlobalRunning, isRecycling, currentCycle, totalCycles, percent } = useDemoStatus();
     const [selectedCycles, setSelectedCycles] = useState(5);
     const navigate = useNavigate();
+
+    // The button is blocked when the global server-state says a demo is active,
+    // regardless of which persona/viewer triggered it.
+    const demoBlocked = isGlobalRunning || isRecycling;
+
+    // Display text: prefer local progress (rich, per-log) if this tab started it;
+    // fall back to global summary for observers.
+    const statusText = isRunning
+        ? progress.phase === 'seeding'
+            ? '📦 Seeding marketplace with leads...'
+            : `🔄 Cycle ${progress.currentCycle} of ${progress.totalCycles} • ${progress.percent}% complete`
+        : isGlobalRunning
+            ? totalCycles > 0
+                ? `🔄 Demo in progress — Cycle ${currentCycle} of ${totalCycles} (${percent}%)`
+                : '🔄 Demo in progress — watch the Dev Log (Ctrl+Shift+L)'
+            : isRecycling
+                ? '♻️ Recycling tokens for next run (~30s)...'
+                : isComplete
+                    ? '✅ Demo complete — View the results summary'
+                    : 'Seed leads → lock bids → settle → refund → PoR verify';
 
     return (
         <section className="relative z-10">
@@ -1202,14 +1224,7 @@ function DemoButtonBanner() {
                                 One-Click On-Chain Demo
                             </p>
                             <p className="text-xs text-muted-foreground">
-                                {isRunning
-                                    ? progress.phase === 'seeding'
-                                        ? '📦 Seeding marketplace with leads...'
-                                        : `🔄 Cycle ${progress.currentCycle} of ${progress.totalCycles} • ${progress.percent}% complete`
-                                    : isComplete
-                                        ? '✅ Demo complete — View the results summary'
-                                        : 'Seed leads → lock bids → settle → refund → PoR verify'
-                                }
+                                {statusText}
                             </p>
                         </div>
                     </div>
@@ -1222,6 +1237,16 @@ function DemoButtonBanner() {
                             >
                                 <Square className="h-4 w-4" />
                                 Stop Demo
+                            </button>
+                        ) : demoBlocked ? (
+                            // Another viewer started the demo — show disabled state for all
+                            <button
+                                disabled
+                                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-muted text-muted-foreground text-sm font-medium cursor-not-allowed opacity-60 border border-border"
+                                title={isRecycling ? 'Recycling tokens — please wait ~30s' : 'A demo is already running'}
+                            >
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                {isRecycling ? 'Recycling...' : 'Demo Running...'}
                             </button>
                         ) : isComplete && completedRunId ? (
                             <>
@@ -1285,7 +1310,7 @@ function DemoButtonBanner() {
                     </div>
                 )}
             </div>
-        </section>
+        </section >
     );
 }
 
