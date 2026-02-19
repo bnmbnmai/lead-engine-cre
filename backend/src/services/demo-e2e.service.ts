@@ -653,13 +653,17 @@ export async function runFullDemo(
         }
 
         // ── Refresh vault balance after deposit so cycle loop sees updated state ──
-        contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
-        obligations = await vault.totalObligations();
+        // Wait for Base Sepolia RPC to propagate the deposit state
+        await sleep(800);
+        // Force fresh read from latest block
+        const latestBlock = await provider.getBlockNumber();
+        contractUsdc = await usdc.balanceOf(VAULT_ADDRESS, { blockTag: latestBlock });
+        obligations = await vault.totalObligations({ blockTag: latestBlock });
         availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
         emit(io, {
             ts: new Date().toISOString(),
             level: 'info',
-            message: `📊 Post-deposit vault balance: $${availableInVault.toFixed(2)} USDC available (contract: $${(Number(contractUsdc) / 1e6).toFixed(2)}, obligations: $${(Number(obligations) / 1e6).toFixed(2)})`,
+            message: `📊 Post-deposit vault balance (block ${latestBlock}): $${availableInVault.toFixed(2)} USDC available (contract: $${(Number(contractUsdc) / 1e6).toFixed(2)}, obligations: $${(Number(obligations) / 1e6).toFixed(2)})`,
         });
 
         // ── Step 2: Start staggered lead drip (runs in background) ──
