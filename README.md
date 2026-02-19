@@ -13,13 +13,9 @@
 
 ## Overview
 
-Lead Engine CRE revolutionizes lead generation: Sellers submit via AI-optimized CRO landers; Chainlink CRE zk-scores quality (0–10k); ACE auto-KYC gates access; buyers pre-fund on-chain vaults, bid sealed with MCP agents; 60s auctions settle in USDC with VRF ties and auto-refunds. Undercuts legacy platforms (5–7% fees vs 10–30%) with instant, verifiable payouts—driving explosive network effects. **Backend sponsors gas** for all vault operations so buyers never need ETH.
+Lead Engine CRE revolutionizes lead generation: Sellers submit via customizable CRO landers; Chainlink CRE zk-scores quality (0–10k); ACE auto-KYC gates access; buyers pre-fund on-chain vaults, bid sealed with MCP agents; 60s auctions settle in USDC with VRF ties and auto-refunds. Undercuts legacy platforms (5–7% fees vs 10–30%) with instant, verifiable payouts—driving explosive network effects. **Backend sponsors gas** for all vault operations so buyers never need ETH.
 
 > **Judges:** Dive into our [live demo](https://lead-engine-cre-frontend.vercel.app) for seeded leads, vault funding, autobids, and PoR checks. See how we flip industry pain with Chainlink depth.
-
-### Recent Updates
-
-- **Feb 18, 2026:** On-chain `PersonalEscrowVault.sol` with Chainlink PoR for verifiable reserves and Automation for auto-refunds/expirations. Pricing refined to 5% settlement cut + $1/action.
 
 ---
 
@@ -39,6 +35,10 @@ Lead Engine CRE revolutionizes lead generation: Sellers submit via AI-optimized 
 ---
 
 ## Architecture
+
+### Recent Updates
+
+- **Feb 18, 2026:** On-chain Vaults with PoR and Automation
 
 Seller submits → CRE/ACE verify → Vault lock → Sealed bid/settle → Release/refund. Backend sponsors gas; on-chain core ensures trust.
 
