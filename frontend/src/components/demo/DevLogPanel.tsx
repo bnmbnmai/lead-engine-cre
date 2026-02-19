@@ -139,14 +139,25 @@ export function DevLogPanel() {
     const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
     const [copiedAll, setCopiedAll] = useState(false);
     const [demoComplete, setDemoComplete] = useState(false);
+    const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         // Ensure the socket is connected — critical for Guest persona who never
         // goes through useDemo (which normally calls connect). With the backend
         // now accepting no-auth connections as 'GUEST', this is safe for all users.
-        socketClient.connect();
+        const sock = socketClient.connect();
 
+        // Track connection status for the status dot
+        const onConnect = () => setSocketStatus('connected');
+        const onDisconnect = () => setSocketStatus('disconnected');
+        const onConnectError = () => setSocketStatus('disconnected');
+        sock.on('connect', onConnect);
+        sock.on('disconnect', onDisconnect);
+        sock.on('connect_error', onConnectError);
+        if (sock.connected) setSocketStatus('connected');
+
+        // ace:dev-log events from Chainlink services (ACE, CRE, Data Feeds, VRF, Functions)
         const handler = (data: DevLogEntry) => {
             setEntries(prev => {
                 const next = [...prev, data];
@@ -155,16 +166,21 @@ export function DevLogPanel() {
         };
         socketClient.on('ace:dev-log', handler);
 
-        // Also listen for demo:log events and convert to DevLogEntry format
+        // demo:log events — the message IS the log line; render it as the primary text.
+        // Previously action=demo:level caused "demo:info" to show as the bold label
+        // and "message=🔒 Bidder 1/3..." to appear tiny beside it. Fixed below:
+        // action is now used as badge category (demo:log) and the message field is injected
+        // as a top-level key so renderValue shows it as the main content.
         const demoHandler = (data: any) => {
+            const level = data.level || 'info';
             const entry: DevLogEntry = {
                 ts: data.ts || new Date().toISOString(),
-                action: `demo:${data.level || 'info'}`,
-                message: data.message,
-                ...(data.txHash ? { txHash: data.txHash } : {}),
-                ...(data.basescanLink ? { basescanLink: data.basescanLink } : {}),
-                ...(data.cycle != null ? { cycle: data.cycle, totalCycles: data.totalCycles } : {}),
-                ...(data.data || {}),
+                // Use level as category for color-coding but show message prominently
+                action: `demo:${level}`,
+                // Put message as the first extra field so it renders front-and-center
+                ...(data.message ? { ' ': data.message } : {}),
+                ...(data.txHash ? { tx: data.txHash } : {}),
+                ...(data.cycle != null ? { cyc: `${data.cycle}/${data.totalCycles}` } : {}),
             };
             setEntries(prev => {
                 const next = [...prev, entry];
@@ -176,12 +192,10 @@ export function DevLogPanel() {
         // Listen for demo:complete to show "View Summary" button
         const completeHandler = (data: any) => {
             setDemoComplete(true);
-
-            // Add a completion entry to the log
             const completionEntry: DevLogEntry = {
                 ts: new Date().toISOString(),
                 action: data.status === 'completed' ? 'demo:success' : 'demo:error',
-                message: data.status === 'completed'
+                ' ': data.status === 'completed'
                     ? `✅ Demo Complete — ${data.totalCycles} cycles, $${data.totalSettled} settled`
                     : `❌ Demo ${data.status}: ${data.error || 'Unknown error'}`,
             };
@@ -190,6 +204,9 @@ export function DevLogPanel() {
         socketClient.on('demo:complete', completeHandler);
 
         return () => {
+            sock.off('connect', onConnect);
+            sock.off('disconnect', onDisconnect);
+            sock.off('connect_error', onConnectError);
             socketClient.off('ace:dev-log', handler);
             socketClient.off('demo:log', demoHandler);
             socketClient.off('demo:complete', completeHandler);
@@ -300,6 +317,15 @@ export function DevLogPanel() {
                 <span style={{ color: '#c4b5fd', fontWeight: 700, fontSize: '13px', flex: 1 }}>
                     Chainlink Services Dev Log
                 </span>
+                {/* Socket connection status dot */}
+                <span
+                    title={socketStatus === 'connected' ? 'Socket connected' : socketStatus === 'connecting' ? 'Connecting…' : 'Socket disconnected — events may not stream'}
+                    style={{
+                        width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
+                        background: socketStatus === 'connected' ? '#22c55e' : socketStatus === 'connecting' ? '#f59e0b' : '#ef4444',
+                        boxShadow: socketStatus === 'connected' ? '0 0 4px #22c55e' : 'none',
+                    }}
+                />
                 <span style={{
                     color: '#4a4560',
                     fontSize: '10px',
@@ -393,15 +419,24 @@ export function DevLogPanel() {
                                         {badge.label}
                                     </span>
                                 )}
-                                <span style={{ color: getActionColor(entry.action), fontWeight: 600, fontSize: '12px' }}>
-                                    {entry.action}
-                                </span>
+                                {/* For demo:log entries, the ' ' key holds the message — render it
+                                    as the primary text instead of showing 'demo:info' as the label */}
+                                {entry[' '] ? (
+                                    <span style={{ color: getActionColor(entry.action), fontSize: '12px', whiteSpace: 'pre-wrap' }}>
+                                        {String(entry[' '])}
+                                    </span>
+                                ) : (
+                                    <span style={{ color: getActionColor(entry.action), fontWeight: 600, fontSize: '12px' }}>
+                                        {entry.action}
+                                    </span>
+                                )}
                                 {Object.entries(entry)
-                                    .filter(([k]) => k !== 'ts' && k !== 'action')
+                                    .filter(([k]) => k !== 'ts' && k !== 'action' && k !== ' ')
                                     .map(([k, v]) => (
                                         <span key={k} style={{ marginLeft: '8px', fontSize: '11px' }}>
                                             <span style={{ color: '#4a4560' }}>{k}=</span>
                                             {renderValue(k, v)}
+
                                         </span>
                                     ))}
                             </div>
