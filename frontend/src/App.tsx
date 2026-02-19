@@ -124,6 +124,7 @@ function App() {
 
 
                                 {/* Demo Results */}
+                                <Route path="/demo/results" element={<DemoResults />} />
                                 <Route path="/demo/results/:runId" element={<DemoResults />} />
 
                                 {/* Fallback */}

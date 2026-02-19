@@ -349,13 +349,21 @@ class RTBSocketServer {
                             data: { bidCount: { increment: 1 } },
                         });
 
-                        // Broadcast to room
+                        // Broadcast to auction room members
                         const roomId = `auction_${data.leadId}`;
                         this.io.to(roomId).emit('bid:new', {
                             leadId: data.leadId,
                             bidCount: (lead.auctionRoom.bidCount || 0) + 1,
                             isHolderBid: perks.isHolder,
                             timestamp: new Date(),
+                        });
+
+                        // Global broadcast so marketplace cards update bid counts
+                        this.io.emit('marketplace:bid:update', {
+                            leadId: data.leadId,
+                            bidCount: (lead.auctionRoom.bidCount || 0) + 1,
+                            highestBid: effectiveBid ?? bidAmount ?? null,
+                            timestamp: new Date().toISOString(),
                         });
                     }
 

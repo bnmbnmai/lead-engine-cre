@@ -1627,6 +1627,23 @@ router.post('/full-e2e/stop', async (_req: Request, res: Response) => {
 });
 
 // ============================================
+// GET /full-e2e/results/latest — Get latest demo results
+// ============================================
+
+router.get('/full-e2e/results/latest', async (_req: Request, res: Response) => {
+    const result = demoE2E.getLatestResult();
+    if (!result) {
+        if (demoE2E.isDemoRunning()) {
+            res.json({ status: 'running', message: 'Demo is still in progress' });
+            return;
+        }
+        res.status(404).json({ error: 'No demo results available yet' });
+        return;
+    }
+    res.json(result);
+});
+
+// ============================================
 // GET /full-e2e/results/:runId — Get demo results
 // ============================================
 

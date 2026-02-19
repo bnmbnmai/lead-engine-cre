@@ -29,13 +29,18 @@ const BASE_SEPOLIA_CHAIN_ID = 84532;
 const MAX_CYCLES = 12;
 const BASESCAN_BASE = 'https://sepolia.basescan.org/tx/';
 
-// Demo buyer wallets (faucet wallets 1-5 — all have USDC in vault)
+// Demo buyer wallets (10 faucet wallets for busier auctions)
 const DEMO_BUYER_WALLETS = [
     '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9',
     '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC',
     '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
     '0x424CaC929939377f221348af52d4cb1247fE4379',
     '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d',
+    '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE',
+    '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C',
+    '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf',
+    '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad',
+    '0x089B6Bdb4824628c5535acF60aBF80683452e862',
 ];
 
 // Demo seller wallet (faucet wallet 6)
@@ -326,6 +331,111 @@ async function sendTx(
     throw new Error(`${label} failed after ${retries} attempts`);
 }
 
+// ── Seed Marketplace Upfront ──────────────────────
+
+/** Create 12-15 leads upfront so the marketplace looks populated immediately */
+async function seedLeadsUpfront(
+    io: SocketServer,
+    cycles: number,
+    signal: AbortSignal,
+): Promise<void> {
+    const SEED_COUNT = Math.max(12, cycles + 7); // at least 12, more if cycles > 5
+    const capped = Math.min(SEED_COUNT, 15);
+
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: 'step',
+        message: `📦 Seeding marketplace with ${capped} leads...`,
+    });
+
+    const sellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
+
+    for (let i = 0; i < capped; i++) {
+        if (signal.aborted) throw new Error('Demo aborted');
+
+        const vertical = DEMO_VERTICALS[i % DEMO_VERTICALS.length];
+        const geo = GEOS[i % GEOS.length];
+        const reservePrice = rand(12, 45);
+        const params = buildDemoParams(vertical);
+        const paramCount = Object.keys(params).filter(k => params[k] != null && params[k] !== '').length;
+        const scoreInput: LeadScoringInput = {
+            tcpaConsentAt: new Date(),
+            geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` },
+            hasEncryptedData: false,
+            encryptedDataValid: false,
+            parameterCount: paramCount,
+            source: 'PLATFORM',
+            zipMatchesState: false,
+        };
+        const qualityScore = computeCREQualityScore(scoreInput);
+
+        try {
+            const lead = await prisma.lead.create({
+                data: {
+                    sellerId,
+                    vertical,
+                    geo: { country: geo.country, state: geo.state, city: geo.city } as any,
+                    source: 'DEMO',
+                    status: 'IN_AUCTION',
+                    reservePrice,
+                    isVerified: true,
+                    qualityScore,
+                    tcpaConsentAt: new Date(),
+                    auctionStartAt: new Date(),
+                    auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                    parameters: params as any,
+                },
+            });
+
+            await prisma.auctionRoom.create({
+                data: {
+                    leadId: lead.id,
+                    roomId: `auction_${lead.id}`,
+                    phase: 'BIDDING',
+                    biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                    revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+                },
+            });
+
+            io.emit('marketplace:lead:new', {
+                lead: {
+                    id: lead.id,
+                    vertical,
+                    status: 'IN_AUCTION',
+                    reservePrice,
+                    geo: { country: geo.country, state: geo.state },
+                    isVerified: true,
+                    sellerId,
+                    auctionStartAt: lead.auctionStartAt?.toISOString(),
+                    auctionEndAt: lead.auctionEndAt?.toISOString(),
+                    parameters: params,
+                    qualityScore: qualityScore != null ? Math.floor(qualityScore / 100) : null,
+                    _count: { bids: 0 },
+                },
+            });
+
+            // Stagger emissions slightly so frontend doesn't miss events
+            await sleep(100);
+        } catch (err: any) {
+            // Non-fatal — continue seeding
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Seed lead #${i + 1} failed: ${err.message?.slice(0, 80)}`,
+            });
+        }
+    }
+
+    // Final refresh to ensure marketplace state is in sync
+    io.emit('marketplace:refreshAll');
+
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: 'success',
+        message: `✅ Marketplace seeded with ${capped} leads across ${DEMO_VERTICALS.length} verticals`,
+    });
+}
+
 // ── Main Orchestrator ──────────────────────────────
 
 export async function runFullDemo(
@@ -418,6 +528,10 @@ export async function runFullDemo(
                 });
             }
         }
+
+        // ── Step 2: Seed marketplace with 12-15 leads upfront ──
+        if (signal.aborted) throw new Error('Demo aborted');
+        await seedLeadsUpfront(io, cycles, signal);
 
         // ── Auction Cycles ──
         for (let cycle = 1; cycle <= cycles; cycle++) {
@@ -556,6 +670,16 @@ export async function runFullDemo(
                             lockIds.push(Number(parsed.args[0]));
                         }
                     } catch { /* skip other events */ }
+                }
+
+                // Emit marketplace:bid:update so bid counts tick up live on cards
+                if (demoLeadId) {
+                    io.emit('marketplace:bid:update', {
+                        leadId: demoLeadId,
+                        bidCount: b + 1,
+                        highestBid: bidAmount,
+                        timestamp: new Date().toISOString(),
+                    });
                 }
 
                 await sleep(500); // Brief pause between txs
@@ -770,4 +894,9 @@ export function getAllResults(): DemoResult[] {
     return Array.from(resultsStore.values()).sort(
         (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
+}
+
+export function getLatestResult(): DemoResult | undefined {
+    const all = getAllResults();
+    return all.length > 0 ? all[0] : undefined;
 }

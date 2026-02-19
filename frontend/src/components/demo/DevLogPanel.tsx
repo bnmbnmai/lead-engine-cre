@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Terminal, X, Trash2, Copy, Check, ExternalLink, ClipboardList } from 'lucide-react';
+import { Terminal, X, Trash2, Copy, Check, ExternalLink, ClipboardList, BarChart3 } from 'lucide-react';
 import socketClient from '@/lib/socket';
 
 interface DevLogEntry {
@@ -135,6 +135,7 @@ export function DevLogPanel() {
     const [entries, setEntries] = useState<DevLogEntry[]>([]);
     const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
     const [copiedAll, setCopiedAll] = useState(false);
+    const [demoComplete, setDemoComplete] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -164,9 +165,26 @@ export function DevLogPanel() {
         };
         socketClient.on('demo:log', demoHandler);
 
+        // Listen for demo:complete to show "View Summary" button
+        const completeHandler = (data: any) => {
+            setDemoComplete(true);
+
+            // Add a completion entry to the log
+            const completionEntry: DevLogEntry = {
+                ts: new Date().toISOString(),
+                action: data.status === 'completed' ? 'demo:success' : 'demo:error',
+                message: data.status === 'completed'
+                    ? `✅ Demo Complete — ${data.totalCycles} cycles, $${data.totalSettled} settled`
+                    : `❌ Demo ${data.status}: ${data.error || 'Unknown error'}`,
+            };
+            setEntries(prev => [...prev, completionEntry]);
+        };
+        socketClient.on('demo:complete', completeHandler);
+
         return () => {
             socketClient.off('ace:dev-log', handler);
             socketClient.off('demo:log', demoHandler);
+            socketClient.off('demo:complete', completeHandler);
         };
     }, []);
 
@@ -289,7 +307,7 @@ export function DevLogPanel() {
                     {copiedAll ? <Check size={13} /> : <ClipboardList size={13} />}
                 </button>
                 <button
-                    onClick={() => setEntries([])}
+                    onClick={() => { setEntries([]); setDemoComplete(false); }}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
                         color: '#4a4560', padding: '2px',
@@ -316,7 +334,7 @@ export function DevLogPanel() {
                 style={{
                     overflowY: 'auto',
                     flex: 1,
-                    maxHeight: '660px',
+                    maxHeight: demoComplete ? '590px' : '660px',
                     padding: '4px 0',
                 }}
             >
@@ -389,6 +407,48 @@ export function DevLogPanel() {
                     );
                 })}
             </div>
+
+            {/* Demo Complete — View Summary Link */}
+            {demoComplete && (
+                <div
+                    style={{
+                        borderTop: '1px solid #1e1b2e',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(59, 130, 246, 0.08))',
+                        flexShrink: 0,
+                    }}
+                >
+                    <span style={{ fontSize: '16px' }}>🎉</span>
+                    <span style={{ color: '#22c55e', fontWeight: 700, fontSize: '13px', flex: 1 }}>
+                        Demo Complete!
+                    </span>
+                    <a
+                        href="/demo/results"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 14px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            textDecoration: 'none',
+                            transition: 'all 0.15s',
+                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+                    >
+                        <BarChart3 size={14} />
+                        View Summary →
+                    </a>
+                </div>
+            )}
         </div>
     );
 }

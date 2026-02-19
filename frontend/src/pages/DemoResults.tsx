@@ -1,17 +1,28 @@
 /**
  * DemoResults — Full On-Chain Demo Results Page
  *
- * Displays cycle-by-cycle results with transaction links,
- * PoR status, and summary statistics.
+ * Shows the latest demo run by default.
+ * Route: /demo/results (latest) or /demo/results/:runId (specific run)
  *
- * Route: /demo/results/:runId
+ * Features:
+ * - "Latest Demo Run" header with timestamp
+ * - Summary stats cards (cycles, settled, gas, PoR)
+ * - Cycle-by-cycle results table with Basescan links
+ * - "Download Raw Log" button
+ * - "Run Again" button
+ * - History tabs for last 5 runs
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ExternalLink, ArrowLeft, Download, RotateCcw, CheckCircle2, XCircle, Loader2, Fuel, DollarSign, Activity } from 'lucide-react';
+import {
+    ExternalLink, ArrowLeft, Download, RotateCcw,
+    CheckCircle2, XCircle, Loader2, Fuel, DollarSign,
+    Activity, Rocket, Clock, History
+} from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import api from '@/lib/api';
+import { useDemo } from '@/hooks/useDemo';
 
 const BASESCAN_TX = 'https://sepolia.basescan.org/tx/';
 
@@ -40,35 +51,71 @@ interface DemoResult {
     error?: string;
 }
 
+interface RunSummary {
+    runId: string;
+    status: string;
+    startedAt: string;
+    completedAt?: string;
+    totalCycles: number;
+    totalSettled: number;
+}
+
 export default function DemoResults() {
-    const { runId } = useParams<{ runId: string }>();
+    const { runId: paramRunId } = useParams<{ runId: string }>();
     const navigate = useNavigate();
+    const { startDemo } = useDemo();
     const [result, setResult] = useState<DemoResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [history, setHistory] = useState<RunSummary[]>([]);
+    const [showConfetti, setShowConfetti] = useState(false);
 
-    useEffect(() => {
-        if (!runId) return;
+    const fetchResults = useCallback(async (specificRunId?: string) => {
+        setLoading(true);
+        setError(null);
 
-        const fetchResults = async () => {
-            try {
-                const { data, error: apiError } = await api.demoFullE2EResults(runId);
-                if (apiError) {
-                    setError(String(apiError));
-                } else if (data?.status === 'running') {
-                    setError('Demo is still running. Results will appear when complete.');
-                } else {
-                    setResult(data);
-                }
-            } catch (err: any) {
-                setError(err.message || 'Failed to load results');
-            } finally {
-                setLoading(false);
+        try {
+            let res;
+            if (specificRunId) {
+                res = await api.demoFullE2EResults(specificRunId);
+            } else {
+                res = await api.demoFullE2ELatestResults();
             }
-        };
 
-        fetchResults();
-    }, [runId]);
+            const { data, error: apiError } = res;
+
+            if (apiError) {
+                setError(String(apiError));
+            } else if (data?.status === 'running') {
+                setError('Demo is still running. Results will appear when complete.');
+            } else {
+                setResult(data);
+                // Show confetti for completed demos
+                if (data?.status === 'completed') {
+                    setShowConfetti(true);
+                    setTimeout(() => setShowConfetti(false), 4000);
+                }
+            }
+        } catch (err: any) {
+            setError(err.message || 'Failed to load results');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Fetch history
+    useEffect(() => {
+        api.demoFullE2EStatus().then(({ data }) => {
+            if (data?.results) {
+                setHistory(data.results.slice(0, 5));
+            }
+        }).catch(() => { });
+    }, [result]);
+
+    // Initial fetch
+    useEffect(() => {
+        fetchResults(paramRunId);
+    }, [paramRunId, fetchResults]);
 
     const downloadLogs = () => {
         if (!result) return;
@@ -76,9 +123,14 @@ export default function DemoResults() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `demo-results-${runId?.slice(0, 8)}.json`;
+        a.download = `demo-results-${result.runId?.slice(0, 8)}.json`;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const handleRunAgain = async () => {
+        navigate('/');
+        await startDemo(5);
     };
 
     if (loading) {
@@ -100,13 +152,21 @@ export default function DemoResults() {
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <div className="flex flex-col items-center gap-4 text-center">
                         <XCircle className="h-10 w-10 text-red-400" />
-                        <p className="text-muted-foreground">{error || 'Results not found'}</p>
-                        <button
-                            onClick={() => navigate('/')}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
-                        >
-                            <ArrowLeft className="h-4 w-4" /> Back to Marketplace
-                        </button>
+                        <p className="text-muted-foreground">{error || 'No demo results available yet. Run a demo first!'}</p>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => navigate('/')}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
+                            >
+                                <ArrowLeft className="h-4 w-4" /> Back to Marketplace
+                            </button>
+                            <button
+                                onClick={handleRunAgain}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-medium transition"
+                            >
+                                <Rocket className="h-4 w-4" /> Run Demo
+                            </button>
+                        </div>
                     </div>
                 </div>
             </DashboardLayout>
@@ -115,10 +175,20 @@ export default function DemoResults() {
 
     const statusColor = result.status === 'completed' ? 'text-emerald-400' : result.status === 'aborted' ? 'text-amber-400' : 'text-red-400';
     const StatusIcon = result.status === 'completed' ? CheckCircle2 : XCircle;
+    const duration = result.completedAt && result.startedAt
+        ? Math.round((new Date(result.completedAt).getTime() - new Date(result.startedAt).getTime()) / 1000)
+        : null;
 
     return (
         <DashboardLayout>
             <div className="space-y-6 max-w-6xl mx-auto">
+                {/* Confetti overlay */}
+                {showConfetti && (
+                    <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+                        <div className="text-6xl animate-bounce">🎉</div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-3">
@@ -131,10 +201,16 @@ export default function DemoResults() {
                         <div>
                             <h1 className="text-xl font-bold flex items-center gap-2">
                                 <StatusIcon className={`h-5 w-5 ${statusColor}`} />
-                                Demo Results
+                                Latest Demo Run
                             </h1>
-                            <p className="text-sm text-muted-foreground">
-                                Run {runId?.slice(0, 8)}… • {new Date(result.startedAt).toLocaleString()}
+                            <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Clock className="h-3.5 w-3.5" />
+                                {new Date(result.startedAt).toLocaleString()}
+                                {duration != null && (
+                                    <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                                        {Math.floor(duration / 60)}m {duration % 60}s
+                                    </span>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -143,10 +219,10 @@ export default function DemoResults() {
                             onClick={downloadLogs}
                             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
                         >
-                            <Download className="h-3.5 w-3.5" /> Download JSON
+                            <Download className="h-3.5 w-3.5" /> Download Raw Log
                         </button>
                         <button
-                            onClick={() => navigate('/')}
+                            onClick={handleRunAgain}
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-medium transition"
                         >
                             <RotateCcw className="h-3.5 w-3.5" /> Run Again
@@ -155,7 +231,7 @@ export default function DemoResults() {
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="glass rounded-xl p-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                             <Activity className="h-4 w-4 text-blue-400" />
@@ -186,7 +262,39 @@ export default function DemoResults() {
                             {result.cycles.every(c => c.porSolvent) ? 'SOLVENT' : 'ISSUE'}
                         </p>
                     </div>
+                    <div className="glass rounded-xl p-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <Clock className="h-4 w-4 text-violet-400" />
+                            Duration
+                        </div>
+                        <p className="text-2xl font-bold text-violet-400">
+                            {duration != null ? `${Math.floor(duration / 60)}m ${duration % 60}s` : '—'}
+                        </p>
+                    </div>
                 </div>
+
+                {/* History Tabs (if more than 1 run) */}
+                {history.length > 1 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        <History className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-xs text-muted-foreground flex-shrink-0">History:</span>
+                        {history.map((run, idx) => (
+                            <button
+                                key={run.runId}
+                                onClick={() => fetchResults(run.runId)}
+                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${result.runId === run.runId
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                                    }`}
+                            >
+                                {idx === 0 ? 'Latest' : `Run ${idx + 1}`}
+                                <span className="ml-1 opacity-60">
+                                    ({run.totalCycles}c / ${run.totalSettled})
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* Results Table */}
                 <div className="glass rounded-xl overflow-hidden">

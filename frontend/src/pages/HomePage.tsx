@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2, Rocket, Square } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2, Rocket, Square, RotateCcw } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -1181,7 +1182,9 @@ export function HomePage() {
 
 // ── Demo Button Banner ──────────────────────────
 function DemoButtonBanner() {
-    const { isRunning, startDemo, stopDemo } = useDemo();
+    const { isRunning, isComplete, startDemo, stopDemo, progress, completedRunId } = useDemo();
+    const [selectedCycles, setSelectedCycles] = useState(5);
+    const navigate = useNavigate();
 
     return (
         <section className="relative z-10">
@@ -1200,8 +1203,12 @@ function DemoButtonBanner() {
                             </p>
                             <p className="text-xs text-muted-foreground">
                                 {isRunning
-                                    ? '🔄 Running — watch the Chainlink Dev Log for live progress'
-                                    : 'Run a full on-chain cycle: lock bids → settle → refund → PoR verify'
+                                    ? progress.phase === 'seeding'
+                                        ? '📦 Seeding marketplace with leads...'
+                                        : `🔄 Cycle ${progress.currentCycle} of ${progress.totalCycles} • ${progress.percent}% complete`
+                                    : isComplete
+                                        ? '✅ Demo complete — View the results summary'
+                                        : 'Seed leads → lock bids → settle → refund → PoR verify'
                                 }
                             </p>
                         </div>
@@ -1216,22 +1223,65 @@ function DemoButtonBanner() {
                                 <Square className="h-4 w-4" />
                                 Stop Demo
                             </button>
+                        ) : isComplete && completedRunId ? (
+                            <>
+                                <button
+                                    onClick={() => navigate('/demo/results')}
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-sm font-medium transition border border-emerald-500/20"
+                                >
+                                    📊 View Results
+                                </button>
+                                <button
+                                    onClick={() => startDemo(selectedCycles)}
+                                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
+                                >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    Run Again
+                                </button>
+                            </>
                         ) : (
-                            <button
-                                onClick={() => startDemo(5)}
-                                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:scale-[1.02]"
-                            >
-                                <Rocket className="h-4 w-4" />
-                                🚀 Run Full On-Chain Demo (Testnet)
-                            </button>
+                            <>
+                                {/* Cycle selector */}
+                                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                                    {[5, 8, 12].map(n => (
+                                        <button
+                                            key={n}
+                                            onClick={() => setSelectedCycles(n)}
+                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${selectedCycles === n
+                                                ? 'bg-blue-600 text-white shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                        >
+                                            {n}
+                                        </button>
+                                    ))}
+                                    <span className="text-xs text-muted-foreground px-1">cycles</span>
+                                </div>
+                                <button
+                                    onClick={() => startDemo(selectedCycles)}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:scale-[1.02]"
+                                >
+                                    <Rocket className="h-4 w-4" />
+                                    🚀 Run Full On-Chain Demo (Testnet)
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
 
-                {/* Demo mode banner */}
+                {/* Progress bar + banner */}
                 {isRunning && (
-                    <div className="relative border-t border-blue-500/10 bg-blue-500/5 px-6 py-1.5 text-center text-xs text-blue-400/80">
-                        DEMO MODE — Testnet Only • Funds are recycled • Open the Dev Log (Ctrl+Shift+L) to watch
+                    <div className="relative border-t border-blue-500/10">
+                        {/* Progress bar */}
+                        <div className="h-1 bg-blue-500/5">
+                            <div
+                                className="h-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-1000 ease-out"
+                                style={{ width: `${progress.percent}%` }}
+                            />
+                        </div>
+                        <div className="bg-blue-500/5 px-6 py-1.5 text-center text-xs text-blue-400/80">
+                            DEMO MODE — Testnet Only • Funds are recycled • Open the Dev Log (Ctrl+Shift+L) to watch
+                        </div>
                     </div>
                 )}
             </div>
@@ -1240,3 +1290,4 @@ function DemoButtonBanner() {
 }
 
 export default HomePage;
+

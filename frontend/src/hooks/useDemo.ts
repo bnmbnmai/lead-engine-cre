@@ -2,7 +2,7 @@
  * useDemo — Custom hook for One-Click Full On-Chain Demo
  *
  * Manages: start/stop/status, streaming logs from demo:log,
- * and navigation to results page on demo:complete.
+ * progress tracking, and completion state.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -21,11 +21,20 @@ export interface DemoLogEntry {
     totalCycles?: number;
 }
 
+export interface DemoProgress {
+    currentCycle: number;
+    totalCycles: number;
+    percent: number;
+    phase: string;
+}
+
 export interface UseDemoReturn {
     isRunning: boolean;
+    isComplete: boolean;
     logs: DemoLogEntry[];
     runId: string | null;
     completedRunId: string | null;
+    progress: DemoProgress;
     startDemo: (cycles?: number) => Promise<void>;
     stopDemo: () => Promise<void>;
     clearLogs: () => void;
@@ -33,9 +42,16 @@ export interface UseDemoReturn {
 
 export function useDemo(): UseDemoReturn {
     const [isRunning, setIsRunning] = useState(false);
+    const [isComplete, setIsComplete] = useState(false);
     const [logs, setLogs] = useState<DemoLogEntry[]>([]);
     const [runId, setRunId] = useState<string | null>(null);
     const [completedRunId, setCompletedRunId] = useState<string | null>(null);
+    const [progress, setProgress] = useState<DemoProgress>({
+        currentCycle: 0,
+        totalCycles: 0,
+        percent: 0,
+        phase: 'idle',
+    });
     const logsRef = useRef<DemoLogEntry[]>([]);
 
     // Keep ref in sync for callbacks
@@ -59,6 +75,21 @@ export function useDemo(): UseDemoReturn {
                 // Keep last 500 entries
                 return next.length > 500 ? next.slice(-500) : next;
             });
+
+            // Update progress from cycle data
+            if (data.cycle != null && data.totalCycles != null) {
+                setProgress({
+                    currentCycle: data.cycle,
+                    totalCycles: data.totalCycles,
+                    percent: Math.round((data.cycle / data.totalCycles) * 100),
+                    phase: data.level === 'step' ? 'processing' : 'on-chain',
+                });
+            }
+
+            // Detect seeding phase
+            if (data.message?.includes('Seeding marketplace')) {
+                setProgress(prev => ({ ...prev, phase: 'seeding' }));
+            }
         });
 
         return unsub;
@@ -68,8 +99,14 @@ export function useDemo(): UseDemoReturn {
     useEffect(() => {
         const unsub = socketClient.on('demo:complete', (data: any) => {
             setIsRunning(false);
+            setIsComplete(true);
             setCompletedRunId(data.runId);
             setRunId(data.runId);
+            setProgress(prev => ({
+                ...prev,
+                percent: 100,
+                phase: data.status === 'completed' ? 'done' : data.status,
+            }));
 
             if (data.status === 'completed') {
                 toast({
@@ -110,12 +147,15 @@ export function useDemo(): UseDemoReturn {
         setLogs([]);
         setCompletedRunId(null);
         setIsRunning(true);
+        setIsComplete(false);
+        setProgress({ currentCycle: 0, totalCycles: cycles || 5, percent: 0, phase: 'starting' });
 
         try {
             const { data, error } = await api.demoFullE2EStart(cycles);
             if (error) {
                 toast({ type: 'error', title: 'Failed to start demo', description: String(error) });
                 setIsRunning(false);
+                setProgress(prev => ({ ...prev, phase: 'idle' }));
                 return;
             }
             toast({
@@ -126,6 +166,7 @@ export function useDemo(): UseDemoReturn {
         } catch (err: any) {
             toast({ type: 'error', title: 'Failed to start demo', description: err.message });
             setIsRunning(false);
+            setProgress(prev => ({ ...prev, phase: 'idle' }));
         }
     }, [isRunning]);
 
@@ -141,13 +182,17 @@ export function useDemo(): UseDemoReturn {
     const clearLogs = useCallback(() => {
         setLogs([]);
         setCompletedRunId(null);
+        setIsComplete(false);
+        setProgress({ currentCycle: 0, totalCycles: 0, percent: 0, phase: 'idle' });
     }, []);
 
     return {
         isRunning,
+        isComplete,
         logs,
         runId,
         completedRunId,
+        progress,
         startDemo,
         stopDemo,
         clearLogs,
