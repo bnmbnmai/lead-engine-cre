@@ -1075,6 +1075,24 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
+        // ── Step 0b: Seed 3 leads immediately — marketplace is never empty ──
+        // These appear in the marketplace BEFORE the pre-fund loop starts so judges
+        // see activity from second 1 instead of a blank screen for 5-15 minutes.
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'step',
+            message: `🌱 Seeding 3 initial leads into marketplace — visible immediately while we fund buyer wallets...`,
+        });
+        {
+            const seedSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
+            for (let si = 0; si < 3 && !signal.aborted; si++) {
+                try {
+                    await injectOneLead(io, seedSellerId, si);
+                } catch { /* non-fatal */ }
+                await sleep(200);
+            }
+        }
+
         // BUYER_KEYS is now at function scope (see above) — removed duplicate declaration.
 
         // ── Step 1: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
@@ -1093,10 +1111,15 @@ export async function runFullDemo(
             level: 'info',
             message: `📊 Deployer wallet USDC after recycle: $${ethers.formatUnits(deployerUsdcBal, 6)} | Need: $${ethers.formatUnits(totalNeeded, 6)}`,
         });
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'step',
+            message: `🏦 Funding ${DEMO_BUYER_WALLETS.length} buyer wallets — each step will appear here in real-time...`,
+        });
 
         let buyersFunded = 0;
         for (const buyerAddr of DEMO_BUYER_WALLETS) {
-            if (signal.aborted) throw new Error('Demo aborted');
+            if (signal.aborted) throw new Error('Demo aborted'); // Fix 3: outer abort check
 
             const buyerKey = BUYER_KEYS[buyerAddr];
             if (!buyerKey) continue;
@@ -1108,35 +1131,70 @@ export async function runFullDemo(
                     emit(io, {
                         ts: new Date().toISOString(),
                         level: 'info',
-                        message: `⏭️ Buyer ${buyerAddr.slice(0, 10)}… already has $${ethers.formatUnits(existingBal, 6)} in vault — skipping`,
+                        message: `⏭️ Buyer ${buyerAddr.slice(0, 10)}… already has $${ethers.formatUnits(existingBal, 6)} in vault — skipping (${buyersFunded + 1}/${DEMO_BUYER_WALLETS.length})`,
                     });
                     buyersFunded++;
                     continue;
                 }
 
+                // Fix 3: abort check before gas top-up
+                if (signal.aborted) throw new Error('Demo aborted');
+
                 // Gas top-up for buyer if needed
                 const buyerEth = await provider.getBalance(buyerAddr);
                 if (buyerEth < ethers.parseEther('0.0005')) {
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'info',
+                        message: `⛽ Gas top-up → ${buyerAddr.slice(0, 10)}… (0.001 ETH)`,
+                    });
+                    const nonce = await getNextNonce(); // Fix 4: nonce queue for gas top-up
                     const gasTx = await signer.sendTransaction({
                         to: buyerAddr,
                         value: ethers.parseEther('0.001'),
+                        nonce,
                     });
                     await gasTx.wait();
                 }
 
+                // Fix 3: abort check before USDC transfer
+                if (signal.aborted) throw new Error('Demo aborted');
+
                 // Deployer sends USDC to buyer
-                const transferTx = await usdc.transfer(buyerAddr, preFundUnits);
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `💸 Sending $${PRE_FUND_AMOUNT} USDC → ${buyerAddr.slice(0, 10)}…`,
+                });
+                const nonce2 = await getNextNonce(); // Fix 4: nonce queue for USDC transfer
+                const transferTx = await usdc.transfer(buyerAddr, preFundUnits, { nonce: nonce2 });
                 await transferTx.wait();
+
+                // Fix 3: abort check before approve
+                if (signal.aborted) throw new Error('Demo aborted');
 
                 // Buyer approves vault to spend USDC
                 const buyerSigner = new ethers.Wallet(buyerKey, provider);
                 const buyerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, buyerSigner);
                 const buyerVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, buyerSigner);
 
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `✍️  Approve vault → ${buyerAddr.slice(0, 10)}…`,
+                });
                 const approveTx = await buyerUsdc.approve(VAULT_ADDRESS, preFundUnits);
                 await approveTx.wait();
 
+                // Fix 3: abort check before deposit
+                if (signal.aborted) throw new Error('Demo aborted');
+
                 // Buyer deposits into their own vault
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `🏦 Deposit $${PRE_FUND_AMOUNT} USDC into vault → ${buyerAddr.slice(0, 10)}…`,
+                });
                 const depositTx = await buyerVault.deposit(preFundUnits);
                 await depositTx.wait();
 
@@ -1144,9 +1202,10 @@ export async function runFullDemo(
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'success',
-                    message: `✅ Buyer ${buyerAddr.slice(0, 10)}… funded & deposited $${PRE_FUND_AMOUNT} USDC into vault (${buyersFunded}/${DEMO_BUYER_WALLETS.length})`,
+                    message: `✅ Buyer ${buyerAddr.slice(0, 10)}… ready — $${PRE_FUND_AMOUNT} USDC in vault (${buyersFunded}/${DEMO_BUYER_WALLETS.length} funded)`,
                 });
             } catch (err: any) {
+                if (err.message === 'Demo aborted') throw err; // re-throw abort signals
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'warn',
@@ -1216,9 +1275,12 @@ export async function runFullDemo(
                                 const bSigner = new ethers.Wallet(bKey, provider);
                                 const bUsdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
                                 const bVaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-                                const gasTx = await signer.sendTransaction({ to: bAddr, value: ethers.parseEther('0.001') });
+                                // Fix 4: use nonce queue for all deployer txs in emergency top-up
+                                const eNonce1 = await getNextNonce();
+                                const gasTx = await signer.sendTransaction({ to: bAddr, value: ethers.parseEther('0.001'), nonce: eNonce1 });
                                 await gasTx.wait();
-                                const txfr = await usdc.transfer(bAddr, topUpAmount);
+                                const eNonce2 = await getNextNonce();
+                                const txfr = await usdc.transfer(bAddr, topUpAmount, { nonce: eNonce2 });
                                 await txfr.wait();
                                 const approveTx = await bUsdcContract.approve(VAULT_ADDRESS, topUpAmount);
                                 await approveTx.wait();
