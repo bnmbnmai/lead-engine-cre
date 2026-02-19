@@ -862,7 +862,10 @@ export async function runFullDemo(
         // ── Step 1: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
         // NOTE: Recycling (vault withdraw + USDC return) now happens AFTER demo:complete in the background.
         // This step only runs on-chain txs for buyers that are actually below threshold (optimistic skip).
-        const PRE_FUND_AMOUNT = 300; // $300 USDC per buyer — covers rand(25,75) bids across up to 5 cycles (Phase 2)
+        // ⚠️  SAFE MODE (TEMPORARY) — deployer wallet currently holds ~$1,500 USDC.
+        // $150 × 10 buyers = $1,500 total, matching available balance.
+        // TODO: Revert to $300 once deployer is refunded (run: top-up deployer to $3,000 USDC).
+        const PRE_FUND_AMOUNT = 150; // SAFE MODE: was 300 — covers rand(15,55) bids across ~4 cycles per buyer
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_AMOUNT), 6);
 
         const deployerUsdcBal = await usdc.balanceOf(signer.address);
@@ -961,7 +964,10 @@ export async function runFullDemo(
             const buyerWallet = cycleBuyers[0];
 
             // ── Per-cycle bid amount — each bidder bids a slightly different amount for realism
-            const baseBid = rand(25, 75); // $25–$75 bid base (Phase 2 — was $3–$10)
+            // ⚠️  SAFE MODE (TEMPORARY): rand(15, 55) — was rand(25, 75) in Phase 2.
+            // Settled total per 5-cycle run: ~$75–$275 (vs $125–$375 at full funding).
+            // TODO: Revert to rand(25, 75) once deployer balance is restored to $3,000.
+            const baseBid = rand(15, 55); // SAFE MODE bid base — still 3 distinct wallets, real on-chain competition
 
             // ── Pre-cycle vault check — ensure all 3 cycle buyers have enough balance
             // If any buyer is critically low, emit a warning. We skip only if ALL fail.
