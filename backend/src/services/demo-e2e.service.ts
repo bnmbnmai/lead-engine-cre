@@ -283,6 +283,82 @@ async function getNextNonce(): Promise<number> {
     return _nonceChain;
 }
 
+// ── Gas Escalation Fix ─────────────────────────────
+// Base Sepolia's EIP-1559 base fee fluctuates.  Plain signer.sendTransaction() uses
+// the provider's estimateGas which can be stale, producing:
+//   "replacement fee too low"  — when the mempool already has a tx at nonce N
+//   "already known"            — when the unsigned fee is identical to existing mempool tx
+//
+// sendWithGasEscalation() reads the live baseFee, starts at 1.5× multiplier and doubles
+// the priority-fee escalation by 50% on each retry so the replacement is always accepted.
+
+interface TxRequest extends ethers.TransactionRequest {
+    nonce?: number;
+}
+
+/**
+ * Gas escalation fix — wraps signer.sendTransaction with EIP-1559 retry logic.
+ *
+ * @param signer     - the ethers.Wallet that will sign / send
+ * @param txReq      - transaction fields (to, value, data, nonce, ...)
+ * @param label      - short label for Dev Log lines (e.g. "gas top-up buyer 0xa75…")
+ * @param log        - emit helper so progress is visible in the Dev Log
+ * @param maxRetries - default 3
+ */
+async function sendWithGasEscalation(
+    signer: ethers.Wallet,
+    txReq: TxRequest,
+    label: string,
+    log: (msg: string) => void,
+    maxRetries = 3,
+): Promise<ethers.TransactionResponse> {
+    const provider = signer.provider as ethers.JsonRpcProvider;
+    const PRIORITY_FEE = ethers.parseUnits('2', 'gwei');   // fixed tip
+    const BASE_MULTIPLIER = 1.5;                            // start 1.5× baseFee
+    const ESCALATION = 1.5;                                 // each retry: ×1.5
+
+    let multiplier = BASE_MULTIPLIER;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        // Gas escalation fix: derive current baseFee from the pending block (ethers v6).
+        // FeeData.lastBaseFeePerGas was removed in v6; use block.baseFeePerGas instead.
+        const pendingBlock = await provider.getBlock('pending');
+        const feeData = await provider.getFeeData();
+        const baseFee = pendingBlock?.baseFeePerGas ?? feeData.gasPrice ?? ethers.parseUnits('1', 'gwei');
+        const maxFee = BigInt(Math.ceil(Number(baseFee) * multiplier)) + PRIORITY_FEE;
+
+        log(
+            `Attempt ${attempt}/${maxRetries} — baseFee=${ethers.formatUnits(baseFee, 'gwei').slice(0, 6)} gwei, ` +
+            `maxFee=${ethers.formatUnits(maxFee, 'gwei').slice(0, 6)} gwei [${label}]`,
+        );
+
+        try {
+            return await signer.sendTransaction({
+                ...txReq,
+                maxPriorityFeePerGas: PRIORITY_FEE,
+                maxFeePerGas: maxFee,
+                type: 2,  // EIP-1559
+            });
+        } catch (err: any) {
+            const msg: string = err.message ?? '';
+            const isReplaceable = (
+                msg.includes('replacement fee too low') ||
+                msg.includes('already known') ||
+                msg.includes('nonce too low') ||
+                msg.includes('underpriced')
+            );
+            if (isReplaceable && attempt < maxRetries) {
+                log(`⚠️ Gas too low on attempt ${attempt} (${msg.slice(0, 60)}) — escalating…`);
+                multiplier = multiplier * ESCALATION;
+                await new Promise(r => setTimeout(r, 400 * attempt)); // brief back-off
+                continue;
+            }
+            throw err; // bubble non-retriable errors immediately
+        }
+    }
+    throw new Error(`sendWithGasEscalation: all ${maxRetries} attempts failed [${label}]`);
+}
+
 
 function getVault(signer: ethers.Wallet) {
     return new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, signer);
@@ -821,7 +897,13 @@ async function recycleTokens(
 
             // Ensure seller has gas
             if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
-                const gasTx = await signer.sendTransaction({ to: DEMO_SELLER_WALLET, value: ethers.parseEther('0.001') });
+                // Gas escalation fix: recycle-phase seller gas top-up
+                const gasTx = await sendWithGasEscalation(
+                    signer,
+                    { to: DEMO_SELLER_WALLET, value: ethers.parseEther('0.001') },
+                    `recycle gas seller`,
+                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                );
                 await gasTx.wait();
             }
 
@@ -865,7 +947,13 @@ async function recycleTokens(
 
                 // Ensure buyer has gas for vault withdraw
                 if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
-                    const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
+                    // Gas escalation fix: recycle-phase buyer gas top-up
+                    const gasTx = await sendWithGasEscalation(
+                        signer,
+                        { to: buyerAddr, value: ethers.parseEther('0.001') },
+                        `recycle gas ${buyerAddr.slice(0, 10)}`,
+                        (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                    );
                     await gasTx.wait();
                 }
 
@@ -1148,12 +1236,14 @@ export async function runFullDemo(
                         level: 'info',
                         message: `⛽ Gas top-up → ${buyerAddr.slice(0, 10)}… (0.001 ETH)`,
                     });
-                    const nonce = await getNextNonce(); // Fix 4: nonce queue for gas top-up
-                    const gasTx = await signer.sendTransaction({
-                        to: buyerAddr,
-                        value: ethers.parseEther('0.001'),
-                        nonce,
-                    });
+                    const nonce = await getNextNonce(); // Fix 4: nonce queue
+                    // Gas escalation fix: use EIP-1559 escalation instead of plain sendTransaction
+                    const gasTx = await sendWithGasEscalation(
+                        signer,
+                        { to: buyerAddr, value: ethers.parseEther('0.001'), nonce },
+                        `gas top-up ${buyerAddr.slice(0, 10)}`,
+                        (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                    );
                     await gasTx.wait();
                 }
 
@@ -1166,8 +1256,14 @@ export async function runFullDemo(
                     level: 'info',
                     message: `💸 Sending $${PRE_FUND_AMOUNT} USDC → ${buyerAddr.slice(0, 10)}…`,
                 });
-                const nonce2 = await getNextNonce(); // Fix 4: nonce queue for USDC transfer
-                const transferTx = await usdc.transfer(buyerAddr, preFundUnits, { nonce: nonce2 });
+                const nonce2 = await getNextNonce(); // Fix 4: nonce queue
+                // Gas escalation fix: EIP-1559 escalation for USDC transfer
+                const transferTx = await sendWithGasEscalation(
+                    signer,
+                    { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [buyerAddr, preFundUnits]), nonce: nonce2 },
+                    `USDC transfer ${buyerAddr.slice(0, 10)}`,
+                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                );
                 await transferTx.wait();
 
                 // Fix 3: abort check before approve
@@ -1275,12 +1371,22 @@ export async function runFullDemo(
                                 const bSigner = new ethers.Wallet(bKey, provider);
                                 const bUsdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
                                 const bVaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-                                // Fix 4: use nonce queue for all deployer txs in emergency top-up
+                                // Gas escalation fix + nonce queue for emergency top-up
                                 const eNonce1 = await getNextNonce();
-                                const gasTx = await signer.sendTransaction({ to: bAddr, value: ethers.parseEther('0.001'), nonce: eNonce1 });
+                                const gasTx = await sendWithGasEscalation(
+                                    signer,
+                                    { to: bAddr, value: ethers.parseEther('0.001'), nonce: eNonce1 },
+                                    `emrg gas ${bAddr.slice(0, 10)}`,
+                                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg, cycle, totalCycles: cycles }),
+                                );
                                 await gasTx.wait();
                                 const eNonce2 = await getNextNonce();
-                                const txfr = await usdc.transfer(bAddr, topUpAmount, { nonce: eNonce2 });
+                                const txfr = await sendWithGasEscalation(
+                                    signer,
+                                    { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [bAddr, topUpAmount]), nonce: eNonce2 },
+                                    `emrg USDC ${bAddr.slice(0, 10)}`,
+                                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg, cycle, totalCycles: cycles }),
+                                );
                                 await txfr.wait();
                                 const approveTx = await bUsdcContract.approve(VAULT_ADDRESS, topUpAmount);
                                 await approveTx.wait();
