@@ -141,6 +141,30 @@ class SocketClient {
         this.socket = null;
     }
 
+    /**
+     * reconnect(token?) — swap auth token and re-handshake WITHOUT destroying
+     * the socket instance. This preserves:
+     *   - All raw `sock` references held by DevLogPanel (status-dot listeners)
+     *   - All `this.listeners` Map entries (ace:dev-log, demo:log handlers)
+     *
+     * Socket.IO's own `socket.disconnect().connect()` API replaces the transport
+     * session while keeping the JS object identity, so no re-registration of
+     * handlers is needed anywhere.
+     *
+     * Use this everywhere DemoPanel previously called disconnect()+connect().
+     */
+    reconnect(token?: string) {
+        if (!this.socket) {
+            // No socket yet — just do a normal connect with the new token
+            this.connect();
+            return;
+        }
+        // Update auth credential in-place so the next handshake sends the new JWT
+        this.socket.auth = { token: token ?? getAuthToken() ?? undefined };
+        // socket.io re-handshake: drops current transport, opens a new one
+        this.socket.disconnect().connect();
+    }
+
     // ============================================
     // Auction Room Management
     // ============================================

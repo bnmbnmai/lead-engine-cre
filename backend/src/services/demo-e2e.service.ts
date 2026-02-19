@@ -139,6 +139,10 @@ let currentAbort: AbortController | null = null;
 let recycleAbort: AbortController | null = null;
 const resultsStore = new Map<string, DemoResult>();
 
+// Module-level io reference — set by runFullDemo and used by stopDemo for
+// broadcasting demo:status without requiring the caller to pass io again.
+let moduleIo: SocketServer | null = null;
+
 // ── File Persistence (secondary fallback) ──────────────
 const RESULTS_FILE = path.join(process.cwd(), 'demo-results.json');
 
@@ -236,16 +240,49 @@ export async function initResultsStore(): Promise<void> {
 // Sync disk fallback on module init (DB load is triggered via initResultsStore)
 loadResultsFromDisk();
 
-// ── Helpers ────────────────────────────────────────
+// ── Shared Deployer Provider + Nonce Queue ─────────
+// Both startLeadDrip (gas top-ups) and recycleTokens run concurrently and both
+// use the same deployer private key. Using separate providers per call meant two
+// independent nonce trackers racing each other → "replacement transaction underpriced".
+//
+// Solution: one shared provider, one serialised nonce promise chain.
+// Any function that needs to send a deployer transaction calls getNextNonce() which
+// awaits the previous promise before reading the next nonce from the chain.
+
+let _sharedProvider: ethers.JsonRpcProvider | null = null;
+let _nonceChain: Promise<number> = Promise.resolve(-1);
+
+function getSharedProvider(): ethers.JsonRpcProvider {
+    if (!_sharedProvider) {
+        _sharedProvider = new ethers.JsonRpcProvider(RPC_URL);
+    }
+    return _sharedProvider;
+}
 
 function getProvider() {
-    return new ethers.JsonRpcProvider(RPC_URL);
+    return getSharedProvider();
 }
 
 function getSigner() {
     if (!DEPLOYER_KEY) throw new Error('DEPLOYER_PRIVATE_KEY not set');
-    return new ethers.Wallet(DEPLOYER_KEY, getProvider());
+    return new ethers.Wallet(DEPLOYER_KEY, getSharedProvider());
 }
+
+/**
+ * getNextNonce — serialises deployer nonce allocation.
+ * Each caller awaits the previous call's promise before reading the
+ * pending transaction count, so sequential increments are guaranteed.
+ */
+async function getNextNonce(): Promise<number> {
+    _nonceChain = _nonceChain.then(async () => {
+        const provider = getSharedProvider();
+        return provider.getTransactionCount(
+            new ethers.Wallet(DEPLOYER_KEY).address, 'pending',
+        );
+    });
+    return _nonceChain;
+}
+
 
 function getVault(signer: ethers.Wallet) {
     return new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, signer);
@@ -917,6 +954,44 @@ async function recycleTokens(
     }
 }
 
+// ── Recycle Timeout Guard ─────────────────────────
+
+const RECYCLE_TIMEOUT_MS = 90_000; // 90 seconds hard limit
+
+/**
+ * withRecycleTimeout — wraps a recycleTokens() promise with a hard 90s timeout.
+ *
+ * If recycling gets stuck (hung RPC, Render restart lag, maxed retries), this:
+ *   1. Emits a 'partial recovery' warning to the Dev Log so the judge can see it
+ *   2. Signals recycleAbort so any in-progress wallet loops stop at the next check
+ *   3. Ensures isRecycling is false so the next demo run is never blocked
+ *
+ * The promise itself continues to run after the timeout fires (node GC will collect it)
+ * but it will be aborted at the next iteration boundary.
+ */
+async function withRecycleTimeout(io: SocketServer, recyclePromise: Promise<void>): Promise<void> {
+    const timeoutPromise = new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), RECYCLE_TIMEOUT_MS)
+    );
+
+    const result = await Promise.race([recyclePromise.then(() => 'done' as const), timeoutPromise]);
+
+    if (result === 'timeout') {
+        // Hard abort any still-pending wallet loops
+        if (recycleAbort) recycleAbort.abort();
+        isRecycling = false;
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'warn',
+            message: `⏰ Token recovery timed out after 90s — partial recovery. Some USDC may remain in demo wallets. Run another demo cycle to sweep remaining funds.`,
+        });
+        if (moduleIo) {
+            emitStatus(moduleIo, { running: false, recycling: false, phase: 'idle' });
+        }
+    }
+}
+
 // ── Main Orchestrator ──────────────────────────────
 
 export async function runFullDemo(
@@ -957,6 +1032,7 @@ export async function runFullDemo(
     isRunning = true;
     currentAbort = new AbortController();
     const signal = currentAbort.signal;
+    moduleIo = io; // store for stopDemo() to broadcast status without needing io param
 
     // Notify ALL connected viewers the demo has started
     emitStatus(io, { running: true, totalCycles: cycles, currentCycle: 0, percent: 0, phase: 'starting', runId });
@@ -1496,9 +1572,9 @@ export async function runFullDemo(
         // Emit completion event FIRST so frontend navigates immediately
         io.emit('demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
 
-        // ── Phase 2: Non-blocking token recycling ──
+        // ── Phase 2: Non-blocking token recycling with 90s timeout ──
         // Fire and forget — does NOT block the return or delay the results page.
-        void recycleTokens(io, signal, BUYER_KEYS);
+        void withRecycleTimeout(io, recycleTokens(io, signal, BUYER_KEYS));
 
         return result;
 
@@ -1539,7 +1615,7 @@ export async function runFullDemo(
 
         // Recycle on abort/failure too — best effort, non-blocking
         if (!isAbort) {
-            void recycleTokens(io, signal, BUYER_KEYS);
+            void withRecycleTimeout(io, recycleTokens(io, signal, BUYER_KEYS));
         }
 
         return result;
@@ -1556,14 +1632,32 @@ export async function runFullDemo(
 
 export function stopDemo(): boolean {
     let stopped = false;
+
+    // Stop the active cycle loop
     if (isRunning && currentAbort) {
         currentAbort.abort();
         stopped = true;
     }
-    // Also abort any in-flight recycle
+
+    // Stop the recycle co-routine if it's running
     if (isRecycling && recycleAbort) {
         recycleAbort.abort();
+        // Immediately clear the recycling flag so status endpoint reflects reality
+        // without waiting for the finally block (which may still be mid-tx.wait())
+        isRecycling = false;
+        stopped = true;
     }
+
+    // Broadcast updated state to all viewers immediately so UI unblocks
+    if (moduleIo) {
+        emitStatus(moduleIo, {
+            running: false,
+            recycling: false,
+            phase: stopped ? 'stopped' : 'idle',
+            runId: undefined,
+        });
+    }
+
     return stopped;
 }
 

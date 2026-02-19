@@ -1640,10 +1640,16 @@ router.post('/full-e2e', async (req: Request, res: Response) => {
 // ============================================
 
 router.post('/full-e2e/stop', async (_req: Request, res: Response) => {
+    const wasRunning = demoE2E.isDemoRunning();
+    const wasRecycling = demoE2E.isDemoRecycling();
     const stopped = demoE2E.stopDemo();
     res.json({
         success: stopped,
-        message: stopped ? 'Demo abort signal sent' : 'No demo is currently running',
+        message: stopped
+            ? (wasRunning ? 'Demo cycles aborted' : 'Token recovery aborted')
+            : 'Nothing was running',
+        wasRunning,
+        wasRecycling,
     });
 });
 

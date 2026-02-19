@@ -262,9 +262,9 @@ export function DemoPanel() {
                 if (data.token) {
                     setAuthToken(data.token);
                     localStorage.setItem('le_auth_user', JSON.stringify(data.user));
-                    // Reconnect socket with new token
-                    socketClient.disconnect();
-                    socketClient.connect();
+                    // Reconnect socket with new token — reconnect() reuses the same
+                    // socket instance so DevLogPanel raw-socket listeners stay alive
+                    socketClient.reconnect(data.token);
                     if (import.meta.env.DEV) console.log(`[DemoPanel] Demo login success — ${role} persona set with real JWT`);
                 } else {
                     if (import.meta.env.DEV) console.warn('[DemoPanel] Demo login failed:', data.error);
@@ -282,13 +282,9 @@ export function DemoPanel() {
         } else if (persona === 'guest') {
             setAuthToken(null);
             localStorage.removeItem('le_auth_user');
-            // Disconnect first so the old JWT is dropped from the socket auth handshake.
-            // Then reconnect immediately with no token so the backend downgrades this
-            // socket to 'GUEST' role — it can then receive all io.emit() broadcasts
-            // (ace:dev-log, demo:log, demo:status) without needing to re-mount DevLogPanel.
-            // Root Cause 1b: without this reconnect, the socket is dead after Guest switch.
-            socketClient.disconnect();
-            socketClient.connect();
+            // Use reconnect(undefined) — drops JWT from auth, backend downgrades to GUEST.
+            // Socket object is reused so DevLogPanel raw-socket listeners stay alive.
+            socketClient.reconnect(undefined);
             if (import.meta.env.DEV) console.log('[DemoPanel] Guest persona — socket reconnected as GUEST role');
         }
 
@@ -323,8 +319,7 @@ export function DemoPanel() {
 
             setAuthToken(data.token);
             localStorage.setItem('le_auth_user', JSON.stringify(data.user));
-            socketClient.disconnect();
-            socketClient.connect();
+            socketClient.reconnect(data.token);
 
             // Dispatch storage event so useAuth re-reads immediately
             window.dispatchEvent(new StorageEvent('storage', {
