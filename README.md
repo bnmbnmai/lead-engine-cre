@@ -123,29 +123,29 @@ sequenceDiagram
 
     Note over BP: Buyer funds pool (e.g., solar, CA, credit>720)
 
-    S->>API: Submit lead (non-PII preview)
-    API->>CRE: Quality score + ZK fraud proofs
+    S->>API: 📤 Submit lead (non-PII preview)
+    API->>CRE: 📊 Quality score + ZK fraud proofs
     CRE-->>API: Score (0-10,000) + proof
-    API->>ACE: KYC & jurisdiction check
-    ACE-->>API: Cleared
+    API->>ACE: 🔒 KYC & jurisdiction check
+    ACE-->>API: ✅ Cleared
 
-    Note over RTB: 60-second sealed-bid auction
+    Note over RTB: ⏱️ 60-second sealed-bid auction
 
-    RTB->>B: Non-PII preview (WebSocket)
-    B->>RTB: Sealed bid (keccak256 commitment)
+    RTB->>B: 👀 Non-PII preview (WebSocket)
+    B->>RTB: 🔐 Sealed bid (keccak256 commitment)
 
     Note over RTB: Auction closes, reveal phase
 
-    B->>RTB: Reveal (amount + salt)
+    B->>RTB: 📝 Reveal (amount + salt)
     RTB->>RTB: Verify commitments, pick winner (VRF tiebreak)
 
-    B->>X: Winner pays USDC from vault
-    X->>S: Instant settlement (minus 2.5%)
-    X->>B: Decrypted PII + mint LeadNFTv2
+    B->>X: 💰 Winner pays USDC from vault
+    X->>S: ⚡ Instant settlement (minus 2.5%)
+    X->>B: 🔓 Decrypted PII + mint LeadNFTv2
 
     API->>FN: matchBounties(lead, criteria)
     FN-->>API: Matching pools
-    BP->>S: Bounty auto-released
+    BP->>S: 🎁 Bounty auto-released
 ```
 
 ---
