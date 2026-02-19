@@ -362,7 +362,20 @@ export function BuyerDashboard() {
                                     size="sm"
                                     disabled={vaultLoading || vaultBalance <= 0}
                                     onClick={async () => {
-                                        toast({ type: 'info', title: 'Withdraw', description: 'Call vault.withdraw() from your wallet to withdraw on-chain' });
+                                        setVaultLoading(true);
+                                        try {
+                                            const { data } = await api.withdrawVault(vaultBalance);
+                                            if (data?.success) {
+                                                setVaultBalance(data.balance);
+                                                toast({ type: 'success', title: 'Withdrawn', description: `Withdrew $${vaultBalance.toFixed(2)} USDC from vault` });
+                                                api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
+                                            } else {
+                                                toast({ type: 'error', title: 'Withdraw Failed', description: data?.error || 'Unknown error' });
+                                            }
+                                        } catch (err: any) {
+                                            toast({ type: 'error', title: 'Withdraw Failed', description: err.message || 'Failed to withdraw' });
+                                        }
+                                        setVaultLoading(false);
                                     }}
                                     className="w-full h-9"
                                 >

@@ -185,6 +185,50 @@ export async function recordDeposit(userId: string, amount: number, txHash: stri
 }
 
 /**
+ * Record a withdrawal: deduct from DB vault balance.
+ * In production, this would be triggered after an on-chain withdraw tx.
+ * For demo, this directly deducts from the cached balance.
+ */
+export async function recordWithdraw(userId: string, amount: number) {
+    const vault = await getOrCreateVault(userId);
+    const available = Number(vault.balance);
+
+    // amount 0 = withdraw all available
+    const withdrawAmount = amount === 0 ? available : amount;
+    if (withdrawAmount <= 0) throw new Error('Nothing to withdraw');
+    if (withdrawAmount > available) throw new Error(`Insufficient balance. Available: $${available.toFixed(2)}`);
+
+    const [updatedVault] = await prisma.$transaction([
+        prisma.escrowVault.update({
+            where: { id: vault.id },
+            data: {
+                balance: { decrement: withdrawAmount },
+                totalSpent: { increment: withdrawAmount },
+            },
+        }),
+        prisma.vaultTransaction.create({
+            data: {
+                vaultId: vault.id,
+                type: 'WITHDRAW',
+                amount: withdrawAmount,
+                reference: `withdraw-${Date.now()}`,
+                note: `Vault withdrawal $${withdrawAmount.toFixed(2)} USDC`,
+            },
+        }),
+    ]);
+
+    aceDevBus.emit('ace:dev-log', {
+        ts: new Date().toISOString(),
+        action: 'vault:withdraw',
+        userId,
+        amount: `$${withdrawAmount.toFixed(2)}`,
+        source: 'demo',
+    });
+
+    return { success: true, balance: Number(updatedVault.balance), withdrawn: withdrawAmount };
+}
+
+/**
  * Lock funds for a bid on-chain (backend-signed, gas-sponsored).
  * Returns the lockId from the contract.
  */

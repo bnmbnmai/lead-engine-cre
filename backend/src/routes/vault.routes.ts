@@ -49,6 +49,26 @@ router.post('/deposit', authMiddleware, requireBuyer, async (req: AuthenticatedR
     }
 });
 
+// ── Withdraw (deduct from vault balance) ──────
+
+router.post('/withdraw', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { amount } = req.body;
+        const numAmount = Number(amount || 0);
+        if (numAmount < 0) {
+            res.status(400).json({ error: 'Amount cannot be negative' });
+            return;
+        }
+
+        const result = await vaultService.recordWithdraw(req.user!.id, numAmount);
+        res.json(result);
+    } catch (error: any) {
+        console.error('[VaultRoutes] withdraw error:', error.message);
+        const status = error.message?.includes('Insufficient') ? 400 : 500;
+        res.status(status).json({ error: error.message || 'Failed to withdraw' });
+    }
+});
+
 // ── Contract Info (for frontend wagmi) ──────
 
 router.get('/contract', async (_req, res: Response) => {
