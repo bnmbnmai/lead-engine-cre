@@ -103,6 +103,12 @@ app.use(cors({
     credentials: true,
 }));
 
+// Enable CORS preflight for ALL routes — must come immediately after cors() middleware.
+// app.options('*', cors()) is the standard Express pattern that handles OPTIONS for any
+// path depth (e.g. /api/v1/demo-panel/full-e2e/results/latest). This supersedes the
+// per-path handler that used /:rest* which did NOT match multi-segment subpaths.
+app.options('*', cors({ origin: (o, cb) => cb(null, true), credentials: true }));
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -171,16 +177,6 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/demo', integrationRoutes);
 app.use('/api/v1/crm', crmRoutes);
 app.use('/api/v1/lander', landerRoutes);
-// Explicit OPTIONS preflight responder for demo-panel routes.
-// Some browsers send preflights for cross-origin GETs with Authorization headers BEFORE
-// the cors() middleware can reply — this handler guarantees a 204 with correct ACAO headers
-// so the browser never sees a 403 devOnly response on a preflight request.
-app.options('/api/v1/demo-panel/:rest*', cors({
-    origin: (origin, callback) => callback(null, true),
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-}));
 app.use('/api/v1/demo-panel', demoPanelRoutes);
 app.use('/api/v1/verticals', verticalRoutes);
 app.use('/api/v1/buyer', buyerRoutes);
