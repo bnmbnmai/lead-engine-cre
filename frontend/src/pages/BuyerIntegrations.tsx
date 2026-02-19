@@ -324,7 +324,7 @@ mcp_call("set_auto_bid_rules", {
                                 <p><strong>Protocol:</strong> JSON-RPC 2.0 over HTTP</p>
                                 <p><strong>Auth:</strong> Bearer token in Authorization header</p>
                                 <p><strong>Rate limit:</strong> 60 requests/min per agent</p>
-                                <p><strong>Fees:</strong> 2.5% platform fee + $1 convenience fee per API/agent win</p>
+                                <p><strong>Fees:</strong> 5% platform fee + $1 convenience fee per API/agent win</p>
                             </div>
                         </CardContent>
                     )}

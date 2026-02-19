@@ -207,7 +207,7 @@ Also present: `contracts/interfaces/` (6 interface files) and `contracts/mocks/`
 
 **RTBEscrow.sol** — Settlement:
 - `fundEscrow(uint256 escrowId, uint256 amount)` — buyer deposits USDC
-- `releaseEscrow(uint256 escrowId)` — releases to seller (minus 2.5% fee)
+- `releaseEscrow(uint256 escrowId)` — releases to seller (minus `platformFeeBps` fee, deployed at 250 = 2.5%)
 - `refundEscrow(uint256 escrowId)` — refund on dispute
 
 **PersonalEscrowVault.sol** — Per-User Vault + Chainlink Automation:
@@ -340,7 +340,7 @@ Also present: `contracts/interfaces/` (6 interface files) and `contracts/mocks/`
 | `prisma.ts` | Prisma client singleton |
 | `config.ts` | Environment configuration |
 | `cache.ts` (9KB) | In-memory TTL cache |
-| `fees.ts` (2KB) | Fee calculation (2.5% platform, $1 convenience) |
+| `fees.ts` (2KB) | Fee calculation (5% platform, $1 convenience) |
 | `geo-registry.ts` (19KB) | Country/state/region mapping |
 | `jurisdiction-policies.ts` (9KB) | ACE jurisdiction policy definitions |
 
@@ -524,6 +524,21 @@ Standalone TypeScript server on port 3002 (`/mcp-server`). Exposes tools via JSO
   - Backend: `vault.service.ts` (deposit/withdraw/deduct/refund/chargeFee/checkBidBalance functions) + `vault.routes.ts` (GET balance, POST deposit, POST withdraw), registered at `/api/v1/buyer/vault`
   - Frontend: vault API methods in `api.ts` (getVault/depositVault/withdrawVault), Escrow Vault card in `BuyerDashboard.tsx` with deposit form, withdraw button, and transaction history
   - All vault actions logged to Dev Log via `aceDevBus` with teal "Escrow" badges
+- **Vault Withdraw Implementation** — full-stack withdraw flow:
+  - Backend: `recordWithdraw()` in `vault.service.ts` — validates available balance, deducts from DB, records `WITHDRAW` VaultTransaction, emits dev-log event
+  - Route: `POST /api/v1/buyer/vault/withdraw` in `vault.routes.ts` — accepts `{ amount }` (0 = withdraw all), returns `{ success, balance, withdrawn }`
+  - Frontend: wired `BuyerDashboard.tsx` withdraw button → calls `api.withdrawVault(vaultBalance)`, shows success/error toast, refreshes vault transactions
+  - Previously the withdraw button was a placeholder that only showed an info toast
+- **Vault Withdraw Audit** (3rd audit pass) — 4 findings, 4 fixes:
+  - #14 🟠 `recordWithdraw` used `totalSpent` instead of dedicated `totalWithdrawn` — added new Prisma field + migration, fixed `recordWithdraw` and `getVaultInfo`
+  - #15 🟠 No locked-balance check — backend allowed withdrawing funds locked in active bids; now queries on-chain `lockedBalances` and subtracts from available
+  - #16 Low: frontend button mislabeled as "via Wallet" — fixed to "Withdraw All"
+  - #17 Med: no test coverage for withdraw + active locks — added 4 Hardhat tests (46 total, all passing)
+  - Acknowledged: no rate-limiting, no time-lock, no partial withdraw UI, TOCTOU mitigated by Prisma transaction
+- **Buyer Dashboard Layout** — reordered and cleaned up:
+  - Removed `PerksPanel` (Vertical Ownership Perks) from buyer dashboard — not relevant for demo flow
+  - Reordered: On-Chain Escrow Vault now appears above Bounty Pools (vault → bounties instead of perks → bounties → vault)
+  - Removed unused `PerksPanel` import from `BuyerDashboard.tsx`
 
 ### Session: Feb 17
 - **Data Feeds terminology fix** — corrected all "Data Streams" references to "Data Feeds" across codebase and docs; fixed incorrect use of Data Streams verifier proxy address with Data Feeds ABI; updated contract address to correct Base Sepolia ETH/USD feed (`0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1`)

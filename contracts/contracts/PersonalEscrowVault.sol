@@ -34,6 +34,9 @@ contract PersonalEscrowVault is
     /// @notice $1 USDC convenience fee (6 decimals)
     uint256 public constant CONVENIENCE_FEE = 1_000_000;
 
+    /// @notice 5% platform cut on settlements (basis points)
+    uint256 public constant PLATFORM_CUT_BPS = 500;
+
     /// @notice Proof-of-Reserves check interval
     uint256 public constant POR_INTERVAL = 24 hours;
 
@@ -94,7 +97,7 @@ contract PersonalEscrowVault is
     event Deposited(address indexed user, uint256 amount, uint256 newBalance);
     event Withdrawn(address indexed user, uint256 amount, uint256 newBalance);
     event BidLocked(uint256 indexed lockId, address indexed user, uint256 bidAmount, uint256 fee);
-    event BidSettled(uint256 indexed lockId, address indexed winner, address indexed seller, uint256 amount, uint256 fee);
+    event BidSettled(uint256 indexed lockId, address indexed winner, address indexed seller, uint256 sellerAmount, uint256 platformCut, uint256 convenienceFee);
     event BidRefunded(uint256 indexed lockId, address indexed user, uint256 totalRefunded);
     event ReservesVerified(uint256 contractBalance, uint256 claimedTotal, bool solvent, uint256 timestamp);
     event ExpiredLocksRefunded(uint256 count, uint256 timestamp);
@@ -227,7 +230,7 @@ contract PersonalEscrowVault is
     }
 
     /**
-     * @notice Settle a winning bid: transfer bid amount to seller, fee to platform.
+     * @notice Settle a winning bid: transfer 95% of bid to seller, 5% cut + $1 fee to platform.
      * @param lockId  The bid lock to settle
      * @param seller  Seller address to receive payment
      */
@@ -247,15 +250,19 @@ contract PersonalEscrowVault is
         // Update PoR accounting: funds leaving the contract reduce the claimed total
         totalDeposited -= total;
 
-        // Transfer bid amount to seller
-        paymentToken.safeTransfer(seller, lock.amount);
+        // Calculate 5% platform cut from bid amount
+        uint256 platformCut = (lock.amount * PLATFORM_CUT_BPS) / 10000;
+        uint256 sellerAmount = lock.amount - platformCut;
 
-        // Transfer convenience fee to platform
-        paymentToken.safeTransfer(platformWallet, lock.fee);
+        // Transfer 95% of bid to seller
+        paymentToken.safeTransfer(seller, sellerAmount);
+
+        // Transfer 5% cut + $1 convenience fee to platform
+        paymentToken.safeTransfer(platformWallet, platformCut + lock.fee);
 
         _removeActiveLock(lockId);
 
-        emit BidSettled(lockId, lock.user, seller, lock.amount, lock.fee);
+        emit BidSettled(lockId, lock.user, seller, sellerAmount, platformCut, lock.fee);
     }
 
     /**

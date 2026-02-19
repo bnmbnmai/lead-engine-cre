@@ -109,6 +109,61 @@ describe("PersonalEscrowVault", function () {
                 .to.emit(vault, "Withdrawn")
                 .withArgs(buyer1.address, DEPOSIT_AMOUNT, 0);
         });
+
+        it("should NOT allow withdrawing locked funds (active bid)", async function () {
+            // Lock $25 + $1 fee = $26 from $100 deposit
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Available = $100 - $26 = $74
+            const available = await vault.balanceOf(buyer1.address);
+            expect(available).to.equal(DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE);
+
+            // Trying to withdraw full $100 should fail
+            await expect(vault.connect(buyer1).withdraw(DEPOSIT_AMOUNT))
+                .to.be.revertedWith("Insufficient balance");
+        });
+
+        it("should allow withdrawing unlocked portion while bids are active", async function () {
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // Available = $100 - $26 = $74 — withdraw $50 should succeed
+            const withdrawAmt = 50_000_000n;
+            await vault.connect(buyer1).withdraw(withdrawAmt);
+
+            // Remaining unlocked = $74 - $50 = $24
+            expect(await vault.balanceOf(buyer1.address)).to.equal(
+                DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE - withdrawAmt
+            );
+            // Locked balance unchanged
+            expect(await vault.lockedBalances(buyer1.address)).to.equal(
+                BID_AMOUNT + CONVENIENCE_FEE
+            );
+        });
+
+        it("should withdraw-all only withdrawing unlocked portion", async function () {
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+
+            // withdraw(0) = withdraw all available (unlocked)
+            const available = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
+            await expect(vault.connect(buyer1).withdraw(0))
+                .to.emit(vault, "Withdrawn")
+                .withArgs(buyer1.address, available, 0);
+
+            // Balance = 0, locked still intact
+            expect(await vault.balanceOf(buyer1.address)).to.equal(0);
+            expect(await vault.lockedBalances(buyer1.address)).to.equal(
+                BID_AMOUNT + CONVENIENCE_FEE
+            );
+        });
+
+        it("should keep PoR solvent after withdraw with active lock", async function () {
+            await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
+            const available = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
+            await vault.connect(buyer1).withdraw(available);
+
+            await vault.verifyReserves();
+            expect(await vault.lastPorSolvent()).to.be.true;
+        });
     });
 
     // ============================================
@@ -179,14 +234,18 @@ describe("PersonalEscrowVault", function () {
             lockId = 1n;
         });
 
-        it("should transfer bid to seller and fee to platform", async function () {
+        it("should transfer 95% of bid to seller, 5% + fee to platform", async function () {
             const sellerBefore = await usdc.balanceOf(seller.address);
             const platformBefore = await usdc.balanceOf(platform.address);
 
             await vault.connect(backend).settleBid(lockId, seller.address);
 
-            expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + BID_AMOUNT);
-            expect(await usdc.balanceOf(platform.address)).to.equal(platformBefore + CONVENIENCE_FEE);
+            // 5% of $25 = $1.25
+            const platformCut = BID_AMOUNT * 500n / 10000n; // 1_250_000
+            const sellerAmount = BID_AMOUNT - platformCut;  // 23_750_000
+
+            expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + sellerAmount);
+            expect(await usdc.balanceOf(platform.address)).to.equal(platformBefore + platformCut + CONVENIENCE_FEE);
         });
 
         it("should mark lock as settled", async function () {
@@ -207,10 +266,13 @@ describe("PersonalEscrowVault", function () {
             ).to.be.revertedWith("Already settled");
         });
 
-        it("should emit BidSettled event", async function () {
+        it("should emit BidSettled event with platform cut", async function () {
+            const platformCut = BID_AMOUNT * 500n / 10000n;
+            const sellerAmount = BID_AMOUNT - platformCut;
+
             await expect(vault.connect(backend).settleBid(lockId, seller.address))
                 .to.emit(vault, "BidSettled")
-                .withArgs(lockId, buyer1.address, seller.address, BID_AMOUNT, CONVENIENCE_FEE);
+                .withArgs(lockId, buyer1.address, seller.address, sellerAmount, platformCut, CONVENIENCE_FEE);
         });
     });
 
@@ -383,7 +445,10 @@ describe("PersonalEscrowVault", function () {
             // 4. Verify final state
             const expectedRemaining = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
             expect(await vault.balanceOf(buyer1.address)).to.equal(expectedRemaining);
-            expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + BID_AMOUNT);
+
+            // Seller gets 95% of bid
+            const sellerAmount = BID_AMOUNT - (BID_AMOUNT * 500n / 10000n);
+            expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + sellerAmount);
         });
 
         it("fund → bid → lose → fully refunded", async function () {

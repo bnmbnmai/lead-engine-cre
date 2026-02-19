@@ -40,7 +40,7 @@ const VAULT_ABI = [
     'event Deposited(address indexed user, uint256 amount, uint256 newBalance)',
     'event Withdrawn(address indexed user, uint256 amount, uint256 newBalance)',
     'event BidLocked(uint256 indexed lockId, address indexed user, uint256 bidAmount, uint256 fee)',
-    'event BidSettled(uint256 indexed lockId, address indexed winner, address indexed seller, uint256 amount, uint256 fee)',
+    'event BidSettled(uint256 indexed lockId, address indexed winner, address indexed seller, uint256 sellerAmount, uint256 platformCut, uint256 convenienceFee)',
     'event BidRefunded(uint256 indexed lockId, address indexed user, uint256 totalRefunded)',
     'event ReservesVerified(uint256 contractBalance, uint256 claimedTotal, bool solvent, uint256 timestamp)',
 ];
@@ -128,6 +128,7 @@ export async function getVaultInfo(userId: string) {
         lockedBalance: onChainLocked,
         totalDeposited: Number(vault.totalDeposited),
         totalSpent: Number(vault.totalSpent),
+        totalWithdrawn: Number((vault as any).totalWithdrawn ?? 0),
         totalRefunded: Number(vault.totalRefunded),
         porSolvent,
         porLastCheck,
@@ -191,19 +192,40 @@ export async function recordDeposit(userId: string, amount: number, txHash: stri
  */
 export async function recordWithdraw(userId: string, amount: number) {
     const vault = await getOrCreateVault(userId);
-    const available = Number(vault.balance);
+    let available = Number(vault.balance);
 
-    // amount 0 = withdraw all available
+    // If on-chain vault is configured, check locked balance to prevent
+    // withdrawing funds that are locked in active bids
+    let onChainLocked = 0;
+    try {
+        if (VAULT_ADDRESS) {
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            if (user?.walletAddress) {
+                const contract = getVaultContract();
+                const locked = await contract.lockedBalances(user.walletAddress);
+                onChainLocked = unitsToUsdc(locked);
+                available = Math.max(0, available - onChainLocked);
+            }
+        }
+    } catch (err) {
+        console.warn('[VaultService] Could not check locked balance:', (err as Error).message);
+        // Continue with DB balance — on-chain check is best-effort
+    }
+
+    // amount 0 = withdraw all available (unlocked)
     const withdrawAmount = amount === 0 ? available : amount;
     if (withdrawAmount <= 0) throw new Error('Nothing to withdraw');
-    if (withdrawAmount > available) throw new Error(`Insufficient balance. Available: $${available.toFixed(2)}`);
+    if (withdrawAmount > available) {
+        const lockedNote = onChainLocked > 0 ? ` ($${onChainLocked.toFixed(2)} locked in active bids)` : '';
+        throw new Error(`Insufficient balance. Available: $${available.toFixed(2)}${lockedNote}`);
+    }
 
     const [updatedVault] = await prisma.$transaction([
         prisma.escrowVault.update({
             where: { id: vault.id },
             data: {
                 balance: { decrement: withdrawAmount },
-                totalSpent: { increment: withdrawAmount },
+                totalWithdrawn: { increment: withdrawAmount },
             },
         }),
         prisma.vaultTransaction.create({
@@ -222,6 +244,7 @@ export async function recordWithdraw(userId: string, amount: number) {
         action: 'vault:withdraw',
         userId,
         amount: `$${withdrawAmount.toFixed(2)}`,
+        lockedBids: `$${onChainLocked.toFixed(2)}`,
         source: 'demo',
     });
 
@@ -314,9 +337,10 @@ export async function settleBid(
         const tx = await contract.settleBid(lockId, sellerAddress);
         const receipt = await tx.wait();
 
-        // Parse settlement amount from BidSettled event
-        let settledAmount = 0;
-        let settledFee = 0;
+        // Parse settlement amounts from BidSettled event
+        let sellerAmount = 0;
+        let platformCut = 0;
+        let convenienceFee = 0;
         const settleEvent = receipt.logs.find((log: any) => {
             try {
                 return contract.interface.parseLog(log)?.name === 'BidSettled';
@@ -325,8 +349,9 @@ export async function settleBid(
         if (settleEvent) {
             const parsed = contract.interface.parseLog(settleEvent);
             if (parsed) {
-                settledAmount = unitsToUsdc(parsed.args[3]); // amount
-                settledFee = unitsToUsdc(parsed.args[4]); // fee
+                sellerAmount = unitsToUsdc(parsed.args[3]);  // sellerAmount
+                platformCut = unitsToUsdc(parsed.args[4]);   // platformCut (5%)
+                convenienceFee = unitsToUsdc(parsed.args[5]); // $1 convenience fee
             }
         }
 
@@ -337,9 +362,9 @@ export async function settleBid(
                 data: {
                     vaultId: vault.id,
                     type: 'SETTLE',
-                    amount: settledAmount + settledFee,
+                    amount: sellerAmount + platformCut + convenienceFee,
                     reference,
-                    note: `Bid settled #${lockId}: $${settledAmount.toFixed(2)} to seller + $${settledFee.toFixed(2)} fee (on-chain)`,
+                    note: `Bid settled #${lockId}: $${sellerAmount.toFixed(2)} to seller, $${platformCut.toFixed(2)} platform cut (5%), $${convenienceFee.toFixed(2)} fee`,
                 },
             });
         } catch (dbErr) {
@@ -353,8 +378,9 @@ export async function settleBid(
             userId,
             lockId,
             sellerAddress,
-            settledAmount,
-            settledFee,
+            sellerAmount,
+            platformCut,
+            convenienceFee,
             txHash: tx.hash,
             reference,
             source: 'on-chain',

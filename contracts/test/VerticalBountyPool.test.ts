@@ -22,7 +22,7 @@ describe("VerticalBountyPool", function () {
 
         // Deploy VerticalBountyPool
         const Pool = await ethers.getContractFactory("VerticalBountyPool");
-        const pool = await (Pool as any).deploy(await usdc.getAddress(), owner.address);
+        const pool = await (Pool as any).deploy(await usdc.getAddress(), owner.address, owner.address);
 
         // Authorize owner as caller (for releases)
         await pool.setAuthorizedCaller(owner.address, true);
@@ -145,16 +145,23 @@ describe("VerticalBountyPool", function () {
     // ============================================
 
     describe("releaseBounty", function () {
-        it("should transfer USDC to recipient (seller)", async function () {
+        it("should transfer 95% to recipient and 5% to platform", async function () {
             const { pool, usdc, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
             await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
-            const balBefore = await usdc.balanceOf(recipient.address);
+            const recipientBefore = await usdc.balanceOf(recipient.address);
+            const platformBefore = await usdc.balanceOf(owner.address); // owner == platformWallet
             await pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-001");
-            const balAfter = await usdc.balanceOf(recipient.address);
 
-            expect(balAfter - balBefore).to.equal(releaseAmt);
+            // 5% of $30 = $1.50
+            const platformCut = releaseAmt * 500n / 10000n;
+            const sellerAmount = releaseAmt - platformCut;
+
+            expect(await usdc.balanceOf(recipient.address)).to.equal(recipientBefore + sellerAmount);
+            // Platform balance increases by platformCut (owner is also authorized caller, so subtract gas considerations)
+            // Since owner is also platformWallet, they get the cut
+            expect(await usdc.balanceOf(owner.address)).to.be.gte(platformBefore + platformCut);
         });
 
         it("should update totalReleased", async function () {
@@ -167,14 +174,17 @@ describe("VerticalBountyPool", function () {
             expect(p.totalReleased).to.equal(releaseAmt);
         });
 
-        it("should emit BountyReleased event", async function () {
+        it("should emit BountyReleased event with platform cut", async function () {
             const { pool, buyer1, recipient, owner } = await loadFixture(deployFixture);
 
             await pool.connect(buyer1).depositBounty(solarSlug, depositAmount);
 
+            const platformCut = releaseAmt * 500n / 10000n;
+            const sellerAmount = releaseAmt - platformCut;
+
             await expect(pool.connect(owner).releaseBounty(1, recipient.address, releaseAmt, "lead-001"))
                 .to.emit(pool, "BountyReleased")
-                .withArgs(1, recipient.address, releaseAmt, "lead-001");
+                .withArgs(1, recipient.address, sellerAmount, platformCut, "lead-001");
         });
 
         it("should revert if non-authorized caller", async function () {

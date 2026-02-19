@@ -33,6 +33,12 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
 
     IERC20 public immutable paymentToken; // USDC
 
+    /// @notice Platform wallet for fee collection
+    address public platformWallet;
+
+    /// @notice 5% platform cut on bounty releases (basis points)
+    uint256 public constant PLATFORM_CUT_BPS = 500;
+
     struct BountyPool {
         address buyer;
         bytes32 verticalSlugHash;
@@ -75,7 +81,8 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     event BountyReleased(
         uint256 indexed poolId,
         address indexed recipient,
-        uint256 amount,
+        uint256 sellerAmount,
+        uint256 platformCut,
         string  leadId
     );
 
@@ -93,10 +100,13 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
 
     constructor(
         address _paymentToken,
+        address _platformWallet,
         address _initialOwner
     ) Ownable(_initialOwner) {
         require(_paymentToken != address(0), "Zero token address");
+        require(_platformWallet != address(0), "Zero platform wallet");
         paymentToken = IERC20(_paymentToken);
+        platformWallet = _platformWallet;
     }
 
     // ============================================
@@ -106,6 +116,11 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
     function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
         authorizedCallers[caller] = authorized;
         emit CallerAuthorized(caller, authorized);
+    }
+
+    function setPlatformWallet(address _wallet) external onlyOwner {
+        require(_wallet != address(0), "Zero platform wallet");
+        platformWallet = _wallet;
     }
 
     /**
@@ -230,9 +245,19 @@ contract VerticalBountyPool is Ownable, ReentrancyGuard {
         pool.totalReleased += amount;
         _verticalBountyTotals[pool.verticalSlugHash] -= amount;
 
-        paymentToken.safeTransfer(recipient, amount);
+        // Calculate 5% platform cut from bounty amount
+        uint256 platformCut = (amount * PLATFORM_CUT_BPS) / 10000;
+        uint256 sellerAmount = amount - platformCut;
 
-        emit BountyReleased(poolId, recipient, amount, leadId);
+        // Transfer 95% to recipient (seller)
+        paymentToken.safeTransfer(recipient, sellerAmount);
+
+        // Transfer 5% to platform
+        if (platformCut > 0) {
+            paymentToken.safeTransfer(platformWallet, platformCut);
+        }
+
+        emit BountyReleased(poolId, recipient, sellerAmount, platformCut, leadId);
     }
 
     // ============================================

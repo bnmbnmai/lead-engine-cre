@@ -379,9 +379,9 @@ export function BuyerDashboard() {
                                     }}
                                     className="w-full h-9"
                                 >
-                                    <ArrowUp className="h-4 w-4 mr-1" /> Withdraw (via Wallet)
+                                    <ArrowUp className="h-4 w-4 mr-1" /> Withdraw All
                                 </Button>
-                                <p className="text-xs text-muted-foreground">Funds return to your wallet on-chain</p>
+                                <p className="text-xs text-muted-foreground">Withdraw available balance from vault</p>
                             </div>
 
                             {/* Recent Vault Transactions */}

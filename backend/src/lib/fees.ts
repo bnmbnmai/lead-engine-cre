@@ -3,18 +3,18 @@
  *
  * Centralised fee logic for the Lead Engine platform.
  * All transaction-creation sites should use calculateFees() instead
- * of hard-coding the 2.5% platform fee.
+ * of hard-coding the 5% platform fee.
  *
  * Fee model:
- *  - Manual (browser) wins:  2.5% platform fee, $0 convenience fee
- *  - Auto-bid engine wins:   2.5% platform fee + $1 convenience fee
- *  - API / MCP agent wins:   2.5% platform fee + $1 convenience fee
+ *  - Manual (browser) wins:  5% platform fee, $0 convenience fee
+ *  - Auto-bid engine wins:   5% platform fee + $1 convenience fee
+ *  - API / MCP agent wins:   5% platform fee + $1 convenience fee
  */
 
 // ─── Constants ──────────────────────────────
 
-/** Platform fee as a decimal rate (2.5%) */
-export const PLATFORM_FEE_RATE = 0.025;
+/** Platform fee as a decimal rate (5%) */
+export const PLATFORM_FEE_RATE = 0.05;
 
 /** Flat convenience fee for server-side (non-MetaMask) wins */
 export const CONVENIENCE_FEE = 1.0;
