@@ -536,149 +536,126 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
+        // ── Buyer private keys (from faucet-wallets.txt) ──
+        const BUYER_KEYS: Record<string, string> = {
+            '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439',
+            '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618',
+            '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e',
+            '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7',
+            '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7',
+            '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510',
+            '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd',
+            '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c',
+            '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382',
+            '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75',
+        };
+
         // ── Step 1: Gas top-up for seller ──
         try {
-            const sellerWallet = new ethers.Wallet(DEMO_SELLER_KEY, provider);
-            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerWallet);
-
-            if ((await provider.getBalance(sellerWallet.address)) < ethers.parseEther('0.0005')) {
+            if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
                 const gasTx = await signer.sendTransaction({
-                    to: sellerWallet.address,
+                    to: DEMO_SELLER_WALLET,
                     value: ethers.parseEther('0.001'),
                 });
                 await gasTx.wait();
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'success',
-                    message: `✅ Gas top-up sent to seller ${sellerWallet.address}`,
+                    message: `✅ Gas top-up sent to seller ${DEMO_SELLER_WALLET}`,
                 });
             }
-
-            // ── Step 2: Recycle USDC from seller to deployer ──
-            const sellerUsdcBalance = await usdcContract.balanceOf(sellerWallet.address);
-            if (sellerUsdcBalance > 0n) {
-                const tx = await usdcContract.transfer(signer.address, sellerUsdcBalance);
-                await tx.wait();
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Recycled ${ethers.formatUnits(sellerUsdcBalance, 6)} USDC from seller to deployer`,
-                });
-            }
-
-            // ── Step 3: Redistribute to buyer wallets (so they can deposit into their own vaults) ──
-            if (sellerUsdcBalance > 0n) {
-                const amountPerBuyer = sellerUsdcBalance / BigInt(DEMO_BUYER_WALLETS.length);
-                for (const buyerAddr of DEMO_BUYER_WALLETS) {
-                    if (amountPerBuyer > 0n) {
-                        const tx = await usdc.transfer(buyerAddr, amountPerBuyer);
-                        await tx.wait();
-                        emit(io, {
-                            ts: new Date().toISOString(),
-                            level: 'success',
-                            message: `✅ Topped up buyer ${buyerAddr} with ${ethers.formatUnits(amountPerBuyer, 6)} USDC`,
-                        });
-                    }
-                }
-            }
-
-            // Step 4: Each buyer deposits into their own vault (handled in cycle logic below)
         } catch (err: any) {
             emit(io, {
                 ts: new Date().toISOString(),
                 level: 'warn',
-                message: `⚠️ Could not recycle seller USDC: ${err.message?.slice(0, 80)}`,
+                message: `⚠️ Seller gas top-up failed: ${err.message?.slice(0, 80)}`,
             });
         }
 
-        // ── Auto-deposit — ensure vault has enough USDC for all cycles ──
-        // Check contract's actual available USDC (not just deployer shares)
-        let contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
-        let obligations = await vault.totalObligations();
-        let availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
-        const requiredUsdc = cycles * 3 * 10; // budget: 3 bids × $10 per cycle
-        const deficit = Math.max(0, requiredUsdc - availableInVault);
+        // ── Step 2: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
+        const PRE_FUND_AMOUNT = 80; // $80 USDC per buyer
+        const preFundUnits = ethers.parseUnits(String(PRE_FUND_AMOUNT), 6);
 
-        if (deficit > 0) {
-            const depositAmount = Math.max(50, Math.ceil(deficit));
-            const depositUnits = ethers.parseUnits(String(depositAmount), 6);
-            const walletUsdcBal = await usdc.balanceOf(signer.address);
-            const walletUsdc = Number(walletUsdcBal) / 1e6;
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'step',
+            message: `💰 Pre-funding ${DEMO_BUYER_WALLETS.length} buyer wallets with $${PRE_FUND_AMOUNT} USDC each...`,
+        });
 
-            if (walletUsdc >= depositAmount) {
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'step',
-                    message: `📥 Vault needs top-up ($${availableInVault.toFixed(0)} available, need $${requiredUsdc}). Depositing $${depositAmount}...`,
-                });
+        const deployerUsdcBal = await usdc.balanceOf(signer.address);
+        const totalNeeded = preFundUnits * BigInt(DEMO_BUYER_WALLETS.length);
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `📊 Deployer wallet USDC: $${ethers.formatUnits(deployerUsdcBal, 6)} | Need: $${ethers.formatUnits(totalNeeded, 6)}`,
+        });
 
-                await sendTx(io, 'Approve USDC', () => usdc.approve(VAULT_ADDRESS, depositUnits));
-                await sendTx(io, 'Deposit USDC', () => vault.deposit(depositUnits));
+        let buyersFunded = 0;
+        for (const buyerAddr of DEMO_BUYER_WALLETS) {
+            if (signal.aborted) throw new Error('Demo aborted');
 
+            const buyerKey = BUYER_KEYS[buyerAddr];
+            if (!buyerKey) continue;
+
+            try {
+                // Check if buyer already has vault balance — skip if funded
+                const existingBal = await vault.balanceOf(buyerAddr);
+                if (existingBal >= preFundUnits) {
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'info',
+                        message: `⏭️ Buyer ${buyerAddr.slice(0, 10)}… already has $${ethers.formatUnits(existingBal, 6)} in vault — skipping`,
+                    });
+                    buyersFunded++;
+                    continue;
+                }
+
+                // Gas top-up for buyer if needed
+                const buyerEth = await provider.getBalance(buyerAddr);
+                if (buyerEth < ethers.parseEther('0.0005')) {
+                    const gasTx = await signer.sendTransaction({
+                        to: buyerAddr,
+                        value: ethers.parseEther('0.001'),
+                    });
+                    await gasTx.wait();
+                }
+
+                // Deployer sends USDC to buyer
+                const transferTx = await usdc.transfer(buyerAddr, preFundUnits);
+                await transferTx.wait();
+
+                // Buyer approves vault to spend USDC
+                const buyerSigner = new ethers.Wallet(buyerKey, provider);
+                const buyerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, buyerSigner);
+                const buyerVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, buyerSigner);
+
+                const approveTx = await buyerUsdc.approve(VAULT_ADDRESS, preFundUnits);
+                await approveTx.wait();
+
+                // Buyer deposits into their own vault
+                const depositTx = await buyerVault.deposit(preFundUnits);
+                await depositTx.wait();
+
+                buyersFunded++;
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'success',
-                    message: `✅ Deposited $${depositAmount} USDC into vault`,
+                    message: `✅ Buyer ${buyerAddr.slice(0, 10)}… funded & deposited $${PRE_FUND_AMOUNT} USDC into vault (${buyersFunded}/${DEMO_BUYER_WALLETS.length})`,
                 });
-            } else if (walletUsdc >= 5) {
-                // Deposit whatever we have
-                const partialAmount = Math.floor(walletUsdc);
-                const partialUnits = ethers.parseUnits(String(partialAmount), 6);
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'step',
-                    message: `📥 Depositing all available wallet USDC ($${partialAmount}) into vault...`,
-                });
-                await sendTx(io, 'Approve USDC', () => usdc.approve(VAULT_ADDRESS, partialUnits));
-                await sendTx(io, 'Deposit USDC', () => vault.deposit(partialUnits));
-
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Deposited $${partialAmount} USDC into vault`,
-                });
-            } else {
+            } catch (err: any) {
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'warn',
-                    message: `⚠️ Low USDC — vault: $${availableInVault.toFixed(2)}, wallet: $${walletUsdc.toFixed(2)}. Some cycles may be skipped.`,
+                    message: `⚠️ Pre-fund failed for ${buyerAddr.slice(0, 10)}…: ${err.message?.slice(0, 80)}`,
                 });
             }
-        } else {
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'success',
-                message: `✅ Vault has sufficient USDC ($${availableInVault.toFixed(0)} available, need $${requiredUsdc})`,
-            });
         }
 
-        // ── Poll vault balance after deposit — RPC may lag on Base Sepolia ──
-        await sleep(800);
-        let vaultReady = false;
-        for (let attempt = 1; attempt <= 15; attempt++) {
-            await sleep(500);
-            const freshBlock = await provider.getBlockNumber();
-            contractUsdc = await usdc.balanceOf(VAULT_ADDRESS, { blockTag: freshBlock });
-            obligations = await vault.totalObligations({ blockTag: freshBlock });
-            availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'info',
-                message: `📊 Attempt ${attempt}/15 — vault balance: $${availableInVault.toFixed(2)} USDC (block ${freshBlock}, contract: $${(Number(contractUsdc) / 1e6).toFixed(2)}, obligations: $${(Number(obligations) / 1e6).toFixed(2)})`,
-            });
-            if (availableInVault >= 50) {
-                vaultReady = true;
-                break;
-            }
-        }
-
-        if (!vaultReady) {
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'warn',
-                message: `⚠️ Vault balance did not update in time ($${availableInVault.toFixed(2)} after 15 attempts). Running lead drip only — skipping auction cycles.`,
-            });
-        }
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: buyersFunded > 0 ? 'success' : 'error',
+            message: `${buyersFunded > 0 ? '✅' : '❌'} Pre-fund complete: ${buyersFunded}/${DEMO_BUYER_WALLETS.length} buyers ready`,
+        });
 
         // ── Step 2: Start staggered lead drip (runs in background) ──
         if (signal.aborted) throw new Error('Demo aborted');
@@ -691,19 +668,19 @@ export async function runFullDemo(
             const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
             const buyerWallet = DEMO_BUYER_WALLETS[(cycle - 1) % DEMO_BUYER_WALLETS.length];
 
-            // ── Pre-cycle vault balance check — cap bid to available ──
+            // ── Pre-cycle buyer vault balance check — cap bid to available ──
             let bidAmount = rand(3, 10); // $3–$10 per bid (conservative to avoid exhaustion)
             try {
-                // Check contract's ACTUAL available USDC (what lockForBid checks)
-                const contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
-                const obligations = await vault.totalObligations();
-                const availableUsdc = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
+                // Check THIS buyer's vault balance (per-buyer model)
+                const buyerVaultBal = await vault.balanceOf(buyerWallet);
+                const buyerLockedBal = await vault.lockedBalances(buyerWallet);
+                const availableUsdc = Math.max(0, (Number(buyerVaultBal) - Number(buyerLockedBal)) / 1e6);
                 const maxPerBid = Math.floor(availableUsdc / 3); // 3 bids per cycle
                 if (maxPerBid < 1) {
                     emit(io, {
                         ts: new Date().toISOString(),
                         level: 'warn',
-                        message: `⚠️ Vault USDC too low ($${availableUsdc.toFixed(2)} available). Skipping cycle ${cycle}.`,
+                        message: `⚠️ Buyer ${buyerWallet.slice(0, 10)}… vault too low ($${availableUsdc.toFixed(2)} available). Skipping cycle ${cycle}.`,
                         cycle,
                         totalCycles: cycles,
                     });
@@ -818,7 +795,7 @@ export async function runFullDemo(
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `🔒 Locking bid #${b + 1} — $${bidAmount} USDC from ${signer.address.slice(0, 10)}…`,
+                    message: `🔒 Locking bid #${b + 1} — $${bidAmount} USDC from buyer ${buyerWallet.slice(0, 10)}…`,
                     cycle,
                     totalCycles: cycles,
                 });
@@ -826,7 +803,7 @@ export async function runFullDemo(
                 const { receipt, gasUsed } = await sendTx(
                     io,
                     `Lock bid #${b + 1} ($${bidAmount})`,
-                    () => vault.lockForBid(signer.address, bidAmountUnits),
+                    () => vault.lockForBid(buyerWallet, bidAmountUnits),
                     cycle,
                     cycles,
                 );
