@@ -547,6 +547,23 @@ export async function runFullDemo(
             const sellerUsdcAmount = Number(sellerBal) / 1e6;
 
             if (sellerUsdcAmount >= 1) {
+                // Ensure seller has ETH for gas (deployer sponsors)
+                const sellerEth = await provider.getBalance(DEMO_SELLER_WALLET);
+                if (sellerEth < ethers.parseEther('0.0005')) {
+                    const gasAmount = ethers.parseEther('0.001');
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'step',
+                        message: `⛽ Sending 0.001 ETH to seller wallet for gas...`,
+                    });
+                    const gasTx = await signer.sendTransaction({
+                        to: DEMO_SELLER_WALLET,
+                        value: gasAmount,
+                    });
+                    await gasTx.wait();
+                }
+
+
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'step',
