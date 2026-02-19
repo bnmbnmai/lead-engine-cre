@@ -128,7 +128,11 @@ sequenceDiagram
     API->>FN: matchBounties(lead, criteria)
     FN-->>API: Matching pools
     BP->>S: Bounty auto-released
-    ## Fraud Prevention
+```
+
+---
+
+## Fraud Prevention
 
 | Fraud Type          | Legacy Approach                  | Lead Engine Protection                          |
 |---------------------|----------------------------------|-------------------------------------------------|
@@ -185,8 +189,11 @@ graph TD
     F[WebSocket] <--> B
     G[Dynamic Verticals Admin] --> B
     style C fill:#f0f8ff
+```
 
-    ## Security, Trust & Solvency
+---
+
+## Security, Trust & Solvency
 
 Institutional-grade foundation:
 
@@ -265,11 +272,14 @@ cd mcp && pnpm dev
 
 # Frontend
 cd frontend && pnpm dev
+```
+
+---
 
 ## Roadmap
 
-    Q1 2026: Mainnet migration, full DECO + Confidential HTTP
-    Q2 2026: BullMQ scaling, secondary LeadNFT marketplace, dispute arbitration
-    Q3+: Enterprise white-label verticals, fiat on-ramp, CRM deep integrations
+- **Q1 2026**: Mainnet migration, full DECO + Confidential HTTP
+- **Q2 2026**: BullMQ scaling, secondary LeadNFT marketplace, dispute arbitration
+- **Q3+**: Enterprise white-label verticals, fiat on-ramp, CRM deep integrations
 
-See full ROADMAP.md.
+See full [ROADMAP.md](./ROADMAP.md).
