@@ -24,9 +24,17 @@ const router = Router();
 // Production Guard — block all demo routes in prod
 // ============================================
 
-const devOnly = (_req: Request, res: Response, next: NextFunction) => {
-    if (process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
-        res.status(403).json({ error: 'Demo endpoints disabled in production' });
+const devOnly = (req: Request, res: Response, next: NextFunction) => {
+    // For hackathon demo: allow demo routes unless explicitly disabled
+    // Set DEMO_MODE=false to disable demo routes in production
+    if (process.env.DEMO_MODE === 'false') {
+        // Always include CORS headers so the browser doesn't hide the real error
+        const origin = req.headers.origin;
+        if (origin) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
+        res.status(403).json({ error: 'Demo endpoints disabled' });
         return;
     }
     next();
