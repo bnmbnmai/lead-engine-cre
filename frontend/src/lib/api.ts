@@ -1,4 +1,12 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Fallback chain mirrors socket.ts so both always point to the same Render backend.
+// Priority: VITE_API_URL (explicit) → VITE_SOCKET_URL (already set for WebSocket) → dev localhost.
+// If VITE_API_URL is unset on Vercel but VITE_SOCKET_URL is, the browser won't call
+// http://localhost:3001 from an HTTPS page (mixed-content block reported as CORS error).
+export const API_BASE_URL = (
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_SOCKET_URL ||
+    'http://localhost:3001'
+).replace(/\/$/, ''); // strip trailing slash so /api/v1/... paths compose cleanly
 
 // ============================================
 // Types
