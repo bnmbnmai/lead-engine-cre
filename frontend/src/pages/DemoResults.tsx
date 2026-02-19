@@ -29,7 +29,8 @@ const BASESCAN_TX = 'https://sepolia.basescan.org/tx/';
 interface CycleResult {
     cycle: number;
     vertical: string;
-    buyerWallet: string;
+    buyerWallet: string;         // winner's wallet (backward compat)
+    buyerWallets?: string[];     // all 3 distinct bidder wallets (Phase 2 — may be absent in old runs)
     bidAmount: number;
     lockIds: number[];
     winnerLockId: number;

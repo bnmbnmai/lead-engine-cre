@@ -108,7 +108,8 @@ interface DemoLogEntry {
 interface CycleResult {
     cycle: number;
     vertical: string;
-    buyerWallet: string;
+    buyerWallet: string;     // winner's wallet (kept for backward compat)
+    buyerWallets: string[];  // all 3 distinct bidder wallets (Phase 2)
     bidAmount: number;
     lockIds: number[];
     winnerLockId: number;
@@ -861,7 +862,7 @@ export async function runFullDemo(
         // ── Step 1: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
         // NOTE: Recycling (vault withdraw + USDC return) now happens AFTER demo:complete in the background.
         // This step only runs on-chain txs for buyers that are actually below threshold (optimistic skip).
-        const PRE_FUND_AMOUNT = 80; // $80 USDC per buyer
+        const PRE_FUND_AMOUNT = 300; // $300 USDC per buyer — covers rand(25,75) bids across up to 5 cycles (Phase 2)
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_AMOUNT), 6);
 
         const deployerUsdcBal = await usdc.balanceOf(signer.address);
@@ -948,34 +949,99 @@ export async function runFullDemo(
             if (signal.aborted) throw new Error('Demo aborted');
 
             const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
-            const buyerWallet = DEMO_BUYER_WALLETS[(cycle - 1) % DEMO_BUYER_WALLETS.length];
+            // ── Per-cycle: pick 3 DISTINCT buyer wallets (rotating offset so every cycle
+            //    uses a different trio from the 10-wallet pool, giving Basescan multi-wallet evidence)
+            const offset = (cycle - 1) * 3;
+            const cycleBuyers = [
+                DEMO_BUYER_WALLETS[offset % DEMO_BUYER_WALLETS.length],
+                DEMO_BUYER_WALLETS[(offset + 1) % DEMO_BUYER_WALLETS.length],
+                DEMO_BUYER_WALLETS[(offset + 2) % DEMO_BUYER_WALLETS.length],
+            ];
+            // Winner is determined at settle time (first lock = first bidder by convention)
+            const buyerWallet = cycleBuyers[0];
 
-            // ── Pre-cycle buyer vault balance check — cap bid to available ──
-            let bidAmount = rand(3, 10); // $3–$10 per bid (conservative to avoid exhaustion)
-            try {
-                // Check THIS buyer's vault balance (per-buyer model)
-                const buyerVaultBal = await vault.balanceOf(buyerWallet);
-                const buyerLockedBal = await vault.lockedBalances(buyerWallet);
-                const availableUsdc = Math.max(0, (Number(buyerVaultBal) - Number(buyerLockedBal)) / 1e6);
-                const maxPerBid = Math.floor(availableUsdc / 3); // 3 bids per cycle
-                if (maxPerBid < 1) {
-                    emit(io, {
-                        ts: new Date().toISOString(),
-                        level: 'warn',
-                        message: `⚠️ Buyer ${buyerWallet.slice(0, 10)}… vault too low ($${availableUsdc.toFixed(2)} available). Skipping cycle ${cycle}.`,
-                        cycle,
-                        totalCycles: cycles,
-                    });
-                    continue;
+            // ── Per-cycle bid amount — each bidder bids a slightly different amount for realism
+            const baseBid = rand(25, 75); // $25–$75 bid base (Phase 2 — was $3–$10)
+
+            // ── Pre-cycle vault check — ensure all 3 cycle buyers have enough balance
+            // If any buyer is critically low, emit a warning. We skip only if ALL fail.
+            let readyBuyers = 0;
+            const buyerBids: { addr: string; amount: number; amountUnits: bigint }[] = [];
+
+            for (let bi = 0; bi < cycleBuyers.length; bi++) {
+                const bAddr = cycleBuyers[bi];
+                // Stagger bid amounts slightly (+/-$5) so Basescan shows different values
+                const bidAmount = Math.max(10, baseBid + (bi === 0 ? 0 : bi === 1 ? rand(-5, 5) : rand(-8, 8)));
+                const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
+                try {
+                    const bVaultBal = await vault.balanceOf(bAddr);
+                    const bLockedBal = await vault.lockedBalances(bAddr);
+                    const available = Math.max(0, (Number(bVaultBal) - Number(bLockedBal)) / 1e6);
+                    if (available < bidAmount) {
+                        emit(io, {
+                            ts: new Date().toISOString(),
+                            level: 'warn',
+                            message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — pre-funding now`,
+                            cycle, totalCycles: cycles,
+                        });
+                        // Attempt emergency top-up for this buyer before skipping
+                        try {
+                            const topUpAmount = ethers.parseUnits(String(PRE_FUND_AMOUNT), 6);
+                            const bKey = BUYER_KEYS[bAddr];
+                            if (bKey) {
+                                const bSigner = new ethers.Wallet(bKey, provider);
+                                const bUsdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
+                                const bVaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
+                                const gasTx = await signer.sendTransaction({ to: bAddr, value: ethers.parseEther('0.001') });
+                                await gasTx.wait();
+                                const txfr = await usdc.transfer(bAddr, topUpAmount);
+                                await txfr.wait();
+                                const approveTx = await bUsdcContract.approve(VAULT_ADDRESS, topUpAmount);
+                                await approveTx.wait();
+                                const depositTx = await bVaultContract.deposit(topUpAmount);
+                                await depositTx.wait();
+                                emit(io, {
+                                    ts: new Date().toISOString(),
+                                    level: 'success',
+                                    message: `✅ Emergency top-up $${PRE_FUND_AMOUNT} for buyer ${bAddr.slice(0, 10)}…`,
+                                    cycle, totalCycles: cycles,
+                                });
+                            }
+                        } catch (topUpErr: any) {
+                            emit(io, {
+                                ts: new Date().toISOString(),
+                                level: 'warn',
+                                message: `⚠️ Emergency top-up failed for ${bAddr.slice(0, 10)}…: ${topUpErr.message?.slice(0, 60)}`,
+                                cycle, totalCycles: cycles,
+                            });
+                            continue; // skip this buyer in this cycle
+                        }
+                    }
+                    buyerBids.push({ addr: bAddr, amount: bidAmount, amountUnits: bidAmountUnits });
+                    readyBuyers++;
+                } catch {
+                    // Skip buyer on read error
                 }
-                bidAmount = Math.min(bidAmount, maxPerBid);
-            } catch { /* proceed with default bid amount */ }
-            const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
+            }
+
+            if (readyBuyers === 0) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ All 3 buyers vault-depleted — skipping cycle ${cycle}. Run pre-fund step or wait for recycle.`,
+                    cycle, totalCycles: cycles,
+                });
+                continue;
+            }
+
+            // Use the first ready buyer's bid amount as the displayed cycle bid
+            const bidAmount = buyerBids[0]?.amount ?? baseBid;
+            const bidAmountUnits = buyerBids[0]?.amountUnits ?? ethers.parseUnits(String(bidAmount), 6);
 
             emit(io, {
                 ts: new Date().toISOString(),
                 level: 'step',
-                message: `\n${'─'.repeat(56)}\n🔄 Cycle ${cycle}/${cycles} — ${vertical.toUpperCase()} | $${bidAmount}/bid\n${'─'.repeat(56)}`,
+                message: `\n${'─'.repeat(56)}\n🔄 Cycle ${cycle}/${cycles} — ${vertical.toUpperCase()} | ${readyBuyers} bidders | $${buyerBids.map(b => b.amount).join('/$')}\n   Buyers: ${cycleBuyers.map(a => a.slice(0, 10) + '…').join(', ')}\n${'─'.repeat(56)}`,
                 cycle,
                 totalCycles: cycles,
             });
@@ -1067,25 +1133,28 @@ export async function runFullDemo(
                 });
             }
 
-            // ── Lock 3 bids ──
+            // ── Lock 1 bid per distinct buyer (3 distinct wallets → 3 distinct Basescan from-addresses) ──
             const lockIds: number[] = [];
+            const lockBuyerMap: { lockId: number; addr: string; amount: number }[] = [];
             let cycleGas = 0n;
 
-            for (let b = 0; b < 3; b++) {
+            for (let b = 0; b < buyerBids.length; b++) {
                 if (signal.aborted) throw new Error('Demo aborted');
+
+                const { addr: bAddr, amount: bAmount, amountUnits: bAmountUnits } = buyerBids[b];
 
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `🔒 Locking bid #${b + 1} — $${bidAmount} USDC from buyer ${buyerWallet.slice(0, 10)}…`,
+                    message: `🔒 Bidder ${b + 1}/3 — $${bAmount} USDC from ${bAddr.slice(0, 10)}… (competing against ${readyBuyers - 1} other bidders)`,
                     cycle,
                     totalCycles: cycles,
                 });
 
                 const { receipt, gasUsed } = await sendTx(
                     io,
-                    `Lock bid #${b + 1} ($${bidAmount})`,
-                    () => vault.lockForBid(buyerWallet, bidAmountUnits),
+                    `Lock bid #${b + 1} — ${bAddr.slice(0, 10)}… bids $${bAmount}`,
+                    () => vault.lockForBid(bAddr, bAmountUnits),
                     cycle,
                     cycles,
                 );
@@ -1097,7 +1166,9 @@ export async function runFullDemo(
                     try {
                         const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
                         if (parsed?.name === 'BidLocked') {
-                            lockIds.push(Number(parsed.args[0]));
+                            const lockId = Number(parsed.args[0]);
+                            lockIds.push(lockId);
+                            lockBuyerMap.push({ lockId, addr: bAddr, amount: bAmount });
                         }
                     } catch { /* skip other events */ }
                 }
@@ -1107,7 +1178,7 @@ export async function runFullDemo(
                     io.emit('marketplace:bid:update', {
                         leadId: demoLeadId,
                         bidCount: b + 1,
-                        highestBid: bidAmount,
+                        highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
                         timestamp: new Date().toISOString(),
                     });
                 }
@@ -1217,7 +1288,8 @@ export async function runFullDemo(
             cycleResults.push({
                 cycle,
                 vertical,
-                buyerWallet,
+                buyerWallet,                                // winner's wallet (compat)
+                buyerWallets: cycleBuyers,                 // all 3 distinct bidders (Phase 2)
                 bidAmount,
                 lockIds,
                 winnerLockId,
