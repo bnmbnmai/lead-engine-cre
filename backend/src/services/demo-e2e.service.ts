@@ -591,11 +591,11 @@ export async function runFullDemo(
             });
         }
 
-        // ── Step 2: Auto-deposit — ensure vault has enough USDC for all cycles ──
+        // ── Auto-deposit — ensure vault has enough USDC for all cycles ──
         // Check contract's actual available USDC (not just deployer shares)
-        const contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
-        const obligations = await vault.totalObligations();
-        const availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
+        let contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
+        let obligations = await vault.totalObligations();
+        let availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
         const requiredUsdc = cycles * 3 * 10; // budget: 3 bids × $10 per cycle
         const deficit = Math.max(0, requiredUsdc - availableInVault);
 
@@ -651,6 +651,16 @@ export async function runFullDemo(
                 message: `✅ Vault has sufficient USDC ($${availableInVault.toFixed(0)} available, need $${requiredUsdc})`,
             });
         }
+
+        // ── Refresh vault balance after deposit so cycle loop sees updated state ──
+        contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
+        obligations = await vault.totalObligations();
+        availableInVault = Math.max(0, (Number(contractUsdc) - Number(obligations)) / 1e6);
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `📊 Post-deposit vault balance: $${availableInVault.toFixed(2)} USDC available (contract: $${(Number(contractUsdc) / 1e6).toFixed(2)}, obligations: $${(Number(obligations) / 1e6).toFixed(2)})`,
+        });
 
         // ── Step 2: Start staggered lead drip (runs in background) ──
         if (signal.aborted) throw new Error('Demo aborted');
