@@ -85,7 +85,7 @@ export default function DemoResults() {
             const { data, error: apiError } = res;
 
             if (apiError) {
-                setError(String(apiError));
+                setError(typeof apiError === 'string' ? apiError : (apiError as any).message || (apiError as any).error || JSON.stringify(apiError));
             } else if (data?.status === 'running') {
                 setError('Demo is still running. Results will appear when complete.');
             } else {
@@ -283,8 +283,8 @@ export default function DemoResults() {
                                 key={run.runId}
                                 onClick={() => fetchResults(run.runId)}
                                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${result.runId === run.runId
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                                     }`}
                             >
                                 {idx === 0 ? 'Latest' : `Run ${idx + 1}`}
