@@ -1587,10 +1587,23 @@ router.post('/settle', async (req: Request, res: Response) => {
 
 import * as demoE2E from '../services/demo-e2e.service';
 
+// Hydrate in-memory results cache from DB on startup (non-blocking, never throws)
+void demoE2E.initResultsStore().catch((e: Error) =>
+    console.warn('[demo-panel] initResultsStore startup failed (non-fatal):', e.message)
+);
+
 router.post('/full-e2e', async (req: Request, res: Response) => {
     try {
         if (demoE2E.isDemoRunning()) {
-            res.status(409).json({ error: 'A demo is already running', running: true });
+            res.status(409).json({ error: 'A demo is already running', running: true, recycling: false });
+            return;
+        }
+        if (demoE2E.isDemoRecycling()) {
+            res.status(409).json({
+                error: 'Token redistribution from the previous run is in progress — please wait ~30s',
+                running: false,
+                recycling: true,
+            });
             return;
         }
 
@@ -1639,16 +1652,29 @@ router.post('/full-e2e/stop', async (_req: Request, res: Response) => {
 // ============================================
 
 router.get('/full-e2e/results/latest', async (_req: Request, res: Response) => {
-    const result = demoE2E.getLatestResult();
-    if (!result) {
-        if (demoE2E.isDemoRunning()) {
-            res.json({ status: 'running', message: 'Demo is still in progress' });
-            return;
-        }
-        res.status(404).json({ error: 'No demo results available yet' });
+    // While demo is actively running, signal that results aren't ready yet
+    if (demoE2E.isDemoRunning()) {
+        res.json({ status: 'running', message: 'Demo is still in progress' });
         return;
     }
-    res.json(result);
+
+    // While recycle is in flight, return 202 so frontend can show a friendly message
+    if (demoE2E.isDemoRecycling()) {
+        res.status(202).json({
+            status: 'finalizing',
+            recycling: true,
+            message: 'Demo complete — finalizing background tasks, results loading in <5s…',
+        });
+        return;
+    }
+
+    // Async-aware: queries DB on cache miss (cold boot recovery)
+    const result = await demoE2E.getLatestResult();
+    if (!result) {
+        res.status(404).json({ error: 'No demo results available yet', resultsReady: false });
+        return;
+    }
+    res.json({ ...result, resultsReady: true });
 });
 
 // ============================================
@@ -1677,9 +1703,13 @@ router.get('/full-e2e/results/:runId', async (req: Request, res: Response) => {
 // ============================================
 
 router.get('/full-e2e/status', async (_req: Request, res: Response) => {
+    const allResults = demoE2E.getAllResults();
+    const resultsReady = allResults.length > 0;
     res.json({
         running: demoE2E.isDemoRunning(),
-        results: demoE2E.getAllResults().map(r => ({
+        recycling: demoE2E.isDemoRecycling(),
+        resultsReady,
+        results: allResults.map(r => ({
             runId: r.runId,
             status: r.status,
             startedAt: r.startedAt,

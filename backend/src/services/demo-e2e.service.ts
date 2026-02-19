@@ -133,10 +133,12 @@ export interface DemoResult {
 // ── Singleton State ────────────────────────────────
 
 let isRunning = false;
+let isRecycling = false;
 let currentAbort: AbortController | null = null;
+let recycleAbort: AbortController | null = null;
 const resultsStore = new Map<string, DemoResult>();
 
-// ── File Persistence (survive server restarts) ─────
+// ── File Persistence (secondary fallback) ──────────────
 const RESULTS_FILE = path.join(process.cwd(), 'demo-results.json');
 
 function saveResultsToDisk() {
@@ -146,18 +148,91 @@ function saveResultsToDisk() {
     } catch { /* non-fatal */ }
 }
 
+// ── DB Persistence (primary / source of truth) ─────────
+
+/**
+ * Upsert a single DemoResult to the DemoRun table.
+ * Also updates the in-memory cache and writes the disk fallback.
+ * Non-fatal on DB error so demo doesn't fail for persistence reasons.
+ */
+async function saveResultsToDB(result: DemoResult): Promise<void> {
+    // Update in-memory cache immediately
+    resultsStore.set(result.runId, result);
+    // Write disk fallback
+    saveResultsToDisk();
+
+    try {
+        const statusMap: Record<string, 'RUNNING' | 'COMPLETED' | 'ABORTED' | 'FAILED'> = {
+            running: 'RUNNING',
+            completed: 'COMPLETED',
+            aborted: 'ABORTED',
+            failed: 'FAILED',
+        };
+        const dbStatus = statusMap[result.status] ?? 'FAILED';
+
+        await prisma.demoRun.upsert({
+            where: { runId: result.runId },
+            create: {
+                runId: result.runId,
+                status: dbStatus,
+                startedAt: new Date(result.startedAt),
+                completedAt: result.completedAt ? new Date(result.completedAt) : null,
+                result: result as any,
+            },
+            update: {
+                status: dbStatus,
+                completedAt: result.completedAt ? new Date(result.completedAt) : null,
+                result: result as any,
+            },
+        });
+    } catch (err: any) {
+        console.warn('[DEMO E2E] DB persist failed (non-fatal):', err.message?.slice(0, 120));
+    }
+}
+
+/**
+ * Load all demo results from the DB into the in-memory cache.
+ * Called once on module init and on GET /results endpoints when cache is cold.
+ */
+async function loadResultsFromDB(): Promise<void> {
+    try {
+        const rows = await prisma.demoRun.findMany({
+            orderBy: { startedAt: 'desc' },
+            take: 20, // cap to last 20 runs (Json field can be large)
+        });
+        for (const row of rows) {
+            if (row.result && typeof row.result === 'object') {
+                const r = row.result as unknown as DemoResult;
+                if (r.runId) resultsStore.set(r.runId, r);
+            }
+        }
+        console.log(`[DEMO E2E] Loaded ${rows.length} demo results from DB`);
+    } catch (err: any) {
+        console.warn('[DEMO E2E] DB load failed, falling back to disk cache:', err.message?.slice(0, 80));
+        loadResultsFromDisk();
+    }
+}
+
 function loadResultsFromDisk() {
     try {
         if (fs.existsSync(RESULTS_FILE)) {
             const raw = fs.readFileSync(RESULTS_FILE, 'utf-8');
             const arr: DemoResult[] = JSON.parse(raw);
             for (const r of arr) resultsStore.set(r.runId, r);
-            console.log(`[DEMO E2E] Loaded ${arr.length} cached results from disk`);
+            console.log(`[DEMO E2E] Loaded ${arr.length} results from disk fallback`);
         }
     } catch { /* non-fatal */ }
 }
 
-// Load on module init
+/**
+ * Called by the route file on server startup (async-safe).
+ * Populates the in-memory cache from DB, falls back to disk.
+ */
+export async function initResultsStore(): Promise<void> {
+    await loadResultsFromDB();
+}
+
+// Sync disk fallback on module init (DB load is triggered via initResultsStore)
 loadResultsFromDisk();
 
 // ── Helpers ────────────────────────────────────────
@@ -501,6 +576,171 @@ async function injectOneLead(
     });
 }
 
+// ── Token Recycling (background phase) ───────────
+
+/**
+ * recycleTokens — runs AFTER demo:complete fires, non-blocking.
+ *
+ * Withdraws USDC from all demo buyer/seller vaults back to the deployer
+ * so the next demo run starts with a clean slate.
+ *
+ * Emits demo:recycle-start / demo:recycle-complete socket events.
+ * All errors are caught and logged as warnings — never throws.
+ */
+async function recycleTokens(
+    io: SocketServer,
+    signal: AbortSignal,
+    BUYER_KEYS: Record<string, string>,
+): Promise<void> {
+    isRecycling = true;
+    recycleAbort = new AbortController();
+
+    try {
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'step',
+            message: '♻️  Token redistribution starting — preparing vault for next run...',
+        });
+        io.emit('demo:recycle-start', { ts: new Date().toISOString() });
+
+        const provider = getProvider();
+        const signer = getSigner();
+        const vault = getVault(signer);
+        const recycleSignal = recycleAbort.signal;
+
+        // ── Step R1: Gas top-up for seller if needed ──
+        try {
+            if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
+                const gasTx = await signer.sendTransaction({
+                    to: DEMO_SELLER_WALLET,
+                    value: ethers.parseEther('0.001'),
+                });
+                await gasTx.wait();
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Gas top-up sent to seller ${DEMO_SELLER_WALLET}`,
+                });
+            }
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Seller gas top-up failed (non-fatal): ${err.message?.slice(0, 80)}`,
+            });
+        }
+
+        // ── Step R2: Withdraw deployer vault balance to wallet ──
+        try {
+            const deployerVaultBal = await vault.balanceOf(signer.address);
+            if (deployerVaultBal > 0n) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `📤 Withdrawing $${ethers.formatUnits(deployerVaultBal, 6)} USDC from deployer vault...`,
+                });
+                const withdrawTx = await vault.withdraw(deployerVaultBal);
+                await withdrawTx.wait();
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Withdrawn $${ethers.formatUnits(deployerVaultBal, 6)} USDC to deployer wallet`,
+                });
+            }
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Deployer vault withdraw failed (non-fatal): ${err.message?.slice(0, 80)}`,
+            });
+        }
+
+        // ── Step R3: Recycle USDC from seller wallet back to deployer ──
+        try {
+            const sellerWallet = new ethers.Wallet(DEMO_SELLER_KEY, provider);
+            const sellerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerWallet);
+            const sellerBal = await sellerUsdc.balanceOf(sellerWallet.address);
+            if (sellerBal > 0n) {
+                // Gas top-up for seller if needed
+                if ((await provider.getBalance(sellerWallet.address)) < ethers.parseEther('0.0005')) {
+                    const gasTx = await signer.sendTransaction({ to: sellerWallet.address, value: ethers.parseEther('0.001') });
+                    await gasTx.wait();
+                }
+                const tx = await sellerUsdc.transfer(signer.address, sellerBal);
+                await tx.wait();
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Recycled $${ethers.formatUnits(sellerBal, 6)} USDC from seller to deployer`,
+                });
+            }
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Seller recycle failed (non-fatal): ${err.message?.slice(0, 80)}`,
+            });
+        }
+
+        // ── Step R4: Recycle USDC from all buyer wallets back to deployer ──
+        for (const buyerAddr of DEMO_BUYER_WALLETS) {
+            if (recycleSignal.aborted || signal.aborted) break;
+            try {
+                const bKey = BUYER_KEYS[buyerAddr];
+                if (!bKey) continue;
+
+                // Withdraw buyer's vault balance first
+                const bSigner = new ethers.Wallet(bKey, provider);
+                const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
+                const bVaultBal = await bVault.balanceOf(buyerAddr);
+                if (bVaultBal > 0n) {
+                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
+                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
+                        await gasTx.wait();
+                    }
+                    const wTx = await bVault.withdraw(bVaultBal);
+                    await wTx.wait();
+                }
+
+                // Transfer any wallet USDC back to deployer
+                const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
+                const bWalletBal = await bUsdc.balanceOf(buyerAddr);
+                if (bWalletBal > 0n) {
+                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
+                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
+                        await gasTx.wait();
+                    }
+                    const tx = await bUsdc.transfer(signer.address, bWalletBal);
+                    await tx.wait();
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'success',
+                        message: `✅ Recycled $${ethers.formatUnits(bWalletBal, 6)} from buyer ${buyerAddr.slice(0, 10)}…`,
+                    });
+                }
+            } catch { /* skip individual buyer errors */ }
+        }
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'success',
+            message: '✅ Token redistribution complete — vault ready for next demo run',
+        });
+        io.emit('demo:recycle-complete', { ts: new Date().toISOString(), success: true });
+
+    } catch (err: any) {
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'warn',
+            message: `⚠️ Token redistribution encountered an error (non-fatal): ${err.message?.slice(0, 120)}`,
+        });
+        io.emit('demo:recycle-complete', { ts: new Date().toISOString(), success: false, error: err.message });
+    } finally {
+        isRecycling = false;
+        recycleAbort = null;
+    }
+}
+
 // ── Main Orchestrator ──────────────────────────────
 
 export async function runFullDemo(
@@ -511,6 +751,9 @@ export async function runFullDemo(
     if (isRunning) {
         throw new Error('A demo is already running. Please wait or stop it first.');
     }
+    if (isRecycling) {
+        throw new Error('Token redistribution from the previous demo is still running. Please wait ~30 seconds.');
+    }
 
     // ── Validate ──
     cycles = Math.max(1, Math.min(cycles, MAX_CYCLES));
@@ -520,6 +763,20 @@ export async function runFullDemo(
     const cycleResults: CycleResult[] = [];
     let totalGas = 0n;
     let totalSettled = 0;
+
+    // BUYER_KEYS hoisted to function scope so catch/finally can pass to recycleTokens()
+    const BUYER_KEYS: Record<string, string> = {
+        '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439',
+        '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618',
+        '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e',
+        '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7',
+        '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7',
+        '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510',
+        '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd',
+        '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c',
+        '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382',
+        '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75',
+    };
 
     isRunning = true;
     currentAbort = new AbortController();
@@ -563,133 +820,11 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
-        // ── Buyer private keys (from faucet-wallets.txt) ──
-        const BUYER_KEYS: Record<string, string> = {
-            '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439',
-            '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618',
-            '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e',
-            '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7',
-            '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7',
-            '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510',
-            '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd',
-            '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c',
-            '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382',
-            '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75',
-        };
+        // BUYER_KEYS is now at function scope (see above) — removed duplicate declaration.
 
-        // ── Step 1: Gas top-up for seller ──
-        try {
-            if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
-                const gasTx = await signer.sendTransaction({
-                    to: DEMO_SELLER_WALLET,
-                    value: ethers.parseEther('0.001'),
-                });
-                await gasTx.wait();
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Gas top-up sent to seller ${DEMO_SELLER_WALLET}`,
-                });
-            }
-        } catch (err: any) {
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'warn',
-                message: `⚠️ Seller gas top-up failed: ${err.message?.slice(0, 80)}`,
-            });
-        }
-
-        // ── Step 2: Withdraw deployer's vault balance to wallet (recover locked USDC) ──
-        try {
-            const deployerVaultBal = await vault.balanceOf(signer.address);
-            if (deployerVaultBal > 0n) {
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'step',
-                    message: `📤 Withdrawing $${ethers.formatUnits(deployerVaultBal, 6)} USDC from deployer vault to wallet...`,
-                });
-                const withdrawTx = await vault.withdraw(deployerVaultBal);
-                await withdrawTx.wait();
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Withdrawn $${ethers.formatUnits(deployerVaultBal, 6)} USDC to deployer wallet`,
-                });
-            }
-        } catch (err: any) {
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'warn',
-                message: `⚠️ Deployer vault withdraw failed: ${err.message?.slice(0, 80)}`,
-            });
-        }
-
-        // ── Step 3: Recycle USDC from seller wallet back to deployer ──
-        try {
-            const sellerWallet = new ethers.Wallet(DEMO_SELLER_KEY, provider);
-            const sellerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerWallet);
-            const sellerBal = await sellerUsdc.balanceOf(sellerWallet.address);
-            if (sellerBal > 0n) {
-                // Gas top-up for seller if needed
-                if ((await provider.getBalance(sellerWallet.address)) < ethers.parseEther('0.0005')) {
-                    const gasTx = await signer.sendTransaction({ to: sellerWallet.address, value: ethers.parseEther('0.001') });
-                    await gasTx.wait();
-                }
-                const tx = await sellerUsdc.transfer(signer.address, sellerBal);
-                await tx.wait();
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ Recycled $${ethers.formatUnits(sellerBal, 6)} USDC from seller to deployer`,
-                });
-            }
-        } catch (err: any) {
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'warn',
-                message: `⚠️ Seller recycle failed: ${err.message?.slice(0, 80)}`,
-            });
-        }
-
-        // ── Step 4: Recycle USDC from all buyer wallets back to deployer ──
-        for (const buyerAddr of DEMO_BUYER_WALLETS) {
-            try {
-                const bKey = BUYER_KEYS[buyerAddr];
-                if (!bKey) continue;
-
-                // Withdraw buyer's vault balance first
-                const bSigner = new ethers.Wallet(bKey, provider);
-                const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-                const bVaultBal = await bVault.balanceOf(buyerAddr);
-                if (bVaultBal > 0n) {
-                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
-                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
-                        await gasTx.wait();
-                    }
-                    const wTx = await bVault.withdraw(bVaultBal);
-                    await wTx.wait();
-                }
-
-                // Transfer any wallet USDC back to deployer
-                const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
-                const bWalletBal = await bUsdc.balanceOf(buyerAddr);
-                if (bWalletBal > 0n) {
-                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
-                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
-                        await gasTx.wait();
-                    }
-                    const tx = await bUsdc.transfer(signer.address, bWalletBal);
-                    await tx.wait();
-                    emit(io, {
-                        ts: new Date().toISOString(),
-                        level: 'success',
-                        message: `✅ Recycled $${ethers.formatUnits(bWalletBal, 6)} from buyer ${buyerAddr.slice(0, 10)}…`,
-                    });
-                }
-            } catch { /* skip */ }
-        }
-
-        // ── Step 5: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
+        // ── Step 1: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
+        // NOTE: Recycling (vault withdraw + USDC return) now happens AFTER demo:complete in the background.
+        // This step only runs on-chain txs for buyers that are actually below threshold (optimistic skip).
         const PRE_FUND_AMOUNT = 80; // $80 USDC per buyer
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_AMOUNT), 6);
 
@@ -1090,11 +1225,21 @@ export async function runFullDemo(
             status: 'completed',
         };
 
-        resultsStore.set(runId, result);
-        saveResultsToDisk();
+        await saveResultsToDB(result);
 
-        // Emit completion event
+        // Bridge message — visible in Dev Log before results page loads
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'success',
+            message: '🎉 Demo showcase complete! Preparing next run — token redistribution starting in background...',
+        });
+
+        // Emit completion event FIRST so frontend navigates immediately
         io.emit('demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
+
+        // ── Phase 2: Non-blocking token recycling ──
+        // Fire and forget — does NOT block the return or delay the results page.
+        void recycleTokens(io, signal, BUYER_KEYS);
 
         return result;
 
@@ -1120,8 +1265,7 @@ export async function runFullDemo(
             error: isAbort ? undefined : err.message,
         };
 
-        resultsStore.set(runId, result);
-        saveResultsToDisk();
+        await saveResultsToDB(result);
         io.emit('demo:complete', {
             runId,
             status: result.status,
@@ -1129,6 +1273,11 @@ export async function runFullDemo(
             totalSettled,
             error: result.error,
         });
+
+        // Recycle on abort/failure too — best effort, non-blocking
+        if (!isAbort) {
+            void recycleTokens(io, signal, BUYER_KEYS);
+        }
 
         return result;
 
@@ -1141,26 +1290,52 @@ export async function runFullDemo(
 // ── Control Functions ──────────────────────────────
 
 export function stopDemo(): boolean {
-    if (!isRunning || !currentAbort) return false;
-    currentAbort.abort();
-    return true;
+    let stopped = false;
+    if (isRunning && currentAbort) {
+        currentAbort.abort();
+        stopped = true;
+    }
+    // Also abort any in-flight recycle
+    if (isRecycling && recycleAbort) {
+        recycleAbort.abort();
+    }
+    return stopped;
 }
 
 export function isDemoRunning(): boolean {
     return isRunning;
 }
 
+export function isDemoRecycling(): boolean {
+    return isRecycling;
+}
+
 export function getResults(runId: string): DemoResult | undefined {
     return resultsStore.get(runId);
+}
+
+/**
+ * getLatestResult — checks in-memory cache first (fast path).
+ * If cache is cold (e.g. after server cold boot), queries DB.
+ * Always returns the most recently completed/failed/aborted run.
+ */
+export async function getLatestResult(): Promise<DemoResult | undefined> {
+    // Fast path: cache is warm
+    const fromCache = Array.from(resultsStore.values()).sort(
+        (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+    if (fromCache.length > 0) return fromCache[0];
+
+    // Cold boot path: hydrate from DB
+    await loadResultsFromDB();
+    const all = Array.from(resultsStore.values()).sort(
+        (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+    return all.length > 0 ? all[0] : undefined;
 }
 
 export function getAllResults(): DemoResult[] {
     return Array.from(resultsStore.values()).sort(
         (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
-}
-
-export function getLatestResult(): DemoResult | undefined {
-    const all = getAllResults();
-    return all.length > 0 ? all[0] : undefined;
 }

@@ -25,6 +25,13 @@ services:
         fromDatabase:
           name: lead-engine-db
           property: connectionString
+      # ┌─────────────────────────────────────────────────────────────┐
+      # │  RENDER DASHBOARD — set this manually in Environment section │
+      # │  FRONTEND_URL = https://lead-engine-cre-frontend.vercel.app │
+      # │                                                             │
+      # │  Used for CORS allow-list. Without it, CORS still works    │
+      # │  (permissive in demo mode) but this makes it explicit.      │
+      # └─────────────────────────────────────────────────────────────┘
       - key: FRONTEND_URL
         sync: false
       - key: JWT_SECRET

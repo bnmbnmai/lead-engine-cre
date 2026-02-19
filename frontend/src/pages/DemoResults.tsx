@@ -60,55 +60,90 @@ interface RunSummary {
     totalSettled: number;
 }
 
+// ── Retry config ──────────────────────────────
+const RETRY_DELAYS = [800, 1600, 3200]; // ms
+
 export default function DemoResults() {
     const { runId: paramRunId } = useParams<{ runId: string }>();
     const navigate = useNavigate();
     const { startDemo } = useDemo();
     const [result, setResult] = useState<DemoResult | null>(null);
     const [loading, setLoading] = useState(true);
+    const [finalizing, setFinalizing] = useState(false); // 202 recycle-in-flight state
     const [error, setError] = useState<string | null>(null);
     const [history, setHistory] = useState<RunSummary[]>([]);
     const [showConfetti, setShowConfetti] = useState(false);
 
     const fetchResults = useCallback(async (specificRunId?: string) => {
         setLoading(true);
+        setFinalizing(false);
         setError(null);
 
-        try {
-            let res;
-            if (specificRunId) {
-                res = await api.demoFullE2EResults(specificRunId);
-            } else {
-                res = await api.demoFullE2ELatestResults();
-            }
+        let lastErr: string | null = null;
 
-            const { data, error: apiError } = res;
-
-            if (apiError) {
-                setError(typeof apiError === 'string' ? apiError : (apiError as any).message || (apiError as any).error || JSON.stringify(apiError));
-            } else if (data?.status === 'running') {
-                setError('Demo is still running. Results will appear when complete.');
-            } else {
-                setResult(data);
-                // Show confetti for completed demos
-                if (data?.status === 'completed') {
-                    setShowConfetti(true);
-                    setTimeout(() => setShowConfetti(false), 4000);
+        for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+            try {
+                let res;
+                if (specificRunId) {
+                    res = await api.demoFullE2EResults(specificRunId);
+                } else {
+                    res = await api.demoFullE2ELatestResults();
                 }
+
+                const { data, error: apiError } = res;
+                const httpStatus = (res as any)._status as number | undefined;
+
+                // 202 — backend says recycle still in flight, results coming ≤5s
+                if (httpStatus === 202 || data?.status === 'finalizing' || data?.recycling === true) {
+                    setFinalizing(true);
+                    setLoading(false);
+                    // Auto-retry after 3 s (one more attempt regardless of retry budget)
+                    setTimeout(() => fetchResults(specificRunId), 3000);
+                    return;
+                }
+
+                if (apiError) {
+                    lastErr = typeof apiError === 'string'
+                        ? apiError
+                        : (apiError as any).message || (apiError as any).error || JSON.stringify(apiError);
+                    // Retry on API errors until budget exhausted
+                } else if (data?.status === 'running') {
+                    setError('Demo is still running. Results will appear when complete.');
+                    setLoading(false);
+                    return;
+                } else if (data?.runId) {
+                    // Success
+                    setResult(data as DemoResult);
+                    setFinalizing(false);
+                    if (data.status === 'completed') {
+                        setShowConfetti(true);
+                        setTimeout(() => setShowConfetti(false), 4000);
+                    }
+                    setLoading(false);
+                    return;
+                } else {
+                    // No result yet — treat as retriable
+                    lastErr = 'No demo results available yet. Run a demo first!';
+                }
+            } catch (err: any) {
+                lastErr = err.message || 'Failed to load results';
             }
-        } catch (err: any) {
-            setError(err.message || 'Failed to load results');
-        } finally {
-            setLoading(false);
+
+            // Wait before retrying (skip wait on last attempt)
+            if (attempt < RETRY_DELAYS.length) {
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+            }
         }
+
+        // All retries exhausted
+        setError(lastErr);
+        setLoading(false);
     }, []);
 
-    // Fetch history
+    // Fetch run history (re-runs when result changes)
     useEffect(() => {
         api.demoFullE2EStatus().then(({ data }) => {
-            if (data?.results) {
-                setHistory(data.results.slice(0, 5));
-            }
+            if (data?.results) setHistory(data.results.slice(0, 5));
         }).catch(() => { });
     }, [result]);
 
@@ -116,6 +151,8 @@ export default function DemoResults() {
     useEffect(() => {
         fetchResults(paramRunId);
     }, [paramRunId, fetchResults]);
+
+
 
     const downloadLogs = () => {
         if (!result) return;
@@ -133,18 +170,33 @@ export default function DemoResults() {
         await startDemo(5);
     };
 
-    if (loading) {
+    if (loading || finalizing) {
         return (
             <DashboardLayout>
                 <div className="flex items-center justify-center min-h-[60vh]">
-                    <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-                        <p className="text-muted-foreground">Loading demo results...</p>
+                    <div className="flex flex-col items-center gap-4 text-center">
+                        <Loader2 className={`h-8 w-8 animate-spin ${finalizing ? 'text-amber-400' : 'text-blue-400'}`} />
+                        {finalizing ? (
+                            <>
+                                <p className="text-base font-medium text-amber-300">Demo complete — finalizing background tasks…</p>
+                                <p className="text-sm text-muted-foreground">Results loading in &lt;5 s</p>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+                                    </span>
+                                    Token redistribution running in background
+                                </span>
+                            </>
+                        ) : (
+                            <p className="text-muted-foreground">Loading demo results…</p>
+                        )}
                     </div>
                 </div>
             </DashboardLayout>
         );
     }
+
 
     if (error || !result) {
         return (
