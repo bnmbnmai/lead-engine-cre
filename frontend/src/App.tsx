@@ -31,6 +31,7 @@ import LeadDetailPage from '@/pages/LeadDetailPage';
 import MarketMetrics from '@/pages/MarketMetrics';
 import SellerIntegrations from '@/pages/SellerIntegrations';
 import BuyerIntegrations from '@/pages/BuyerIntegrations';
+import DemoResults from '@/pages/DemoResults';
 
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { DevLogPanel } from '@/components/demo/DevLogPanel';
@@ -121,6 +122,9 @@ function App() {
                                 <Route path="/admin/form-builder" element={<ProtectedRoute role="ADMIN"><FormBuilder /></ProtectedRoute>} />
 
 
+
+                                {/* Demo Results */}
+                                <Route path="/demo/results/:runId" element={<DemoResults />} />
 
                                 {/* Fallback */}
                                 <Route path="*" element={<Navigate to="/" replace />} />

@@ -51,6 +51,9 @@ type AuctionEventHandler = {
     'lead:escrow-confirmed': (data: { leadId: string }) => void;
     // Dev log (ACE compliance events for DevLogPanel)
     'ace:dev-log': (data: { ts: string; action: string;[key: string]: unknown }) => void;
+    // Demo E2E events
+    'demo:log': (data: { ts: string; level: string; message: string; txHash?: string; basescanLink?: string; data?: Record<string, any>; cycle?: number; totalCycles?: number }) => void;
+    'demo:complete': (data: { runId: string; status: string; totalCycles: number; totalSettled: number; error?: string }) => void;
 };
 
 // ============================================
@@ -112,6 +115,9 @@ class SocketClient {
             'lead:escrow-confirmed',
             // Dev log events
             'ace:dev-log',
+            // Demo E2E events
+            'demo:log',
+            'demo:complete',
         ];
 
         events.forEach((event) => {

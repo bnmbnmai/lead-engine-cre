@@ -886,9 +886,9 @@ router.post('/clear', async (req: Request, res: Response) => {
 router.post('/lead', async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
-        const geo = pick(GEOS);
+        const geo = req.body?.geo || pick(GEOS);
         const pr = priceFor(vertical);
-        const price = rand(pr.min, pr.max);
+        const price = req.body?.reservePrice ?? rand(pr.min, pr.max);
 
         // Accept optional sellerWallet to attribute to session seller, else rotate faucet wallets
         const sellerWalletAddr = req.body?.sellerWallet || pickFaucetWallet();
@@ -1571,6 +1571,98 @@ router.post('/settle', async (req: Request, res: Response) => {
             stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined,
         });
     }
+});
+
+// ============================================
+// POST /full-e2e — One-Click Full On-Chain Demo
+// ============================================
+
+import * as demoE2E from '../services/demo-e2e.service';
+
+router.post('/full-e2e', async (req: Request, res: Response) => {
+    try {
+        if (demoE2E.isDemoRunning()) {
+            res.status(409).json({ error: 'A demo is already running', running: true });
+            return;
+        }
+
+        const cycles = Math.max(1, Math.min(req.body?.cycles || 5, 12));
+        const io = req.app.get('io');
+
+        if (!io) {
+            res.status(500).json({ error: 'Socket.IO not initialized' });
+            return;
+        }
+
+        // Start the demo asynchronously — results stream via Socket.IO
+        const resultPromise = demoE2E.runFullDemo(io, cycles);
+
+        // Return immediately with runId
+        res.json({
+            success: true,
+            message: `Demo started with ${cycles} cycles`,
+            running: true,
+        });
+
+        // Let it run in background — results stored in memory
+        resultPromise.catch((err) => {
+            console.error('[DEMO E2E] Unhandled error:', err);
+        });
+    } catch (error: any) {
+        console.error('[DEMO E2E] Start error:', error);
+        res.status(500).json({ error: 'Failed to start demo', details: error.message });
+    }
+});
+
+// ============================================
+// POST /full-e2e/stop — Abort running demo
+// ============================================
+
+router.post('/full-e2e/stop', async (_req: Request, res: Response) => {
+    const stopped = demoE2E.stopDemo();
+    res.json({
+        success: stopped,
+        message: stopped ? 'Demo abort signal sent' : 'No demo is currently running',
+    });
+});
+
+// ============================================
+// GET /full-e2e/results/:runId — Get demo results
+// ============================================
+
+router.get('/full-e2e/results/:runId', async (req: Request, res: Response) => {
+    const { runId } = req.params;
+    const result = demoE2E.getResults(runId);
+
+    if (!result) {
+        // Check if demo is still running
+        if (demoE2E.isDemoRunning()) {
+            res.json({ status: 'running', message: 'Demo is still in progress' });
+            return;
+        }
+        res.status(404).json({ error: 'Results not found', runId });
+        return;
+    }
+
+    res.json(result);
+});
+
+// ============================================
+// GET /full-e2e/status — Check if demo is running
+// ============================================
+
+router.get('/full-e2e/status', async (_req: Request, res: Response) => {
+    res.json({
+        running: demoE2E.isDemoRunning(),
+        results: demoE2E.getAllResults().map(r => ({
+            runId: r.runId,
+            status: r.status,
+            startedAt: r.startedAt,
+            completedAt: r.completedAt,
+            totalCycles: r.cycles.length,
+            totalSettled: r.totalSettled,
+        })),
+    });
 });
 
 export default router;

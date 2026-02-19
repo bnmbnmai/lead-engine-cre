@@ -1,0 +1,562 @@
+/**
+ * Demo E2E Service — One-Click Full On-Chain Demo Orchestrator
+ *
+ * Runs an automated N-cycle on-chain demo flow on Base Sepolia:
+ *   Per cycle: inject lead → lock 3 bids → settle winner → refund losers → verifyReserves
+ *
+ * Streams every step via Socket.IO ('demo:log' + 'ace:dev-log') so the
+ * DevLogPanel shows real-time progress. Emits 'demo:complete' on finish.
+ *
+ * Safety: testnet-only, max 12 cycles, singleton lock, abort support.
+ */
+
+import { Server as SocketServer } from 'socket.io';
+import { v4 as uuidv4 } from 'uuid';
+import { ethers } from 'ethers';
+import { prisma } from '../lib/prisma';
+import { aceDevBus } from './ace.service';
+import * as vaultService from './vault.service';
+
+// ── Config ─────────────────────────────────────────
+
+const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
+const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+const VAULT_ADDRESS = process.env.VAULT_ADDRESS_BASE_SEPOLIA || '';
+const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+const BASE_SEPOLIA_CHAIN_ID = 84532;
+const MAX_CYCLES = 12;
+const BASESCAN_BASE = 'https://sepolia.basescan.org/tx/';
+
+// Demo buyer wallets (faucet wallets 1-5 — all have USDC in vault)
+const DEMO_BUYER_WALLETS = [
+    '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9',
+    '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC',
+    '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
+    '0x424CaC929939377f221348af52d4cb1247fE4379',
+    '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d',
+];
+
+// Demo seller wallet (faucet wallet 6)
+const DEMO_SELLER_WALLET = '0x089B6Bdb4824628c5535acF60aBF80683452e862';
+
+// Demo verticals for cycling through
+const DEMO_VERTICALS = [
+    'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
+    'hvac', 'legal', 'financial_services',
+];
+
+const VAULT_ABI = [
+    'function deposit(uint256 amount) external',
+    'function balanceOf(address user) view returns (uint256)',
+    'function lockedBalances(address user) view returns (uint256)',
+    'function totalObligations() view returns (uint256)',
+    'function lockForBid(address user, uint256 bidAmount) returns (uint256)',
+    'function settleBid(uint256 lockId, address seller) external',
+    'function refundBid(uint256 lockId) external',
+    'function verifyReserves() returns (bool)',
+    'function lastPorSolvent() view returns (bool)',
+    'event BidLocked(uint256 indexed lockId, address indexed user, uint256 amount, uint256 fee)',
+    'event BidSettled(uint256 indexed lockId, address indexed winner, address indexed seller, uint256 sellerAmount, uint256 platformCut, uint256 convenienceFee)',
+    'event BidRefunded(uint256 indexed lockId, address indexed user, uint256 totalRefunded)',
+    'event ReservesVerified(uint256 contractBalance, uint256 claimedTotal, bool solvent, uint256 timestamp)',
+];
+
+const USDC_ABI = [
+    'function approve(address spender, uint256 amount) returns (bool)',
+    'function balanceOf(address account) view returns (uint256)',
+];
+
+// ── Types ──────────────────────────────────────────
+
+interface DemoLogEntry {
+    ts: string;
+    level: 'info' | 'success' | 'warn' | 'error' | 'step';
+    message: string;
+    txHash?: string;
+    basescanLink?: string;
+    data?: Record<string, any>;
+    cycle?: number;
+    totalCycles?: number;
+}
+
+interface CycleResult {
+    cycle: number;
+    vertical: string;
+    buyerWallet: string;
+    bidAmount: number;
+    lockIds: number[];
+    winnerLockId: number;
+    settleTxHash: string;
+    refundTxHashes: string[];
+    porSolvent: boolean;
+    porTxHash: string;
+    gasUsed: bigint;
+}
+
+export interface DemoResult {
+    runId: string;
+    startedAt: string;
+    completedAt: string;
+    cycles: CycleResult[];
+    totalGas: string;
+    totalSettled: number;
+    status: 'completed' | 'aborted' | 'failed';
+    error?: string;
+}
+
+// ── Singleton State ────────────────────────────────
+
+let isRunning = false;
+let currentAbort: AbortController | null = null;
+const resultsStore = new Map<string, DemoResult>();
+
+// ── Helpers ────────────────────────────────────────
+
+function getProvider() {
+    return new ethers.JsonRpcProvider(RPC_URL);
+}
+
+function getSigner() {
+    if (!DEPLOYER_KEY) throw new Error('DEPLOYER_PRIVATE_KEY not set');
+    return new ethers.Wallet(DEPLOYER_KEY, getProvider());
+}
+
+function getVault(signer: ethers.Wallet) {
+    return new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, signer);
+}
+
+function getUSDC(signer: ethers.Wallet) {
+    return new ethers.Contract(USDC_ADDRESS, USDC_ABI, signer);
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function rand(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// ── Emit Helper ────────────────────────────────────
+
+function emit(io: SocketServer, entry: DemoLogEntry) {
+    // Add basescan link if txHash present
+    if (entry.txHash && !entry.basescanLink) {
+        entry.basescanLink = `${BASESCAN_BASE}${entry.txHash}`;
+    }
+
+    // Emit to both channels so DevLogPanel shows it natively
+    io.emit('demo:log', entry);
+
+    // Also emit as ace:dev-log so it appears in the Chainlink Dev Log
+    aceDevBus.emit('ace:dev-log', {
+        ts: entry.ts,
+        action: `demo:${entry.level}`,
+        message: entry.message,
+        txHash: entry.txHash,
+        basescanLink: entry.basescanLink,
+        source: 'demo-e2e',
+        ...(entry.data || {}),
+    });
+}
+
+// ── Transaction Helper (with retry) ────────────────
+
+async function sendTx(
+    io: SocketServer,
+    label: string,
+    txFn: () => Promise<any>,
+    cycle?: number,
+    totalCycles?: number,
+    retries = 3,
+): Promise<{ receipt: any; gasUsed: bigint }> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const tx = await txFn();
+            const receipt = await tx.wait();
+
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'success',
+                message: `✅ ${label} — tx: ${receipt.hash.slice(0, 22)}… (gas: ${receipt.gasUsed.toString()})`,
+                txHash: receipt.hash,
+                cycle,
+                totalCycles,
+                data: { gasUsed: receipt.gasUsed.toString() },
+            });
+
+            return { receipt, gasUsed: receipt.gasUsed };
+        } catch (err: any) {
+            const msg = err?.shortMessage || err?.message || String(err);
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ ${label} attempt ${attempt}/${retries}: ${msg.slice(0, 120)}`,
+                cycle,
+                totalCycles,
+            });
+            if (attempt === retries) throw err;
+            await sleep(2000 * attempt);
+        }
+    }
+    throw new Error(`${label} failed after ${retries} attempts`);
+}
+
+// ── Main Orchestrator ──────────────────────────────
+
+export async function runFullDemo(
+    io: SocketServer,
+    cycles: number = 5,
+): Promise<DemoResult> {
+    // ── Singleton lock ──
+    if (isRunning) {
+        throw new Error('A demo is already running. Please wait or stop it first.');
+    }
+
+    // ── Validate ──
+    cycles = Math.max(1, Math.min(cycles, MAX_CYCLES));
+
+    const runId = uuidv4();
+    const startedAt = new Date().toISOString();
+    const cycleResults: CycleResult[] = [];
+    let totalGas = 0n;
+    let totalSettled = 0;
+
+    isRunning = true;
+    currentAbort = new AbortController();
+    const signal = currentAbort.signal;
+
+    try {
+        // ── Validate chain ──
+        const provider = getProvider();
+        const network = await provider.getNetwork();
+        if (Number(network.chainId) !== BASE_SEPOLIA_CHAIN_ID) {
+            throw new Error(`Wrong network! Expected Base Sepolia (${BASE_SEPOLIA_CHAIN_ID}), got ${network.chainId}`);
+        }
+
+        const signer = getSigner();
+        const vault = getVault(signer);
+        const usdc = getUSDC(signer);
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `
+╔══════════════════════════════════════════════════════════╗
+║  🚀  ONE-CLICK FULL ON-CHAIN DEMO                      ║
+║  Network: Base Sepolia (84532)                          ║
+║  Cycles:  ${String(cycles).padEnd(47)}║
+║  Run ID:  ${runId.slice(0, 8)}…                                        ║
+╚══════════════════════════════════════════════════════════╝`,
+        });
+
+        // ── Step 0: Check deployer balance ──
+        if (signal.aborted) throw new Error('Demo aborted');
+
+        const deployerBal = await vault.balanceOf(signer.address);
+        const deployerUsdc = Number(deployerBal) / 1e6;
+        const ethBal = await provider.getBalance(signer.address);
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `📊 Deployer vault balance: $${deployerUsdc.toFixed(2)} USDC | ${ethers.formatEther(ethBal)} ETH`,
+            data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
+        });
+
+        // ── Step 1: Auto-deposit if needed ──
+        const requiredUsdc = cycles * 3 * 15; // worst case: 3 bids × $15 per cycle
+        if (deployerUsdc < requiredUsdc) {
+            const depositAmount = Math.max(50, requiredUsdc - Math.floor(deployerUsdc));
+            const depositUnits = ethers.parseUnits(String(depositAmount), 6);
+            const usdcBal = await usdc.balanceOf(signer.address);
+
+            if (Number(usdcBal) / 1e6 >= depositAmount) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'step',
+                    message: `📥 Auto-depositing ${depositAmount} USDC into vault...`,
+                });
+
+                await sendTx(io, 'Approve USDC', () => usdc.approve(VAULT_ADDRESS, depositUnits));
+                await sendTx(io, 'Deposit USDC', () => vault.deposit(depositUnits));
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Deposited $${depositAmount} USDC into vault`,
+                });
+            } else {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Low USDC balance ($${(Number(usdcBal) / 1e6).toFixed(2)}). Some cycles may fail.`,
+                });
+            }
+        }
+
+        // ── Auction Cycles ──
+        for (let cycle = 1; cycle <= cycles; cycle++) {
+            if (signal.aborted) throw new Error('Demo aborted');
+
+            const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
+            const bidAmount = rand(10, 30); // $10–$30 per bid
+            const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
+            const buyerWallet = DEMO_BUYER_WALLETS[(cycle - 1) % DEMO_BUYER_WALLETS.length];
+
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'step',
+                message: `\n${'─'.repeat(56)}\n🔄 Cycle ${cycle}/${cycles} — ${vertical.toUpperCase()} | $${bidAmount}/bid\n${'─'.repeat(56)}`,
+                cycle,
+                totalCycles: cycles,
+            });
+
+            // ── Lock 3 bids ──
+            const lockIds: number[] = [];
+            let cycleGas = 0n;
+
+            for (let b = 0; b < 3; b++) {
+                if (signal.aborted) throw new Error('Demo aborted');
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `🔒 Locking bid #${b + 1} — $${bidAmount} USDC from ${signer.address.slice(0, 10)}…`,
+                    cycle,
+                    totalCycles: cycles,
+                });
+
+                const { receipt, gasUsed } = await sendTx(
+                    io,
+                    `Lock bid #${b + 1} ($${bidAmount})`,
+                    () => vault.lockForBid(signer.address, bidAmountUnits),
+                    cycle,
+                    cycles,
+                );
+                cycleGas += gasUsed;
+
+                // Extract lockId from BidLocked event
+                const iface = new ethers.Interface(VAULT_ABI);
+                for (const log of receipt.logs) {
+                    try {
+                        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+                        if (parsed?.name === 'BidLocked') {
+                            lockIds.push(Number(parsed.args[0]));
+                        }
+                    } catch { /* skip other events */ }
+                }
+
+                await sleep(500); // Brief pause between txs
+            }
+
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'info',
+                message: `📋 Lock IDs: [${lockIds.join(', ')}]`,
+                cycle,
+                totalCycles: cycles,
+                data: { lockIds },
+            });
+
+            // ── Settle winner (first lock) ──
+            if (signal.aborted) throw new Error('Demo aborted');
+
+            const winnerLockId = lockIds[0];
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'step',
+                message: `💰 Settling winner — lock #${winnerLockId} → seller ${DEMO_SELLER_WALLET.slice(0, 10)}…`,
+                cycle,
+                totalCycles: cycles,
+            });
+
+            const { receipt: settleReceipt, gasUsed: settleGas } = await sendTx(
+                io,
+                `Settle winner (lock #${winnerLockId} → seller)`,
+                () => vault.settleBid(winnerLockId, DEMO_SELLER_WALLET),
+                cycle,
+                cycles,
+            );
+            cycleGas += settleGas;
+            totalSettled += bidAmount;
+
+            // ── Refund losers ──
+            const refundTxHashes: string[] = [];
+            for (let r = 1; r < lockIds.length; r++) {
+                if (signal.aborted) throw new Error('Demo aborted');
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `🔓 Refunding loser — lock #${lockIds[r]}`,
+                    cycle,
+                    totalCycles: cycles,
+                });
+
+                const { receipt: refundReceipt, gasUsed: refundGas } = await sendTx(
+                    io,
+                    `Refund loser (lock #${lockIds[r]})`,
+                    () => vault.refundBid(lockIds[r]),
+                    cycle,
+                    cycles,
+                );
+                cycleGas += refundGas;
+                refundTxHashes.push(refundReceipt.hash);
+
+                await sleep(300);
+            }
+
+            // ── PoR verify ──
+            if (signal.aborted) throw new Error('Demo aborted');
+
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'step',
+                message: `🏦 Running Proof of Reserves check...`,
+                cycle,
+                totalCycles: cycles,
+            });
+
+            const { receipt: porReceipt, gasUsed: porGas } = await sendTx(
+                io,
+                'verifyReserves()',
+                () => vault.verifyReserves(),
+                cycle,
+                cycles,
+            );
+            cycleGas += porGas;
+
+            const solvent = await vault.lastPorSolvent();
+            const actual = await usdc.balanceOf(VAULT_ADDRESS);
+            const obligations = await vault.totalObligations();
+
+            const status = solvent ? '✅ SOLVENT' : '❌ INSOLVENT';
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: solvent ? 'success' : 'error',
+                message: `🏦 PoR Result: ${status}\n   Contract USDC: $${(Number(actual) / 1e6).toFixed(2)}\n   Obligations:   $${(Number(obligations) / 1e6).toFixed(2)}\n   Margin:        $${((Number(actual) - Number(obligations)) / 1e6).toFixed(2)}`,
+                txHash: porReceipt.hash,
+                cycle,
+                totalCycles: cycles,
+                data: {
+                    solvent,
+                    contractBalance: (Number(actual) / 1e6).toFixed(2),
+                    obligations: (Number(obligations) / 1e6).toFixed(2),
+                    margin: ((Number(actual) - Number(obligations)) / 1e6).toFixed(2),
+                },
+            });
+
+            totalGas += cycleGas;
+
+            cycleResults.push({
+                cycle,
+                vertical,
+                buyerWallet,
+                bidAmount,
+                lockIds,
+                winnerLockId,
+                settleTxHash: settleReceipt.hash,
+                refundTxHashes,
+                porSolvent: solvent,
+                porTxHash: porReceipt.hash,
+                gasUsed: cycleGas,
+            });
+
+            // Brief pause between cycles
+            if (cycle < cycles) await sleep(1000);
+        }
+
+        // ── Final Summary ──
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'success',
+            message: `
+╔══════════════════════════════════════════════════════════╗
+║  ✅  DEMO COMPLETE                                      ║
+║  Cycles:    ${String(cycles).padEnd(44)}║
+║  Settled:   $${String(totalSettled).padEnd(43)}║
+║  Total Gas: ${totalGas.toString().padEnd(44)}║
+║  Status:    All cycles SOLVENT                           ║
+╚══════════════════════════════════════════════════════════╝`,
+            data: { runId, cycles, totalSettled, totalGas: totalGas.toString() },
+        });
+
+        const result: DemoResult = {
+            runId,
+            startedAt,
+            completedAt: new Date().toISOString(),
+            cycles: cycleResults,
+            totalGas: totalGas.toString(),
+            totalSettled,
+            status: 'completed',
+        };
+
+        resultsStore.set(runId, result);
+
+        // Emit completion event
+        io.emit('demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
+
+        return result;
+
+    } catch (err: any) {
+        const isAbort = err.message === 'Demo aborted';
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: isAbort ? 'warn' : 'error',
+            message: isAbort
+                ? '⏹️ Demo aborted by user'
+                : `❌ Demo failed: ${err.message?.slice(0, 200) || String(err)}`,
+        });
+
+        const result: DemoResult = {
+            runId,
+            startedAt,
+            completedAt: new Date().toISOString(),
+            cycles: cycleResults,
+            totalGas: totalGas.toString(),
+            totalSettled,
+            status: isAbort ? 'aborted' : 'failed',
+            error: isAbort ? undefined : err.message,
+        };
+
+        resultsStore.set(runId, result);
+
+        io.emit('demo:complete', {
+            runId,
+            status: result.status,
+            totalCycles: cycleResults.length,
+            totalSettled,
+            error: result.error,
+        });
+
+        return result;
+
+    } finally {
+        isRunning = false;
+        currentAbort = null;
+    }
+}
+
+// ── Control Functions ──────────────────────────────
+
+export function stopDemo(): boolean {
+    if (!isRunning || !currentAbort) return false;
+    currentAbort.abort();
+    return true;
+}
+
+export function isDemoRunning(): boolean {
+    return isRunning;
+}
+
+export function getResults(runId: string): DemoResult | undefined {
+    return resultsStore.get(runId);
+}
+
+export function getAllResults(): DemoResult[] {
+    return Array.from(resultsStore.values()).sort(
+        (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+}

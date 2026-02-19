@@ -41,6 +41,15 @@ function getActionColor(action: string): string {
         return '#ef4444'; // Errors — red
     if (a.includes('result') || a.includes('success'))
         return '#22c55e'; // Success — green
+    // Demo E2E actions
+    if (a.includes('demo:step') || a.includes('demo:info'))
+        return '#60a5fa'; // Demo steps — light blue
+    if (a.includes('demo:success'))
+        return '#22c55e'; // Demo success — green
+    if (a.includes('demo:warn'))
+        return '#f59e0b'; // Demo warning — amber
+    if (a.includes('demo:error'))
+        return '#ef4444'; // Demo error — red
     return '#8b5cf6'; // Default — violet
 }
 
@@ -59,6 +68,8 @@ function getServiceBadge(action: string): { label: string; color: string } | nul
         return { label: 'Fn', color: '#ec4899' };
     if (a.includes('escrow') || a.includes('fund') || a.includes('approve'))
         return { label: 'Escrow', color: '#14b8a6' };
+    if (a.includes('demo') || a.startsWith('demo:'))
+        return { label: 'Demo', color: '#60a5fa' };
     return null;
 }
 
@@ -134,7 +145,29 @@ export function DevLogPanel() {
             });
         };
         socketClient.on('ace:dev-log', handler);
-        return () => { socketClient.off('ace:dev-log', handler); };
+
+        // Also listen for demo:log events and convert to DevLogEntry format
+        const demoHandler = (data: any) => {
+            const entry: DevLogEntry = {
+                ts: data.ts || new Date().toISOString(),
+                action: `demo:${data.level || 'info'}`,
+                message: data.message,
+                ...(data.txHash ? { txHash: data.txHash } : {}),
+                ...(data.basescanLink ? { basescanLink: data.basescanLink } : {}),
+                ...(data.cycle != null ? { cycle: data.cycle, totalCycles: data.totalCycles } : {}),
+                ...(data.data || {}),
+            };
+            setEntries(prev => {
+                const next = [...prev, entry];
+                return next.length > MAX_ENTRIES ? next.slice(-MAX_ENTRIES) : next;
+            });
+        };
+        socketClient.on('demo:log', demoHandler);
+
+        return () => {
+            socketClient.off('ace:dev-log', handler);
+            socketClient.off('demo:log', demoHandler);
+        };
     }, []);
 
     useEffect(() => {

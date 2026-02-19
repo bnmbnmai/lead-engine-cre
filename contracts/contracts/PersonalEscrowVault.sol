@@ -59,11 +59,16 @@ contract PersonalEscrowVault is
     /// @notice Per-user locked balances (in active bids)
     mapping(address => uint256) public lockedBalances;
 
-    /// @notice Global total deposits (for PoR verification)
+    /// @notice Global total deposits (informational — not used for PoR)
     uint256 public totalDeposited;
 
-    /// @notice Global total withdrawn
+    /// @notice Global total withdrawn (informational — not used for PoR)
     uint256 public totalWithdrawn;
+
+    /// @notice Running total of all user obligations (balances + lockedBalances)
+    ///         Used by verifyReserves() for accurate Proof-of-Reserves.
+    ///         Incremented on deposit, decremented on withdraw and settleBid.
+    uint256 public totalObligations;
 
     /// @notice Authorized callers (backend service)
     mapping(address => bool) public authorizedCallers;
@@ -164,6 +169,7 @@ contract PersonalEscrowVault is
 
         balances[msg.sender] += amount;
         totalDeposited += amount;
+        totalObligations += amount;
 
         emit Deposited(msg.sender, amount, balances[msg.sender]);
     }
@@ -185,6 +191,7 @@ contract PersonalEscrowVault is
 
         balances[msg.sender] -= withdrawAmount;
         totalWithdrawn += withdrawAmount;
+        totalObligations -= withdrawAmount;
 
         paymentToken.safeTransfer(msg.sender, withdrawAmount);
 
@@ -247,8 +254,8 @@ contract PersonalEscrowVault is
         uint256 total = lock.amount + lock.fee;
         lockedBalances[lock.user] -= total;
 
-        // Update PoR accounting: funds leaving the contract reduce the claimed total
-        totalDeposited -= total;
+        // Funds leave the contract entirely → reduce obligations
+        totalObligations -= total;
 
         // Calculate 5% platform cut from bid amount
         uint256 platformCut = (lock.amount * PLATFORM_CUT_BPS) / 10000;
@@ -284,13 +291,14 @@ contract PersonalEscrowVault is
      */
     function verifyReserves() public returns (bool solvent) {
         uint256 actual = paymentToken.balanceOf(address(this));
-        uint256 claimed = totalDeposited - totalWithdrawn;
 
-        solvent = actual >= claimed;
+        // totalObligations = sum of all user balances + lockedBalances
+        // accurately tracks what the vault owes, even after settlements
+        solvent = actual >= totalObligations;
         lastPorCheck = block.timestamp;
         lastPorSolvent = solvent;
 
-        emit ReservesVerified(actual, claimed, solvent, block.timestamp);
+        emit ReservesVerified(actual, totalObligations, solvent, block.timestamp);
     }
 
     // ============================================

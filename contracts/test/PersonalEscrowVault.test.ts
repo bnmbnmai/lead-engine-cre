@@ -486,20 +486,23 @@ describe("PersonalEscrowVault", function () {
     // ============================================
 
     describe("PoR after settlement", function () {
-        it("should remain solvent after settleBid (totalDeposited decremented)", async function () {
+        it("should remain solvent after settleBid (totalObligations decremented)", async function () {
             await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
             await vault.connect(backend).lockForBid(buyer1.address, BID_AMOUNT);
 
             // Settle — USDC leaves the contract
             await vault.connect(backend).settleBid(1, seller.address);
 
-            // PoR must still pass: actual >= claimed
+            // PoR must still pass: actual >= totalObligations
             await vault.verifyReserves();
             expect(await vault.lastPorSolvent()).to.be.true;
 
-            // Verify totalDeposited was decremented
+            // Verify totalObligations was decremented (bid + fee left the system)
             const remaining = DEPOSIT_AMOUNT - BID_AMOUNT - CONVENIENCE_FEE;
-            expect(await vault.totalDeposited()).to.equal(remaining);
+            expect(await vault.totalObligations()).to.equal(remaining);
+
+            // totalDeposited is now info-only, stays at original deposit
+            expect(await vault.totalDeposited()).to.equal(DEPOSIT_AMOUNT);
         });
 
         it("should remain solvent after withdraw", async function () {

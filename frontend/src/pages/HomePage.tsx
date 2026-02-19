@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2 } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2, Rocket, Square } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import useAuth from '@/hooks/useAuth';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import ConnectButton from '@/components/wallet/ConnectButton';
+import { useDemo } from '@/hooks/useDemo';
 
 const COUNTRIES = [
     { code: 'ALL', label: 'All Countries' },
@@ -582,6 +583,11 @@ export function HomePage() {
                             </div>
                         </div>
                     </section>
+                )}
+
+                {/* One-Click Demo Button */}
+                {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && (
+                    <DemoButtonBanner />
                 )}
 
                 {/* Filters */}
@@ -1170,6 +1176,66 @@ export function HomePage() {
                 parentHint={vertical !== 'all' ? vertical : undefined}
             />
         </DashboardLayout>
+    );
+}
+
+// ── Demo Button Banner ──────────────────────────
+function DemoButtonBanner() {
+    const { isRunning, startDemo, stopDemo } = useDemo();
+
+    return (
+        <section className="relative z-10">
+            <div className="relative overflow-hidden rounded-xl border border-blue-500/20 bg-gradient-to-r from-blue-600/10 via-violet-600/5 to-blue-600/10">
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-violet-500/10 to-blue-500/5 animate-pulse" />
+
+                <div className="relative flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/15">
+                            <Rocket className="h-5 w-5 text-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-foreground">
+                                One-Click On-Chain Demo
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {isRunning
+                                    ? '🔄 Running — watch the Chainlink Dev Log for live progress'
+                                    : 'Run a full on-chain cycle: lock bids → settle → refund → PoR verify'
+                                }
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {isRunning ? (
+                            <button
+                                onClick={stopDemo}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 text-sm font-medium transition border border-red-500/20"
+                            >
+                                <Square className="h-4 w-4" />
+                                Stop Demo
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => startDemo(5)}
+                                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:scale-[1.02]"
+                            >
+                                <Rocket className="h-4 w-4" />
+                                🚀 Run Full On-Chain Demo (Testnet)
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Demo mode banner */}
+                {isRunning && (
+                    <div className="relative border-t border-blue-500/10 bg-blue-500/5 px-6 py-1.5 text-center text-xs text-blue-400/80">
+                        DEMO MODE — Testnet Only • Funds are recycled • Open the Dev Log (Ctrl+Shift+L) to watch
+                    </div>
+                )}
+            </div>
+        </section>
     );
 }
 

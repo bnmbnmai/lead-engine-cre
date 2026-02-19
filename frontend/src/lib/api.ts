@@ -454,6 +454,26 @@ export const api = {
             '/api/v1/buyer/vault/withdraw',
             { method: 'POST', body: JSON.stringify({ amount }) },
         ),
+
+    // ── Demo E2E (Full On-Chain Demo) ──────────────
+    demoFullE2EStart: (cycles?: number) =>
+        apiFetch<{ success: boolean; message: string; running: boolean }>(
+            '/api/v1/demo-panel/full-e2e',
+            { method: 'POST', body: JSON.stringify({ cycles: cycles || 5 }) },
+        ),
+    demoFullE2EStop: () =>
+        apiFetch<{ success: boolean; message: string }>(
+            '/api/v1/demo-panel/full-e2e/stop',
+            { method: 'POST' },
+        ),
+    demoFullE2EResults: (runId: string) =>
+        apiFetch<any>(
+            `/api/v1/demo-panel/full-e2e/results/${runId}`,
+        ),
+    demoFullE2EStatus: () =>
+        apiFetch<{ running: boolean; results: any[] }>(
+            '/api/v1/demo-panel/full-e2e/status',
+        ),
 };
 
 export default api;
