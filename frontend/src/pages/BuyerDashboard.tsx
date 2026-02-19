@@ -16,7 +16,7 @@ import { formatSealedBid } from '@/utils/sealedBid';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import { useDebounce } from '@/hooks/useDebounce';
-import { PerksPanel } from '@/components/marketplace/PerksPanel';
+
 import { BountyPanel } from '@/components/marketplace/BountyPanel';
 
 export function BuyerDashboard() {
@@ -299,12 +299,6 @@ export function BuyerDashboard() {
                     ))}
                 </div>
 
-                {/* Vertical Ownership Perks */}
-                <PerksPanel />
-
-                {/* Bounty Pools */}
-                <BountyPanel />
-
                 {/* ── On-Chain Escrow Vault ── */}
                 <Card>
                     <CardHeader className="flex-row items-center justify-between">
@@ -402,6 +396,9 @@ export function BuyerDashboard() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Bounty Pools */}
+                <BountyPanel />
 
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Recent Bids */}
