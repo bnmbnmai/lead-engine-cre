@@ -43,8 +43,9 @@ const DEMO_BUYER_WALLETS = [
     '0x089B6Bdb4824628c5535acF60aBF80683452e862',
 ];
 
-// Demo seller wallet (faucet wallet 6)
+// Demo seller wallet (faucet wallet 6) — PK needed to recycle USDC back after settlement
 const DEMO_SELLER_WALLET = '0x089B6Bdb4824628c5535acF60aBF80683452e862';
+const DEMO_SELLER_KEY = '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75';
 
 const DEMO_VERTICALS = [
     'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
@@ -85,6 +86,7 @@ const VAULT_ABI = [
 const USDC_ABI = [
     'function approve(address spender, uint256 amount) returns (bool)',
     'function balanceOf(address account) view returns (uint256)',
+    'function transfer(address to, uint256 amount) returns (bool)',
 ];
 
 // ── Types ──────────────────────────────────────────
@@ -534,7 +536,41 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
-        // ── Step 1: Auto-deposit — ensure vault has enough USDC for all cycles ──
+        // ── Step 1: Recycle USDC from seller wallet back to deployer ──
+        // In the demo, settlements send USDC to the seller wallet. We recycle it
+        // back so the vault stays funded across runs. (Not needed in production.)
+        try {
+            const provider = getProvider();
+            const sellerSigner = new ethers.Wallet(DEMO_SELLER_KEY, provider);
+            const sellerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerSigner);
+            const sellerBal = await sellerUsdc.balanceOf(DEMO_SELLER_WALLET);
+            const sellerUsdcAmount = Number(sellerBal) / 1e6;
+
+            if (sellerUsdcAmount >= 1) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'step',
+                    message: `♻️ Recycling $${sellerUsdcAmount.toFixed(2)} USDC from seller wallet back to deployer...`,
+                });
+
+                const transferTx = await sellerUsdc.transfer(signer.address, sellerBal);
+                await transferTx.wait();
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Recycled $${sellerUsdcAmount.toFixed(2)} USDC from seller → deployer`,
+                });
+            }
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Could not recycle seller USDC: ${err.message?.slice(0, 80)}`,
+            });
+        }
+
+        // ── Step 2: Auto-deposit — ensure vault has enough USDC for all cycles ──
         // Check contract's actual available USDC (not just deployer shares)
         const contractUsdc = await usdc.balanceOf(VAULT_ADDRESS);
         const obligations = await vault.totalObligations();
@@ -563,13 +599,14 @@ export async function runFullDemo(
                     level: 'success',
                     message: `✅ Deposited $${depositAmount} USDC into vault`,
                 });
-            } else if (walletUsdc >= 10) {
+            } else if (walletUsdc >= 5) {
                 // Deposit whatever we have
-                const partialUnits = ethers.parseUnits(String(Math.floor(walletUsdc)), 6);
+                const partialAmount = Math.floor(walletUsdc);
+                const partialUnits = ethers.parseUnits(String(partialAmount), 6);
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'step',
-                    message: `📥 Depositing all available wallet USDC ($${Math.floor(walletUsdc)}) into vault...`,
+                    message: `📥 Depositing all available wallet USDC ($${partialAmount}) into vault...`,
                 });
                 await sendTx(io, 'Approve USDC', () => usdc.approve(VAULT_ADDRESS, partialUnits));
                 await sendTx(io, 'Deposit USDC', () => vault.deposit(partialUnits));
@@ -577,7 +614,7 @@ export async function runFullDemo(
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'success',
-                    message: `✅ Deposited $${Math.floor(walletUsdc)} USDC into vault`,
+                    message: `✅ Deposited $${partialAmount} USDC into vault`,
                 });
             } else {
                 emit(io, {
@@ -794,7 +831,7 @@ export async function runFullDemo(
             const { receipt: settleReceipt, gasUsed: settleGas } = await sendTx(
                 io,
                 `Settle winner (lock #${winnerLockId} → seller)`,
-                () => vault.settleBid(winnerLockId, signer.address),  // Settle back to deployer so USDC recycles
+                () => vault.settleBid(winnerLockId, DEMO_SELLER_WALLET),
                 cycle,
                 cycles,
             );

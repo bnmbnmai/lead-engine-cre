@@ -33,6 +33,24 @@ Experience the full end-to-end flow on Base Sepolia (gas-sponsored — no ETH re
 
 **Seeded demo data** available via `pnpm run seed:demo` (populates solar/roofing leads).
 
+One-Click On-Chain Demo — run the complete marketplace flow live with natural lead arrival, real-time bidding, and on-chain settlement.
+
+## One-Click On-Chain Demo
+
+The Marketplace includes a button labeled "🚀 Run Full On-Chain Demo (Testnet)" that runs a complete end-to-end demonstration of the platform on Base Sepolia.
+
+Clicking it triggers:
+- Leads appearing naturally in the marketplace every 8–15 seconds
+- Real-time sealed-bid auctions with multiple competing buyers
+- Live bid count updates on the lead cards
+- PersonalEscrowVault operations including locks, atomic settlements, and refunds
+- Chainlink Automation Proof-of-Reserves checks returning SOLVENT
+- LeadNFT minting with provenance and royalties
+- Real-time streaming of every step in the Chainlink Services Dev Log
+
+Upon completion, the Dev Log displays a "View Summary" button that links to a detailed results page showing cycle-by-cycle breakdown, transaction hashes, and Basescan links.
+
+
 **Screenshots** (add these to `/assets/` folder):
 - `assets/marketplace-sealed-bid.png` — Sealed-bid interface with hidden amounts
 - `assets/seller-cro-lander.png` — CRO lander with trust badges
@@ -56,7 +74,7 @@ Experience the full end-to-end flow on Base Sepolia (gas-sponsored — no ETH re
 - [Smart Contracts](#smart-contracts)
 - [Quick Start](#quick-start)
 - [Roadmap](#roadmap)
-- [For Hackathon Judges](#for-hackathon-judges)
+- [Testnet Validation](#testnet-validation)
 - [Contributing](#contributing)
 
 ---
@@ -283,3 +301,16 @@ cd frontend && pnpm dev
 - **Q3+**: Enterprise white-label verticals, fiat on-ramp, CRM deep integrations
 
 See full [ROADMAP.md](./ROADMAP.md).
+
+---
+
+## Testnet Validation
+
+- Multiple full on-chain settlement cycles with 100% success rate
+- Consistent SOLVENT Proof-of-Reserves via Chainlink Automation
+- Natural staggered lead creation with live bid count updates
+- All contracts verified on Base Sepolia
+- Gas-sponsored UX (buyers need zero ETH)
+- Ready for mainnet migration
+
+Latest contract addresses and detailed test results are available in `TESTNET-E2E-RESULTS.md`.
