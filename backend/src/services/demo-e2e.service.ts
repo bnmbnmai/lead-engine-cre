@@ -69,6 +69,7 @@ function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length
 
 const VAULT_ABI = [
     'function deposit(uint256 amount) external',
+    'function withdraw(uint256 amount) external',
     'function balanceOf(address user) view returns (uint256)',
     'function lockedBalances(address user) view returns (uint256)',
     'function totalObligations() view returns (uint256)',
@@ -572,22 +573,106 @@ export async function runFullDemo(
             });
         }
 
-        // ── Step 2: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
+        // ── Step 2: Withdraw deployer's vault balance to wallet (recover locked USDC) ──
+        try {
+            const deployerVaultBal = await vault.balanceOf(signer.address);
+            if (deployerVaultBal > 0n) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'step',
+                    message: `📤 Withdrawing $${ethers.formatUnits(deployerVaultBal, 6)} USDC from deployer vault to wallet...`,
+                });
+                const withdrawTx = await vault.withdraw(deployerVaultBal);
+                await withdrawTx.wait();
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Withdrawn $${ethers.formatUnits(deployerVaultBal, 6)} USDC to deployer wallet`,
+                });
+            }
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Deployer vault withdraw failed: ${err.message?.slice(0, 80)}`,
+            });
+        }
+
+        // ── Step 3: Recycle USDC from seller wallet back to deployer ──
+        try {
+            const sellerWallet = new ethers.Wallet(DEMO_SELLER_KEY, provider);
+            const sellerUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, sellerWallet);
+            const sellerBal = await sellerUsdc.balanceOf(sellerWallet.address);
+            if (sellerBal > 0n) {
+                // Gas top-up for seller if needed
+                if ((await provider.getBalance(sellerWallet.address)) < ethers.parseEther('0.0005')) {
+                    const gasTx = await signer.sendTransaction({ to: sellerWallet.address, value: ethers.parseEther('0.001') });
+                    await gasTx.wait();
+                }
+                const tx = await sellerUsdc.transfer(signer.address, sellerBal);
+                await tx.wait();
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ Recycled $${ethers.formatUnits(sellerBal, 6)} USDC from seller to deployer`,
+                });
+            }
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Seller recycle failed: ${err.message?.slice(0, 80)}`,
+            });
+        }
+
+        // ── Step 4: Recycle USDC from all buyer wallets back to deployer ──
+        for (const buyerAddr of DEMO_BUYER_WALLETS) {
+            try {
+                const bKey = BUYER_KEYS[buyerAddr];
+                if (!bKey) continue;
+
+                // Withdraw buyer's vault balance first
+                const bSigner = new ethers.Wallet(bKey, provider);
+                const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
+                const bVaultBal = await bVault.balanceOf(buyerAddr);
+                if (bVaultBal > 0n) {
+                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
+                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
+                        await gasTx.wait();
+                    }
+                    const wTx = await bVault.withdraw(bVaultBal);
+                    await wTx.wait();
+                }
+
+                // Transfer any wallet USDC back to deployer
+                const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
+                const bWalletBal = await bUsdc.balanceOf(buyerAddr);
+                if (bWalletBal > 0n) {
+                    if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
+                        const gasTx = await signer.sendTransaction({ to: buyerAddr, value: ethers.parseEther('0.001') });
+                        await gasTx.wait();
+                    }
+                    const tx = await bUsdc.transfer(signer.address, bWalletBal);
+                    await tx.wait();
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'success',
+                        message: `✅ Recycled $${ethers.formatUnits(bWalletBal, 6)} from buyer ${buyerAddr.slice(0, 10)}…`,
+                    });
+                }
+            } catch { /* skip */ }
+        }
+
+        // ── Step 5: One-time pre-fund — send USDC to each buyer, then each buyer deposits into vault ──
         const PRE_FUND_AMOUNT = 80; // $80 USDC per buyer
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_AMOUNT), 6);
-
-        emit(io, {
-            ts: new Date().toISOString(),
-            level: 'step',
-            message: `💰 Pre-funding ${DEMO_BUYER_WALLETS.length} buyer wallets with $${PRE_FUND_AMOUNT} USDC each...`,
-        });
 
         const deployerUsdcBal = await usdc.balanceOf(signer.address);
         const totalNeeded = preFundUnits * BigInt(DEMO_BUYER_WALLETS.length);
         emit(io, {
             ts: new Date().toISOString(),
             level: 'info',
-            message: `📊 Deployer wallet USDC: $${ethers.formatUnits(deployerUsdcBal, 6)} | Need: $${ethers.formatUnits(totalNeeded, 6)}`,
+            message: `📊 Deployer wallet USDC after recycle: $${ethers.formatUnits(deployerUsdcBal, 6)} | Need: $${ethers.formatUnits(totalNeeded, 6)}`,
         });
 
         let buyersFunded = 0;
