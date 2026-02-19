@@ -39,6 +39,11 @@ jest.mock('../src/routes/demo-panel.routes', () => ({
     getDemoBuyersEnabled: jest.fn().mockResolvedValue(true),
 }));
 
+// Mock vault.service to avoid real on-chain RPC calls in unit tests
+jest.mock('../src/services/vault.service', () => ({
+    lockForBid: jest.fn().mockResolvedValue({ success: true, lockId: 1, txHash: '0xmock' }),
+}));
+
 // ============================================
 // Helpers
 // ============================================
