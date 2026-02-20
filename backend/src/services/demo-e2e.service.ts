@@ -30,6 +30,7 @@ const VAULT_ADDRESS = _VAULT_ADDRESS_RAW;
 const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const MAX_CYCLES = 12;
+const DEMO_DEPLOYER_USDC_MIN_REQUIRED = 2800; // $2,500 buyer replenishment + $300 buffer for fees/gas/edge cases
 const BASESCAN_BASE = 'https://sepolia.basescan.org/tx/';
 
 // Demo buyer wallets — 10 distinct faucet wallets (Wallets 1–10).
@@ -2085,19 +2086,18 @@ export function getAllResults(): DemoResult[] {
     );
 }
 
-// ── New: Deployer USDC reserve guard (P0) ─────────────
+// ── Deployer USDC reserve guard (P0) ─────────────────
 
 /**
- * checkDeployerUSDCReserve — verifies deployer has >= $3,000 USDC before any demo starts.
+ * checkDeployerUSDCReserve — verifies deployer has >= $2,800 USDC before any demo starts.
  *
- * Required = $2,500 for 10 buyers × $250 each + $500 buffer.
+ * Required = $2,500 for 10 buyers × $250 each + $300 buffer for fees/gas/edge cases.
  * If insufficient: emits an informative log, emits demo:status with error, and
  * sets isRunning=false so runFullDemo() can detect the early-return.
  * Does NOT throw — always resolves.
  */
 async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
-    const REQUIRED_USDC = 3000; // $2,500 buyers + $500 buffer
-    const requiredUnits = ethers.parseUnits(String(REQUIRED_USDC), 6);
+    const requiredUnits = ethers.parseUnits(String(DEMO_DEPLOYER_USDC_MIN_REQUIRED), 6);
 
     try {
         const provider = getProvider();
@@ -2105,20 +2105,22 @@ async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
         const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
         const balance: bigint = await usdc.balanceOf(signer.address);
         const balanceUsd = Number(ethers.formatUnits(balance, 6));
+        const shortfall = DEMO_DEPLOYER_USDC_MIN_REQUIRED - balanceUsd;
 
         if (balance < requiredUnits) {
             const msg =
-                `🚫 Deployer USDC reserve too low.\n` +
-                `   Required: $${REQUIRED_USDC.toFixed(2)}   Current: $${balanceUsd.toFixed(2)}\n` +
-                `   Please fund the deployer wallet ${signer.address} via testnet faucet or bridge.\n` +
-                `   Tip: run scripts/consolidate-usdc-only.mjs to reclaim any USDC stuck in demo wallets.`;
+                `🚫 Deployer USDC reserve too low. ` +
+                `Required: $${DEMO_DEPLOYER_USDC_MIN_REQUIRED.toFixed(2)} | Current: $${balanceUsd.toFixed(2)} (short by $${shortfall.toFixed(2)}).\n` +
+                `   Tip: fund the deployer wallet ${signer.address} via testnet faucet or bridge.\n` +
+                `   (Note: platform fees from each run help replenish the reserve automatically.)`;
             emit(io, { ts: new Date().toISOString(), level: 'error', message: msg });
             safeEmit(io, 'demo:status', {
                 running: false,
                 recycling: false,
                 error: 'insufficient_deployer_funds',
-                required: REQUIRED_USDC,
+                required: DEMO_DEPLOYER_USDC_MIN_REQUIRED,
                 current: balanceUsd,
+                shortfall,
                 phase: 'idle',
                 ts: new Date().toISOString(),
             });
@@ -2129,7 +2131,7 @@ async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
         emit(io, {
             ts: new Date().toISOString(),
             level: 'success',
-            message: `✅ Deployer USDC reserve OK: $${balanceUsd.toFixed(2)} (need $${REQUIRED_USDC}) — proceeding.`,
+            message: `✅ Deployer USDC reserve sufficient ($${balanceUsd.toFixed(2)} ≥ $${DEMO_DEPLOYER_USDC_MIN_REQUIRED}) — proceeding.`,
         });
         // Set isRunning=true here so runFullDemo can detect the guard passed
         isRunning = true;
