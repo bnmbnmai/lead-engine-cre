@@ -1394,32 +1394,29 @@ export async function runFullDemo(
             }
         }
 
-        // ── Immediate-Start Architecture ──────────────────────────────────────────
-        // NEW: No blocking pre-fund phase at demo start. We inject seed leads and
-        // start auction cycles immediately, using whatever USDC is already in buyer
-        // vaults from the previous run's replenishment phase.
-        //
-        // The only blocking pre-check is a fast ETH gas top-up for any buyer wallet
-        // that has literally zero ETH (can't sign transactions without gas). This
-        // takes ~5 seconds total vs 5-15 minutes for the previous full pre-fund.
-        //
-        // Full $250/buyer USDC vault replenishment runs in background AFTER cycles complete
-        // (inside recycleTokens) so the next demo run starts immediately too.
-        // ─────────────────────────────────────────────────────────────────────────
+        // ── Step 1: Pre-fund ALL buyer vaults to $350 before cycles start ──────────────────────────────────────────
+        // Runs once, blocking. Each buyer that is below $300 available gets topped up to $350.
+        // This eliminates all mid-cycle emergency top-up spam and ensures every buyer can bid
+        // for the full demo run (~10 cycles × $60 max bid = $600 needed worst-case, 6 buyers
+        // each need $100 max, well within $350). ETH is sent only if wallet has zero ETH.
+        const PRE_FUND_TARGET = 350;   // target vault balance per buyer ($)
+        const PRE_FUND_THRESHOLD = 300; // only top up if available balance is below this
+        const preFundUnits = ethers.parseUnits(String(PRE_FUND_TARGET), 6);
 
-        // ── Step 1: Fast ETH-only gas check (non-blocking, ~5s max) ──
         emit(io, {
             ts: new Date().toISOString(),
             level: 'step',
-            message: `⛽ Quick ETH gas check for ${DEMO_BUYER_WALLETS.length} buyers — cycles start immediately after...`,
+            message: `💰 Pre-funding ${DEMO_BUYER_WALLETS.length} buyer vaults to $${PRE_FUND_TARGET} each — cycles start immediately after...`,
         });
+
+        let preFundedCount = 0;
         for (const buyerAddr of DEMO_BUYER_WALLETS) {
             if (signal.aborted) throw new Error('Demo aborted');
             try {
+                // ── ETH gas check (only if completely dry) ──
                 const buyerEth = await provider.getBalance(buyerAddr);
                 if (buyerEth === 0n) {
-                    // Only top up if completely dry — one tx per buyer max
-                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `⛽ Topping up ETH → ${buyerAddr.slice(0, 10)}…` });
+                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `⛽ ETH top-up → ${buyerAddr.slice(0, 10)}…` });
                     const nonce = await getNextNonce();
                     const gasTx = await sendWithGasEscalation(
                         signer,
@@ -1429,26 +1426,66 @@ export async function runFullDemo(
                     );
                     await gasTx.wait();
                 }
+
+                // ── USDC vault top-up (only if below PRE_FUND_THRESHOLD) ──
+                const vaultBal = await vault.balanceOf(buyerAddr);
+                const lockedBal = await vault.lockedBalances(buyerAddr);
+                const available = (vaultBal > lockedBal ? vaultBal - lockedBal : 0n);
+                const availableUsd = Number(available) / 1e6;
+
+                if (availableUsd >= PRE_FUND_THRESHOLD) {
+                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `✅ ${buyerAddr.slice(0, 10)}… vault already $${availableUsd.toFixed(0)} — skipping top-up` });
+                    preFundedCount++;
+                    continue;
+                }
+
+                const topUp = preFundUnits > vaultBal ? preFundUnits - vaultBal : 0n;
+                if (topUp === 0n) { preFundedCount++; continue; }
+
+                const bKey = BUYER_KEYS[buyerAddr];
+                if (!bKey) continue;
+                const bSigner = new ethers.Wallet(bKey, provider);
+                const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
+                const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
+
+                // Transfer USDC from deployer → buyer wallet
+                const tNonce = await getNextNonce();
+                const tTx = await sendWithGasEscalation(
+                    signer,
+                    { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [buyerAddr, topUp]), nonce: tNonce },
+                    `prefund USDC ${buyerAddr.slice(0, 10)}`,
+                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                );
+                await tTx.wait();
+
+                // Approve MAX_UINT (covers future cycles without re-approving)
+                const MAX_UINT = ethers.MaxUint256;
+                const curAllowance = await bUsdc.allowance(buyerAddr, VAULT_ADDRESS);
+                if (curAllowance < topUp) {
+                    const aTx = await bUsdc.approve(VAULT_ADDRESS, MAX_UINT);
+                    await aTx.wait();
+                }
+
+                // Deposit into vault
+                const dTx = await bVault.deposit(topUp);
+                await dTx.wait();
+
+                preFundedCount++;
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: `✅ ${buyerAddr.slice(0, 10)}… pre-funded +$${ethers.formatUnits(topUp, 6)} → vault $${PRE_FUND_TARGET}`,
+                });
             } catch (err: any) {
                 if (err.message === 'Demo aborted') throw err;
-                // Non-fatal: buyer may still have enough ETH from previous run
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ ETH check failed for ${buyerAddr.slice(0, 10)}… (non-fatal): ${err.message?.slice(0, 60)}` });
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-fund failed for ${buyerAddr.slice(0, 10)}… (non-fatal): ${err.message?.slice(0, 70)}` });
             }
         }
 
-        // Log current vault balances for Dev Log transparency
-        let buyersWithFunds = 0;
-        for (const buyerAddr of DEMO_BUYER_WALLETS) {
-            const bal = await vault.balanceOf(buyerAddr);
-            if (bal > 0n) {
-                buyersWithFunds++;
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `💼 Buyer ${buyerAddr.slice(0, 10)}… vault: $${ethers.formatUnits(bal, 6)}` });
-            }
-        }
         emit(io, {
             ts: new Date().toISOString(),
-            level: buyersWithFunds > 0 ? 'success' : 'warn',
-            message: `${buyersWithFunds > 0 ? '✅' : '⚠️'} ${buyersWithFunds}/${DEMO_BUYER_WALLETS.length} buyers have vault funds — starting cycles now`,
+            level: preFundedCount > 0 ? 'success' : 'warn',
+            message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
         });
 
         // ── Step 2: Start staggered lead drip (runs in background) ──
@@ -1491,58 +1528,14 @@ export async function runFullDemo(
                     const bLockedBal = await vault.lockedBalances(bAddr);
                     const available = Math.max(0, (Number(bVaultBal) - Number(bLockedBal)) / 1e6);
                     if (available < bidAmount) {
+                        // Vault low — skip this buyer this cycle (pre-funding already ran at start)
                         emit(io, {
                             ts: new Date().toISOString(),
                             level: 'warn',
-                            message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — pre-funding now`,
+                            message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — skipping this bidder`,
                             cycle, totalCycles: cycles,
                         });
-                        // Attempt emergency top-up for this buyer before skipping
-                        try {
-                            const EMRG_TOP_UP = 250; // matches REPLENISH_AMOUNT in recycleTokens R7
-                            const topUpAmount = ethers.parseUnits(String(EMRG_TOP_UP), 6);
-                            const bKey = BUYER_KEYS[bAddr];
-                            if (bKey) {
-                                const bSigner = new ethers.Wallet(bKey, provider);
-                                const bUsdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
-                                const bVaultContract = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-                                // Gas escalation fix + nonce queue for emergency top-up
-                                const eNonce1 = await getNextNonce();
-                                const gasTx = await sendWithGasEscalation(
-                                    signer,
-                                    { to: bAddr, value: ethers.parseEther('0.001'), nonce: eNonce1 },
-                                    `emrg gas ${bAddr.slice(0, 10)}`,
-                                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg, cycle, totalCycles: cycles }),
-                                );
-                                await gasTx.wait();
-                                const eNonce2 = await getNextNonce();
-                                const txfr = await sendWithGasEscalation(
-                                    signer,
-                                    { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [bAddr, topUpAmount]), nonce: eNonce2 },
-                                    `emrg USDC ${bAddr.slice(0, 10)}`,
-                                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg, cycle, totalCycles: cycles }),
-                                );
-                                await txfr.wait();
-                                const approveTx = await bUsdcContract.approve(VAULT_ADDRESS, topUpAmount);
-                                await approveTx.wait();
-                                const depositTx = await bVaultContract.deposit(topUpAmount);
-                                await depositTx.wait();
-                                emit(io, {
-                                    ts: new Date().toISOString(),
-                                    level: 'success',
-                                    message: `✅ Emergency top-up $${EMRG_TOP_UP} for buyer ${bAddr.slice(0, 10)}…`,
-                                    cycle, totalCycles: cycles,
-                                });
-                            }
-                        } catch (topUpErr: any) {
-                            emit(io, {
-                                ts: new Date().toISOString(),
-                                level: 'warn',
-                                message: `⚠️ Emergency top-up failed for ${bAddr.slice(0, 10)}…: ${topUpErr.message?.slice(0, 60)}`,
-                                cycle, totalCycles: cycles,
-                            });
-                            continue; // skip this buyer in this cycle
-                        }
+                        continue;
                     }
                     buyerBids.push({ addr: bAddr, amount: bidAmount, amountUnits: bidAmountUnits });
                     readyBuyers++;
