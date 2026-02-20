@@ -24,8 +24,6 @@ interface Lead {
     _count?: { bids: number };
     auctionRoom?: { bidCount?: number; highestBid?: number };
     parameters?: { _bountyTotal?: number };
-    /** Epoch ms stamped by socket lead:new handler — card stays lively for 90 s */
-    _recentlyActive?: number;
     seller?: {
         id: string;
         companyName: string;
@@ -46,21 +44,7 @@ interface LeadCardProps {
 
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice, auctionEndFeedback }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
-
-    // Tick every 5 s so the recentlyActive TTL re-evaluates without needing external force.
-    const [, setTick] = useState(0);
-    useEffect(() => {
-        const id = setInterval(() => setTick((t) => t + 1), 5_000);
-        return () => clearInterval(id);
-    }, []);
-
-    // A lead is "live" if its status is IN_AUCTION OR it was socket-prepended within the
-    // last 90 seconds (handles brief lag when backend hasn't updated status yet).
-    const RECENTLY_ACTIVE_TTL_MS = 90_000;
-    const isLive =
-        lead.status === 'IN_AUCTION' ||
-        (lead._recentlyActive != null && Date.now() - lead._recentlyActive < RECENTLY_ACTIVE_TTL_MS);
-
+    const isLive = lead.status === 'IN_AUCTION';
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
     const phaseLabel = getPhaseLabel(lead.status);
 

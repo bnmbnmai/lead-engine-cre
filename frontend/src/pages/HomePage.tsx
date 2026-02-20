@@ -94,10 +94,8 @@ export function HomePage() {
     const [buyNowLeads, setBuyNowLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [buyNowSubTab, setBuyNowSubTab] = useState<'all' | 'recent'>('all');
-    // Track leads that just ended their auction for 10-12s overlay feedback
+    // Track leads that just ended their auction for 8s overlay feedback
     const [recentlyEndedMap, setRecentlyEndedMap] = useState<Record<string, 'UNSOLD' | 'SOLD'>>({});
-    // Track leads prepended via socket — keeps cards alive for 90 s even if backend status hasn't caught up
-    const recentlyActiveMap = useRef<Map<string, number>>(new Map());
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
     // Global demo running state — used to gate polling and suppress noisy toasts
@@ -406,7 +404,6 @@ export function HomePage() {
                 if (view === 'leads' && data?.lead) {
                     const lead = data.lead;
 
-                    // ── DEBUG: log filter state + incoming lead ──
                     console.log('[socket:lead:new] Current filters:', { vertical, country, region, debouncedSearch });
                     console.log('[socket:lead:new] Incoming lead:', { id: lead.id, vertical: lead.vertical, geo: lead.geo });
 
@@ -420,18 +417,11 @@ export function HomePage() {
                         bidFloor.current.set(lead.id, lead._count?.bids ?? 0);
                     }
 
-                    // Stamp a recentlyActive timestamp so the card stays lively for 90 s
-                    // even during rapid settlement/status transitions.
-                    recentlyActiveMap.current.set(lead.id, Date.now());
-                    const stamped = { ...data.lead, _recentlyActive: Date.now() };
-
                     console.log('[setLeads:socket:lead:new] PASSED all guards, prepending lead');
                     setLeads((prev) => {
                         // Avoid duplicates if a refetch already added this lead
-                        if (prev.some((l) => l.id === stamped.id)) {
-                            return prev.map((l) => l.id === stamped.id ? { ...l, _recentlyActive: stamped._recentlyActive } : l);
-                        }
-                        return [stamped, ...prev];
+                        if (prev.some((l) => l.id === lead.id)) return prev;
+                        return [data.lead, ...prev];
                     });
 
                     // Suppress noisy per-lead toasts while demo is running — Dev Log covers it
@@ -468,6 +458,8 @@ export function HomePage() {
                 }
             },
             'marketplace:refreshAll': () => {
+                // Skip during demo — socket events drive the list; refetch would overwrite live data
+                if (isGlobalRunning) return;
                 console.log('[setLeads:refreshAll] marketplace:refreshAll received, calling refetchData');
                 refetchData();
                 toast({ type: 'info', title: 'Marketplace Updated', description: 'Data has been refreshed' });
@@ -484,8 +476,8 @@ export function HomePage() {
                 }
             },
             'marketplace:new-bin': (data: any) => {
-                // Always refresh Buy It Now data so it's ready when user switches tabs
-                if (data?.leadId) {
+                // Skip refetch during demo — only update Buy It Now tab, not Live Leads
+                if (data?.leadId && !isGlobalRunning) {
                     console.log('[setLeads:new-bin] marketplace:new-bin received, calling refetchData');
                     refetchData();
                     if (view === 'buyNow') {
@@ -507,27 +499,23 @@ export function HomePage() {
                     console.log('[setLeads:status-changed] lead:status-changed:', data.leadId, '->', data.newStatus);
                     const endStatus = data.newStatus === 'SOLD' ? 'SOLD' as const : 'UNSOLD' as const;
 
-                    // Keep the lead card visible with the end-overlay so the final bid
-                    // count stays on screen for 12s, then remove it from the array.
+                    // Show grey "Ended" overlay for exactly 8 s, then remove the card naturally.
                     setRecentlyEndedMap((prev) => ({ ...prev, [data.leadId]: endStatus }));
 
                     setTimeout(() => {
-                        // Remove from Live Leads after the overlay period
                         setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
                         setRecentlyEndedMap((prev) => {
                             const next = { ...prev };
                             delete next[data.leadId];
                             return next;
                         });
-                        recentlyActiveMap.current.delete(data.leadId);
-                        // Only refetch if demo is not running — during demo, new leads
-                        // arrive continuously via marketplace:lead:new and a refetch
-                        // risks overwriting socket-prepended leads with a stale API response.
+                        // Only trigger a Buy-It-Now refresh when demo is not running.
+                        // During demo, the next lead arrives via socket anyway.
                         if (data.newStatus === 'UNSOLD' && !isGlobalRunning) {
                             console.log('[setLeads:status-changed] UNSOLD, calling refetchData after overlay');
                             refetchData();
                         }
-                    }, 12_000);
+                    }, 8_000);
                 }
             },
         },
