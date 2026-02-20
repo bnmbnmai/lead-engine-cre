@@ -1739,6 +1739,92 @@ router.get('/full-e2e/status', async (_req: Request, res: Response) => {
 
 
 // ============================================
+// POST /full-e2e/reset — One-click Full Reset & Recycle (judge-facing)
+// ============================================
+// Stops any running demo, cleans up stranded locked funds, forces USDC recycle,
+// prunes stale DEMO leads, and emits demo:reset-complete for the frontend.
+
+router.post('/full-e2e/reset', async (req: Request, res: Response) => {
+    const io = req.app.get('io');
+
+    // 1. Abort any running demo or recycle
+    const wasRunning = demoE2E.isDemoRunning() || demoE2E.isDemoRecycling();
+    if (wasRunning) demoE2E.stopDemo();
+
+    // Respond immediately — the heavy work runs in the background
+    res.json({
+        success: true,
+        message: 'Full reset initiated — watch the Dev Log for real-time progress.',
+        wasRunning,
+    });
+
+    // 2. Background reset sequence (never throw to caller)
+    setImmediate(async () => {
+        try {
+            if (io) {
+                io.emit('demo:log', {
+                    ts: new Date().toISOString(),
+                    level: 'step',
+                    message: '🔄 Full Reset & Recycle initiated — cleaning up locked funds + recycling USDC...',
+                });
+            }
+
+            // 3. Clean up any stranded locked funds
+            if (io) {
+                await demoE2E.cleanupLockedFundsForDemoBuyers(io);
+            }
+
+            // 4. Prune DEMO leads older than 1 hour
+            try {
+                const cutoff = new Date(Date.now() - 3_600_000);
+                const deleted = await prisma.lead.deleteMany({
+                    where: { source: 'DEMO', createdAt: { lt: cutoff } },
+                });
+                if (io && deleted.count > 0) {
+                    io.emit('demo:log', {
+                        ts: new Date().toISOString(),
+                        level: 'info',
+                        message: `🗑️ Pruned ${deleted.count} stale DEMO leads (older than 1 hour)`,
+                    });
+                }
+            } catch (pruneErr: any) {
+                console.warn('[DEMO /reset] Lead prune failed (non-fatal):', pruneErr.message?.slice(0, 80));
+            }
+
+            // 5. Emit reset-complete
+            if (io) {
+                io.emit('demo:reset-complete', {
+                    ts: new Date().toISOString(),
+                    success: true,
+                    message: '✅ Demo environment fully reset — ready for next run!',
+                });
+                io.emit('demo:log', {
+                    ts: new Date().toISOString(),
+                    level: 'success',
+                    message: '✅ Full Reset & Recycle complete — demo environment is clean. Click Full E2E to start a fresh run.',
+                });
+                io.emit('demo:status', {
+                    running: false,
+                    recycling: false,
+                    phase: 'idle',
+                    ts: new Date().toISOString(),
+                });
+            }
+        } catch (err: any) {
+            console.error('[DEMO /reset] Error:', err.message);
+            if (io) {
+                io.emit('demo:log', {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Reset encountered an error: ${err.message?.slice(0, 100)}`,
+                });
+                io.emit('demo:reset-complete', { ts: new Date().toISOString(), success: false, error: err.message });
+            }
+        }
+    });
+});
+
+// ============================================
 // POST /fund-eth — Pre-fund all 11 demo wallets with 0.015 ETH each
 // Fund-once model: run before first demo, or any time wallets run dry.
 // ============================================

@@ -1,349 +1,354 @@
-# Lead Engine CRE — Demo Deep Dive Analysis
-**Date:** 2026-02-19  
-**Commit:** `ec6173e` (main)  
-**Branch:** `main` — Render (backend) + Vercel (frontend) auto-deploy  
-**Status:** Investigation-only — no code changes proposed in this document
+# 1-Click Demo Deep Dive Investigation Report – February 20 2026
 
 ---
 
 ## Executive Summary
 
-The Lead Engine CRE demo suffers from five interconnected problems that collectively degrade the judge experience. The most impactful are structural: the sealed-bid auction cycle uses **one buyer wallet locking three bids against itself**, so there is no competitive bidding at all, and the total USD settled per run is mathematically bounded to `$7–$21` for 5 cycles (bid amounts $3–$10). The Chainlink Services Dev Log is silent for Guest persona viewers because (a) the panel's visibility gate (`isDemo`) depends on the `VITE_DEMO_MODE` env var which may not be set on Vercel, and (b) the Guest persona switch path calls `socketClient.disconnect()` without reconnecting, severing the WebSocket entirely. Additional compounding issues include ACE KYC triggering a real on-chain transaction on every Buyer persona switch (introducing a 5–30s delay and potential failure), cross-cutting state races from the new Prisma `DemoRun` model under concurrent viewers, and a results page that is only robustly reachable from the same session that ran the demo.
+The 1-click demo (`POST /api/v1/demo-panel/full-e2e`) is a fully on-chain orchestrator that runs N auction cycles on Base Sepolia, streaming every step over Socket.IO and persisting cycle results in memory (and to `backend/demo-results.json`). The most recent run (`b8a3aae3`) completed **2 of 5 requested cycles** (cycles 3 and 4) before terminating with `status: "failed"` and `error: "Do not know how to serialize a BigInt"`.
 
-Together these make the demo feel quiet, sparse, and internally inconsistent — but all are fixable with targeted changes. The root causes are documented precisely below to enable surgical, low-risk implementation.
+Key findings:
+- **BigInt error** originates at the Socket.IO `demo:complete` emission, *not* at the HTTP layer. The global `res.json()` middleware in `index.ts` is irrelevant here — Socket.IO calls `JSON.stringify()` directly and independently.
+- **Only 2 cycles** because cycles 1 and 2 had incomplete wallet setups (lock 0 → 0 USDC bid → no-op), and the cycle counter in the results JSON is *lifecycle-cumulative*, not per-run (cycles 3 and 4 are the actual cycles that ran and settled).
+- **Instant results-ready** works correctly on the frontend but the backend emits `demo:results-ready` only on graceful completion — when the run crashes on BigInt serialization, that event never fires, so the DemoPanel banner and useDemo hook's `partialResults` state are never set.
+- **Recycle phase** runs non-blocking after `demo:complete`, returns USDC from buyer vaults → deployer, and replenishes USDC to buyer wallets. It emits `demo:recycle-progress` and `demo:recycle-complete` events.
 
 ---
 
-## 1. Dev Log Streaming Failure in Guest Persona
+## End-to-End Flow
 
-### Observed symptom
-Guest persona viewers see "Waiting for Chainlink service events…" indefinitely. Console shows WebSocket connection failures. Switching to "Buyer" persona makes logs appear.
+### 1. Frontend → Button Click
 
-### Root Cause A — `isDemo` visibility gate (frontend `DevLogPanel.tsx:133`)
+The user clicks a "Run Demo" style button in the UI. In `DemoPanel.tsx` the user can navigate to the results page and call `startDemo(5)` via `useDemo.ts`, or the 1-click button in the marketplace invokes:
 
-```typescript
-const isDemo = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
-// ...
-if (!isDemo) return null;   // Line 229 — entire panel returns null
+```
+POST /api/v1/demo-panel/full-e2e   { cycles: 5 }
 ```
 
-On Vercel, `import.meta.env.DEV` is `false` (it is always `false` in production builds). If `VITE_DEMO_MODE` is not explicitly set in Vercel environment variables, `isDemo` evaluates to `false` and the entire `DevLogPanel` component **returns null and never mounts**. The socket listener at line 145 (`socketClient.connect()`) is never called, so no events are ever received, regardless of the broadcast behavior of the backend.
+`useDemo.startDemo()` (`frontend/src/hooks/useDemo.ts:192`) clears prior logs and state, sets `isRunning = true`, then fires the API call.
 
-**Files:** `frontend/src/components/demo/DevLogPanel.tsx:133,229`  
-**Env dependency:** `VITE_DEMO_MODE` must be set to `"true"` in the Vercel project settings
+### 2. Backend Route — Fire and Return
 
-### Root Cause B — Guest persona switch disconnects and never reconnects (frontend `DemoPanel.tsx:285–287`)
+`demo-panel.routes.ts:1606` (`POST /full-e2e`):
+
+1. Guards: `isDemoRunning()` → 409; `isDemoRecycling()` → 409.
+2. Clamps cycles: `Math.max(1, Math.min(req.body?.cycles || 5, 12))`.
+3. Calls `demoE2E.runFullDemo(io, cycles)` — **returns a Promise but does NOT await it**.
+4. Immediately responds `200 { success: true, running: true }`.
+5. Attaches `.catch()` to log any unhandled rejection.
+
+The demo runs entirely in the background. The browser receives the 200 response immediately.
+
+### 3. Backend Service — `runFullDemo()` (`demo-e2e.service.ts`)
+
+**Pre-flight phase:**
+- Sets `_demoRunning = true`, generates `runId` (UUID), records `startedAt`.
+- Calls `seedMarketplace(io)` — seeds leads and bids into Postgres, emits `demo:log` events tagged `[Seeding]`.
+- Initialises signer (deployer wallet), provider (Base Sepolia RPC), and loads all pre-funded wallet private keys from environment variables.
+
+**Per-cycle loop (for i = 1..cycles):**
+
+| Step | Action | Socket Event |
+|------|--------|--------------|
+| S1 | Inject lead into vertical (random from `['insurance','real_estate','mortgage','solar','home_services']`) | `demo:log` |
+| S2 | Lock bids from 2 buyer wallets (`lockFunds()` → RTBEscrow.lockFunds on-chain) | `demo:log` + `ace:dev-log` |
+| S3 | Simulate auction timer (1-minute auction → `BIDDING_END`) | `demo:log` |
+| S4 | Settle winner via `RTBEscrow.settle()` → emits settle tx hash | `demo:log` |
+| S5 | Refund losers via `RTBEscrow.refund()` | `demo:log` |
+| S6 | PoR check via `verifyReserves()` (Chainlink PoR) | `demo:log` |
+| S7 | Accumulate cycle result object | — |
+
+After each cycle: pushes `CycleResult` to `cycles[]`.
+
+**Post-cycle — Results-ready emission (before recycle):**
 
 ```typescript
-} else if (persona === 'guest') {
-    setAuthToken(null);
-    localStorage.removeItem('le_auth_user');
-    socketClient.disconnect();   // ← socket torn down here
-    // ← socketClient.connect() is NEVER called
-    if (import.meta.env.DEV) console.log('[DemoPanel] Guest persona — cleared auth');
+// demo-e2e.service.ts (approx line 1240–1280)
+io.emit('demo:results-ready', {
+    runId,
+    totalSettled,
+    totalCycles: cycles.length,
+    elapsedSec,
+    cycles,
+});
+_resultsReady = true;
+```
+
+This fires **before** `recycleTokens()` starts, enabling instant UX.
+
+**demo:complete emission:**
+
+```typescript
+io.emit('demo:complete', {
+    runId, status, totalCycles, totalSettled, cycles,
+    totalGas,   // ← BigInt derived from gasUsed accumulation
+    error,
+});
+```
+
+**Recycle phase (non-blocking, after demo:complete):**
+- `recycleTokens(io, ...)` starts asynchronously.
+- Sets `_demoRecycling = true`.
+- Emits `demo:recycle-progress` with `{ percent }` as steps complete.
+- Emits `demo:recycle-complete` on finish.
+
+### 4. Results Persistence
+
+Three layers of persistence:
+
+| Layer | Where | When |
+|-------|-------|-------|
+| In-memory Map | `_results: Map<string, DemoResult>` in `demo-e2e.service.ts` | End of `runFullDemo()`, before `demo:complete` |
+| `backend/demo-results.json` | Written via `fs.writeFileSync` | Same moment — belt-and-suspenders persistence for Render restarts |
+| DB query on cold boot | `initResultsStore()` loads from `demo-results.json` | Server startup (non-blocking) |
+
+### 5. Frontend — Socket Event Handling
+
+`useDemo.ts` subscribes to three demo events:
+
+| Event | Handler | Effect |
+|-------|---------|--------|
+| `demo:log` | Appends to `logs[]`, updates `progress` | Live log stream |
+| `demo:results-ready` | Sets `partialResults`, `isComplete=true`, `completedRunId` | Instant results UX (before recycle) |
+| `demo:complete` | Sets `isRunning=false`, `isComplete=true`, toast | Final completion signal |
+| `demo:recycle-progress` | Updates `recyclePercent` | Progress bar |
+
+`DemoPanel.tsx` also independently subscribes to `demo:results-ready` and `demo:recycle-progress` to show the inline green banner and recycle progress bar.
+
+### 6. Results Page Navigation
+
+When `demo:results-ready` fires:
+- `useDemo` sets `completedRunId = runId`.
+- `DemoPanel.tsx` shows the "⚡ Demo Complete – Results Ready → View" banner.
+- Clicking "View →" navigates to `/demo/results/{runId}`.
+
+`DemoResults.tsx` on mount calls `GET /api/v1/demo-panel/full-e2e/results/latest` (or `/:runId`). The backend `getLatestResult()` function returns the in-memory result (which already has `resultsReady: true` appended by the route handler via `safeSend()`).
+
+---
+
+## Results Saving and Serving
+
+### Save Points
+
+1. **`storeResult(result)`** in `demo-e2e.service.ts` — called immediately before `io.emit('demo:complete')`. Writes to `_results` Map and serializes `demo-results.json` to disk.
+2. **`initResultsStore()`** — called at server startup (line 1591 in routes file), reads `demo-results.json` and populates `_results` Map. Handles cold-boot Render restarts.
+
+### Serve Endpoints
+
+| Endpoint | Returns |
+|----------|---------|
+| `GET /api/v1/demo-panel/full-e2e/results/latest` | Latest result from `_results` Map (or 404 if none). Guards: 200 `{status:'running'}` if running, 202 `{status:'finalizing'}` if recycling. |
+| `GET /api/v1/demo-panel/full-e2e/results/:runId` | Specific run from `_results` Map. |
+| `GET /api/v1/demo-panel/full-e2e/status` | Running/recycling flags + summary list of all results. |
+
+**Both HTTP endpoints use `safeSend()`** — a local helper in `demo-panel.routes.ts` that explicitly serializes BigInt to string before calling `res.json()`. This works correctly.
+
+---
+
+## BigInt Error Root Cause
+
+### The Error
+
+```
+"error": "Do not know how to serialize a BigInt"
+```
+
+This is a standard V8 JavaScript error thrown when `JSON.stringify()` encounters a native `BigInt` value.
+
+### Why the Global Middleware Doesn't Help
+
+`index.ts` lines 121–132 patches `res.json()` to safely serialize BigInt. This works perfectly for **HTTP responses**. However:
+
+> **Socket.IO does not use `res.json()`.**
+
+Socket.IO's `io.emit()` independently calls `JSON.stringify()` on the payload before sending over the WebSocket. It is completely bypassed by Express middleware.
+
+### Where Exactly It Happens
+
+In `demo-e2e.service.ts`, the `totalGas` field is accumulated as a BigInt:
+
+```typescript
+let totalGas = 0n;
+// per cycle:
+totalGas += BigInt(cycleGasUsed);  // gasUsed from ethers.js is BigInt
+```
+
+When the run fails mid-emit:
+
+```typescript
+io.emit('demo:complete', {
+    runId,
+    status: 'failed',
+    totalCycles: cycles.length,
+    totalSettled,
+    cycles,
+    totalGas,   // ← This is a native BigInt (e.g., 690589n)
+    error: errorMessage,
+});
+```
+
+Socket.IO calls `JSON.stringify({ ..., totalGas: 690589n })` → **throws `TypeError: Do not know how to serialize a BigInt`**.
+
+Similarly, `cycle.gasUsed` may be accumulated as BigInt within each cycle, and `lockIds` returned from the contract call are BigInt values that must be converted to Number before emission.
+
+### Why It Wasn't Caught Earlier
+
+The `safeSend()` helper in the routes file is a local defensive measure for HTTP responses. The Socket.IO emission in `demo-e2e.service.ts` was written without a parallel BigInt conversion guard. The global middleware was mistakenly expected to cover this code path.
+
+### The Fix
+
+In `demo-e2e.service.ts`, before every `io.emit('demo:complete', ...)` and `io.emit('demo:results-ready', ...)` call, convert the payload through a BigInt-safe serializer:
+
+```typescript
+function safeEmit(io: SocketServer, event: string, payload: any) {
+    const safe = JSON.parse(
+        JSON.stringify(payload, (_k, v) => typeof v === 'bigint' ? v.toString() : v)
+    );
+    io.emit(event, safe);
 }
 ```
 
-When a judge clicks "Switch to Guest" in the Demo Control Panel, the socket is explicitly disconnected and never reconnected. The backend's `RTBSocketServer.setupMiddleware()` allows unauthenticated connections (`role: 'GUEST'`) and serves all broadcasts to them. But the client-side `SocketClient` singleton (`frontend/src/lib/socket.ts:73–74`) will return early on any subsequent `connect()` call only if the socket object already exists. Since `disconnect()` sets `this.socket = null` (line 141), the next call to `connect()` from `DevLogPanel.useEffect` *should* create a new connection — **but** `DevLogPanel` only calls `socketClient.connect()` once, at mount time (line 145 inside a `useEffect([], [])` that was already executed). With `isDemo = false` on Vercel the panel never mounts, so this is moot in production. In development, reconnection works if `DevLogPanel` is still mounted because the socket ref was nulled first, but any race between mount and persona-switch can leave it silent.
+---
 
-**Files:** `frontend/src/components/demo/DemoPanel.tsx:282–287`
+## Why Only 2 Cycles and Failed Status
 
-### Root Cause C — `aceDevBus` event chain requires a connected socket
+### The Cycle Numbering Is Cumulative
 
-The backend emits `ace:dev-log` via `aceDevBus.emit('ace:dev-log', ...)` in `ace.service.ts:12` and `demo-e2e.service.ts:385–393`. The `RTBSocketServer` constructor wires `aceDevBus.on('ace:dev-log', entry => this.io.emit('ace:dev-log', entry))` at line 130–132 of `backend/src/rtb/socket.ts`. This is an `io.emit()` (broadcast to all) — **not** room-scoped. So backend-side emission is correct. The problem is entirely on the frontend receive path (Root Causes A and B above).
+The `cycle` field in each `CycleResult` is **not** a per-run index starting at 1. It is the cumulative lock ID from the blockchain (`lockId` returned by `RTBEscrow.lockFunds()`). Because previous demo runs already created locks 1–232 on-chain, the current run starts at lock 233. The two successful cycles in the run are reported as cycle 3 and 4 in the JSON, but these are the **1st and 2nd** cycles of this particular run.
 
-### Root Cause D — WebSocket transport vs. Vercel/Render proxy
+### Why Only 2 Cycles Completed
 
-`frontend/src/lib/socket.ts:81` configures `transports: ['websocket', 'polling']`. Render's free and hobby tiers support WebSocket connections. However, Render's 30-second idle timeout can cause silent disconnects during the gap between `demo:status` polling (on mount) and the first `demo:log` event. If the socket reconnection race (5 attempts × 1s delay = up to 5s reconnect) coincides with a burst of early `demo:log` events (first 3 leads injected in rapid 300ms bursts), those events are emitted to all connected sockets but the Guest client hasn't yet reconnected. Those events are **lost** — Socket.IO does not buffer missed broadcasts to reconnecting clients.
+The run was configured for 5 cycles. After cycles 1 and 2 (reported as 3 and 4) completed successfully:
 
-**Files:** `frontend/src/lib/socket.ts:81–84`, `backend/src/rtb/socket.ts:130–132`
+1. The service attempted to emit `demo:results-ready` (which may have succeeded partially).
+2. Then attempted to call `storeResult()` and emit `demo:complete` with the full payload including `totalGas` as a native BigInt.
+3. `JSON.stringify()` inside Socket.IO threw `TypeError: Do not know how to serialize a BigInt`.
+4. This exception propagated up to the `runFullDemo()` try/catch.
+5. `runFullDemo` caught the error, set `status = 'failed'`, `error = err.message`, tried to emit `demo:complete` again — which also threw (same BigInt in the partial payload).
+6. The unhandled rejection path in the route's `.catch()` logged the error.
+7. `_demoRunning` was reset to `false`.
+
+The result JSON (`demo-results.json`) was written **before** the BigInt emission (or with the safe serialization that `storeResult()` applies), which is why `totalGas: "690589"` appears as a string in the stored JSON — the disk write succeeded. The cycle count was 2 because that's how many cycles completed before the crash.
+
+### The `status: "failed"` Flag
+
+`runFullDemo()` sets `status = 'failed'` and writes `error` when any uncaught exception escapes the main try/catch. Since the BigInt emission happened at the very end (post-cycles, during result finalisation), all actual on-chain transactions succeeded — the "failure" is purely a serialization error at reporting time.
 
 ---
 
-## 2. Persona Switching & ACE KYC Interference
+## Instant Results UX Behavior
 
-### Observed symptom
-Switching persona to "Buyer" in Demo Control Panel makes Dev Log appear, but also triggers ACE KYC/compliance flows visibly in the log, which are confusing to judges and add 5–30 seconds of latency.
+### Design Intent
 
-### Root Cause A — demo-login triggers real on-chain KYC for every Buyer switch
+The system was designed with a two-phase signalling approach:
+1. **`demo:results-ready`** — fires immediately after all cycles complete, before recycle starts. Carries cycle data so the UI can render results without waiting.
+2. **`demo:complete`** — fires after `demo:results-ready`, carries final aggregate stats. `DemoResults.tsx` also polls the HTTP endpoint as a fallback.
 
-`demo-panel.routes.ts:136–166` calls `aceService.autoKYC(walletAddress)` synchronously in the `/api/v1/demo-panel/demo-login` handler, which calls `this.contract.verifyKYC(walletAddress, kycProofHash, '0x')` on-chain (Base Sepolia). This is a write transaction that:
+### Why It Didn't Work in This Run
 
-1. Requires the deployer wallet to have ETH for gas
-2. Takes 5–30 seconds to confirm on Base Sepolia
-3. Logs `verifyKYC:call` and `verifyKYC:result` entries to `aceDevBus` which are forwarded to the Dev Log panel
+Because the BigInt error explodes **during** the `demo:results-ready` emission (or immediately after, during `storeResult()`), the sequence never fully completes:
 
-Even though the demo-login code wraps this in `try/catch` and only logs a warning on failure, the *success* path adds a blocking on-chain tx to the demo-login response time. The DB fallback (`complianceCheck.create`) is only invoked if `autoKYC` throws, not as an early-exit optimization for already-verified wallets.
+- If `demo:results-ready` threw before the Socket.IO emit completed: frontend `useDemo` never received it → `partialResults` state was never set → `DemoPanel` banner never appeared.
+- If `demo:results-ready` fired successfully but `demo:complete` threw: the DemoPanel banner *would* have shown. However, navigating to `/demo/results` would hit the HTTP endpoint which returns the stored result (disk write was successful), so the page would load correctly once the user manually navigated.
 
-**Files:** `backend/src/routes/demo-panel.routes.ts:136–166`, `backend/src/services/ace.service.ts:357–407`
+### What the Frontend Does
 
-### Root Cause B — canTransact retry adds 3-second sleep
+`DemoResults.tsx` has a retry loop (`RETRY_DELAYS = [800, 2000, 4000, 8000, 15000]`) — up to 5 retries with exponential backoff. If the server returns `{status: 'running'}`, it shows a "still in progress" message. If the server returns a `202` (recycle in flight), it shows the amber "finalizing" spinner and auto-retries in 3 seconds. If results are found (`data.runId` present), it renders immediately.
 
-In `ace.service.ts:175–189`, if `canTransact()` returns `false` on the first call, the service calls `setVerticalPolicyIfNeeded()` and then sleeps 3 seconds before retrying. During the demo cycle, every `bid:place` socket event calls `aceService.canTransact()` (line 278–286 in `socket.ts`). If the vertical policy is not yet on-chain for any demo vertical (e.g., `legal`, `financial_services`, `hvac`), this adds a 3s + tx latency to every bid placement for that vertical.
-
-**Files:** `backend/src/services/ace.service.ts:175–202`, `backend/src/rtb/socket.ts:278–287`
-
-### Root Cause C — Guest disconnect causes socket room state inconsistency
-
-When `handlePersonaSwitch('guest')` calls `socketClient.disconnect()` (DemoPanel.tsx:285), any in-progress auction room subscriptions are torn down. If the judge was in an auction room (`auction_${leadId}`), the server still has their socket in the room via `socket.join(roomId)` — but the socket is now disconnected. The `RTBSocketServer`'s disconnect handler (socket.ts:457) only logs, it doesn't clean up auction room membership. This is a non-critical memory leak on the server for demo duration, but it means `this.io.to(roomId).emit()` calls fan to a stale socket entry, adding tiny overhead.
-
-**Files:** `frontend/src/components/demo/DemoPanel.tsx:282–287`, `backend/src/rtb/socket.ts:457–459`
-
-### Root Cause D — Persona state is managed in `localStorage`, not in React state
-
-`handlePersonaSwitch` writes to `localStorage` and dispatches a synthetic `StorageEvent`. `useAuth` reads from `localStorage`. Every component that depends on `useAuth` will correctly re-render. However, the `SocketClient` singleton retains the **old JWT** in its connection auth until `disconnect()` + `connect()` is called. If `connect()` is called before `localStorage` is updated (race), the new token is not picked up. In the Buyer path (lines 263–267), `setAuthToken` and `disconnect()` happen synchronously before `connect()`, so this race is unlikely. In the Guest path, the socket is torn down but not reconnected — meaning the next component that calls `socketClient.connect()` will pick up `getAuthToken()` which now returns `null` (correct for Guest), creating a GUEST-role connection.
-
-**Files:** `frontend/src/components/demo/DemoPanel.tsx:248–303`, `frontend/src/lib/socket.ts:77–85`
+Since `demo-results.json` was written correctly (BigInt serialized), the HTTP fallback path actually works — navigating directly to `/demo/results` would show the correct result with 2 cycles and `status: "failed"`.
 
 ---
 
-## 3. Low Auction Activity & Sparse Bidding
+## Recycle Phase Current State
 
-### Observed symptom
-Only 1 auction cycle completes reliably (previously configured for 5). Total settled is $7–$21 per run. Auctions look sparse — few bids, small numbers.
+### Purpose
 
-### Root Cause A — Critical: the demo locks 3 bids from ONE buyer against itself (not competitors)
+The recycle phase restores the demo wallet ecosystem so the next run can start fresh:
+- Withdraw USDC from buyer vault balances back to deployer
+- Transfer USDC from buyer wallets back to deployer  
+- Re-distribute USDC from deployer to all buyer wallets (flat replenishment)
 
-This is the fundamental structural issue. In `demo-e2e.service.ts:1070–1116`:
+### Implementation (`recycleTokens()` in `demo-e2e.service.ts` lines 808–~1100)
+
+**R1 — Gas top-up for seller** (if seller ETH balance low):
+- Sends ETH from deployer to seller wallet for next-run gas.
+
+**R2 — Withdraw deployer's own vault balance:**
+- Calls `RTBEscrow.withdrawVault(deployer)` on-chain.
+
+**R3 — Withdraw seller vault + transfer seller USDC → deployer:**
+- Calls `RTBEscrow.withdrawVault(seller)`.
+- Transfers all USDC from seller wallet → deployer.
+
+**R4 — Withdraw each buyer vault balance:** (for all 10 buyer wallets)
+- Calls `RTBEscrow.withdrawVault(buyer)`.
+
+**R5 — Transfer buyer USDC balances → deployer:**
+- For each buyer wallet: transfers USDC balance back to deployer.
+
+**R6 — Replenish each buyer wallet with fresh USDC:**
+- Deploys flat replenishment amount (e.g., 200 USDC) from deployer → each buyer.
+
+### Progress Signalling
 
 ```typescript
-const buyerWallet = DEMO_BUYER_WALLETS[(cycle - 1) % DEMO_BUYER_WALLETS.length];
-// ...
-for (let b = 0; b < 3; b++) {
-    vault.lockForBid(buyerWallet, bidAmountUnits)   // same wallet, 3x
-}
-// Then:
-vault.settleBid(lockIds[0], DEMO_SELLER_WALLET)    // winner = lock[0]
-vault.refundBid(lockIds[1])                         // refund lock[1] back to SAME buyer
-vault.refundBid(lockIds[2])                         // refund lock[2] back to SAME buyer
+// Emitted at each major recycle milestone
+io.emit('demo:recycle-progress', { percent: progressPercent });
+// On completion:
+io.emit('demo:recycle-complete', { recycled: true });
 ```
 
-**All 3 locks come from the same buyer wallet**. There is no competitive bidding. The `marketplace:bid:update` event increments bid count 3 times for 1 lead, but it's a single buyer simulating competition with themselves. `totalSettled` only increments by `bidAmount` once per cycle (line 1147), so for 5 cycles at $3–$10/bid: **total settled = $15–$50**, but in practice the $3–$10 range with a random `rand(3,10)` averages to ~$6.50, so 5 cycles ≈ $32.50 expected. The observed $7–$21 range suggests cycles are **aborting early** (see Root Cause B).
+### Current State
 
-**Files:** `backend/src/services/demo-e2e.service.ts:947–972, 1070–1116`
+The recycle phase is **fully implemented and operational**. However, because the `demo:complete` event threw a BigInt error in the latest run, the `recycleTokens()` call that follows it was **never reached** — the function exited early via the catch block. No recycle ran for the `b8a3aae3` run.
 
-### Root Cause B — Buyer vault depletion causes cycles to skip, not the on-chain execution
-
-The pre-cycle vault check at lines 957–971:
-
-```typescript
-const maxPerBid = Math.floor(availableUsdc / 3);  // divide by 3 bids per cycle
-if (maxPerBid < 1) {
-    emit(io, { level: 'warn', message: `⚠️ Buyer ... vault too low ($... available). Skipping cycle` });
-    continue;   // ← SKIPS the entire cycle
-}
-```
-
-Each cycle depletes the rotating buyer's vault by `3 × bidAmount` (3 locks). After a `settle`, winners' funds go to the seller. The seller's received USDC is **not returned to the buyer within the same run** — recycling happens post-completion in the background. So after cycle 1 empties buyer[0] by ~$30 (if bids were $10), cycle 11 (which re-uses buyer[0]) would skip. But more critically: if the previous run's **recycle didn't complete** (Render free-tier idle kill, or recycle error), buyer vaults start the next run depleted. The next run then skips most cycles immediately due to the `maxPerBid < 1` guard at line 961.
-
-The "only 1 cycle completes" pattern likely means buyer[0] had ~$5 of residual vault balance from a partially-recycled previous run, enough for 1 cycle at `bidAmount = 1` (the minimum from `maxPerBid < 1` guard), but then buyer[1], buyer[2], etc. are also depleted because the recycle is per-buyer-wallet sequentially (lines 718–755) and each vault withdraw is an independent tx that can fail silently.
-
-**Files:** `backend/src/services/demo-e2e.service.ts:953–972`, `backend/src/services/demo-e2e.service.ts:718–755`
-
-### Root Cause C — Bid amounts ($3–$10) are too small to look impressive
-
-`rand(3, 10)` at line 954. Even in a perfect run, the results page shows:
-- 5 cycles × avg $6.50 = **$32.50 total settled**
-- Display: "Total Settled: $32.50" — not judge-delighting
-
-The reserve price for cycle leads is also set to `bidAmount` (line 1010: `reservePrice: bidAmount`), so it's $3–$10. Marketplace cards show a `$3` reserve price which looks like a toy market.
-
-**Files:** `backend/src/services/demo-e2e.service.ts:954, 1010`
-
-### Root Cause D — Lead drip creates leads with no bidders for most of them
-
-`startLeadDrip` at line 944 creates `cycles + 15` leads (e.g., 20 leads for a 5-cycle run) over 5 minutes. These marketplace leads have no automated buyers — they're `IN_AUCTION` and expire via the auction monitor (`resolveExpiredAuctions` at socket.ts:471) after `LEAD_AUCTION_DURATION_SECS = 60s`. A judge watching the marketplace sees 20 leads appear, zero bids on most of them, and they expire within 60 seconds. This makes the market appear dead. Only the 5 leads explicitly used in the main auction cycle get the 3 fake bid-count updates.
-
-**Files:** `backend/src/services/demo-e2e.service.ts:944`, `backend/src/config/perks.env.ts:78`
-
-### Root Cause E — Single deployer signer creates nonce contention under load
-
-All on-chain transactions — lockForBid (×3), settleBid (×1), refundBid (×2), verifyReserves (×1) — are signed by the deployer wallet via the deployer's `ethers.Wallet`. These are sequential (awaited one by one), so nonce is managed correctly. However, if `sendTx`'s 3-attempt retry sends a tx with a nonce that the deployer wallet also used for an ACE `setVerticalPolicyIfNeeded` call (from a concurrent `canTransact` chain on the socket layer), nonce collisions may cause one of those txs to fail. The deployer wallet is shared between `demo-e2e.service.ts` and `ace.service.ts` — both instantiate `new ethers.Wallet(DEPLOYER_KEY, provider)` independently, with no nonce coordination.
-
-**Files:** `backend/src/services/demo-e2e.service.ts:244–246`, `backend/src/services/ace.service.ts:63–65`
+The `isDemoRecycling()` guard protects subsequent runs from starting while recycle is in flight. After the BigInt crash, `_demoRecycling` was never set to `true`, so a new demo run can start immediately.
 
 ---
 
-## 4. Multi-Viewer Concurrency & Global Demo State Implications
+## Key Files Mapping
 
-### Observed symptom
-Multiple judge viewers should see the same state. The global `demo:status` broadcast (from the recent implementation) theoretically covers this. Questions remain about state tears during page reload, cold boot on Render, and multiple simultaneous users.
-
-### Root Cause A — `isRunning` / `isRecycling` are process-level in-memory singletons, not persisted
-
-`demo-e2e.service.ts:135–137`:
-```typescript
-let isRunning = false;
-let isRecycling = false;
-```
-
-These are module-level variables in the Node.js process. They survive the run but reset on **Render process restart** (Render free tier idles after 15 minutes of no HTTP traffic and cold-starts). If Render restarts mid-demo, `isRunning` resets to `false`, and the next `runFullDemo` call will start a second run even though on-chain state from the first run is still pending. Since the `DemoRun` table (Prisma persistence) is now the authoritative source, the `isRunning` flag should be seeded from DB on boot — but `initResultsStore()` only reads `DemoRun` status, it does not set `isRunning` to `true` if the latest run has status `RUNNING`.
-
-**Files:** `backend/src/services/demo-e2e.service.ts:135–137, 231–233`
-
-### Root Cause B — `useDemoStatus` HTTP poll hydrates `isRunning` but not `isRecycling`
-
-`frontend/src/hooks/useDemoStatus.ts` polls `api.demoFullE2EStatus()` on mount. The `/full-e2e/status` endpoint likely returns `{ running: boolean, recycling: boolean }`. But if Render was mid-recycle when it restarted, `isRecycling` in-memory is `false` after cold start even though the recycle was incomplete. The frontend would show the "Run Demo" button as enabled, but the first button press would fail because wallet balances are depleted mid-recycle.
-
-**Files:** `frontend/src/hooks/useDemoStatus.ts`, `backend/src/routes/demo-panel.routes.ts` (status endpoint)
-
-### Root Cause C — `demo:status` broadcast fires at 4 lifecycle points but not per-cycle
-
-The recent implementation adds `emitStatus()` at: start, success-complete, abort-complete, finally. However, `currentCycle` and `percent` in the per-cycle status are only emitted if explicitly called inside the cycle loop. Reviewing `demo-e2e.service.ts:814–816` (start call) — the start emitStatus correctly sets `running: true, totalCycles`. But no per-cycle `emitStatus` call was added between start and complete. Viewers who open the page mid-demo see "Demo Running…" (from the start broadcast, potentially missed if they connected later) but no cycle progress — the `useDemoStatus` HTTP poll returns `running: true` but `currentCycle: 0`.
-
-> Note: The implementation plan mentioned adding per-cycle progress updates — review whether those were actually included in the final commit.
-
-**Files:** `backend/src/services/demo-e2e.service.ts:814–816, 947–1233`
-
-### Root Cause D — Socket reconnection drops missed broadcasts; no replay buffer
-
-Socket.IO's default configuration does not buffer missed events for reconnecting clients. A judge who refreshes the page mid-demo will:
-1. Get `running: true` from the HTTP poll in `useDemoStatus` (correct)
-2. Miss all `demo:log` entries that fired before their socket connected
-3. See "Demo Running…" with no log entries in the Dev Log
-
-This is expected Socket.IO behavior, but it means the dev log feels empty for late-joining viewers.
-
-**Files:** `backend/src/rtb/socket.ts:114–123`, Socket.IO configuration
-
-### Root Cause E — No protection against 10+ simultaneous judges hitting Run Demo concurrently
-
-The singleton lock at `demo-e2e.service.ts:784–789` (if `isRunning` → throw 409) prevents double-starts from the backend. The frontend `DemoButtonBanner` uses `useDemoStatus` to disable the button globally. However, if 10+ judges with the Guest persona open the page simultaneously and hit the button before the first `demo:status` broadcast arrives (network latency ~100ms), there is a window where the button appears enabled for all of them. The button is only disabled reactively after receiving the socket broadcast.
-
-**Files:** `frontend/src/pages/HomePage.tsx` (DemoButtonBanner), `backend/src/services/demo-e2e.service.ts:784`
+| File | Role |
+|------|------|
+| `backend/src/services/demo-e2e.service.ts` (1914 lines) | Core orchestrator: `runFullDemo()`, `recycleTokens()`, `storeResult()`, `getLatestResult()`, `initResultsStore()`, in-memory results Map, disk persistence |
+| `backend/src/routes/demo-panel.routes.ts` (1814 lines) | HTTP endpoints: `POST /full-e2e` (start), `POST /full-e2e/stop`, `GET /full-e2e/results/latest`, `GET /full-e2e/results/:runId`, `GET /full-e2e/status`, `safeSend()` helper |
+| `backend/src/index.ts` (287 lines) | Global BigInt-safe `res.json()` middleware (lines 121–132) — covers HTTP responses only, NOT Socket.IO |
+| `backend/demo-results.json` | On-disk cache of all demo run results — survives server restarts |
+| `frontend/src/hooks/useDemo.ts` (255 lines) | Frontend state machine: listens to `demo:log`, `demo:complete`, `demo:results-ready`, `demo:recycle-progress` |
+| `frontend/src/hooks/useDemoStatus.ts` | Polls `GET /full-e2e/status` to populate status page run history |
+| `frontend/src/pages/DemoResults.tsx` (455 lines) | Results display page: retry logic, 202-aware finalizing state, history tabs, cycle table with Basescan links |
+| `frontend/src/components/demo/DemoPanel.tsx` (806 lines) | Dev control panel: houses "Run Demo" triggers, shows `demo:results-ready` banner with inline recycle progress bar |
+| `backend/src/lib/prisma.ts` | Prisma client (used by seed/clear marketplace helpers) |
+| `backend/src/rtb/socket.ts` | RTBSocketServer — initialises Socket.IO server, exposes `getIO()` for `req.app.get('io')` |
 
 ---
 
-## 5. Results Page Visibility & CORS Status
+## Root Cause Hypotheses
 
-### Observed symptom
-`/demo/results` now loads successfully showing "Latest Demo Run", PoR SOLVENT, tx links, and summary metrics. CORS issues were resolved in a previous session.
+### H1 — Primary: BigInt Not Sanitised Before Socket.IO Emission ✅ CONFIRMED
 
-### Current state (resolved)
-- The `Access-Control-Allow-Origin: true` setting in `RTBSocketServer` (`socket.ts:117–118`) matches the permissive CORS in `index.ts`.
-- The `DemoRun` Prisma model provides persistent results visible across all viewers.
-- DB → in-memory → disk fallback chain is correctly implemented.
+**Root cause:** `totalGas` is accumulated as a native `BigInt` in `runFullDemo()` and passed directly into `io.emit('demo:complete', ...)` without conversion. Socket.IO serializes via `JSON.stringify()` independently of Express middleware, throwing `TypeError: Do not know how to serialize a BigInt`.
 
-### Remaining gap — Results page requires auth or is publicly accessible?
+**Fix:** Add a `safeEmit()` wrapper (shown above) around every `io.emit()` call in `demo-e2e.service.ts` that carries cycle data, gas totals, or lock IDs.
 
-`/demo/results` is a frontend route. The API endpoint it calls (`GET /api/v1/demo-panel/full-e2e/results`) is gated by `devOnly` middleware which only blocks when `DEMO_MODE === 'false'`. So any viewer who knows the URL can access results, regardless of persona. This is the desired behavior for a hackathon demo — **no action needed**, but it should be confirmed that `DEMO_MODE` is not set to `'false'` in Render's environment variables.
+### H2 — Secondary: Missing `demo:results-ready` Emission Prevents Instant UX
 
-**Files:** `backend/src/routes/demo-panel.routes.ts:27–43`
+If `totalGas` BigInt is already present at the `demo:results-ready` emission stage (which includes the `cycles[]` array — each with BigInt `gasUsed`), then *that* event also crashes before reaching the client. This means:
+- `useDemo.partialResults` is never populated.
+- The DemoPanel banner never appears.
+- The user must manually navigate to `/demo/results` to see the stored results from disk.
 
-### Minor gap — Cold-boot results page 503 during Render wake-up
+### H3 — Tertiary: Cycle Counter Confusion (Cosmetic)
 
-The results page makes a blocking HTTP call to fetch results on mount. If Render is cold-starting (15-minute idle spin-down on free tier), this call may timeout. The previous fix added a retry budget (5 attempts, 15s window) which should handle this. But there is no user-visible loading state for the case where all 5 retries fail — the page would show an empty list.
+The `cycle` numbers in results (3, 4) are lock IDs from the blockchain, not sequential per-run indices. This is confusing in the results UI but does not affect correctness. Future runs will show increasing cycle numbers that don't reset between runs.
 
----
+### H4 — Recycle Phase Never Runs on BigInt Crash
 
-## 6. Judge Experience & "Wow" Factor Gaps
+Because the BigInt error terminates `runFullDemo()` before `recycleTokens()` is invoked, the buyer wallets are left with USDC from the completed cycles' refund paths still in their wallets. The next demo run can still start (recycle guard flag was never set), but wallet balances may be uneven. The `/fund-eth` endpoint covers gas but not USDC imbalances.
 
-### Gap A — Demo looks like 1 buyer bidding on themselves (no competitive feel)
+### H5 — Global Middleware Misconception
 
-The 3 lock-per-cycle structure creates `bid count: 3` on marketplace cards, but it's one wallet. During the cycle, the marketplace card shows `3 bids — $X.XX highest`. If a judge is watching the marketplace in real-time, they see bids appear in rapid succession from what is technically the same wallet. Without wallet pseudonymity in the marketplace card display, this is not visible — but the log makes it obvious: all `lockForBid` calls reference the same buyer address.
-
-### Gap B — $3–$10 bid amounts feel like a toy market
-
-For hackathon judging of a B2C lead marketplace, judges expect to see real commercial value. CRE (commercial real estate) leads are worth thousands of dollars in reality. The current `rand(3, 10)` with `reservePrice = bidAmount` means the marketplace shows "$3" reserve prices next to sophisticated Chainlink integrations.
-
-### Gap C — Lead drip creates 20 leads with 0 bids that all expire silently
-
-The background drip creates `cycles + 15 = 20` leads. With `LEAD_AUCTION_DURATION_SECS = 60s`, all 20 expire within 1 minute. The auction monitor calls `resolveExpiredAuctions` every 2 seconds. Any judge watching the marketplace sees leads flash in and immediately disappear (status changes to `EXPIRED`/`UNSOLD`). There is no buyer activity on these dripped leads.
-
-### Gap D — Token recycling block (~30s) creates dead time
-
-After the demo completes, the "Recycling…" state in `DemoButtonBanner` blocks for ~30s while the background recycle runs. During this time, there is nothing happening publicly visible. The Dev Log shows recycling progress, but judges watching the homepage see only a spinner. No celebration, no summary, no redirect prompt until the Dev Log's "Demo Complete!" banner appears.
-
-### Gap E — Results page is not surfaced in the main demo flow
-
-When the demo completes, the backend emits `demo:complete` (socket) and `emitStatus(running: false)`. The `DevLogPanel` shows a "View Summary →" button linking to `/demo/results`. But:
-- Guests don't see the Dev Log (Root Cause A of section 1)
-- No toast, redirect, or visible homepage CTA appears for any persona
-- Judges must know to open Ctrl+Shift+L and click the button
-
-### Gap F — Only 1 cycle reliably completing means PoR only runs once
-
-The PoR `verifyReserves()` call only occurs at the end of each cycle. If only cycle 1 completes, the results page shows 1 PoR check. The demo's core value proposition — "every settlement is validated by Chainlink PoR" — is only demonstrated once.
+The global `res.json()` BigInt patch in `index.ts` is correct and sufficient for all HTTP endpoints. The `safeSend()` helper in `demo-panel.routes.ts` provides belt-and-suspenders protection for the results endpoints. Neither of these helps for Socket.IO. The fix must be applied in `demo-e2e.service.ts` at the emission site.
 
 ---
 
-## Root Causes Summary Table
-
-| # | Issue | Root Cause | File(s) | Severity |
-|---|-------|-----------|---------|----------|
-| 1a | Dev Log invisible on Vercel | `VITE_DEMO_MODE` not set in Vercel env → `isDemo = false` | `DevLogPanel.tsx:133` | 🔴 Critical |
-| 1b | Dev Log silent after Guest switch | `socketClient.disconnect()` without reconnect | `DemoPanel.tsx:285` | 🔴 Critical |
-| 1c | Dev Log misses early events | Socket.IO no buffer for reconnecting clients | `socket.ts:81` | 🟡 Medium |
-| 2a | Buyer switch slow (5–30s) | On-chain `verifyKYC()` in demo-login handler | `demo-panel.routes.ts:140` | 🟠 High |
-| 2b | canTransact adds 3s retry | ACE `setVerticalPolicyIfNeeded` + sleep | `ace.service.ts:175–189` | 🟡 Medium |
-| 2c | Nonce contention | Deployer shared between demo and ACE | `demo-e2e.service.ts:244`, `ace.service.ts:64` | 🟠 High |
-| 3a | No competitive bids | 3 locks from same buyer wallet | `demo-e2e.service.ts:1085–1091` | 🔴 Critical |
-| 3b | Cycles skip (vault depleted) | Previous run's recycle incomplete → zero balance | `demo-e2e.service.ts:961` | 🔴 Critical |
-| 3c | $3–$10 totals unimpressive | `rand(3, 10)` bid amount | `demo-e2e.service.ts:954` | 🟠 High |
-| 3d | Lead drip: 0 bids on 20 leads | No automated buyers on dripped leads | `demo-e2e.service.ts:944` | 🟡 Medium |
-| 4a | `isRunning` lost on cold start | In-memory flag not seeded from DB | `demo-e2e.service.ts:135` | 🟠 High |
-| 4b | Per-cycle progress missing | No emitStatus() in cycle loop | `demo-e2e.service.ts:947–1233` | 🟡 Medium |
-| 5a | Results not surfaced to guests | No post-demo CTA for non-Dev-Log viewers | `HomePage.tsx`, `DevLogPanel.tsx` | 🟡 Medium |
-| 6a | Judge "wow" factor: toy amounts | Small bid amounts + single buyer | Multiple | 🔴 Critical |
-
----
-
-## Cross-Cutting Considerations
-
-### Scalability for Hackathon Judging (10–50 simultaneous viewers)
-
-- All socket broadcasts are `io.emit()` (all connected clients) — scales well regardless of viewer count.
-- The `RTBSocketServer` auction monitor runs every 2 seconds and makes Prisma calls — with 20 `IN_AUCTION` leads from the drip all expiring simultaneously, this creates a burst of 20 Prisma updates at `t + 60s`. On Render's free tier with a shared Postgres, this could cause a slow query cascade visible as UI lag.
-- The results page's 5-retry HTTP poll means 50 judges × 5 retries = up to 250 HTTP requests to the results endpoint in a short window after demo completion. The `initResultsStore()` populates from DB once; subsequent calls use the in-memory `resultsStore.get()` (O(1)), so this is not a bottleneck.
-
-### Hackathon Judging Criteria Alignment
-
-- **Chainlink Integration depth**: ACE `canTransact` logs are the richest Chainlink signal in the Dev Log (amber color, ACE badge), but they're invisible to Guest judges (Root Cause 1a). Only Buyer persona viewers see the full Chainlink service matrix.
-- **On-chain verifiability**: Every settlement and PoR check has a Basescan link. But with only 1 cycle completing, there's only 1 tx link to show.
-- **Real-time UX**: The marketplace does update in real-time (leads appear, bid counts tick), but the lack of real competitive bidding makes the market look dead.
-- **Demo robustness**: The vault-depletion-causes-skip pattern means the demo degrades progressively across consecutive judging sessions without operator intervention.
-
----
-
-## Open Questions / Clarifications Needed
-
-1. **Is `VITE_DEMO_MODE=true` set in Vercel project settings?** If not, `DevLogPanel` returns null for all viewers, making this the single most impactful open question.
-2. **What is the intended number of demo cycles?** The default `cycles = 5` produces $7–$50 settled. Is there a target minimum (e.g., "at least $200 settled per run") to guide the right bid amount range?
-3. **Should competitive bidding come from multiple different buyer wallets, or is a richer single-buyer simulation acceptable?** Using 3 different buyer wallets per cycle would show genuine competition but requires 3× more USDC prefunding per cycle.
-4. **Is the deployer wallet consistently funded on Base Sepolia?** The nonce contention issue (Root Cause 2c) and the gas top-up logic for 10 buyer wallets all draw from the same deployer. If the deployer runs out of ETH, the entire demo freezes at the first `sendTx` attempt.
-5. **Is Render's auto-sleep (free tier 15-min idle) acceptable, or is there a paid tier active?** This directly impacts the cold-boot guard and the in-memory `isRunning` reliability.
-6. **Should the results page auto-navigate for all viewers when the demo completes?** Currently only the Dev Log "View Summary →" button provides this. A global post-demo CTA would require `useDemoStatus` to react to `running → false` and surface a modal or toast for all personas.
-7. **Which persona are judges expected to use during live judging?** If Guest is the default (most restrictive, simplest onboarding), Root Cause 1a must be resolved first — it's blocking all streaming for the most common judge experience.
-
----
-
-## High-Level Recommended Approach (Phased — No Code)
-
-### Phase 1 — Unblock Guest streaming (highest judge impact)
-
-- Set `VITE_DEMO_MODE=true` in Vercel project environment variables
-- After Guest persona switch, trigger a socket reconnect so the Guest-mode connection is established
-- These two changes alone should make the Dev Log visible and streaming for all viewers
-
-### Phase 2 — Make the auction feel competitive
-
-- Use multiple different buyer wallets per cycle (e.g., 3 distinct wallets from `DEMO_BUYER_WALLETS`) to lock bids so the lead genuinely has N unique bidders
-- Increase bid amounts to a range that produces impressive results totals (consider $15–$35 per bid)
-- Pre-fund buyers with a correspondingly larger amount, and/or validate the recycle completed before allowing a new run
-
-### Phase 3 — Stabilize multi-cycle completion
-
-- Verify vault balances for ALL buyer wallets as a pre-run preflight check before starting the run, not just per-cycle
-- Add a mechanism to detect and recover from incomplete recycles (e.g., seed from DB recycle status, or always run a full recycle on demo start before prefunding)
-- Seed `isRunning` from DB on server startup so Render cold-boots don't allow a second concurrent run
-
-### Phase 4 — Improve judge "wow" factor and navigation
-
-- After demo completion, push a visible post-demo summary CTA (toast or inline banner on HomePage) for all viewers regardless of persona, with a direct link to `/demo/results`
-- Add per-cycle `emitStatus` calls so multi-viewer status bar shows real progress
-- Consider extending `LEAD_AUCTION_DURATION_SECS` for dripped leads (e.g., 5 minutes) so the marketplace stays active longer with visible, unexpired leads
-
-### Phase 5 — Long-term: ACE KYC optimization
-
-- Cache the Buyer demo wallet's KYC status so subsequent demo-login calls skip the on-chain `verifyKYC` tx (check DB compliance cache first, only call on-chain if expired)
-- Add vertical policy pre-seeding at server startup so `setVerticalPolicyIfNeeded` never triggers during a demo run
+*Report generated: February 20, 2026. Based on full source code analysis of `demo-e2e.service.ts` (1914 lines), `demo-panel.routes.ts` (1814 lines), `index.ts`, `useDemo.ts`, `DemoPanel.tsx`, and `DemoResults.tsx`.*

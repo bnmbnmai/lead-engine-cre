@@ -106,6 +106,15 @@ export function DemoPanel() {
         }
     }, []);
 
+    // demo:reset-complete — refresh status after full reset completes
+    useEffect(() => {
+        const unsubReset = socketClient.on('demo:reset-complete', () => {
+            setRecyclePercent(null);
+            refreshStatus();
+        });
+        return unsubReset;
+    }, [refreshStatus]);
+
     useEffect(() => {
         if (isOpen) {
             refreshStatus();
@@ -367,6 +376,14 @@ export function DemoPanel() {
             const funded = data?.results?.filter(r => r.status === 'funded').length ?? 0;
             const skipped = data?.results?.filter(r => r.status.startsWith('skipped')).length ?? 0;
             return `⛽ Funded ${funded} wallets (${skipped} already funded). Sent ${data?.totalSent ?? '?'} ETH total. Deployer now has ${data?.deployerAfter ?? '?'} ETH.`;
+        });
+    }
+
+    async function handleFullReset() {
+        await runAction('fullReset', async () => {
+            const { data, error } = await api.demoFullE2EReset();
+            if (error) throw new Error(error.message || error.error);
+            return `🔄 ${data?.message || 'Full reset initiated — watch the Dev Log panel for progress.'}${data?.wasRunning ? ' (stopped active demo first)' : ''}`;
         });
     }
 
@@ -675,6 +692,45 @@ export function DemoPanel() {
                             />
                             <p className="text-[11px] text-muted-foreground pl-1">
                                 Sends 0.015 ETH from the deployer to all 11 demo wallets, topping up to target. Run once before first demo, or any time balances run low. ETH is no longer auto-topped during demo runs.
+                            </p>
+                        </Section>
+
+                        {/* Section 2d: Full Reset & Recycle (judge-facing emergency button) */}
+                        <Section id="fullreset" title="🔄 Full Reset & Recycle">
+                            <button
+                                id="demo-full-reset-btn"
+                                onClick={handleFullReset}
+                                disabled={actions.fullReset?.state === 'loading'}
+                                title="Use this if the demo ever gets stuck or after a Render restart. Stops any running demo, refunds stranded locked funds, prunes stale DEMO leads, and emits ready status."
+                                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all shadow-md ${actions.fullReset?.state === 'loading'
+                                    ? 'bg-orange-500/40 text-orange-300 cursor-wait opacity-70'
+                                    : actions.fullReset?.state === 'success'
+                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                        : actions.fullReset?.state === 'error'
+                                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                            : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 hover:shadow-orange-500/30'
+                                    }`}
+                            >
+                                {actions.fullReset?.state === 'loading' ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : actions.fullReset?.state === 'success' ? (
+                                    <Check className="h-4 w-4" />
+                                ) : actions.fullReset?.state === 'error' ? (
+                                    <AlertCircle className="h-4 w-4" />
+                                ) : (
+                                    <RefreshCw className="h-4 w-4" />
+                                )}
+                                🔄 Full Reset & Recycle Demo Environment
+                            </button>
+                            {actions.fullReset?.message && (
+                                <p className={`text-[11px] pl-1 mt-1 ${actions.fullReset.state === 'error' ? 'text-red-400' : 'text-muted-foreground'}`}>
+                                    {actions.fullReset.message}
+                                </p>
+                            )}
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                Use if demo gets stuck or after a Render restart. Stops active demo, refunds
+                                stranded locked funds, prunes stale DEMO leads, then emits ready status.
+                                Watch the Dev Log panel for real-time progress.
                             </p>
                         </Section>
 

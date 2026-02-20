@@ -487,6 +487,11 @@ export const api = {
         apiFetch<{ running: boolean; results: any[] }>(
             '/api/v1/demo-panel/full-e2e/status',
         ),
+    demoFullE2EReset: () =>
+        apiFetch<{ success: boolean; message: string; wasRunning: boolean }>(
+            '/api/v1/demo-panel/full-e2e/reset',
+            { method: 'POST' },
+        ),
 };
 
 export default api;

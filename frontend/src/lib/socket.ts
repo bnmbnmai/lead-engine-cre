@@ -59,6 +59,7 @@ type AuctionEventHandler = {
     // Recycle progress events
     'demo:recycle-progress': (data: { percent: number; step?: string }) => void;
     'demo:recycle-complete': () => void;
+    'demo:reset-complete': (data: { ts: string; success: boolean; message?: string; error?: string }) => void;
     // Global demo state broadcast (for all viewers, including Guests)
     'demo:status': (data: { running: boolean; recycling: boolean; currentCycle: number; totalCycles: number; percent: number; phase: string; runId?: string; ts: string }) => void;
 };
@@ -128,6 +129,7 @@ class SocketClient {
             'demo:results-ready',
             'demo:recycle-progress',
             'demo:recycle-complete',
+            'demo:reset-complete',
             // Global demo state (all viewers, including Guests)
             'demo:status',
         ];

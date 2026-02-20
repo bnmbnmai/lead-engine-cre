@@ -1205,7 +1205,7 @@ async function recycleTokens(
             }
         }
 
-        emit(io, { ts: new Date().toISOString(), level: 'success', message: `🟢 Vault reset complete — next Run Demo starts immediately!` });
+        emit(io, { ts: new Date().toISOString(), level: 'success', message: `🟢 Demo environment fully recycled and ready for next run — you can click Full E2E again immediately!` });
         safeEmit(io, 'demo:recycle-complete', {
             ts: new Date().toISOString(),
             success: true,
@@ -1231,7 +1231,7 @@ async function recycleTokens(
 
 // ── Recycle Timeout Guard ─────────────────────────
 
-const RECYCLE_TIMEOUT_MS = 300_000; // 5 minutes — covers full recycle + replenish without ETH top-up delays
+const RECYCLE_TIMEOUT_MS = 240_000; // 4 minutes — covers full recycle + replenish; hard abort on hang
 
 /**
  * withRecycleTimeout — wraps a recycleTokens() promise with a hard 90s timeout.
@@ -1259,7 +1259,7 @@ async function withRecycleTimeout(io: SocketServer, recyclePromise: Promise<void
         emit(io, {
             ts: new Date().toISOString(),
             level: 'warn',
-            message: `⏰ Token recovery timed out after 90s — partial recovery. Some USDC may remain in demo wallets. Run another demo cycle to sweep remaining funds.`,
+            message: `⏰ Token recovery timed out after 240s — partial recovery. Some USDC may remain in demo wallets. Click "Full Reset & Recycle" to finish cleanup, or run another demo cycle.`,
         });
         if (moduleIo) {
             emitStatus(moduleIo, { running: false, recycling: false, phase: 'idle' });
@@ -1283,6 +1283,11 @@ export async function runFullDemo(
 
     // ── Validate ──
     cycles = Math.max(1, Math.min(cycles, MAX_CYCLES));
+
+    // ── P0 Guard: Deployer USDC reserve check ──
+    // Must run BEFORE isRunning=true so we can return cleanly.
+    await checkDeployerUSDCReserve(io);
+    if (!isRunning) return {} as DemoResult; // guard emitted error + returned early
 
     const runId = uuidv4();
     const startedAt = new Date().toISOString();
@@ -1312,6 +1317,13 @@ export async function runFullDemo(
 
     // Notify ALL connected viewers the demo has started
     emitStatus(io, { running: true, totalCycles: cycles, currentCycle: 0, percent: 0, phase: 'starting', runId });
+
+    // ── P1/P4: Clean up any pre-existing locked funds so cycles start from a clean slate ──
+    try {
+        await cleanupLockedFundsForDemoBuyers(io);
+    } catch (cleanupErr: any) {
+        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-run locked funds cleanup encountered an error (non-fatal): ${cleanupErr.message?.slice(0, 80)}` });
+    }
 
     try {
         // ── Validate chain ──
@@ -2068,4 +2080,178 @@ export function getAllResults(): DemoResult[] {
     return Array.from(resultsStore.values()).sort(
         (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
+}
+
+// ── New: Deployer USDC reserve guard (P0) ─────────────
+
+/**
+ * checkDeployerUSDCReserve — verifies deployer has >= $3,000 USDC before any demo starts.
+ *
+ * Required = $2,500 for 10 buyers × $250 each + $500 buffer.
+ * If insufficient: emits an informative log, emits demo:status with error, and
+ * sets isRunning=false so runFullDemo() can detect the early-return.
+ * Does NOT throw — always resolves.
+ */
+async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
+    const REQUIRED_USDC = 3000; // $2,500 buyers + $500 buffer
+    const requiredUnits = ethers.parseUnits(String(REQUIRED_USDC), 6);
+
+    try {
+        const provider = getProvider();
+        const signer = getSigner();
+        const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
+        const balance: bigint = await usdc.balanceOf(signer.address);
+        const balanceUsd = Number(ethers.formatUnits(balance, 6));
+
+        if (balance < requiredUnits) {
+            const msg =
+                `🚫 Deployer USDC reserve too low.\n` +
+                `   Required: $${REQUIRED_USDC.toFixed(2)}   Current: $${balanceUsd.toFixed(2)}\n` +
+                `   Please fund the deployer wallet ${signer.address} via testnet faucet or bridge.\n` +
+                `   Tip: run scripts/consolidate-usdc-only.mjs to reclaim any USDC stuck in demo wallets.`;
+            emit(io, { ts: new Date().toISOString(), level: 'error', message: msg });
+            safeEmit(io, 'demo:status', {
+                running: false,
+                recycling: false,
+                error: 'insufficient_deployer_funds',
+                required: REQUIRED_USDC,
+                current: balanceUsd,
+                phase: 'idle',
+                ts: new Date().toISOString(),
+            });
+            // Signal runFullDemo to abort (isRunning is still false at this point)
+            return;
+        }
+
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'success',
+            message: `✅ Deployer USDC reserve OK: $${balanceUsd.toFixed(2)} (need $${REQUIRED_USDC}) — proceeding.`,
+        });
+        // Set isRunning=true here so runFullDemo can detect the guard passed
+        isRunning = true;
+    } catch (err: any) {
+        // Guard failure is non-fatal — let the demo proceed and fail naturally
+        console.warn('[DEMO] USDC reserve check failed (non-fatal):', err.message?.slice(0, 80));
+        isRunning = true; // allow demo to continue
+    }
+}
+
+// ── New: Pre-run locked funds cleanup (P1 + P4) ───────
+
+/**
+ * cleanupLockedFundsForDemoBuyers — refunds all stranded locked bids across the 10 buyer wallets.
+ *
+ * Iterates every buyer, checks lockedBalances; for wallets with > 0 locked, finds all
+ * relevant BidLocked events and calls refundBid() for each unreffunded lock.
+ * Signed by the deployer (who is the vault owner and can call refundBid).
+ * Called automatically at the start of runFullDemo() and exposed for the /reset endpoint.
+ * Never throws — all errors are caught and logged.
+ */
+export async function cleanupLockedFundsForDemoBuyers(io: SocketServer): Promise<void> {
+    const provider = getProvider();
+    const signer = getSigner();
+    const deployerVault = getVault(signer);
+
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: 'step',
+        message: '🔓 Pre-run cleanup: scanning for stranded locked funds across all buyer wallets...',
+    });
+
+    // Hardcoded list of all 10 buyer wallets (same as DEMO_BUYER_WALLETS)
+    const CLEANUP_BUYER_WALLETS = [
+        '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9',
+        '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC',
+        '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
+        '0x424CaC929939377f221348af52d4cb1247fE4379',
+        '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d',
+        '0x089B6Bdb4824628c5535acF60aBF80683452e862',
+        '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE',
+        '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C',
+        '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf',
+        '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad',
+    ];
+
+    let totalRecovered = 0n;
+    let totalWalletsFixed = 0;
+
+    for (const buyerAddr of CLEANUP_BUYER_WALLETS) {
+        try {
+            const locked: bigint = await deployerVault.lockedBalances(buyerAddr);
+            if (locked === 0n) continue;
+
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `🔓 Found $${ethers.formatUnits(locked, 6)} locked for ${buyerAddr.slice(0, 10)}… — scanning for refundable lockIds...`,
+            });
+
+            // Search BidLocked events for this buyer in the last 50,000 blocks
+            // (enough history for testnet — ~3 days on Base Sepolia)
+            const vault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, provider);
+            const currentBlock = await provider.getBlockNumber();
+            const fromBlock = Math.max(0, currentBlock - 50_000);
+
+            const filter = vault.filters.BidLocked(null, buyerAddr);
+            const events = await vault.queryFilter(filter, fromBlock, currentBlock);
+
+            let refundedCount = 0;
+            for (const event of events) {
+                const lockId: bigint = (event as any).args[0];
+
+                try {
+                    // Attempt refund — will revert if already settled/refunded (non-fatal)
+                    const nonce = await getNextNonce();
+                    const tx = await sendWithGasEscalation(
+                        signer,
+                        {
+                            to: VAULT_ADDRESS,
+                            data: deployerVault.interface.encodeFunctionData('refundBid', [lockId]),
+                            nonce,
+                        },
+                        `refundBid lockId ${lockId} buyer ${buyerAddr.slice(0, 10)}`,
+                        (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                    );
+                    const receipt = await tx.wait();
+
+                    // Parse BidRefunded event to get the refunded amount
+                    const refundEvent = receipt?.logs
+                        .map((log: any) => { try { return vault.interface.parseLog(log); } catch { return null; } })
+                        .find((parsed: any) => parsed?.name === 'BidRefunded');
+                    const refundedAmt: bigint = refundEvent?.args?.[2] ?? 0n;
+
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'success',
+                        message: `✅ Recovered $${ethers.formatUnits(refundedAmt, 6)} USDC from ${buyerAddr.slice(0, 10)}… via refundBid(${lockId})`,
+                        txHash: receipt?.hash,
+                    });
+                    totalRecovered += refundedAmt;
+                    refundedCount++;
+                } catch (refundErr: any) {
+                    // Already settled/refunded or another reason — skip silently
+                    const msg: string = refundErr.message ?? '';
+                    if (!msg.includes('already') && !msg.includes('invalid')) {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ refundBid(${lockId}) for ${buyerAddr.slice(0, 10)}…: ${msg.slice(0, 70)}` });
+                    }
+                }
+
+                await sleep(500); // throttle to avoid nonce collisions
+            }
+
+            if (refundedCount > 0) totalWalletsFixed++;
+
+        } catch (err: any) {
+            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Locked-funds cleanup for ${buyerAddr.slice(0, 10)}…: ${err.message?.slice(0, 80)}` });
+        }
+    }
+
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: totalWalletsFixed > 0 ? 'success' : 'info',
+        message: totalWalletsFixed > 0
+            ? `✅ Pre-run cleanup done — recovered $${ethers.formatUnits(totalRecovered, 6)} from ${totalWalletsFixed} wallet(s). Starting fresh.`
+            : '✅ Pre-run cleanup: no stranded locked funds found — all buyer wallets are clean.',
+    });
 }
