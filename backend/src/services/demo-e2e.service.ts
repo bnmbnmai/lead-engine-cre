@@ -757,13 +757,11 @@ async function recycleTransfer(
 
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-            // Ensure sender has gas (checked every attempt — a prior attempt may have consumed it)
-            if ((await provider.getBalance(walletAddr)) < ethers.parseEther('0.0005')) {
-                const gasTx = await gasTopUpSigner.sendTransaction({
-                    to: walletAddr,
-                    value: ethers.parseEther('0.001'),
-                });
-                await gasTx.wait();
+            // Fund-once model: wallets are pre-funded via scripts/fund-wallets-eth-permanent.mjs.
+            // Warn if low; do NOT top-up from deployer during demo execution.
+            const ethBal = await provider.getBalance(walletAddr);
+            if (ethBal < ethers.parseEther('0.005')) {
+                console.warn(`[DEMO] Wallet ${walletAddr} ETH low (${ethers.formatEther(ethBal)} ETH). Run scripts/fund-wallets-eth-permanent.mjs before next demo.`);
             }
 
             // Re-read live balance immediately before sending (prevents stale-balance errors)
@@ -853,21 +851,17 @@ async function recycleTokens(
 
         let totalRecovered = 0n;
 
-        // ── Step R1: Gas top-up for seller if needed ──
-        try {
-            if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
-                const gasTx = await signer.sendTransaction({
-                    to: DEMO_SELLER_WALLET,
-                    value: ethers.parseEther('0.001'),
+        // ── Step R1: Check seller ETH (fund-once model — no auto top-up) ──
+        {
+            const sellerEth = await provider.getBalance(DEMO_SELLER_WALLET);
+            if (sellerEth < ethers.parseEther('0.005')) {
+                console.warn(`[DEMO] Seller wallet ${DEMO_SELLER_WALLET} ETH low (${ethers.formatEther(sellerEth)} ETH). Run scripts/fund-wallets-eth-permanent.mjs to pre-fund.`);
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Seller wallet ETH low (${ethers.formatEther(sellerEth)} ETH). Pre-funding recommended via fund-wallets-eth-permanent.mjs.`,
                 });
-                await gasTx.wait();
             }
-        } catch (err: any) {
-            emit(io, {
-                ts: new Date().toISOString(),
-                level: 'warn',
-                message: `⚠️ Seller gas top-up failed (non-fatal): ${err.message?.slice(0, 80)}`,
-            });
         }
 
         // ── Step R2: Withdraw deployer vault balance to deployer wallet ──
@@ -901,16 +895,10 @@ async function recycleTokens(
             const sellerSigner = new ethers.Wallet(DEMO_SELLER_KEY, provider);
             const sellerVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, sellerSigner);
 
-            // Ensure seller has gas
-            if ((await provider.getBalance(DEMO_SELLER_WALLET)) < ethers.parseEther('0.0005')) {
-                // Gas escalation fix: recycle-phase seller gas top-up
-                const gasTx = await sendWithGasEscalation(
-                    signer,
-                    { to: DEMO_SELLER_WALLET, value: ethers.parseEther('0.001') },
-                    `recycle gas seller`,
-                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
-                );
-                await gasTx.wait();
+            // Fund-once model: seller pre-funded via scripts/fund-wallets-eth-permanent.mjs.
+            const sellerEthNow = await provider.getBalance(DEMO_SELLER_WALLET);
+            if (sellerEthNow < ethers.parseEther('0.005')) {
+                console.warn(`[DEMO] Seller wallet ${DEMO_SELLER_WALLET} ETH low (${ethers.formatEther(sellerEthNow)} ETH). Pre-funding recommended.`);
             }
 
             // Withdraw seller's free vault balance
@@ -951,16 +939,10 @@ async function recycleTokens(
                 const bSigner = new ethers.Wallet(bKey, provider);
                 const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
 
-                // Ensure buyer has gas for vault withdraw
-                if ((await provider.getBalance(buyerAddr)) < ethers.parseEther('0.0005')) {
-                    // Gas escalation fix: recycle-phase buyer gas top-up
-                    const gasTx = await sendWithGasEscalation(
-                        signer,
-                        { to: buyerAddr, value: ethers.parseEther('0.001') },
-                        `recycle gas ${buyerAddr.slice(0, 10)}`,
-                        (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
-                    );
-                    await gasTx.wait();
+                // Fund-once model: buyers pre-funded via scripts/fund-wallets-eth-permanent.mjs.
+                const bEthBal = await provider.getBalance(buyerAddr);
+                if (bEthBal < ethers.parseEther('0.005')) {
+                    console.warn(`[DEMO] Wallet ${buyerAddr} ETH low (${ethers.formatEther(bEthBal)} ETH). Pre-funding recommended.`);
                 }
 
                 // Check for stranded locked balance and warn
@@ -1015,9 +997,10 @@ async function recycleTokens(
                 const wUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, wSigner);
                 const residual = await wUsdc.balanceOf(addr);
                 if (residual > 0n) {
-                    if ((await provider.getBalance(addr)) < ethers.parseEther('0.0003')) {
-                        const gasTx = await signer.sendTransaction({ to: addr, value: ethers.parseEther('0.001') });
-                        await gasTx.wait();
+                    // Fund-once model: no auto top-up; warn if low
+                    const sweepEth = await provider.getBalance(addr);
+                    if (sweepEth < ethers.parseEther('0.005')) {
+                        console.warn(`[DEMO] Wallet ${addr} ETH low (${ethers.formatEther(sweepEth)} ETH) during final sweep. Pre-funding recommended.`);
                     }
                     const swept = await recycleTransfer(io, `sweep:${label}`, addr, wSigner, signer.address, signer);
                     totalRecovered += swept;
@@ -1079,17 +1062,11 @@ async function recycleTokens(
 
                 const topUp = replenishUnits - currentBal;
 
-                // ETH gas check
-                const buyerEth = await provider.getBalance(buyerAddr);
-                if (buyerEth < ethers.parseEther('0.0005')) {
-                    const eNonce = await getNextNonce();
-                    const gTx = await sendWithGasEscalation(
-                        signer,
-                        { to: buyerAddr, value: ethers.parseEther('0.001'), nonce: eNonce },
-                        `replenish gas ${buyerAddr.slice(0, 10)}`,
-                        (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
-                    );
-                    await gTx.wait();
+                // Fund-once model: buyers pre-funded via scripts/fund-wallets-eth-permanent.mjs.
+                const replenishEth = await provider.getBalance(buyerAddr);
+                if (replenishEth < ethers.parseEther('0.005')) {
+                    console.warn(`[DEMO] Wallet ${buyerAddr} ETH low (${ethers.formatEther(replenishEth)} ETH). Pre-funding recommended.`);
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Buyer ${buyerAddr.slice(0, 10)}… ETH low (${ethers.formatEther(replenishEth)}). Pre-funding recommended.` });
                 }
 
                 // Deployer sends USDC top-up amount
@@ -1141,7 +1118,7 @@ async function recycleTokens(
 
 // ── Recycle Timeout Guard ─────────────────────────
 
-const RECYCLE_TIMEOUT_MS = 90_000; // 90 seconds hard limit
+const RECYCLE_TIMEOUT_MS = 300_000; // 5 minutes — covers full recycle + replenish without ETH top-up delays
 
 /**
  * withRecycleTimeout — wraps a recycleTokens() promise with a hard 90s timeout.
@@ -1247,12 +1224,38 @@ export async function runFullDemo(
 ╚══════════════════════════════════════════════════════════╝`,
         });
 
-        // ── Step 0: Check deployer balance ──
+        // ── Step 0: Pre-flight ETH balance summary (fund-once model) ──
         if (signal.aborted) throw new Error('Demo aborted');
 
         const deployerBal = await vault.balanceOf(signer.address);
         const deployerUsdc = Number(deployerBal) / 1e6;
         const ethBal = await provider.getBalance(signer.address);
+
+        // Log a console.table for all 11 demo wallets so Render logs give an instant health-check
+        {
+            const allWallets = [
+                { wallet: 'Deployer', addr: signer.address },
+                { wallet: 'Wallet 1  (buyer)', addr: '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9' },
+                { wallet: 'Wallet 2  (buyer)', addr: '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC' },
+                { wallet: 'Wallet 3  (buyer)', addr: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58' },
+                { wallet: 'Wallet 4  (buyer)', addr: '0x424CaC929939377f221348af52d4cb1247fE4379' },
+                { wallet: 'Wallet 5  (buyer)', addr: '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d' },
+                { wallet: 'Wallet 6  (buyer)', addr: '0x089B6Bdb4824628c5535acF60aBF80683452e862' },
+                { wallet: 'Wallet 7  (buyer)', addr: '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE' },
+                { wallet: 'Wallet 8  (buyer)', addr: '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C' },
+                { wallet: 'Wallet 9  (buyer)', addr: '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf' },
+                { wallet: 'Wallet 10 (buyer)', addr: '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad' },
+                { wallet: 'Wallet 11 (seller)', addr: DEMO_SELLER_WALLET },
+            ];
+            const ethTable: Record<string, string> = {};
+            for (const { wallet, addr } of allWallets) {
+                const bal = await provider.getBalance(addr);
+                const lowFlag = bal < ethers.parseEther('0.005') ? ' ⚠️LOW' : '';
+                ethTable[wallet] = ethers.formatEther(bal) + ' ETH' + lowFlag;
+            }
+            console.log('[DEMO] Pre-flight ETH balances:');
+            console.table(ethTable);
+        }
 
         emit(io, {
             ts: new Date().toISOString(),

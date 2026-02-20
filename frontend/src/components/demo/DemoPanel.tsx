@@ -343,6 +343,16 @@ export function DemoPanel() {
         }
     }
 
+    async function handleFundEth() {
+        await runAction('fundEth', async () => {
+            const { data, error } = await api.demoFundEth();
+            if (error) throw new Error(error.message || error.error);
+            const funded = data?.results?.filter(r => r.status === 'funded').length ?? 0;
+            const skipped = data?.results?.filter(r => r.status.startsWith('skipped')).length ?? 0;
+            return `⛽ Funded ${funded} wallets (${skipped} already funded). Sent ${data?.totalSent ?? '?'} ETH total. Deployer now has ${data?.deployerAfter ?? '?'} ETH.`;
+        });
+    }
+
     // ============================================
     // Action button component
     // ============================================
@@ -601,6 +611,20 @@ export function DemoPanel() {
                                     </div>
                                 </div>
                             )}
+                        </Section>
+
+                        {/* Section 2c: ETH Pre-Fund (Fund-Once Model) */}
+                        <Section id="ethfund" title="⛽ ETH Pre-Fund (Permanent)">
+                            <ActionButton
+                                actionKey="fundEth"
+                                label="Fund All Wallets (0.015 ETH each)"
+                                icon={Wallet}
+                                onClick={handleFundEth}
+                                variant="accent"
+                            />
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                Sends 0.015 ETH from the deployer to all 11 demo wallets, topping up to target. Run once before first demo, or any time balances run low. ETH is no longer auto-topped during demo runs.
+                            </p>
                         </Section>
 
                         {/* Section 3: Analytics */}

@@ -1726,4 +1726,77 @@ router.get('/full-e2e/status', async (_req: Request, res: Response) => {
     });
 });
 
+
+// ============================================
+// POST /fund-eth — Pre-fund all 11 demo wallets with 0.015 ETH each
+// Fund-once model: run before first demo, or any time wallets run dry.
+// ============================================
+router.post('/fund-eth', async (_req: Request, res: Response) => {
+    const { ethers } = await import('ethers');
+
+    const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org';
+    const RAW_PK = process.env.DEPLOYER_PRIVATE_KEY || '';
+    const DEPLOYER_PK = RAW_PK.startsWith('0x') ? RAW_PK : '0x' + RAW_PK;
+    const FUND_ETH = ethers.parseEther('0.015');
+
+    const RECIPIENTS = [
+        { label: 'Wallet 1  (buyer)', addr: '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9' },
+        { label: 'Wallet 2  (buyer)', addr: '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC' },
+        { label: 'Wallet 3  (buyer)', addr: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58' },
+        { label: 'Wallet 4  (buyer)', addr: '0x424CaC929939377f221348af52d4cb1247fE4379' },
+        { label: 'Wallet 5  (buyer)', addr: '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d' },
+        { label: 'Wallet 6  (buyer)', addr: '0x089B6Bdb4824628c5535acF60aBF80683452e862' },
+        { label: 'Wallet 7  (buyer)', addr: '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE' },
+        { label: 'Wallet 8  (buyer)', addr: '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C' },
+        { label: 'Wallet 9  (buyer)', addr: '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf' },
+        { label: 'Wallet 10 (buyer)', addr: '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad' },
+        { label: 'Wallet 11 (seller)', addr: '0x9Bb15F98982715E33a2113a35662036528eE0A36' },
+    ];
+
+    if (!DEPLOYER_PK || DEPLOYER_PK === '0x') {
+        res.status(500).json({ error: 'DEPLOYER_PRIVATE_KEY not configured' });
+        return;
+    }
+
+    try {
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const deployer = new ethers.Wallet(DEPLOYER_PK, provider);
+        const deployerBalBefore = await provider.getBalance(deployer.address);
+
+        const results: Array<{ label: string; addr: string; sent: string; status: string }> = [];
+        let totalSent = 0n;
+
+        for (const { label, addr } of RECIPIENTS) {
+            const currentBal = await provider.getBalance(addr);
+            if (currentBal >= FUND_ETH) {
+                results.push({ label, addr, sent: '0', status: 'skipped (already funded)' });
+                continue;
+            }
+            const toSend = FUND_ETH - currentBal;
+            try {
+                const feeData = await provider.getFeeData();
+                const gasPrice = feeData.gasPrice ? (feeData.gasPrice * 120n) / 100n : undefined;
+                const tx = await deployer.sendTransaction({ to: addr, value: toSend, ...(gasPrice ? { gasPrice } : {}) });
+                await tx.wait();
+                totalSent += toSend;
+                results.push({ label, addr, sent: ethers.formatEther(toSend), status: 'funded' });
+            } catch (err: any) {
+                results.push({ label, addr, sent: '0', status: `failed: ${err.message?.slice(0, 60)}` });
+            }
+        }
+
+        const deployerBalAfter = await provider.getBalance(deployer.address);
+        console.log(`[DEMO] /fund-eth: sent ${ethers.formatEther(totalSent)} ETH to ${results.filter(r => r.status === 'funded').length} wallets`);
+        res.json({
+            totalSent: ethers.formatEther(totalSent),
+            deployerBefore: ethers.formatEther(deployerBalBefore),
+            deployerAfter: ethers.formatEther(deployerBalAfter),
+            results,
+        });
+    } catch (err: any) {
+        console.error('[DEMO] /fund-eth error:', err);
+        res.status(500).json({ error: 'Fund ETH failed', details: err.message });
+    }
+});
+
 export default router;

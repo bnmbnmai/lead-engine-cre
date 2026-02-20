@@ -22,7 +22,7 @@ const BRIDGE_ABI = [
 ];
 
 // How much ETH to bridge (leave some for Sepolia gas)
-const BRIDGE_AMOUNT = ethers.parseEther('0.04'); // bridge 0.04 ETH, keep ~0.004 for Sepolia gas
+const BRIDGE_AMOUNT = ethers.parseEther('1.0'); // bridge 1 ETH, keep ~0.1 for Sepolia gas
 
 async function main() {
     const sepoliaProvider = new ethers.JsonRpcProvider(SEPOLIA_RPC);
