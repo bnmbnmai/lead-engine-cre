@@ -71,6 +71,8 @@ export function DemoPanel() {
     const [demoSellerAddress, setDemoSellerAddress] = useState<string | null>(null);
     const [demoComplete, setDemoComplete] = useState<{ runId: string; totalSettled: number; elapsedSec?: number } | null>(null);
     const [recyclePercent, setRecyclePercent] = useState<number | null>(null);
+    const [demoMetrics, setDemoMetrics] = useState<{ activeCount: number; leadsThisMinute: number; dailyRevenue: number } | null>(null);
+    const [, setDemoRunning] = useState(false);
 
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -86,6 +88,8 @@ export function DemoPanel() {
         const unsubReady = socketClient.on('demo:results-ready', (data: any) => {
             setDemoComplete({ runId: data.runId, totalSettled: data.totalSettled, elapsedSec: data.elapsedSec });
             setRecyclePercent(0);
+            setDemoRunning(false);
+            setDemoMetrics(null);
         });
         const unsubProgress = socketClient.on('demo:recycle-progress', (data: any) => {
             setRecyclePercent(data.percent ?? 0);
@@ -93,7 +97,15 @@ export function DemoPanel() {
         const unsubComplete = socketClient.on('demo:recycle-complete', () => {
             setRecyclePercent(null);
         });
-        return () => { unsubReady(); unsubProgress(); unsubComplete(); };
+        // Live metrics pulse from emitLiveMetrics (every 30 s while demo runs)
+        const unsubMetrics = socketClient.on('demo:metrics', (data: any) => {
+            setDemoMetrics(data);
+        });
+        // Track running state via demo:status events
+        const unsubStatus = socketClient.on('demo:status', (data: any) => {
+            setDemoRunning(data?.running ?? false);
+        });
+        return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); };
     }, []);
 
     // Fetch demo status on open
@@ -536,6 +548,25 @@ export function DemoPanel() {
                     {/* Content */}
                     <div className="p-4 space-y-3">
 
+                        {/* Live Metrics Banner — emitted by emitLiveMetrics every 30 s while demo is running */}
+                        {demoMetrics && (
+                            <div className="rounded-xl border border-red-500/30 bg-red-500/[0.08] px-3 py-2 mb-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                                    </span>
+                                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">LIVE DEMO</span>
+                                    <span className="text-[10px] text-muted-foreground">10 buyers</span>
+                                    <span className="text-[10px] text-muted-foreground">{demoMetrics.leadsThisMinute}/min</span>
+                                    <span className="text-[10px] text-muted-foreground ml-auto">Active: {demoMetrics.activeCount}</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
+                                    Platform rev today: ~${demoMetrics.dailyRevenue.toLocaleString()}
+                                </p>
+                            </div>
+                        )}
+
                         {/* Demo Complete – Results Ready banner */}
                         {demoComplete && (
                             <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2.5">
@@ -632,6 +663,12 @@ export function DemoPanel() {
                                 Click any IN_AUCTION lead on the Marketplace to watch bids arrive live.
                             </p>
 
+                            {/* Drip info chip */}
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] text-blue-400">
+                                <Sparkles className="h-3 w-3 shrink-0" />
+                                <span>10 buyers · Continuous drip · ~12 leads/min simulated</span>
+                            </div>
+
                             {/* Demo Buyers toggle */}
                             <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
                                 <div className="flex items-center gap-2">
@@ -652,6 +689,7 @@ export function DemoPanel() {
                             <p className="text-[11px] text-muted-foreground pl-1">
                                 {demoBuyersEnabled ? 'Bot buyers will place bids during auctions.' : 'No bot bids — only real users can bid.'}
                             </p>
+
                         </Section>
 
                         {/* Section 2b: On-Chain Settlement */}

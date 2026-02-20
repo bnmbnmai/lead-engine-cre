@@ -18,7 +18,7 @@ import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { aceDevBus } from './ace.service';
 import * as vaultService from './vault.service';
-import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
+import { LEAD_AUCTION_DURATION_SECS, DEMO_LEAD_DRIP_INTERVAL_MS, DEMO_INITIAL_LEADS, DEMO_MIN_ACTIVE_LEADS } from '../config/perks.env';
 import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 
 // ── Config ─────────────────────────────────────────
@@ -52,6 +52,45 @@ const DEMO_BUYER_WALLETS = [
 // Address generated: 2026-02-19. Testnet only.
 const DEMO_SELLER_WALLET = '0x9Bb15F98982715E33a2113a35662036528eE0A36';
 const DEMO_SELLER_KEY = '0x618bee99ca60f5511dad533a998344f3a0a7b2339db5726ae33d56fd543294ce';
+
+// ── Buyer Profiles ─────────────────────────────────
+// One profile per DEMO_BUYER_WALLETS entry (index-aligned).
+// Controls which leads each buyer evaluates and how aggressively/when they bid.
+
+interface BuyerProfile {
+    index: number;       // 0-based, maps to DEMO_BUYER_WALLETS[index]
+    name: string;        // e.g. "MortgageMaven"
+    tag: string;         // e.g. "mortgage-sniper"
+    verticals: string[]; // preferred verticals; ['*'] = all
+    minScore: number;    // minimum quality score (0–10 000) to bid
+    maxPrice: number;    // maximum bid ceiling in USDC
+    aggression: number;  // 0.0 (bid early) → 1.0 (bid late)
+    timingBias: number;  // seconds into [10,55] window where this buyer tends to commit
+}
+
+const BUYER_PROFILES: BuyerProfile[] = [
+    // Wallet 1 — mortgage specialist, late sniper
+    { index: 0, name: 'MortgageMaven', tag: 'mortgage-sniper', verticals: ['mortgage', 'real_estate'], minScore: 6000, maxPrice: 90, aggression: 0.80, timingBias: 48 },
+    // Wallet 2 — solar-only, quality-gated
+    { index: 1, name: 'SolarSpecialist', tag: 'solar-only', verticals: ['solar'], minScore: 7000, maxPrice: 75, aggression: 0.60, timingBias: 38 },
+    // Wallet 3 — roofing/hvac, early eager
+    { index: 2, name: 'RoofingPro', tag: 'home-services', verticals: ['roofing', 'hvac', 'solar'], minScore: 4000, maxPrice: 55, aggression: 0.25, timingBias: 18 },
+    // Wallet 4 — insurance specialist
+    { index: 3, name: 'InsuranceAce', tag: 'insurance', verticals: ['insurance'], minScore: 5000, maxPrice: 60, aggression: 0.50, timingBias: 30 },
+    // Wallet 5 — legal premium sniper
+    { index: 4, name: 'LegalEagle', tag: 'legal-premium', verticals: ['legal'], minScore: 8000, maxPrice: 120, aggression: 0.90, timingBias: 52 },
+    // Wallet 6 — financial services
+    { index: 5, name: 'FinancePilot', tag: 'fin-services', verticals: ['financial_services', 'insurance'], minScore: 7500, maxPrice: 100, aggression: 0.70, timingBias: 42 },
+    // Wallet 7 — bargain hunter, bids on anything, first to arrive
+    { index: 6, name: 'GeneralistA', tag: 'bargain-hunter', verticals: ['*'], minScore: 3000, maxPrice: 45, aggression: 0.15, timingBias: 12 },
+    // Wallet 8 — balanced generalist
+    { index: 7, name: 'GeneralistB', tag: 'mid-market', verticals: ['*'], minScore: 5000, maxPrice: 65, aggression: 0.50, timingBias: 28 },
+    // Wallet 9 — home services portfolio
+    { index: 8, name: 'HomeServices', tag: 'hvac-solar-roof', verticals: ['roofing', 'hvac', 'solar', 'real_estate'], minScore: 4500, maxPrice: 70, aggression: 0.35, timingBias: 22 },
+    // Wallet 10 — high-roller, rare but aggressive
+    { index: 9, name: 'HighRoller', tag: 'premium-all', verticals: ['*'], minScore: 6500, maxPrice: 130, aggression: 0.85, timingBias: 50 },
+];
+
 
 const DEMO_VERTICALS = [
     'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
@@ -156,7 +195,37 @@ const resultsStore = new Map<string, DemoResult>();
 // broadcasting demo:status without requiring the caller to pass io again.
 let moduleIo: SocketServer | null = null;
 
-// ── File Persistence (secondary fallback) ──────────────
+// ── Per-Lead Bid Timer Registry ────────────────────
+// Tracks all pending setTimeout handles for staggered buyer bids.
+// Cleared on stop/abort so timers never outlive a demo run.
+const activeBidTimers = new Map<string, NodeJS.Timeout[]>();
+
+function clearAllBidTimers() {
+    for (const timers of activeBidTimers.values()) {
+        for (const t of timers) clearTimeout(t);
+    }
+    activeBidTimers.clear();
+}
+
+
+
+// ── Module-level BUYER_KEYS (mirrors DEMO_BUYER_WALLETS, Wallets 1–10) ──────
+// Hoisted here so sweepBuyerUSDC, scheduleBuyerBids, and the 10-min sweep
+// interval can transfer from buyer wallets without needing BUYER_KEYS passed
+// all the way down from runFullDemo's closure.
+// Keys match DEMO_BUYER_WALLETS exactly, index-aligned. Testnet only.
+const DEMO_BUYER_KEYS: string[] = [
+    '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439', // Wallet 1
+    '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618', // Wallet 2
+    '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e', // Wallet 3
+    '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7', // Wallet 4
+    '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7', // Wallet 5
+    '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75', // Wallet 6
+    '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510', // Wallet 7
+    '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd', // Wallet 8
+    '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c', // Wallet 9
+    '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382', // Wallet 10
+];
 const RESULTS_FILE = path.join(process.cwd(), 'demo-results.json');
 
 function saveResultsToDisk() {
@@ -628,20 +697,32 @@ async function sendTx(
 // ── Staggered Lead Drip (Background) ──────────────
 
 /**
- * Start a background drip that injects 1 new lead every 8-15 seconds.
- * Runs concurrently with vault cycles. Returns an abort handle.
+ * Start a background drip that injects 1 new lead every 3–9 s (avg ~6 s).
+ * Runs concurrently with vault cycles until the AbortSignal fires or
+ * maxMinutes elapses.
  *
- * @param maxLeads   Total leads to create (default 20)
- * @param maxMinutes Stop dripping after this many minutes (default 5)
+ * The first burst of DEMO_INITIAL_LEADS (default 12) is injected immediately
+ * in rapid succession so the marketplace looks alive from the first second.
+ *
+ * @param maxLeads   Soft cap — drip stops when this many leads have been added
+ *                   (0 = unlimited; rely on maxMinutes or abort instead)
+ * @param maxMinutes Hard stop: stop dripping after this many minutes (default 30)
  */
 function startLeadDrip(
     io: SocketServer,
     signal: AbortSignal,
-    maxLeads: number = 20,
-    maxMinutes: number = 5,
+    maxLeads: number = 0,
+    maxMinutes: number = 30,
 ): { stop: () => void; promise: Promise<void> } {
     let stopped = false;
     const stop = () => { stopped = true; };
+
+    // Fixed production drip: 3–9 s per lead (natural marketplace cadence)
+    const dripAvgMs = DEMO_LEAD_DRIP_INTERVAL_MS;
+    const dripMinMs = Math.round(dripAvgMs * 0.67); // ~3 s
+    const dripMaxMs = Math.round(dripAvgMs * 2.0);  // ~9 s
+    const dripMinSec = Math.round(dripMinMs / 1000);
+    const dripMaxSec = Math.round(dripMaxMs / 1000);
 
     const promise = (async () => {
         const sellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
@@ -651,23 +732,35 @@ function startLeadDrip(
         emit(io, {
             ts: new Date().toISOString(),
             level: 'step',
-            message: `📦 Starting lead drip — 1 new lead every 8-15s for ~${maxMinutes} minutes`,
+            message: `📦 Starting continuous lead drip — 1 new lead every ${dripMinSec}–${dripMaxSec} s | Initial burst: ${DEMO_INITIAL_LEADS} leads`,
         });
 
-        // Seed 3 leads immediately so marketplace isn't empty at launch
-        for (let i = 0; i < 3 && !stopped && !signal.aborted; i++) {
+        // ── Initial burst: seed DEMO_INITIAL_LEADS leads immediately ──
+        for (let i = 0; i < DEMO_INITIAL_LEADS && !stopped && !signal.aborted; i++) {
             try {
                 await injectOneLead(io, sellerId, created);
                 created++;
             } catch { /* non-fatal */ }
-            await sleep(300);
+            await sleep(300); // tiny gap so socket events don't collide
         }
 
-        // Then drip the rest at random intervals
-        while (created < maxLeads && Date.now() < deadline && !stopped && !signal.aborted) {
-            const delaySec = rand(8, 15);
-            // Sleep in 1-second ticks so we can respond to abort quickly
-            for (let t = 0; t < delaySec && !stopped && !signal.aborted; t++) {
+        emit(io, {
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `⚡ Initial burst complete — ${created} leads live in marketplace`,
+        });
+
+        // ── Continuous drip: randomised 3–9 s intervals ──
+        while (
+            (maxLeads === 0 || created < maxLeads) &&
+            Date.now() < deadline &&
+            !stopped &&
+            !signal.aborted
+        ) {
+            // Random delay in milliseconds, then sleep in one-second ticks so abort is responsive
+            const delayMs = rand(dripMinMs, dripMaxMs);
+            const ticks = Math.ceil(delayMs / 1000);
+            for (let t = 0; t < ticks && !stopped && !signal.aborted; t++) {
                 await sleep(1000);
             }
             if (stopped || signal.aborted) break;
@@ -678,7 +771,7 @@ function startLeadDrip(
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `📋 Lead ${created}/${maxLeads} dripped into marketplace`,
+                    message: `📋 Lead #${created} dripped into marketplace`,
                 });
             } catch (err: any) {
                 emit(io, {
@@ -720,6 +813,8 @@ async function injectOneLead(
         zipMatchesState: false,
     };
     const qualityScore = computeCREQualityScore(scoreInput);
+    // Fixed: always use the production 60 s auction duration
+    const auctionDurationSecs = LEAD_AUCTION_DURATION_SECS;
 
     const lead = await prisma.lead.create({
         data: {
@@ -733,7 +828,7 @@ async function injectOneLead(
             qualityScore,
             tcpaConsentAt: new Date(),
             auctionStartAt: new Date(),
-            auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+            auctionEndAt: new Date(Date.now() + auctionDurationSecs * 1000),
             parameters: params as any,
         },
     });
@@ -743,8 +838,8 @@ async function injectOneLead(
             leadId: lead.id,
             roomId: `auction_${lead.id}`,
             phase: 'BIDDING',
-            biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
-            revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
+            biddingEndsAt: new Date(Date.now() + auctionDurationSecs * 1000),
+            revealEndsAt: new Date(Date.now() + auctionDurationSecs * 1000),
         },
     });
 
@@ -764,9 +859,273 @@ async function injectOneLead(
             _count: { bids: 0 },
         },
     });
+
+    // Kick off staggered buyer bids for this lead (non-blocking, fire-and-forget)
+    // Signal is captured from the outer drip loop's AbortSignal via scheduleBuyerBids closure.
+    // The io reference is passed through so each buyer's bid can emit real-time updates.
+    scheduleBuyerBids(io, lead.id, vertical, qualityScore ?? 0, reservePrice);
 }
 
-// ── Token Recycling (background phase) ───────────
+// ── Staggered Per-Buyer Bid Scheduling ──────────────
+
+/**
+ * scheduleBuyerBids — for each of the 10 buyer profiles, evaluates whether that
+ * buyer would bid on this lead (vertical match, score threshold, price ceiling),
+ * then sets a randomised setTimeout (10–55 s) to fire and place the on-chain bid.
+ *
+ * All timers are stored in activeBidTimers so stopDemo / abort can cancel them.
+ * ~15% of leads are intentionally skipped entirely (0-bid scenario).
+ * ~10% produce a single bid; rest produce 2–6 bids.
+ */
+function scheduleBuyerBids(
+    io: SocketServer,
+    leadId: string,
+    vertical: string,
+    qualityScore: number,
+    reservePrice: number,
+): void {
+    if (!VAULT_ADDRESS) return; // Off-chain mode — no bidding
+
+    // ~15% of leads get 0 bids (realistic cold auctions)
+    if (Math.random() < 0.15) {
+        emit(io, {
+            ts: new Date().toISOString(), level: 'info',
+            message: `🔇 Lead ${leadId.slice(0, 8)}… — no buyers interested this round (simulating cold auction)`,
+        });
+        return;
+    }
+
+    const timers: NodeJS.Timeout[] = [];
+    let scheduledCount = 0;
+
+    for (const profile of BUYER_PROFILES) {
+        // Vertical eligibility
+        const wantsVertical = profile.verticals.includes('*') || profile.verticals.includes(vertical);
+        if (!wantsVertical) continue;
+
+        // Score threshold
+        // qualityScore from DB is in 0–10000 range (raw Chainlink CRE score)
+        if (qualityScore < profile.minScore) {
+            emit(io, {
+                ts: new Date().toISOString(), level: 'info',
+                message: `🙅 Buyer #${profile.index + 1} (${profile.name} – ${profile.tag}) skipping lead ${leadId.slice(0, 8)}… — quality ${qualityScore} < threshold ${profile.minScore}`,
+            });
+            continue;
+        }
+
+        // Price ceiling
+        if (reservePrice > profile.maxPrice) {
+            emit(io, {
+                ts: new Date().toISOString(), level: 'info',
+                message: `💸 Buyer #${profile.index + 1} (${profile.name}) not bidding — reserve $${reservePrice} > max $${profile.maxPrice}`,
+            });
+            continue;
+        }
+
+        // ~10% independent skip per eligible buyer (simulates indecision)
+        if (Math.random() < 0.10) continue;
+
+        // Bid amount: reserve + random 0–20% premium, capped at profile.maxPrice
+        const premium = Math.round(reservePrice * (Math.random() * 0.20));
+        const bidAmount = Math.min(reservePrice + premium, profile.maxPrice);
+
+        // Commit delay: Gaussian-ish using timingBias with ±12 s jitter, clamped to [10, 55] s
+        const jitter = (Math.random() * 24) - 12; // -12 to +12
+        const delaySec = Math.max(10, Math.min(55, profile.timingBias + jitter));
+        const delayMs = Math.round(delaySec * 1000);
+
+        const buyerIdx = profile.index;
+        const timer = setTimeout(async () => {
+            try {
+                // Re-acquire deployer signer + vault inside the timer callback
+                // (closures over module-level getSigner/getVault are safe —
+                //  both return the shared provider reference)
+                const deployer = getSigner();
+                const vault = getVault(deployer);
+
+                // Check vault free balance
+                const buyerAddr = DEMO_BUYER_WALLETS[buyerIdx];
+                const vaultBal = await vault.balanceOf(buyerAddr);
+                const locked = await vault.lockedBalances(buyerAddr);
+                const freeBalance = Number(vaultBal - locked) / 1e6;
+
+                if (freeBalance < bidAmount) {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'warn',
+                        message: `⚠️ Buyer #${buyerIdx + 1} (${profile.name}) vault low ($${freeBalance.toFixed(2)} free) — skipping bid on ${leadId.slice(0, 8)}…`,
+                    });
+                    return;
+                }
+
+                emit(io, {
+                    ts: new Date().toISOString(), level: 'info',
+                    message: `🤖 Buyer #${buyerIdx + 1} (${profile.name} – ${profile.tag}) autobidding $${bidAmount} at ${Math.round(delaySec)}s — quality ${qualityScore} ≥ threshold ${profile.minScore}`,
+                });
+
+                // Nonce stagger: 50 ms × buyerIndex (index-based) + 0–75 ms random jitter
+                // Combined effect: up to 575 ms spread across 10 buyers — eliminates nonce collisions.
+                await new Promise(r => setTimeout(r, (buyerIdx * 50) + Math.floor(Math.random() * 75)));
+
+                // Lock bid through existing nonce queue (getNextNonce serialises deployer txs)
+                const nonce = await getNextNonce();
+                const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
+                const tx = await vault.lockForBid(buyerAddr, bidAmountUnits, { nonce });
+                const receipt = await tx.wait();
+
+                // Emit real-time bid update so marketplace cards tick up
+                io.emit('marketplace:bid:update', {
+                    leadId,
+                    bidCount: 1, // server handles increments; client adds to existing
+                    highestBid: bidAmount,
+                    timestamp: new Date().toISOString(),
+                    buyerName: profile.name,
+                });
+
+                emit(io, {
+                    ts: new Date().toISOString(), level: 'success',
+                    message: `✅ ${profile.name} bid confirmed: $${bidAmount} locked — tx ${receipt?.hash?.slice(0, 20)}…`,
+                    txHash: receipt?.hash,
+                });
+            } catch (err: any) {
+                // Non-fatal: log and move on
+                const msg = err?.shortMessage || err?.message?.slice(0, 80) || 'unknown';
+                emit(io, {
+                    ts: new Date().toISOString(), level: 'warn',
+                    message: `⚠️ Buyer #${buyerIdx + 1} (${profile.name}) bid failed for ${leadId.slice(0, 8)}…: ${msg}`,
+                });
+            }
+        }, delayMs);
+
+        timers.push(timer);
+        scheduledCount++;
+
+        // ~10% chance of single bid only (limit competition)
+        if (scheduledCount === 1 && Math.random() < 0.10) break;
+    }
+
+    if (timers.length > 0) {
+        activeBidTimers.set(leadId, timers);
+    }
+}
+
+// ── Lightweight Mid-Run USDC Sweep ─────────────────
+
+/**
+ * sweepBuyerUSDC — real on-chain USDC reclaim from buyer wallets.
+ *
+ * Uses each buyer's own private key (from DEMO_BUYER_KEYS) to sign
+ * a USDC.transfer() from their wallet → deployer. Fires every 10 min
+ * while the demo is live, and is also called explicitly on stop.
+ *
+ * Skips wallets with < $1 free balance to avoid wasting gas.
+ * Non-fatal: one wallet failure never blocks others.
+ */
+async function sweepBuyerUSDC(io: SocketServer): Promise<void> {
+    try {
+        const provider = getSharedProvider();
+        const deployer = getSigner();
+        const deployerAddr = deployer.address;
+        let totalSwept = 0n;
+        let walletCount = 0;
+
+        for (let i = 0; i < DEMO_BUYER_WALLETS.length; i++) {
+            const addr = DEMO_BUYER_WALLETS[i];
+            const key = DEMO_BUYER_KEYS[i];
+            if (!key) continue;
+
+            try {
+                const buyerSigner = new ethers.Wallet(key, provider);
+                const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, buyerSigner);
+
+                const bal = await usdcContract.balanceOf(addr) as bigint;
+                // Skip dust (< $1 USDC) and vault-locked amounts
+                if (bal <= ethers.parseUnits('1', 6)) continue;
+
+                // Use fresh nonce from buyer's own chain (independent of deployer nonce)
+                const bNonce = await provider.getTransactionCount(addr, 'pending');
+                const feeData = await provider.getFeeData();
+                const gasPrice = feeData.gasPrice
+                    ? (feeData.gasPrice * 120n) / 100n  // 20% boost
+                    : undefined;
+
+                const tx = await usdcContract.transfer(
+                    deployerAddr, bal,
+                    { nonce: bNonce, ...(gasPrice ? { gasPrice } : {}) },
+                );
+                const receipt = await tx.wait();
+
+                totalSwept += bal;
+                walletCount++;
+
+                emit(io, {
+                    ts: new Date().toISOString(), level: 'success',
+                    message: `♻️ USDC recycled: $${ethers.formatUnits(bal, 6)} reclaimed on-chain from Wallet ${i + 1} — tx ${receipt?.hash?.slice(0, 20)}…`,
+                    txHash: receipt?.hash,
+                });
+            } catch (err: any) {
+                // Non-fatal: log and continue to next wallet
+                const msg = err?.shortMessage || err?.message?.slice(0, 60) || 'unknown';
+                emit(io, {
+                    ts: new Date().toISOString(), level: 'warn',
+                    message: `⚠️ USDC sweep skipped Wallet ${i + 1}: ${msg}`,
+                });
+            }
+        }
+
+        if (walletCount > 0) {
+            emit(io, {
+                ts: new Date().toISOString(), level: 'success',
+                message: `♻️ Sweep complete: $${ethers.formatUnits(totalSwept, 6)} USDC recycled on-chain across ${walletCount} wallets — perpetual demo ready`,
+            });
+        }
+    } catch { /* non-fatal outer */ }
+}
+
+// ── Live Metrics Pulse ──────────────────────────
+
+let _demoRunStartTime: number | null = null;
+let _demoTotalSettledSnapshot: number = 0;
+
+/**
+ * emitLiveMetrics — called every 30 s while a demo is running.
+ * Emits a marketplace health line to the Dev Log panel:
+ *   "📊 Live: Active auctions: 7 | Leads this minute: 3 | Platform revenue today: ~$1,230"
+ *
+ * Daily revenue uses a real Prisma aggregate over DEMO bids settled in this run
+ * (extrapolated to 24 h), not a synthetic formula.
+ */
+async function emitLiveMetrics(io: SocketServer, runId: string): Promise<void> {
+    try {
+        const now = new Date();
+        const oneMinuteAgo = new Date(now.getTime() - 60_000);
+        const runStart = _demoRunStartTime ? new Date(_demoRunStartTime) : new Date(now.getTime() - 60_000);
+
+        const [activeCount, leadsThisMinute, platformRevAggregate] = await Promise.all([
+            prisma.lead.count({ where: { source: 'DEMO', status: 'IN_AUCTION' } }),
+            prisma.lead.count({ where: { source: 'DEMO', createdAt: { gte: oneMinuteAgo } } }),
+            // Sum the winning bids over DEMO leads settled since run start
+            prisma.lead.aggregate({
+                _sum: { winningBid: true },
+                where: { source: 'DEMO', status: 'SOLD', createdAt: { gte: runStart } },
+            }),
+        ]);
+
+        const settledThisRun = Number(platformRevAggregate._sum?.winningBid ?? 0);
+        const ageMs = _demoRunStartTime ? now.getTime() - _demoRunStartTime : 60_000;
+        // 5% platform fee × extrapolated 24 h volume
+        const dailyRevenue = Math.round(settledThisRun * 0.05 * (86_400_000 / Math.max(ageMs, 1)));
+
+        emit(io, {
+            ts: now.toISOString(), level: 'info',
+            message: `📊 Live: Active auctions: ${activeCount} | Leads this minute: ${leadsThisMinute} | Platform revenue today: ~$${dailyRevenue.toLocaleString()}`,
+        });
+
+        // Also emit a socket event so DemoPanel banner can update in real-time
+        io.emit('demo:metrics', { activeCount, leadsThisMinute, dailyRevenue });
+    } catch { /* non-fatal */ }
+}
+
+// ── Token Recycling (background phase) ─────────
 
 // ⚠️ TEMPORARY SAFE MODE — Full USDC Recovery Guaranteed
 // Every buyer and seller wallet is fully drained back to deployer after each run.
@@ -1336,6 +1695,7 @@ export async function runFullDemo(
 
     // Debug banner — first event emitted, confirms socket streaming is live
     emit(io, { ts: new Date().toISOString(), level: 'success', message: '=== DEMO STARTED — Socket events are streaming ===' });
+    emit(io, { ts: new Date().toISOString(), level: 'info', message: '🚀 Starting production-realistic demo (full 60 s auctions, continuous natural drip)' });
 
     // ── P1/P4: Clean up any pre-existing locked funds so cycles start from a clean slate ──
     try {
@@ -1343,6 +1703,15 @@ export async function runFullDemo(
     } catch (cleanupErr: any) {
         emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-run locked funds cleanup encountered an error (non-fatal): ${cleanupErr.message?.slice(0, 80)}` });
     }
+
+    // Replenishment watchdog interval — declared here (function scope) so the finally block can clear it.
+    let replenishInterval: ReturnType<typeof setInterval> | null = null;
+    // Sweep + metrics intervals — same lifetime as replenishInterval.
+    let sweepInterval: ReturnType<typeof setInterval> | null = null;
+    let metricsInterval: ReturnType<typeof setInterval> | null = null;
+
+    // Set start time for live metrics daily-volume extrapolation
+    _demoRunStartTime = Date.now();
 
     try {
         // ── Validate chain ──
@@ -1533,6 +1902,34 @@ export async function runFullDemo(
             level: preFundedCount > 0 ? 'success' : 'warn',
             message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
         });
+
+        // ── Replenishment watchdog: fires every 15 s, logs a warning if active leads
+        // drop below DEMO_MIN_ACTIVE_LEADS. The drip loop handles actual injection;
+        // this interval is a monitoring-only companion that never blocks it.
+        replenishInterval = setInterval(async () => {
+            try {
+                const activeCount = await prisma.lead.count({
+                    where: { source: 'DEMO', status: 'IN_AUCTION' },
+                });
+                if (activeCount < DEMO_MIN_ACTIVE_LEADS) {
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'warn',
+                        message: `⚠️ Active leads: ${activeCount} (target ≥${DEMO_MIN_ACTIVE_LEADS}) — drip will replenish shortly`,
+                    });
+                }
+            } catch { /* non-fatal */ }
+        }, 15_000);
+
+        // ── Sweep: check free buyer USDC every 10 min, log any that can be reclaimed on stop
+        sweepInterval = setInterval(() => {
+            void sweepBuyerUSDC(io);
+        }, 10 * 60_000);
+
+        // ── Live metrics pulse every 30 s
+        metricsInterval = setInterval(() => {
+            void emitLiveMetrics(io, runId);
+        }, 30_000);
 
         // ── Step 2: Natural lead drip — first lead appears immediately, then one every 10–15s ──
         // At 10-15s per lead × N cycles the marketplace shows 4–8 simultaneous 60-second auctions.
@@ -1994,6 +2391,15 @@ export async function runFullDemo(
         return result;
 
     } finally {
+        // Clear all staggered buyer-bid timers first so no in-flight bid fires after stop
+        clearAllBidTimers();
+
+        // Clear the replenishment watchdog + sweep/metrics intervals
+        if (replenishInterval) { clearInterval(replenishInterval); replenishInterval = null; }
+        if (sweepInterval) { clearInterval(sweepInterval); sweepInterval = null; }
+        if (metricsInterval) { clearInterval(metricsInterval); metricsInterval = null; }
+
+        _demoRunStartTime = null;
         isRunning = false;
         currentAbort = null;
         // Safety net — emit idle in case the above emitStatus calls were skipped
@@ -2020,6 +2426,9 @@ export function stopDemo(): boolean {
         isRecycling = false;
         stopped = true;
     }
+
+    // Cancel any staggered buyer-bid timers so they don't fire after stop
+    clearAllBidTimers();
 
     // Broadcast updated state to all viewers immediately so UI unblocks
     if (moduleIo) {

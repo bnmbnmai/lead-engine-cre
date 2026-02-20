@@ -62,6 +62,8 @@ type AuctionEventHandler = {
     'demo:reset-complete': (data: { ts: string; success: boolean; message?: string; error?: string }) => void;
     // Global demo state broadcast (for all viewers, including Guests)
     'demo:status': (data: { running: boolean; recycling: boolean; currentCycle: number; totalCycles: number; percent: number; phase: string; runId?: string; ts: string }) => void;
+    // Live marketplace metrics (emitted every 30 s while demo runs)
+    'demo:metrics': (data: { activeCount: number; leadsThisMinute: number; dailyRevenue: number }) => void;
 };
 
 // All events forwarded from raw socket → this.listeners Map.
@@ -90,6 +92,7 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     'demo:recycle-complete',
     'demo:reset-complete',
     'demo:status',
+    'demo:metrics',
 ];
 
 // ============================================

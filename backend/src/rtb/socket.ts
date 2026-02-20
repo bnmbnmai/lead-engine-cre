@@ -474,7 +474,7 @@ class RTBSocketServer {
             } catch (error) {
                 console.error('Auction monitor error:', error);
             }
-        }, 2000); // Check every 2 seconds
+        }, 5000); // Check every 5 seconds — sufficient for 60 s auctions
     }
 
     // ============================================

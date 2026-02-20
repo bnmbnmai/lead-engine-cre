@@ -25,6 +25,11 @@ import * as vaultService from '../services/vault.service';
 
 /**
  * Find and resolve all IN_AUCTION leads whose auction window has expired.
+ *
+ * Safety: an extra in-process check ensures the auction is at least 58 000 ms
+ * old before we close it — this prevents any edge-case where the monitor fires
+ * within the last 2 s of the window due to clock drift or rapid polling.
+ *
  * @param io  Optional Socket.IO server for broadcasting events. Omit for HTTP-only calls.
  * @returns   Number of auctions resolved.
  */
@@ -36,15 +41,28 @@ export async function resolveExpiredAuctions(io?: Server): Promise<number> {
             status: 'IN_AUCTION',
             auctionEndAt: { lte: now },
         },
-        select: { id: true, vertical: true, reservePrice: true },
+        select: { id: true, vertical: true, reservePrice: true, auctionEndAt: true },
     });
 
+    let resolved = 0;
     for (const lead of expiredAuctions) {
+        // Safety gate: only close if the auction expired at least 58 s ago relative to now.
+        // auctionEndAt is set to (startTime + 60 s), so this guard fires at ~60 s.
+        const expiredAtMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : 0;
+        const ageMs = Date.now() - expiredAtMs;
+        if (ageMs < 58_000) {
+            // Not yet 58 s since auctionEndAt — skip this tick, resolve on the next.
+            continue;
+        }
+
+        console.log(`[AuctionClosure] Auction for lead ${lead.id} closed after full 60 s (age: ${Math.round(ageMs / 1000)}s)`);
         await resolveAuction(lead.id, io);
+        resolved++;
     }
 
-    return expiredAuctions.length;
+    return resolved;
 }
+
 
 // ============================================
 // Resolve Stuck Auctions (Safety Net)
