@@ -109,10 +109,10 @@ interface DemoLogEntry {
 }
 
 interface CycleResult {
-    cycle: number;
+    cycle: number;           // sequential 1-based index within this run
     vertical: string;
     buyerWallet: string;     // winner's wallet (kept for backward compat)
-    buyerWallets: string[];  // all 3 distinct bidder wallets (Phase 2)
+    buyerWallets: string[];  // all 2 distinct bidder wallets
     bidAmount: number;
     lockIds: number[];
     winnerLockId: number;
@@ -120,7 +120,7 @@ interface CycleResult {
     refundTxHashes: string[];
     porSolvent: boolean;
     porTxHash: string;
-    gasUsed: bigint;
+    gasUsed: string;         // stored as string — BigInt not JSON-serialisable
 }
 
 export interface DemoResult {
@@ -152,7 +152,11 @@ const RESULTS_FILE = path.join(process.cwd(), 'demo-results.json');
 function saveResultsToDisk() {
     try {
         const all = Array.from(resultsStore.values());
-        fs.writeFileSync(RESULTS_FILE, JSON.stringify(all, null, 2));
+        // BigInt-safe serialiser — gasUsed/totalGas may still be bigint at call time
+        const safe = JSON.parse(
+            JSON.stringify(all, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))
+        );
+        fs.writeFileSync(RESULTS_FILE, JSON.stringify(safe, null, 2));
     } catch { /* non-fatal */ }
 }
 
@@ -514,6 +518,27 @@ function emit(io: SocketServer, entry: DemoLogEntry) {
 }
 
 /**
+ * safeEmit — BigInt-safe Socket.IO emit.
+ *
+ * JSON.stringify throws on native BigInt values. Socket.IO calls JSON.stringify
+ * internally, bypassing the global res.json() Express middleware. Apply this
+ * wrapper to every io.emit() call that carries chain data (gasUsed, lockIds,
+ * totalGas, USDC amounts, etc.).
+ */
+function safeEmit(io: SocketServer, event: string, payload: unknown): void {
+    try {
+        const safe = JSON.parse(
+            JSON.stringify(payload, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))
+        );
+        io.emit(event, safe);
+    } catch (err: any) {
+        // Last-resort: emit a stripped-down error payload so the client isn't left hanging
+        console.error(`[DEMO] safeEmit('${event}') fallback:`, err.message);
+        try { io.emit(event, { error: `serialization failed: ${err.message}` }); } catch { /* give up */ }
+    }
+}
+
+/**
  * emitStatus — broadcast global demo state to ALL connected sockets.
  *
  * Received by useDemoStatus (frontend) to disable/enable the Run Demo
@@ -833,7 +858,7 @@ async function recycleTokens(
             level: 'step',
             message: '♻️  Full USDC recovery starting — draining all demo wallets back to deployer...',
         });
-        io.emit('demo:recycle-start', { ts: new Date().toISOString() });
+        safeEmit(io, 'demo:recycle-start', { ts: new Date().toISOString() });
 
         const provider = getProvider();
         const signer = getSigner();
@@ -1099,7 +1124,7 @@ async function recycleTokens(
         }
 
         emit(io, { ts: new Date().toISOString(), level: 'success', message: `🟢 Vault reset complete — next Run Demo starts immediately!` });
-        io.emit('demo:recycle-complete', { ts: new Date().toISOString(), success: true, deployerBalAfter: ethers.formatUnits(deployerBalAfter, 6) });
+        safeEmit(io, 'demo:recycle-complete', { ts: new Date().toISOString(), success: true, deployerBalAfter: ethers.formatUnits(deployerBalAfter, 6) });
 
     } catch (err: any) {
         emit(io, {
@@ -1107,7 +1132,7 @@ async function recycleTokens(
             level: 'warn',
             message: `⚠️ Token redistribution encountered an error (non-fatal): ${err.message?.slice(0, 120)}`,
         });
-        io.emit('demo:recycle-complete', { ts: new Date().toISOString(), success: false, error: err.message });
+        safeEmit(io, 'demo:recycle-complete', { ts: new Date().toISOString(), success: false, error: err.message });
     } finally {
         isRecycling = false;
         recycleAbort = null;
@@ -1660,6 +1685,7 @@ export async function runFullDemo(
             totalGas += cycleGas;
 
             // Placeholder porSolvent/porTxHash — updated after batched verifyReserves below
+            // cycle is the sequential 1-based index within this run (NOT the blockchain lock ID)
             cycleResults.push({
                 cycle,
                 vertical,
@@ -1672,7 +1698,7 @@ export async function runFullDemo(
                 refundTxHashes,
                 porSolvent: true, // confirmed after batched PoR below
                 porTxHash: '',    // filled in below
-                gasUsed: cycleGas,
+                gasUsed: cycleGas.toString(), // store as string — BigInt is not JSON-safe
             });
 
             // Brief pause between cycles
@@ -1766,18 +1792,29 @@ export async function runFullDemo(
         // Broadcast global status (running=false) before demo:complete so button re-enables
         emitStatus(io, { running: false, phase: 'idle', totalCycles: cycles, currentCycle: cycles, percent: 100, runId });
 
-        // Emit completion events — frontend navigates immediately before recycle starts
-        io.emit('demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
-        // demo:results-ready carries partial cycle data so the results page renders instantly,
-        // without waiting for recycleTokens to finish.
-        io.emit('demo:results-ready', {
-            runId,
-            status: 'completed',
-            totalCycles: cycles,
-            totalSettled,
-            elapsedSec,
-            cycles: cycleResults,
-        });
+        // ── Emit completion events (wrapped in try/catch so recycle always fires) ──
+        // demo:results-ready is emitted FIRST — carries full cycle data so the results
+        // page renders instantly without waiting for token recycling to finish.
+        // demo:complete is a secondary signal for the DemoPanel toast/badge.
+        // Both use safeEmit() to prevent BigInt serialization errors from crashing the run.
+        try {
+            safeEmit(io, 'demo:results-ready', {
+                runId,
+                status: 'completed',
+                totalCycles: cycles,
+                totalSettled,
+                elapsedSec,
+                cycles: cycleResults,
+            });
+        } catch (emitErr: any) {
+            console.error('[DEMO] demo:results-ready emit failed (non-fatal):', emitErr.message);
+        }
+
+        try {
+            safeEmit(io, 'demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
+        } catch (emitErr: any) {
+            console.error('[DEMO] demo:complete emit failed (non-fatal):', emitErr.message);
+        }
 
         emit(io, {
             ts: new Date().toISOString(),
@@ -1787,6 +1824,7 @@ export async function runFullDemo(
 
         // ── Phase 2: Non-blocking token recycling with timeout ──
         // Fire and forget — does NOT block the return or delay the results page.
+        // Runs regardless of whether the emit calls above succeeded.
         void withRecycleTimeout(io, recycleTokens(io, signal, BUYER_KEYS));
 
         return result;
@@ -1818,15 +1856,34 @@ export async function runFullDemo(
         // Broadcast global status (running=false) before demo:complete
         emitStatus(io, { running: false, phase: 'idle', totalCycles: cycleResults.length, currentCycle: cycleResults.length, percent: 100, runId });
 
-        io.emit('demo:complete', {
-            runId,
-            status: result.status,
-            totalCycles: cycleResults.length,
-            totalSettled,
-            error: result.error,
-        });
+        // Emit partial results immediately so the results page is never blank
+        try {
+            safeEmit(io, 'demo:results-ready', {
+                runId,
+                status: result.status,
+                totalCycles: cycleResults.length,
+                totalSettled,
+                elapsedSec: Math.round((Date.now() - new Date(startedAt).getTime()) / 1000),
+                cycles: cycleResults,
+            });
+        } catch (emitErr: any) {
+            console.error('[DEMO] demo:results-ready (error path) emit failed (non-fatal):', emitErr.message);
+        }
 
-        // Recycle on abort/failure too — best effort, non-blocking
+        try {
+            safeEmit(io, 'demo:complete', {
+                runId,
+                status: result.status,
+                totalCycles: cycleResults.length,
+                totalSettled,
+                error: result.error,
+            });
+        } catch (emitErr: any) {
+            console.error('[DEMO] demo:complete (error path) emit failed (non-fatal):', emitErr.message);
+        }
+
+        // Recycle on abort/failure too — best effort, non-blocking.
+        // IMPORTANT: runs regardless of whether the emit calls above succeeded.
         if (!isAbort) {
             void withRecycleTimeout(io, recycleTokens(io, signal, BUYER_KEYS));
         }
