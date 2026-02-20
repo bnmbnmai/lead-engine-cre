@@ -142,7 +142,7 @@ class SocketClient {
             // permanently silent after a server reboot.
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionDelayMax: 8000,
+            reconnectionDelayMax: 10000,
         });
 
         // Re-attach forwarders on every successful (re)connect.
