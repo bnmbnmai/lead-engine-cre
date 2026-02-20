@@ -170,9 +170,23 @@ export function DevLogPanel() {
             }]);
         };
         const onConnectError = () => setSocketStatus('disconnected');
+
+        // Safety net: if socket.io exhausts reconnection attempts (shouldn't happen
+        // with reconnectionAttempts:Infinity, but guards against future config changes)
+        // — manually call reconnect() to reset the retry counter.
+        const onReconnectFailed = () => {
+            setEntries(prev => [...prev, {
+                ts: new Date().toISOString(),
+                action: 'demo:warn',
+                ' ': '🔁 Reconnect attempts exhausted — forcing manual reconnect…',
+            }]);
+            socketClient.reconnect();
+        };
+
         sock.on('connect', onConnect);
         sock.on('disconnect', onDisconnect);
         sock.on('connect_error', onConnectError);
+        sock.io.on('reconnect_failed', onReconnectFailed);
         if (sock.connected) setSocketStatus('connected');
 
         // ace:dev-log events from Chainlink services (ACE, CRE, Data Feeds, VRF, Functions)
@@ -185,17 +199,11 @@ export function DevLogPanel() {
         socketClient.on('ace:dev-log', handler);
 
         // demo:log events — the message IS the log line; render it as the primary text.
-        // Previously action=demo:level caused "demo:info" to show as the bold label
-        // and "message=🔒 Bidder 1/3..." to appear tiny beside it. Fixed below:
-        // action is now used as badge category (demo:log) and the message field is injected
-        // as a top-level key so renderValue shows it as the main content.
         const demoHandler = (data: any) => {
             const level = data.level || 'info';
             const entry: DevLogEntry = {
                 ts: data.ts || new Date().toISOString(),
-                // Use level as category for color-coding but show message prominently
                 action: `demo:${level}`,
-                // Put message as the first extra field so it renders front-and-center
                 ...(data.message ? { ' ': data.message } : {}),
                 ...(data.txHash ? { tx: data.txHash } : {}),
                 ...(data.cycle != null ? { cyc: `${data.cycle}/${data.totalCycles}` } : {}),
@@ -225,6 +233,7 @@ export function DevLogPanel() {
             sock.off('connect', onConnect);
             sock.off('disconnect', onDisconnect);
             sock.off('connect_error', onConnectError);
+            sock.io.off('reconnect_failed', onReconnectFailed);
             socketClient.off('ace:dev-log', handler);
             socketClient.off('demo:log', demoHandler);
             socketClient.off('demo:complete', completeHandler);
@@ -335,15 +344,22 @@ export function DevLogPanel() {
                 <span style={{ color: '#c4b5fd', fontWeight: 700, fontSize: '13px', flex: 1 }}>
                     Chainlink Services Dev Log
                 </span>
-                {/* Socket connection status dot */}
+                {/* Socket connection status dot + text */}
                 <span
-                    title={socketStatus === 'connected' ? 'Socket connected' : socketStatus === 'connecting' ? 'Connecting…' : 'Socket disconnected — events may not stream'}
-                    style={{
-                        width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
-                        background: socketStatus === 'connected' ? '#22c55e' : socketStatus === 'connecting' ? '#f59e0b' : '#ef4444',
-                        boxShadow: socketStatus === 'connected' ? '0 0 4px #22c55e' : 'none',
-                    }}
-                />
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}
+                    title={socketStatus === 'connected' ? 'Socket connected — events streaming' : socketStatus === 'connecting' ? 'Connecting to backend…' : 'Socket disconnected — events paused'}
+                >
+                    <span
+                        style={{
+                            width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
+                            background: socketStatus === 'connected' ? '#22c55e' : socketStatus === 'connecting' ? '#f59e0b' : '#ef4444',
+                            boxShadow: socketStatus === 'connected' ? '0 0 4px #22c55e' : 'none',
+                        }}
+                    />
+                    <span style={{ fontSize: '9px', color: socketStatus === 'connected' ? '#22c55e' : socketStatus === 'connecting' ? '#f59e0b' : '#ef4444' }}>
+                        {socketStatus === 'connected' ? 'Live' : socketStatus === 'connecting' ? 'Connecting' : 'Offline'}
+                    </span>
+                </span>
                 <span style={{
                     color: '#4a4560',
                     fontSize: '10px',

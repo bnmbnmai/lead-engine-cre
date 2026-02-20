@@ -1318,6 +1318,9 @@ export async function runFullDemo(
     // Notify ALL connected viewers the demo has started
     emitStatus(io, { running: true, totalCycles: cycles, currentCycle: 0, percent: 0, phase: 'starting', runId });
 
+    // Debug banner — first event emitted, confirms socket streaming is live
+    emit(io, { ts: new Date().toISOString(), level: 'success', message: '=== DEMO STARTED — Socket events are streaming ===' });
+
     // ── P1/P4: Clean up any pre-existing locked funds so cycles start from a clean slate ──
     try {
         await cleanupLockedFundsForDemoBuyers(io);

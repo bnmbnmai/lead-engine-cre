@@ -64,6 +64,34 @@ type AuctionEventHandler = {
     'demo:status': (data: { running: boolean; recycling: boolean; currentCycle: number; totalCycles: number; percent: number; phase: string; runId?: string; ts: string }) => void;
 };
 
+// All events forwarded from raw socket → this.listeners Map.
+// Kept in sync with AuctionEventHandler above.
+const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
+    'auction:state',
+    'auction:phase',
+    'bid:new',
+    'bid:confirmed',
+    'auction:resolved',
+    'auction:expired',
+    'error',
+    'marketplace:lead:new',
+    'marketplace:bid:update',
+    'marketplace:auction:resolved',
+    'marketplace:refreshAll',
+    'lead:unsold',
+    'lead:status-changed',
+    'analytics:update',
+    'lead:escrow-confirmed',
+    'ace:dev-log',
+    'demo:log',
+    'demo:complete',
+    'demo:results-ready',
+    'demo:recycle-progress',
+    'demo:recycle-complete',
+    'demo:reset-complete',
+    'demo:status',
+];
+
 // ============================================
 // Socket Singleton
 // ============================================
@@ -72,10 +100,33 @@ class SocketClient {
     private socket: Socket | null = null;
     private listeners: Map<string, Set<Function>> = new Map();
 
+    /**
+     * setupEventForwarding — attaches one raw-socket listener per event that fans
+     * data into this.listeners Map.
+     *
+     * Called at initial socket creation AND re-called on every 'connect' event so
+     * that event forwarding survives:
+     *   - socket.io auto-reconnect after server restart (Render cold start)
+     *   - disconnect().connect() cycles triggered by reconnect()
+     *
+     * Idempotent: strips old forwarders via sock.off(event) before re-attaching
+     * to prevent duplicate delivery on rapid reconnects.
+     */
+    private setupEventForwarding(sock: Socket): void {
+        // Remove stale forwarders first to prevent double-firing
+        ALL_EVENTS.forEach((event) => sock.off(event));
+
+        // Attach fresh forwarders
+        ALL_EVENTS.forEach((event) => {
+            sock.on(event, (data: any) => {
+                this._emit(event, data);
+            });
+        });
+    }
+
     connect(): Socket {
-        // If a socket already exists (connected or still handshaking), reuse it.
-        // This prevents stacking duplicate io() instances that each fan events
-        // into the same this.listeners Map.
+        // Reuse existing socket — DevLogPanel depends on the same raw socket reference
+        // for its status-dot listeners. Never create a second socket.
         if (this.socket) {
             return this.socket;
         }
@@ -86,59 +137,34 @@ class SocketClient {
             auth: { token },
             transports: ['websocket', 'polling'],
             reconnection: true,
-            reconnectionAttempts: 5,
+            // Infinity ensures a Render cold start (which can take >5 connection
+            // attempts) never permanently kills the socket. DevLogPanel won't go
+            // permanently silent after a server reboot.
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 8000,
         });
 
+        // Re-attach forwarders on every successful (re)connect.
+        // This covers both:
+        //   1. socket.io's own auto-reconnect (fires 'connect' after each attempt)
+        //   2. The disconnect().connect() cycle in reconnect()
         this.socket.on('connect', () => {
-            if (import.meta.env.DEV) console.log('Socket connected:', this.socket?.id);
+            if (import.meta.env.DEV) console.log('[socket] connected:', this.socket?.id);
+            this.setupEventForwarding(this.socket!);
         });
 
         this.socket.on('disconnect', (reason) => {
-            if (import.meta.env.DEV) console.log('Socket disconnected:', reason);
+            if (import.meta.env.DEV) console.log('[socket] disconnected:', reason);
         });
 
         this.socket.on('connect_error', (error) => {
-            if (import.meta.env.DEV) console.warn('Socket connection error:', error.message);
+            if (import.meta.env.DEV) console.warn('[socket] connect_error:', error.message);
         });
 
-        // Re-emit events to listeners
-        const events: (keyof AuctionEventHandler)[] = [
-            'auction:state',
-            'auction:phase',
-            'bid:new',
-            'bid:confirmed',
-            'auction:resolved',
-            'auction:expired',
-            'error',
-            // Global marketplace events
-            'marketplace:lead:new',
-            'marketplace:bid:update',
-            'marketplace:auction:resolved',
-            'marketplace:refreshAll',
-            // Auction end events (no-winner paths)
-            'lead:unsold',
-            'lead:status-changed',
-            'analytics:update',
-            'lead:escrow-confirmed',
-            // Dev log events
-            'ace:dev-log',
-            // Demo E2E events
-            'demo:log',
-            'demo:complete',
-            'demo:results-ready',
-            'demo:recycle-progress',
-            'demo:recycle-complete',
-            'demo:reset-complete',
-            // Global demo state (all viewers, including Guests)
-            'demo:status',
-        ];
-
-        events.forEach((event) => {
-            this.socket?.on(event, (data: any) => {
-                this.emit(event, data);
-            });
-        });
+        // Also attach immediately for the case where the socket is already connected
+        // at creation time (e.g. Vite HMR hot-reload).
+        this.setupEventForwarding(this.socket);
 
         return this.socket;
     }
@@ -153,25 +179,22 @@ class SocketClient {
 
     /**
      * reconnect(token?) — swap auth token and re-handshake WITHOUT destroying
-     * the socket instance. This preserves:
-     *   - All raw `sock` references held by DevLogPanel (status-dot listeners)
+     * the socket instance. Preserves:
+     *   - Raw `sock` references held by DevLogPanel (status-dot listeners)
      *   - All `this.listeners` Map entries (ace:dev-log, demo:log handlers)
      *
-     * Socket.IO's own `socket.disconnect().connect()` API replaces the transport
-     * session while keeping the JS object identity, so no re-registration of
-     * handlers is needed anywhere.
-     *
-     * Use this everywhere DemoPanel previously called disconnect()+connect().
+     * setupEventForwarding() is re-run automatically via the 'connect' event
+     * handler registered in connect(), so forwarding is always restored.
      */
     reconnect(token?: string) {
         if (!this.socket) {
-            // No socket yet — just do a normal connect with the new token
             this.connect();
             return;
         }
-        // Update auth credential in-place so the next handshake sends the new JWT
+        // Update auth credential — next handshake will send the new JWT
         this.socket.auth = { token: token ?? getAuthToken() ?? undefined };
-        // socket.io re-handshake: drops current transport, opens a new one
+        // Drop current transport and open a new one.
+        // The 'connect' event will fire on success and re-attach forwarders.
         this.socket.disconnect().connect();
     }
 
@@ -253,7 +276,7 @@ class SocketClient {
         this.listeners.get(event)?.delete(handler);
     }
 
-    private emit(event: string, data: any) {
+    private _emit(event: string, data: any) {
         this.listeners.get(event)?.forEach((handler) => handler(data));
     }
 
