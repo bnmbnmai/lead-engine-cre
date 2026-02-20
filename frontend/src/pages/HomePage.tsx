@@ -94,10 +94,14 @@ export function HomePage() {
     const [buyNowLeads, setBuyNowLeads] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [buyNowSubTab, setBuyNowSubTab] = useState<'all' | 'recent'>('all');
-    // Track leads that just ended their auction for 10s overlay feedback
+    // Track leads that just ended their auction for 10-12s overlay feedback
     const [recentlyEndedMap, setRecentlyEndedMap] = useState<Record<string, 'UNSOLD' | 'SOLD'>>({});
+    // Track leads prepended via socket — keeps cards alive for 90 s even if backend status hasn't caught up
+    const recentlyActiveMap = useRef<Map<string, number>>(new Map());
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
+    // Global demo running state — used to gate polling and suppress noisy toasts
+    const { isRunning: isGlobalRunning } = useDemoStatus();
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [sellerName, setSellerName] = useState('');
     const [sellerInput, setSellerInput] = useState('');
@@ -357,17 +361,18 @@ export function HomePage() {
     }, [view, vertical, country, region, debouncedSearch, shouldIncludeLead]);
 
     // Aggressive polling when the current view has no leads (catch missed socket events)
+    // Disabled while demo is running — leads arrive continuously via marketplace:lead:new socket.
     useEffect(() => {
         const currentLeads = view === 'buyNow' ? buyNowLeads : view === 'asks' ? asks : leads;
-        if (currentLeads.length > 0 || isLoading) return;
+        if (currentLeads.length > 0 || isLoading || isGlobalRunning) return;
 
-        console.log('[empty-state-poll] No leads in view, polling every 8s');
+        console.log('[empty-state-poll] No leads in view, polling every 20s');
         const interval = setInterval(() => {
             console.log('[empty-state-poll] firing refetchData');
             refetchData();
-        }, 8_000);
+        }, 20_000);
         return () => clearInterval(interval);
-    }, [view, leads.length, buyNowLeads.length, asks.length, isLoading, refetchData]);
+    }, [view, leads.length, buyNowLeads.length, asks.length, isLoading, isGlobalRunning, refetchData]);
 
     // Real-time socket listeners
     const leadsRef = useRef(leads);
@@ -415,13 +420,28 @@ export function HomePage() {
                         bidFloor.current.set(lead.id, lead._count?.bids ?? 0);
                     }
 
+                    // Stamp a recentlyActive timestamp so the card stays lively for 90 s
+                    // even during rapid settlement/status transitions.
+                    recentlyActiveMap.current.set(lead.id, Date.now());
+                    const stamped = { ...data.lead, _recentlyActive: Date.now() };
+
                     console.log('[setLeads:socket:lead:new] PASSED all guards, prepending lead');
-                    setLeads((prev) => [data.lead, ...prev]);
-                    toast({
-                        type: 'info',
-                        title: 'New Lead',
-                        description: `${data.lead.vertical} lead just appeared`,
+                    setLeads((prev) => {
+                        // Avoid duplicates if a refetch already added this lead
+                        if (prev.some((l) => l.id === stamped.id)) {
+                            return prev.map((l) => l.id === stamped.id ? { ...l, _recentlyActive: stamped._recentlyActive } : l);
+                        }
+                        return [stamped, ...prev];
                     });
+
+                    // Suppress noisy per-lead toasts while demo is running — Dev Log covers it
+                    if (!isGlobalRunning) {
+                        toast({
+                            type: 'info',
+                            title: 'New Lead',
+                            description: `${data.lead.vertical} lead just appeared`,
+                        });
+                    }
                 }
             },
             'marketplace:bid:update': (data: any) => {
@@ -488,9 +508,7 @@ export function HomePage() {
                     const endStatus = data.newStatus === 'SOLD' ? 'SOLD' as const : 'UNSOLD' as const;
 
                     // Keep the lead card visible with the end-overlay so the final bid
-                    // count stays on screen for 10s, then remove it from the array.
-                    // (Previously the lead was removed immediately, so the LeadCard
-                    //  overlay never rendered and bids appeared to vanish instantly.)
+                    // count stays on screen for 12s, then remove it from the array.
                     setRecentlyEndedMap((prev) => ({ ...prev, [data.leadId]: endStatus }));
 
                     setTimeout(() => {
@@ -501,12 +519,15 @@ export function HomePage() {
                             delete next[data.leadId];
                             return next;
                         });
-                        // Refresh Buy It Now data only after removing the ended lead
-                        if (data.newStatus === 'UNSOLD') {
+                        recentlyActiveMap.current.delete(data.leadId);
+                        // Only refetch if demo is not running — during demo, new leads
+                        // arrive continuously via marketplace:lead:new and a refetch
+                        // risks overwriting socket-prepended leads with a stale API response.
+                        if (data.newStatus === 'UNSOLD' && !isGlobalRunning) {
                             console.log('[setLeads:status-changed] UNSOLD, calling refetchData after overlay');
                             refetchData();
                         }
-                    }, 10_000);
+                    }, 12_000);
                 }
             },
         },
@@ -1176,16 +1197,25 @@ export function HomePage() {
                             <>
                                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                                     {leads.length === 0 ? (
-                                        <EmptyState
-                                            icon={Search}
-                                            title={hasFilters ? "No leads match your criteria" : "No active leads"}
-                                            description={hasFilters
-                                                ? vertical !== 'all'
-                                                    ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
-                                                    : "Select a vertical to unlock field-level filtering and see available leads."
-                                                : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
-                                            action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
-                                        />
+                                        isGlobalRunning ? (
+                                            // Demo is live — leads are streaming in via socket; show a warm hint
+                                            // instead of the "No active leads" empty state which confuses viewers.
+                                            <div className="col-span-full flex flex-col items-center justify-center py-16 gap-3" id="demo-lead-streaming">
+                                                <span className="inline-block w-3 h-3 rounded-full bg-blue-400 animate-pulse" />
+                                                <p className="text-sm text-muted-foreground">Demo is live — leads are streaming in…</p>
+                                            </div>
+                                        ) : (
+                                            <EmptyState
+                                                icon={Search}
+                                                title={hasFilters ? "No leads match your criteria" : "No active leads"}
+                                                description={hasFilters
+                                                    ? vertical !== 'all'
+                                                        ? `No ${vertical} leads found. Try adjusting quality score (${qualityScore[0]}-${qualityScore[1]}), price range${Object.keys(fieldFilters).length > 0 ? `, or the ${Object.keys(fieldFilters).length} active field filter(s)` : ''}.`
+                                                        : "Select a vertical to unlock field-level filtering and see available leads."
+                                                    : "No leads are currently in auction. Check back soon or create an Ask if you're a seller."}
+                                                action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : vertical === 'all' ? { label: 'Browse Verticals', onClick: () => { } } : undefined}
+                                            />
+                                        )
                                     ) : (
                                         leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} auctionEndFeedback={recentlyEndedMap[lead.id]} />)
                                     )}
