@@ -5,11 +5,11 @@
  * Route: /demo/results (latest) or /demo/results/:runId (specific run)
  *
  * Features:
- * - "Latest Demo Run" header with timestamp
+ * - Instant render from demo:results-ready partialResults (no blocking on recycle)
+ * - Non-blocking recycle progress badge in corner
  * - Summary stats cards (cycles, settled, gas, PoR)
- * - Cycle-by-cycle results table with Basescan links
- * - "Download Raw Log" button
- * - "Run Again" button
+ * - Cycle-by-cycle table with Basescan tx links + LeadNFT column
+ * - "Download Raw Log" + "Run Again" buttons
  * - History tabs for last 5 runs
  */
 
@@ -18,19 +18,22 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     ExternalLink, ArrowLeft, Download, RotateCcw,
     CheckCircle2, XCircle, Loader2, Fuel, DollarSign,
-    Activity, Rocket, Clock, History
+    Activity, Rocket, Clock, History, RefreshCw
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import api from '@/lib/api';
 import { useDemo } from '@/hooks/useDemo';
 
 const BASESCAN_TX = 'https://sepolia.basescan.org/tx/';
+const BASESCAN_NFT = 'https://sepolia.basescan.org/nft/';
+// LeadNFT contract on Base Sepolia
+const LEAD_NFT_ADDR = import.meta.env.VITE_LEAD_NFT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
 interface CycleResult {
     cycle: number;
     vertical: string;
     buyerWallet: string;         // winner's wallet (backward compat)
-    buyerWallets?: string[];     // all 3 distinct bidder wallets (Phase 2 — may be absent in old runs)
+    buyerWallets?: string[];     // all distinct bidder wallets
     bidAmount: number;
     lockIds: number[];
     winnerLockId: number;
@@ -39,6 +42,8 @@ interface CycleResult {
     porSolvent: boolean;
     porTxHash: string;
     gasUsed: string;
+    mintTxHash?: string;         // optional — present if backend captures NFT mint tx
+    nftTokenId?: number;         // optional — present if backend resolves token ID
 }
 
 interface DemoResult {
@@ -62,62 +67,56 @@ interface RunSummary {
 }
 
 // ── Retry config ──────────────────────────────
-// 5 attempts: handles Render free-tier cold boots (can take 30+ s to wake)
-// Total wait budget: 800ms + 2s + 4s + 8s + 15s ≈ 30s before showing error
+// Used only for fallback API fetch (not for socket-driven display).
 const RETRY_DELAYS = [800, 2000, 4000, 8000, 15000]; // ms
 
 export default function DemoResults() {
     const { runId: paramRunId } = useParams<{ runId: string }>();
     const navigate = useNavigate();
-    const { startDemo } = useDemo();
+    const { startDemo, partialResults, isRecycling, recyclePercent } = useDemo();
     const [result, setResult] = useState<DemoResult | null>(null);
     const [loading, setLoading] = useState(true);
-    const [finalizing, setFinalizing] = useState(false); // 202 recycle-in-flight state
     const [error, setError] = useState<string | null>(null);
     const [history, setHistory] = useState<RunSummary[]>([]);
     const [showConfetti, setShowConfetti] = useState(false);
 
+    // ── Determine what to display ──────────────────────────────────────────────
+    // partialResults (from socket) takes priority — instant, no API needed.
+    // Falls back to API-fetched result for direct page loads / history browsing.
+    const display: DemoResult | null = result ?? (partialResults ? {
+        runId: partialResults.runId,
+        startedAt: new Date(Date.now() - (partialResults.elapsedSec ?? 0) * 1000).toISOString(),
+        completedAt: new Date().toISOString(),
+        cycles: partialResults.cycles as CycleResult[],
+        totalGas: partialResults.cycles.reduce((sum: bigint, c: any) => sum + BigInt(c.gasUsed ?? '0'), 0n).toString(),
+        totalSettled: partialResults.totalSettled,
+        status: 'completed',
+    } : null);
+
     const fetchResults = useCallback(async (specificRunId?: string) => {
         setLoading(true);
-        setFinalizing(false);
         setError(null);
 
         let lastErr: string | null = null;
 
         for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
             try {
-                let res;
-                if (specificRunId) {
-                    res = await api.demoFullE2EResults(specificRunId);
-                } else {
-                    res = await api.demoFullE2ELatestResults();
-                }
+                const res = specificRunId
+                    ? await api.demoFullE2EResults(specificRunId)
+                    : await api.demoFullE2ELatestResults();
 
                 const { data, error: apiError } = res;
-                const httpStatus = (res as any)._status as number | undefined;
-
-                // 202 — backend says recycle still in flight, results coming ≤5s
-                if (httpStatus === 202 || data?.status === 'finalizing' || data?.recycling === true) {
-                    setFinalizing(true);
-                    setLoading(false);
-                    // Auto-retry after 3 s (one more attempt regardless of retry budget)
-                    setTimeout(() => fetchResults(specificRunId), 3000);
-                    return;
-                }
 
                 if (apiError) {
                     lastErr = typeof apiError === 'string'
                         ? apiError
                         : (apiError as any).message || (apiError as any).error || JSON.stringify(apiError);
-                    // Retry on API errors until budget exhausted
                 } else if (data?.status === 'running') {
-                    setError('Demo is still running. Results will appear when complete.');
+                    // Still running — if we have partialResults just stop loading
                     setLoading(false);
                     return;
                 } else if (data?.runId) {
-                    // Success
                     setResult(data as DemoResult);
-                    setFinalizing(false);
                     if (data.status === 'completed') {
                         setShowConfetti(true);
                         setTimeout(() => setShowConfetti(false), 4000);
@@ -125,45 +124,44 @@ export default function DemoResults() {
                     setLoading(false);
                     return;
                 } else {
-                    // No result yet — treat as retriable
                     lastErr = 'No demo results available yet. Run a demo first!';
                 }
             } catch (err: any) {
                 lastErr = err.message || 'Failed to load results';
             }
 
-            // Wait before retrying (skip wait on last attempt)
             if (attempt < RETRY_DELAYS.length) {
                 await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
             }
         }
 
-        // All retries exhausted
         setError(lastErr);
         setLoading(false);
     }, []);
 
-    // Fetch run history (re-runs when result changes)
+    // Fetch run history
     useEffect(() => {
         api.demoFullE2EStatus().then(({ data }) => {
             if (data?.results) setHistory(data.results.slice(0, 5));
         }).catch(() => { });
     }, [result]);
 
-    // Initial fetch
+    // Initial fetch — skip if we already have partialResults from socket
     useEffect(() => {
+        if (partialResults && !paramRunId) {
+            setLoading(false);
+            return;
+        }
         fetchResults(paramRunId);
-    }, [paramRunId, fetchResults]);
-
-
+    }, [paramRunId, fetchResults, partialResults]);
 
     const downloadLogs = () => {
-        if (!result) return;
-        const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+        if (!display) return;
+        const blob = new Blob([JSON.stringify(display, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `demo-results-${result.runId?.slice(0, 8)}.json`;
+        a.download = `demo-results-${display.runId?.slice(0, 8)}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -173,35 +171,21 @@ export default function DemoResults() {
         await startDemo(5);
     };
 
-    if (loading || finalizing) {
+    // ── Loading state: only if we have NO data at all ─────────────────────────
+    if (loading && !display) {
         return (
             <DashboardLayout>
                 <div className="flex items-center justify-center min-h-[60vh]">
                     <div className="flex flex-col items-center gap-4 text-center">
-                        <Loader2 className={`h-8 w-8 animate-spin ${finalizing ? 'text-amber-400' : 'text-blue-400'}`} />
-                        {finalizing ? (
-                            <>
-                                <p className="text-base font-medium text-amber-300">Demo complete — finalizing background tasks…</p>
-                                <p className="text-sm text-muted-foreground">Results loading in &lt;5 s</p>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
-                                    </span>
-                                    Token redistribution running in background
-                                </span>
-                            </>
-                        ) : (
-                            <p className="text-muted-foreground">Loading demo results…</p>
-                        )}
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                        <p className="text-muted-foreground">Loading demo results…</p>
                     </div>
                 </div>
             </DashboardLayout>
         );
     }
 
-
-    if (error || !result) {
+    if (error || !display) {
         return (
             <DashboardLayout>
                 <div className="flex items-center justify-center min-h-[60vh]">
@@ -228,10 +212,10 @@ export default function DemoResults() {
         );
     }
 
-    const statusColor = result.status === 'completed' ? 'text-emerald-400' : result.status === 'aborted' ? 'text-amber-400' : 'text-red-400';
-    const StatusIcon = result.status === 'completed' ? CheckCircle2 : XCircle;
-    const duration = result.completedAt && result.startedAt
-        ? Math.round((new Date(result.completedAt).getTime() - new Date(result.startedAt).getTime()) / 1000)
+    const statusColor = display.status === 'completed' ? 'text-emerald-400' : display.status === 'aborted' ? 'text-amber-400' : 'text-red-400';
+    const StatusIcon = display.status === 'completed' ? CheckCircle2 : XCircle;
+    const duration = display.completedAt && display.startedAt
+        ? Math.round((new Date(display.completedAt).getTime() - new Date(display.startedAt).getTime()) / 1000)
         : null;
 
     return (
@@ -241,6 +225,18 @@ export default function DemoResults() {
                 {showConfetti && (
                     <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
                         <div className="text-6xl animate-bounce">🎉</div>
+                    </div>
+                )}
+
+                {/* Non-blocking recycle progress badge — floats bottom-right */}
+                {isRecycling && (
+                    <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full
+                                    bg-amber-500/10 border border-amber-500/25 backdrop-blur-sm shadow-lg text-sm text-amber-300">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Recycling wallets…</span>
+                        {recyclePercent > 0 && (
+                            <span className="ml-1 font-mono text-xs opacity-70">{recyclePercent}%</span>
+                        )}
                     </div>
                 )}
 
@@ -257,10 +253,15 @@ export default function DemoResults() {
                             <h1 className="text-xl font-bold flex items-center gap-2">
                                 <StatusIcon className={`h-5 w-5 ${statusColor}`} />
                                 Latest Demo Run
+                                {isRecycling && (
+                                    <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                        recycling…
+                                    </span>
+                                )}
                             </h1>
                             <p className="text-sm text-muted-foreground flex items-center gap-2">
                                 <Clock className="h-3.5 w-3.5" />
-                                {new Date(result.startedAt).toLocaleString()}
+                                {new Date(display.startedAt).toLocaleString()}
                                 {duration != null && (
                                     <span className="text-xs bg-muted px-2 py-0.5 rounded">
                                         {Math.floor(duration / 60)}m {duration % 60}s
@@ -292,29 +293,29 @@ export default function DemoResults() {
                             <Activity className="h-4 w-4 text-blue-400" />
                             Cycles
                         </div>
-                        <p className="text-2xl font-bold">{result.cycles.length}</p>
+                        <p className="text-2xl font-bold">{display.cycles.length}</p>
                     </div>
                     <div className="glass rounded-xl p-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                             <DollarSign className="h-4 w-4 text-emerald-400" />
                             Total Settled
                         </div>
-                        <p className="text-2xl font-bold">${result.totalSettled}</p>
+                        <p className="text-2xl font-bold">${display.totalSettled}</p>
                     </div>
                     <div className="glass rounded-xl p-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                             <Fuel className="h-4 w-4 text-amber-400" />
                             Total Gas
                         </div>
-                        <p className="text-2xl font-bold text-amber-400">{BigInt(result.totalGas).toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-amber-400">{BigInt(display.totalGas || '0').toLocaleString()}</p>
                     </div>
                     <div className="glass rounded-xl p-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                             PoR Status
                         </div>
-                        <p className={`text-2xl font-bold ${result.cycles.every(c => c.porSolvent) ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {result.cycles.every(c => c.porSolvent) ? 'SOLVENT' : 'ISSUE'}
+                        <p className={`text-2xl font-bold ${display.cycles.every(c => c.porSolvent) ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {display.cycles.every(c => c.porSolvent) ? 'SOLVENT' : 'ISSUE'}
                         </p>
                     </div>
                     <div className="glass rounded-xl p-4">
@@ -337,7 +338,7 @@ export default function DemoResults() {
                             <button
                                 key={run.runId}
                                 onClick={() => fetchResults(run.runId)}
-                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${result.runId === run.runId
+                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${display.runId === run.runId
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                                     }`}
@@ -359,84 +360,108 @@ export default function DemoResults() {
                                 <tr className="border-b border-border/50 text-left">
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Cycle</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Vertical</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Bid Amount</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">Bid</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Lock IDs</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Settle Tx</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">LeadNFT</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Refunds</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">PoR</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Gas</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {result.cycles.map((cycle) => (
-                                    <tr key={cycle.cycle} className="border-b border-border/30 hover:bg-white/[0.02] transition">
-                                        <td className="px-4 py-3 font-mono font-bold text-blue-400">#{cycle.cycle}</td>
-                                        <td className="px-4 py-3">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 text-xs font-medium capitalize">
-                                                {cycle.vertical.replace(/_/g, ' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-emerald-400">${cycle.bidAmount}</td>
-                                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">[{cycle.lockIds.join(', ')}]</td>
-                                        <td className="px-4 py-3">
-                                            <a
-                                                href={`${BASESCAN_TX}${cycle.settleTxHash}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 transition font-mono text-xs"
-                                            >
-                                                {cycle.settleTxHash.slice(0, 10)}…
-                                                <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex flex-col gap-0.5">
-                                                {cycle.refundTxHashes.map((hash, i) => (
-                                                    <a
-                                                        key={i}
-                                                        href={`${BASESCAN_TX}${hash}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-blue-400 transition font-mono text-xs"
-                                                    >
-                                                        {hash.slice(0, 10)}…
-                                                        <ExternalLink className="h-3 w-3" />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-1.5">
-                                                {cycle.porSolvent ? (
-                                                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                                ) : (
-                                                    <XCircle className="h-4 w-4 text-red-400" />
-                                                )}
+                                {display.cycles.map((cycle) => {
+                                    // Build NFT link: prefer explicit tokenId/mintTxHash, fall back to settle tx
+                                    const nftHref = cycle.nftTokenId != null
+                                        ? `${BASESCAN_NFT}${LEAD_NFT_ADDR}/${cycle.nftTokenId}`
+                                        : cycle.mintTxHash
+                                            ? `${BASESCAN_TX}${cycle.mintTxHash}`
+                                            : `${BASESCAN_TX}${cycle.settleTxHash}`;
+
+                                    return (
+                                        <tr key={cycle.cycle} className="border-b border-border/30 hover:bg-white/[0.02] transition">
+                                            <td className="px-4 py-3 font-mono font-bold text-blue-400">#{cycle.cycle}</td>
+                                            <td className="px-4 py-3">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 text-xs font-medium capitalize">
+                                                    {cycle.vertical.replace(/_/g, ' ')}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-emerald-400">${cycle.bidAmount}</td>
+                                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">[{cycle.lockIds.join(', ')}]</td>
+                                            <td className="px-4 py-3">
                                                 <a
-                                                    href={`${BASESCAN_TX}${cycle.porTxHash}`}
+                                                    href={`${BASESCAN_TX}${cycle.settleTxHash}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="text-muted-foreground hover:text-blue-400 transition"
+                                                    className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 transition font-mono text-xs"
                                                 >
+                                                    {cycle.settleTxHash.slice(0, 10)}…
                                                     <ExternalLink className="h-3 w-3" />
                                                 </a>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                                            {BigInt(cycle.gasUsed).toLocaleString()}
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <a
+                                                    href={nftHref}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    title={cycle.nftTokenId != null ? `Token #${cycle.nftTokenId}` : 'View mint tx on Basescan'}
+                                                    className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 transition font-mono text-xs"
+                                                >
+                                                    {cycle.nftTokenId != null ? `#${cycle.nftTokenId}` : 'NFT ↗'}
+                                                    <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col gap-0.5">
+                                                    {cycle.refundTxHashes.map((hash, i) => (
+                                                        <a
+                                                            key={i}
+                                                            href={`${BASESCAN_TX}${hash}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-blue-400 transition font-mono text-xs"
+                                                        >
+                                                            {hash.slice(0, 10)}…
+                                                            <ExternalLink className="h-3 w-3" />
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-1.5">
+                                                    {cycle.porSolvent ? (
+                                                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                                    ) : (
+                                                        <XCircle className="h-4 w-4 text-red-400" />
+                                                    )}
+                                                    {cycle.porTxHash && (
+                                                        <a
+                                                            href={`${BASESCAN_TX}${cycle.porTxHash}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-muted-foreground hover:text-blue-400 transition"
+                                                        >
+                                                            <ExternalLink className="h-3 w-3" />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                                                {BigInt(cycle.gasUsed || '0').toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
                 {/* Error message if demo failed */}
-                {result.error && (
+                {display.error && (
                     <div className="glass rounded-xl p-4 border border-red-500/20 bg-red-500/5">
                         <p className="text-sm text-red-400">
-                            <strong>Error:</strong> {result.error}
+                            <strong>Error:</strong> {display.error}
                         </p>
                     </div>
                 )}

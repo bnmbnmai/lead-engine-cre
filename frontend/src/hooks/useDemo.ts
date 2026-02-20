@@ -6,9 +6,11 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
 import socketClient from '@/lib/socket';
 import { toast } from '@/hooks/useToast';
+
 
 export interface DemoLogEntry {
     ts: string;
@@ -39,6 +41,7 @@ export interface PartialResults {
 export interface UseDemoReturn {
     isRunning: boolean;
     isComplete: boolean;
+    isRecycling: boolean;       // true while background recycle is in-flight
     logs: DemoLogEntry[];
     runId: string | null;
     completedRunId: string | null;
@@ -51,8 +54,10 @@ export interface UseDemoReturn {
 }
 
 export function useDemo(): UseDemoReturn {
+    const navigate = useNavigate();
     const [isRunning, setIsRunning] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
+    const [isRecycling, setIsRecycling] = useState(false);
     const [logs, setLogs] = useState<DemoLogEntry[]>([]);
     const [runId, setRunId] = useState<string | null>(null);
     const [completedRunId, setCompletedRunId] = useState<string | null>(null);
@@ -144,12 +149,13 @@ export function useDemo(): UseDemoReturn {
         return unsub;
     }, []);
 
-    // Subscribe to demo:results-ready — fires BEFORE recycle starts, carries partial cycle data.
-    // Allows the frontend to show results immediately without waiting for wallet recycling.
+    // Subscribe to demo:results-ready — fires BEFORE recycle starts, carries full cycle data.
+    // Immediately navigates to the results page and marks recycling as in-progress.
     useEffect(() => {
         const unsub = socketClient.on('demo:results-ready', (data: any) => {
             setIsComplete(true);
             setIsRunning(false);
+            setIsRecycling(true);           // recycle is about to start in background
             setCompletedRunId(data.runId);
             setRunId(data.runId);
             setPartialResults({
@@ -165,10 +171,23 @@ export function useDemo(): UseDemoReturn {
                 title: '⚡ Results Ready!',
                 description: `${data.totalCycles} cycles · $${data.totalSettled} settled · Wallets recycling in background`,
             });
+            // Navigate immediately — results page renders from partialResults, no wait
+            navigate('/demo/results');
         });
 
         return unsub;
+    }, [navigate]);
+
+    // Subscribe to demo:recycle-complete — clears the recycling indicator
+    useEffect(() => {
+        const unsub = socketClient.on('demo:recycle-complete', () => {
+            setIsRecycling(false);
+            setRecyclePercent(100);
+            setProgress(prev => ({ ...prev, phase: 'done' }));
+        });
+        return unsub;
     }, []);
+
 
     // Subscribe to demo:recycle-progress — shows live recycle completion %
     useEffect(() => {
@@ -176,7 +195,6 @@ export function useDemo(): UseDemoReturn {
             setRecyclePercent(data.percent ?? 0);
             setProgress(prev => ({ ...prev, phase: 'recycling' }));
         });
-
         return unsub;
     }, []);
 
@@ -196,6 +214,7 @@ export function useDemo(): UseDemoReturn {
         setCompletedRunId(null);
         setPartialResults(null);
         setRecyclePercent(0);
+        setIsRecycling(false);
         setIsRunning(true);
         setIsComplete(false);
         setProgress({ currentCycle: 0, totalCycles: cycles || 5, percent: 0, phase: 'starting' });
@@ -233,6 +252,7 @@ export function useDemo(): UseDemoReturn {
         setLogs([]);
         setCompletedRunId(null);
         setIsComplete(false);
+        setIsRecycling(false);
         setPartialResults(null);
         setRecyclePercent(0);
         setProgress({ currentCycle: 0, totalCycles: 0, percent: 0, phase: 'idle' });
@@ -241,6 +261,7 @@ export function useDemo(): UseDemoReturn {
     return {
         isRunning,
         isComplete,
+        isRecycling,
         logs,
         runId,
         completedRunId,
