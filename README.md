@@ -215,7 +215,7 @@ graph TD
 
 Institutional-grade foundation:
 
-- **PersonalEscrowVault** (`0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13` on Base Sepolia): Per-user USDC pre-funding with atomic settlement.
+- **PersonalEscrowVault v2** (`0x11bb8AFe2143bc93E0F0b5a488C1aE6BEB3b26B4` on Base Sepolia): Per-user USDC pre-funding with atomic settlement. (v1 retired; includes PoR accounting fix.)
 - **Chainlink Automation PoR**: 24-hour `verifyReserves()` + automatic 7-day refunds for expired locks.
 - **2-Pass Security Review** (Feb 2026): 11 findings identified, 10 fixed, 1 low-risk acknowledged. Full details in [`current-stubs-audit.md`](./current-stubs-audit.md).
 - **Test Coverage**: 42 dedicated vault tests + 1,288 total passing Hardhat tests with full CI.
@@ -262,7 +262,7 @@ Institutional-grade foundation:
 
 | Contract                  | Address / Status                  | Description                          |
 |---------------------------|-----------------------------------|--------------------------------------|
-| PersonalEscrowVault.sol   | `0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13` | Per-user USDC vault + PoR           |
+| PersonalEscrowVault.sol v2| `0x11bb8AFe2143bc93E0F0b5a488C1aE6BEB3b26B4` | Per-user USDC vault + PoR (v1 retired; includes PoR accounting fix) |
 | CREVerifier.sol           | Deployed & verified               | Quality scoring + ZK proofs         |
 | ACECompliance.sol         | Deployed & verified               | KYC, jurisdiction, reputation       |
 | LeadNFTv2.sol             | Deployed & verified               | ERC-721 tokenized leads + royalties |

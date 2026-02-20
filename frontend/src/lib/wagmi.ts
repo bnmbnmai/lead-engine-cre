@@ -22,7 +22,7 @@ export const CONTRACT_ADDRESSES = {
         escrow: import.meta.env.VITE_ESCROW_ADDRESS_BASE || '',
         ace: import.meta.env.VITE_ACE_ADDRESS_BASE || '',
         verticalNFT: import.meta.env.VITE_VERTICAL_NFT_ADDRESS_BASE || '',
-        vault: import.meta.env.VITE_VAULT_ADDRESS_BASE || '0xcB949C0867B39C5adDDe45031E6C760A0Aa0CE13',
+        vault: import.meta.env.VITE_VAULT_ADDRESS_BASE || '0x11bb8AFe2143bc93E0F0b5a488C1aE6BEB3b26B4', // v2 (v1 0xcB949C…CE13 retired)
         usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     },
 } as const;

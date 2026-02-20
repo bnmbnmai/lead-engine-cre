@@ -25,29 +25,32 @@ import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/
 
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
-const VAULT_ADDRESS = process.env.VAULT_ADDRESS_BASE_SEPOLIA || '';
+const _VAULT_ADDRESS_RAW = process.env.VAULT_ADDRESS_BASE_SEPOLIA || '';
+const VAULT_ADDRESS = _VAULT_ADDRESS_RAW;
 const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const MAX_CYCLES = 12;
 const BASESCAN_BASE = 'https://sepolia.basescan.org/tx/';
 
-// Demo buyer wallets (10 faucet wallets for busier auctions)
+// Demo buyer wallets — 10 distinct faucet wallets (Wallets 1–10).
+// None of these overlap with the seller wallet (Wallet 11).
 const DEMO_BUYER_WALLETS = [
-    '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9',
-    '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC',
-    '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
-    '0x424CaC929939377f221348af52d4cb1247fE4379',
-    '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d',
-    '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE',
-    '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C',
-    '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf',
-    '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad',
-    '0x089B6Bdb4824628c5535acF60aBF80683452e862',
+    '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9', // Wallet 1
+    '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC', // Wallet 2
+    '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58', // Wallet 3
+    '0x424CaC929939377f221348af52d4cb1247fE4379', // Wallet 4
+    '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d', // Wallet 5
+    '0x089B6Bdb4824628c5535acF60aBF80683452e862', // Wallet 6
+    '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE', // Wallet 7
+    '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C', // Wallet 8
+    '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf', // Wallet 9
+    '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad', // Wallet 10
 ];
 
-// Demo seller wallet (faucet wallet 6) — PK needed to recycle USDC back after settlement
-const DEMO_SELLER_WALLET = '0x089B6Bdb4824628c5535acF60aBF80683452e862';
-const DEMO_SELLER_KEY = '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75';
+// Demo seller wallet (Wallet 11 — dedicated, never overlaps with any buyer)
+// Address generated: 2026-02-19. Testnet only.
+const DEMO_SELLER_WALLET = '0x9Bb15F98982715E33a2113a35662036528eE0A36';
+const DEMO_SELLER_KEY = '0x618bee99ca60f5511dad533a998344f3a0a7b2339db5726ae33d56fd543294ce';
 
 const DEMO_VERTICALS = [
     'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
@@ -361,6 +364,9 @@ async function sendWithGasEscalation(
 
 
 function getVault(signer: ethers.Wallet) {
+    if (!_VAULT_ADDRESS_RAW) {
+        throw new Error('VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo.');
+    }
     return new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, signer);
 }
 
@@ -1195,17 +1201,18 @@ export async function runFullDemo(
     let totalSettled = 0;
 
     // BUYER_KEYS hoisted to function scope so catch/finally can pass to recycleTokens()
+    // Keys match DEMO_BUYER_WALLETS exactly — Wallets 1–10, no seller overlap.
     const BUYER_KEYS: Record<string, string> = {
-        '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439',
-        '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618',
-        '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e',
-        '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7',
-        '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7',
-        '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510',
-        '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd',
-        '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c',
-        '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382',
-        '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75',
+        '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439', // Wallet 1
+        '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618', // Wallet 2
+        '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e', // Wallet 3
+        '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7', // Wallet 4
+        '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7', // Wallet 5
+        '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75', // Wallet 6
+        '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510', // Wallet 7
+        '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd', // Wallet 8
+        '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c', // Wallet 9
+        '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382', // Wallet 10
     };
 
     isRunning = true;
