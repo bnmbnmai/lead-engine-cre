@@ -831,6 +831,47 @@ async function recycleTransfer(
 }
 
 /**
+ * recycleVaultWithdraw — withdraws a buyer/seller's free vault balance back to their wallet.
+ *
+ * 3-attempt retry with 20% gas price escalation per retry.
+ * Returns the amount withdrawn (0n if nothing to withdraw or all attempts failed).
+ */
+async function recycleVaultWithdraw(
+    io: SocketServer,
+    label: string,
+    walletSigner: ethers.Wallet,
+    vaultContract: ethers.Contract,
+    walletAddr: string,
+): Promise<bigint> {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const free = await vaultContract.balanceOf(walletAddr);
+            if (free === 0n) return 0n;
+
+            const provider = walletSigner.provider!;
+            const feeData = await provider.getFeeData();
+            const gasPrice = feeData.gasPrice
+                ? (feeData.gasPrice * BigInt(100 + (attempt - 1) * 20)) / 100n
+                : undefined;
+
+            const tx = await vaultContract.withdraw(free, gasPrice ? { gasPrice } : {});
+            await tx.wait();
+            emit(io, { ts: new Date().toISOString(), level: 'info', message: `📤 Vault withdraw OK for ${label}: $${ethers.formatUnits(free, 6)} (attempt ${attempt})` });
+            return free;
+        } catch (err: any) {
+            const msg = err.shortMessage ?? err.message?.slice(0, 80) ?? 'unknown';
+            if (attempt < 3) {
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Vault withdraw attempt ${attempt}/3 failed for ${label}: ${msg} — retrying…` });
+                await new Promise(r => setTimeout(r, 1500 * attempt));
+            } else {
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ All 3 vault withdraw attempts failed for ${label}: ${msg}` });
+            }
+        }
+    }
+    return 0n;
+}
+
+/**
  * recycleTokens — runs AFTER demo:complete fires, non-blocking.
  *
  * Full recovery path:
@@ -875,6 +916,7 @@ async function recycleTokens(
         });
 
         let totalRecovered = 0n;
+        const skippedWallets: string[] = [];
 
         // ── Step R1: Check seller ETH (fund-once model — no auto top-up) ──
         {
@@ -980,16 +1022,13 @@ async function recycleTokens(
                     });
                 }
 
-                // Withdraw free vault balance
-                const bVaultFree = await bVault.balanceOf(buyerAddr);
-                if (bVaultFree > 0n) {
-                    const wTx = await bVault.withdraw(bVaultFree);
-                    await wTx.wait();
-                }
+                // Withdraw free vault balance — with retry
+                await recycleVaultWithdraw(io, `buyer ${buyerAddr.slice(0, 10)}…`, bSigner, bVault, buyerAddr);
 
                 // Transfer ALL wallet USDC → deployer (re-reads live balance after vault.withdraw)
                 const recovered = await recycleTransfer(io, `buyer ${buyerAddr.slice(0, 10)}…`, buyerAddr, bSigner, signer.address, signer);
                 totalRecovered += recovered;
+                if (recovered === 0n) skippedWallets.push(buyerAddr);
 
             } catch (err: any) {
                 emit(io, {
@@ -997,6 +1036,7 @@ async function recycleTokens(
                     level: 'warn',
                     message: `⚠️ Buyer ${buyerAddr.slice(0, 10)}… recycle failed: ${err.message?.slice(0, 80)}`,
                 });
+                skippedWallets.push(buyerAddr);
             }
         }
 
@@ -1104,14 +1144,55 @@ async function recycleTokens(
                 );
                 await tTx.wait();
 
-                // Buyer approves vault and deposits
+                // Buyer approves vault (MAX_UINT) and deposits — with retry on each step
                 const bSigner = new ethers.Wallet(bKey, provider);
                 const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
                 const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-                const aTx = await bUsdc.approve(VAULT_ADDRESS, topUp);
-                await aTx.wait();
-                const dTx = await bVault.deposit(topUp);
-                await dTx.wait();
+
+                // Approve MAX_UINT so future deposits never fail with allowance error
+                const MAX_UINT = ethers.MaxUint256;
+                let approved = false;
+                for (let att = 1; att <= 3 && !approved; att++) {
+                    try {
+                        const curAllowance = await bUsdc.allowance(buyerAddr, VAULT_ADDRESS);
+                        if (curAllowance >= topUp) {
+                            approved = true; // already sufficient
+                        } else {
+                            const feeA = await provider.getFeeData();
+                            const gpA = feeA.gasPrice ? (feeA.gasPrice * BigInt(100 + (att - 1) * 20)) / 100n : undefined;
+                            const aTx = await bUsdc.approve(VAULT_ADDRESS, MAX_UINT, gpA ? { gasPrice: gpA } : {});
+                            await aTx.wait();
+                            approved = true;
+                        }
+                    } catch (aErr: any) {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Approve attempt ${att}/3 failed for ${buyerAddr.slice(0, 10)}…: ${aErr.shortMessage ?? aErr.message?.slice(0, 60)}` });
+                        await new Promise(r => setTimeout(r, 1500 * att));
+                    }
+                }
+                if (!approved) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Could not approve USDC for ${buyerAddr.slice(0, 10)}… — skipping deposit` });
+                    skippedWallets.push(buyerAddr);
+                    continue;
+                }
+
+                let deposited = false;
+                for (let att = 1; att <= 3 && !deposited; att++) {
+                    try {
+                        const feeD = await provider.getFeeData();
+                        const gpD = feeD.gasPrice ? (feeD.gasPrice * BigInt(100 + (att - 1) * 20)) / 100n : undefined;
+                        const dTx = await bVault.deposit(topUp, gpD ? { gasPrice: gpD } : {});
+                        await dTx.wait();
+                        deposited = true;
+                    } catch (dErr: any) {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Deposit attempt ${att}/3 failed for ${buyerAddr.slice(0, 10)}…: ${dErr.shortMessage ?? dErr.message?.slice(0, 60)}` });
+                        await new Promise(r => setTimeout(r, 1500 * att));
+                    }
+                }
+                if (!deposited) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Could not deposit for ${buyerAddr.slice(0, 10)}… after 3 attempts` });
+                    skippedWallets.push(buyerAddr);
+                    continue;
+                }
 
                 emit(io, {
                     ts: new Date().toISOString(),
@@ -1124,7 +1205,13 @@ async function recycleTokens(
         }
 
         emit(io, { ts: new Date().toISOString(), level: 'success', message: `🟢 Vault reset complete — next Run Demo starts immediately!` });
-        safeEmit(io, 'demo:recycle-complete', { ts: new Date().toISOString(), success: true, deployerBalAfter: ethers.formatUnits(deployerBalAfter, 6) });
+        safeEmit(io, 'demo:recycle-complete', {
+            ts: new Date().toISOString(),
+            success: true,
+            totalRecovered: ethers.formatUnits(totalRecovered, 6),
+            deployerBalAfter: ethers.formatUnits(deployerBalAfter, 6),
+            skippedWallets,
+        });
 
     } catch (err: any) {
         emit(io, {
