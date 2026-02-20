@@ -202,7 +202,7 @@ export function HomePage() {
                         const { data } = view === 'buyNow' ? await api.listBuyNowLeads(params) : await api.listLeads(params);
                         const resultLeads = (data?.leads || []).filter(shouldIncludeLead);
                         console.log('[setLeads:useEffect:basic] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
-                        view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
+                        view === 'buyNow' ? setBuyNowLeads(mergeBidCounts(resultLeads)) : setLeads(mergeBidCounts(resultLeads));
                         setMatchCount(data?.pagination?.total || resultLeads.length);
                         // Track pagination
                         if (view === 'buyNow') {
@@ -240,7 +240,7 @@ export function HomePage() {
 
                         const resultLeads = (data?.leads || []).filter(shouldIncludeLead);
                         console.log('[setLeads:useEffect:advanced] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
-                        view === 'buyNow' ? setBuyNowLeads(resultLeads) : setLeads(resultLeads);
+                        view === 'buyNow' ? setBuyNowLeads(mergeBidCounts(resultLeads)) : setLeads(mergeBidCounts(resultLeads));
                         setMatchCount(data?.total ?? resultLeads.length);
                         // Advanced search returns all matches; no cursor-based pagination
                         if (view === 'buyNow') setBuyNowHasMore(false);
@@ -346,7 +346,7 @@ export function HomePage() {
                     const allLeads = data?.leads || [];
                     const filteredLeads = allLeads.filter(shouldIncludeLead);
                     console.log('[setLeads:refetchData] setting', filteredLeads.length, 'leads (filtered from', allLeads.length, ')');
-                    setLeads(filteredLeads);
+                    setLeads(mergeBidCounts(filteredLeads));
                     setLeadsHasMore(data?.pagination?.hasMore ?? false);
                 }
             } catch (error) {
@@ -373,6 +373,28 @@ export function HomePage() {
     const leadsRef = useRef(leads);
     leadsRef.current = leads;
 
+    // ── Bid-count high-watermark ───────────────────────────────────────────────
+    // Tracks the highest bid count ever seen per lead so that API refetches
+    // (which return 0 for demo bids stored on-chain) can never reset the card.
+    const bidFloor = useRef<Map<string, number>>(new Map());
+
+    /** Merge incoming leads with the bid-count floor so counts never regress. */
+    const mergeBidCounts = useCallback((incoming: any[]): any[] => {
+        return incoming.map((lead) => {
+            const floor = bidFloor.current.get(lead.id) ?? 0;
+            const apiCount = lead._count?.bids ?? lead.auctionRoom?.bidCount ?? 0;
+            const effective = Math.max(floor, apiCount);
+            if (effective <= 0) return lead;
+            return {
+                ...lead,
+                _count: { ...lead._count, bids: effective },
+                auctionRoom: lead.auctionRoom
+                    ? { ...lead.auctionRoom, bidCount: effective }
+                    : lead.auctionRoom,
+            };
+        });
+    }, []);
+
     useSocketEvents(
         {
             'marketplace:lead:new': (data: any) => {
@@ -388,6 +410,11 @@ export function HomePage() {
                         return;
                     }
 
+                    // Ensure new lead is initialised in the bid floor (starts at 0)
+                    if (!bidFloor.current.has(lead.id)) {
+                        bidFloor.current.set(lead.id, lead._count?.bids ?? 0);
+                    }
+
                     console.log('[setLeads:socket:lead:new] PASSED all guards, prepending lead');
                     setLeads((prev) => [data.lead, ...prev]);
                     toast({
@@ -398,15 +425,21 @@ export function HomePage() {
                 }
             },
             'marketplace:bid:update': (data: any) => {
-                if (data?.leadId) {
-                    setLeads((prev) =>
-                        prev.map((lead) =>
+                if (data?.leadId && data.bidCount != null) {
+                    // Update the floor so future refetches can't regress this count
+                    const prev = bidFloor.current.get(data.leadId) ?? 0;
+                    if (data.bidCount > prev) {
+                        bidFloor.current.set(data.leadId, data.bidCount);
+                    }
+                    const newCount = Math.max(prev, data.bidCount);
+                    setLeads((leads) =>
+                        leads.map((lead) =>
                             lead.id === data.leadId
                                 ? {
                                     ...lead,
-                                    _count: { ...lead._count, bids: data.bidCount },
+                                    _count: { ...lead._count, bids: newCount },
                                     auctionRoom: lead.auctionRoom
-                                        ? { ...lead.auctionRoom, highestBid: data.highestBid, bidCount: data.bidCount }
+                                        ? { ...lead.auctionRoom, highestBid: data.highestBid ?? lead.auctionRoom.highestBid, bidCount: newCount }
                                         : undefined,
                                 }
                                 : lead,
