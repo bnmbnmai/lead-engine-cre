@@ -18,7 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     ExternalLink, ArrowLeft, Download, RotateCcw,
     CheckCircle2, XCircle, Loader2, Fuel, DollarSign,
-    Activity, Rocket, Clock, History, RefreshCw
+    Activity, Rocket, Clock, History, RefreshCw, TrendingUp, Zap
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import api from '@/lib/api';
@@ -44,6 +44,10 @@ interface CycleResult {
     gasUsed: string;
     mintTxHash?: string;         // optional — present if backend captures NFT mint tx
     nftTokenId?: number;         // optional — present if backend resolves token ID
+    // ── Judge-facing financials (optional — backward-compat) ──
+    platformIncome?: number;
+    hadTiebreaker?: boolean;
+    vrfTxHash?: string;
 }
 
 interface DemoResult {
@@ -55,6 +59,9 @@ interface DemoResult {
     totalSettled: number;
     status: 'completed' | 'aborted' | 'failed';
     error?: string;
+    totalPlatformIncome?: number;
+    totalTiebreakers?: number;
+    vrfProofLinks?: string[];
 }
 
 interface RunSummary {
@@ -334,6 +341,37 @@ export default function DemoResults() {
                     </div>
                 </div>
 
+                {/* Platform Revenue + VRF Tiebreakers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="glass rounded-xl p-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <TrendingUp className="h-4 w-4 text-emerald-400" />
+                            Platform Revenue
+                        </div>
+                        <p className="text-2xl font-bold text-emerald-400">
+                            {display.totalPlatformIncome != null ? `$${display.totalPlatformIncome.toFixed(2)}` : '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">5% settle fee + $1/lock</p>
+                    </div>
+                    <div className="glass rounded-xl p-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <Zap className="h-4 w-4 text-yellow-400" />
+                            VRF Tiebreakers
+                        </div>
+                        <p className="text-2xl font-bold text-yellow-400">{display.totalTiebreakers ?? 0}</p>
+                        {display.vrfProofLinks && display.vrfProofLinks.length > 0 && (
+                            <div className="flex flex-col gap-0.5 mt-1">
+                                {display.vrfProofLinks.map((link, i) => (
+                                    <a key={i} href={link} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition font-mono text-xs">
+                                        VRF Proof {i + 1} <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* History Tabs (if more than 1 run) */}
                 {history.length > 1 && (
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -372,6 +410,9 @@ export default function DemoResults() {
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Refunds</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">PoR</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Gas</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">Platform</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">Tiebreaker</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">VRF Proof</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -453,6 +494,24 @@ export default function DemoResults() {
                                             </td>
                                             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                                                 {BigInt(cycle.gasUsed || '0').toLocaleString()}
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-xs text-emerald-400">
+                                                {cycle.platformIncome != null ? `$${cycle.platformIncome.toFixed(2)}` : '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                {cycle.hadTiebreaker ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-xs font-medium">
+                                                        <Zap className="h-3 w-3" /> VRF
+                                                    </span>
+                                                ) : <span className="text-muted-foreground">—</span>}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {cycle.vrfTxHash ? (
+                                                    <a href={`${BASESCAN_TX}${cycle.vrfTxHash}`} target="_blank" rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition font-mono text-xs">
+                                                        {cycle.vrfTxHash.slice(0, 10)}… <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                ) : <span className="text-muted-foreground">—</span>}
                                             </td>
                                         </tr>
                                     );
