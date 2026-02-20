@@ -1630,7 +1630,6 @@ export async function runFullDemo(
                     },
                 });
 
-                // Emit marketplace events so the lead appears in real time
                 io.emit('marketplace:lead:new', {
                     lead: {
                         id: lead.id,
@@ -1647,7 +1646,9 @@ export async function runFullDemo(
                         _count: { bids: 0 },
                     },
                 });
-                io.emit('marketplace:refreshAll');
+                // NOTE: marketplace:refreshAll intentionally removed here.
+                // marketplace:lead:new already adds the lead to the frontend without
+                // triggering a full API re-fetch that would wipe live bid counts.
 
                 emit(io, {
                     ts: new Date().toISOString(),

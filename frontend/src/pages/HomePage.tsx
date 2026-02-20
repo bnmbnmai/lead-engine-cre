@@ -485,23 +485,28 @@ export function HomePage() {
             'lead:status-changed': (data: any) => {
                 if (data?.leadId) {
                     console.log('[setLeads:status-changed] lead:status-changed:', data.leadId, '->', data.newStatus);
-                    // Remove from Live Leads when a lead is no longer active
-                    setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
-                    // Track recently ended for 10s overlay banner on LeadCard
                     const endStatus = data.newStatus === 'SOLD' ? 'SOLD' as const : 'UNSOLD' as const;
+
+                    // Keep the lead card visible with the end-overlay so the final bid
+                    // count stays on screen for 10s, then remove it from the array.
+                    // (Previously the lead was removed immediately, so the LeadCard
+                    //  overlay never rendered and bids appeared to vanish instantly.)
                     setRecentlyEndedMap((prev) => ({ ...prev, [data.leadId]: endStatus }));
+
                     setTimeout(() => {
+                        // Remove from Live Leads after the overlay period
+                        setLeads((prev) => prev.filter((l) => l.id !== data.leadId));
                         setRecentlyEndedMap((prev) => {
                             const next = { ...prev };
                             delete next[data.leadId];
                             return next;
                         });
+                        // Refresh Buy It Now data only after removing the ended lead
+                        if (data.newStatus === 'UNSOLD') {
+                            console.log('[setLeads:status-changed] UNSOLD, calling refetchData after overlay');
+                            refetchData();
+                        }
                     }, 10_000);
-                    // Always refresh Buy It Now data when a lead moves to UNSOLD
-                    if (data.newStatus === 'UNSOLD') {
-                        console.log('[setLeads:status-changed] UNSOLD, calling refetchData');
-                        refetchData();
-                    }
                 }
             },
         },
