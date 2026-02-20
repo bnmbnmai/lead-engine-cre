@@ -1534,35 +1534,45 @@ export async function runFullDemo(
             message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
         });
 
-        // ── Step 2: Inject one lead per cycle — staggered, with bidding starting immediately after each ──
+        // ── Step 2: Staggered lead drip — one lead every 8–12 seconds, marketplace fills up progressively ──
+        // Bidding cycles begin immediately after drip completes (no extra delay).
+        // At 8-12s per lead × 10 cycles, the marketplace will show 3-5 active simultaneous auctions.
         if (signal.aborted) throw new Error('Demo aborted');
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Dripping ${cycles} leads into marketplace — one every 8–12s, bidding starts immediately after…` });
         const cycleSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
+        interface DrippedLead { leadId: string; vertical: string; baseBid: number; }
+        const drippedLeads: DrippedLead[] = [];
+        for (let pi = 0; pi < cycles && !signal.aborted; pi++) {
+            const piVertical = DEMO_VERTICALS[pi % DEMO_VERTICALS.length];
+            const piBid = rand(25, 65);
+            try {
+                const geo = pick(GEOS);
+                const params = buildDemoParams(piVertical);
+                const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
+                const scoreInput: LeadScoringInput = { tcpaConsentAt: new Date(), geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` }, hasEncryptedData: false, encryptedDataValid: false, parameterCount: paramCount, source: 'PLATFORM', zipMatchesState: false };
+                const qs = computeCREQualityScore(scoreInput);
+                const newLead = await prisma.lead.create({ data: { sellerId: cycleSellerId, vertical: piVertical, geo: { country: geo.country, state: geo.state, city: geo.city } as any, source: 'DEMO', status: 'IN_AUCTION', reservePrice: piBid, isVerified: true, qualityScore: qs, tcpaConsentAt: new Date(), auctionStartAt: new Date(), auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), parameters: params as any } });
+                await prisma.auctionRoom.create({ data: { leadId: newLead.id, roomId: `auction_${newLead.id}`, phase: 'BIDDING', biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000) } });
+                io.emit('marketplace:lead:new', { lead: { id: newLead.id, vertical: piVertical, status: 'IN_AUCTION', reservePrice: piBid, geo: { country: geo.country, state: geo.state }, isVerified: true, sellerId: cycleSellerId, auctionStartAt: newLead.auctionStartAt?.toISOString(), auctionEndAt: newLead.auctionEndAt?.toISOString(), parameters: params, qualityScore: qs != null ? Math.floor(qs / 100) : null, _count: { bids: 0 } } });
+                drippedLeads.push({ leadId: newLead.id, vertical: piVertical, baseBid: piBid });
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 Lead ${pi + 1}/${cycles} → ${newLead.id.slice(0, 8)}… (${piVertical}, $${piBid})` });
+            } catch (piErr: any) {
+                drippedLeads.push({ leadId: '', vertical: piVertical, baseBid: piBid });
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Lead ${pi + 1} inject failed: ${piErr.message?.slice(0, 80)}` });
+            }
+            // Stagger: 8–12s before each subsequent lead (skip pause after the last one)
+            if (pi < cycles - 1) await sleep(rand(8000, 12000));
+        }
+        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ All ${drippedLeads.length} leads dripped — bidding phase starting now!` });
+        // ── No extra delay here — bidding begins immediately ──
 
         // ── Auction Cycles ──
         for (let cycle = 1; cycle <= cycles; cycle++) {
             if (signal.aborted) throw new Error('Demo aborted');
 
-            // ── Stagger lead appearance: 9–12s between cycles (except the first) ──
-            if (cycle > 1) await sleep(rand(9000, 12000));
-
-            // ── Inject this cycle's lead into the marketplace NOW ──
-            const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
-            const baseBid = rand(25, 65);
-            let demoLeadId = '';
-            try {
-                const geo = pick(GEOS);
-                const params = buildDemoParams(vertical);
-                const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
-                const scoreInput: LeadScoringInput = { tcpaConsentAt: new Date(), geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` }, hasEncryptedData: false, encryptedDataValid: false, parameterCount: paramCount, source: 'PLATFORM', zipMatchesState: false };
-                const qs = computeCREQualityScore(scoreInput);
-                const newLead = await prisma.lead.create({ data: { sellerId: cycleSellerId, vertical, geo: { country: geo.country, state: geo.state, city: geo.city } as any, source: 'DEMO', status: 'IN_AUCTION', reservePrice: baseBid, isVerified: true, qualityScore: qs, tcpaConsentAt: new Date(), auctionStartAt: new Date(), auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), parameters: params as any } });
-                await prisma.auctionRoom.create({ data: { leadId: newLead.id, roomId: `auction_${newLead.id}`, phase: 'BIDDING', biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000) } });
-                io.emit('marketplace:lead:new', { lead: { id: newLead.id, vertical, status: 'IN_AUCTION', reservePrice: baseBid, geo: { country: geo.country, state: geo.state }, isVerified: true, sellerId: cycleSellerId, auctionStartAt: newLead.auctionStartAt?.toISOString(), auctionEndAt: newLead.auctionEndAt?.toISOString(), parameters: params, qualityScore: qs != null ? Math.floor(qs / 100) : null, _count: { bids: 0 } } });
-                demoLeadId = newLead.id;
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 Lead ${cycle}/${cycles} → ${newLead.id.slice(0, 8)}… (${vertical}, $${baseBid}) — bidding starts now`, cycle, totalCycles: cycles });
-            } catch (leadErr: any) {
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Lead injection cycle ${cycle} failed: ${leadErr.message?.slice(0, 80)} — cycle will proceed without a marketplace entry` });
-            }
+            const vertical = drippedLeads[cycle - 1]?.vertical ?? DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
+            const baseBid = drippedLeads[cycle - 1]?.baseBid ?? rand(25, 65);
+            const demoLeadId = drippedLeads[cycle - 1]?.leadId || '';
 
             // ── Per-cycle: pick 2–6 DISTINCT buyer wallets from the 10-wallet pool.
             // Uses a mini Fisher-Yates shuffle so every cycle has a unique, randomised set,
@@ -1575,6 +1585,7 @@ export async function runFullDemo(
             const cycleBuyers = shuffled.slice(0, numBuyers);
             // Winner is determined at settle time (first lock = first bidder by convention)
             const buyerWallet = cycleBuyers[0];
+
 
             // ── Pre-cycle vault check — ensure all 3 cycle buyers have enough balance
             // If any buyer is critically low, emit a warning. We skip only if ALL fail.
