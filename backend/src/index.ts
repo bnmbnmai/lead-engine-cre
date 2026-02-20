@@ -113,6 +113,25 @@ app.options('*', cors({ origin: (o, cb) => cb(null, true), credentials: true }))
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ── BigInt-safe JSON serialization ──────────────────────────────────────────
+// Express res.json() uses JSON.stringify() which throws on BigInt values.
+// ethers.js returns BigInt for gasUsed, lock IDs, USDC amounts, etc.
+// This middleware replaces res.json with a version that safely converts
+// BigInt → string before serialization. Applied globally to ALL routes.
+app.use((_req: Request, res: Response, next: NextFunction) => {
+    const originalJson = res.json.bind(res);
+    res.json = function (body: any) {
+        const safe = JSON.parse(
+            JSON.stringify(body, (_key, value) =>
+                typeof value === 'bigint' ? value.toString() : value
+            )
+        );
+        return originalJson(safe);
+    };
+    next();
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Request logging in development
 if (process.env.NODE_ENV === 'development') {
     app.use((req: Request, _res: Response, next: NextFunction) => {

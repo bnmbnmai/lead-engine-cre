@@ -1592,6 +1592,17 @@ void demoE2E.initResultsStore().catch((e: Error) =>
     console.warn('[demo-panel] initResultsStore startup failed (non-fatal):', e.message)
 );
 
+// ─── BigInt-safe response helper ────────────────────────────────────────────
+// Belt-and-suspenders: even with the global middleware in index.ts, these
+// endpoints defensively sanitise BigInt before handing to res.json.
+function safeSend(res: Response, body: any, status = 200): void {
+    const safe = JSON.parse(
+        JSON.stringify(body, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))
+    );
+    res.status(status).json(safe);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.post('/full-e2e', async (req: Request, res: Response) => {
     try {
         if (demoE2E.isDemoRunning()) {
@@ -1680,7 +1691,7 @@ router.get('/full-e2e/results/latest', async (_req: Request, res: Response) => {
         res.status(404).json({ error: 'No demo results available yet', resultsReady: false });
         return;
     }
-    res.json({ ...result, resultsReady: true });
+    safeSend(res, { ...result, resultsReady: true });
 });
 
 // ============================================
@@ -1701,7 +1712,7 @@ router.get('/full-e2e/results/:runId', async (req: Request, res: Response) => {
         return;
     }
 
-    res.json(result);
+    safeSend(res, result);
 });
 
 // ============================================
@@ -1711,7 +1722,7 @@ router.get('/full-e2e/results/:runId', async (req: Request, res: Response) => {
 router.get('/full-e2e/status', async (_req: Request, res: Response) => {
     const allResults = demoE2E.getAllResults();
     const resultsReady = allResults.length > 0;
-    res.json({
+    safeSend(res, {
         running: demoE2E.isDemoRunning(),
         recycling: demoE2E.isDemoRecycling(),
         resultsReady,
