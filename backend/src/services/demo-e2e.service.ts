@@ -91,6 +91,7 @@ const VAULT_ABI = [
 
 const USDC_ABI = [
     'function approve(address spender, uint256 amount) returns (bool)',
+    'function allowance(address owner, address spender) view returns (uint256)',
     'function balanceOf(address account) view returns (uint256)',
     'function transfer(address to, uint256 amount) returns (bool)',
 ];
@@ -1412,74 +1413,85 @@ export async function runFullDemo(
         let preFundedCount = 0;
         for (const buyerAddr of DEMO_BUYER_WALLETS) {
             if (signal.aborted) throw new Error('Demo aborted');
-            try {
-                // ── ETH gas check (only if completely dry) ──
-                const buyerEth = await provider.getBalance(buyerAddr);
-                if (buyerEth === 0n) {
-                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `⛽ ETH top-up → ${buyerAddr.slice(0, 10)}…` });
-                    const nonce = await getNextNonce();
-                    const gasTx = await sendWithGasEscalation(
+
+            // 2-attempt retry per buyer so a single RPC hiccup doesn't block the demo
+            let funded = false;
+            for (let attempt = 1; attempt <= 2 && !funded; attempt++) {
+                try {
+                    // ── ETH gas check (only if completely dry) ──
+                    const buyerEth = await provider.getBalance(buyerAddr);
+                    if (buyerEth === 0n) {
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `⛽ ETH top-up → ${buyerAddr.slice(0, 10)}…` });
+                        const nonce = await getNextNonce();
+                        const gasTx = await sendWithGasEscalation(
+                            signer,
+                            { to: buyerAddr, value: ethers.parseEther('0.001'), nonce },
+                            `eth gas ${buyerAddr.slice(0, 10)}`,
+                            (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                        );
+                        await gasTx.wait();
+                    }
+
+                    // ── USDC vault top-up (only if below PRE_FUND_THRESHOLD) ──
+                    const vaultBal = await vault.balanceOf(buyerAddr);
+                    const lockedBal = await vault.lockedBalances(buyerAddr);
+                    const available = (vaultBal > lockedBal ? vaultBal - lockedBal : 0n);
+                    const availableUsd = Number(available) / 1e6;
+
+                    if (availableUsd >= PRE_FUND_THRESHOLD) {
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `✅ ${buyerAddr.slice(0, 10)}… vault $${availableUsd.toFixed(0)} — no top-up needed` });
+                        funded = true;
+                        break;
+                    }
+
+                    const topUp = preFundUnits > vaultBal ? preFundUnits - vaultBal : 0n;
+                    if (topUp === 0n) { funded = true; break; }
+
+                    const bKey = BUYER_KEYS[buyerAddr];
+                    if (!bKey) break;
+                    const bSigner = new ethers.Wallet(bKey, provider);
+                    const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
+                    const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
+
+                    // Step A: Transfer USDC from deployer → buyer wallet (uses deployer nonce queue)
+                    const tNonce = await getNextNonce();
+                    const tTx = await sendWithGasEscalation(
                         signer,
-                        { to: buyerAddr, value: ethers.parseEther('0.001'), nonce },
-                        `eth gas ${buyerAddr.slice(0, 10)}`,
+                        { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [buyerAddr, topUp]), nonce: tNonce },
+                        `prefund USDC ${buyerAddr.slice(0, 10)}`,
                         (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
                     );
-                    await gasTx.wait();
-                }
+                    await tTx.wait();
 
-                // ── USDC vault top-up (only if below PRE_FUND_THRESHOLD) ──
-                const vaultBal = await vault.balanceOf(buyerAddr);
-                const lockedBal = await vault.lockedBalances(buyerAddr);
-                const available = (vaultBal > lockedBal ? vaultBal - lockedBal : 0n);
-                const availableUsd = Number(available) / 1e6;
-
-                if (availableUsd >= PRE_FUND_THRESHOLD) {
-                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `✅ ${buyerAddr.slice(0, 10)}… vault already $${availableUsd.toFixed(0)} — skipping top-up` });
-                    preFundedCount++;
-                    continue;
-                }
-
-                const topUp = preFundUnits > vaultBal ? preFundUnits - vaultBal : 0n;
-                if (topUp === 0n) { preFundedCount++; continue; }
-
-                const bKey = BUYER_KEYS[buyerAddr];
-                if (!bKey) continue;
-                const bSigner = new ethers.Wallet(bKey, provider);
-                const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
-                const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
-
-                // Transfer USDC from deployer → buyer wallet
-                const tNonce = await getNextNonce();
-                const tTx = await sendWithGasEscalation(
-                    signer,
-                    { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [buyerAddr, topUp]), nonce: tNonce },
-                    `prefund USDC ${buyerAddr.slice(0, 10)}`,
-                    (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
-                );
-                await tTx.wait();
-
-                // Approve MAX_UINT (covers future cycles without re-approving)
-                const MAX_UINT = ethers.MaxUint256;
-                const curAllowance = await bUsdc.allowance(buyerAddr, VAULT_ADDRESS);
-                if (curAllowance < topUp) {
-                    const aTx = await bUsdc.approve(VAULT_ADDRESS, MAX_UINT);
+                    // Step B: Buyer approves vault for MAX_UINT — fetch buyer nonce explicitly to avoid
+                    // RPC pending-nonce cache lag (the root cause of previous nonce collisions)
+                    const MAX_UINT = ethers.MaxUint256;
+                    const bNonce0 = await provider.getTransactionCount(buyerAddr, 'pending');
+                    const aTx = await bUsdc.approve(VAULT_ADDRESS, MAX_UINT, { nonce: bNonce0 });
                     await aTx.wait();
+
+                    // Step C: Buyer deposits into vault using next sequential nonce
+                    const bNonce1 = bNonce0 + 1;
+                    const dTx = await bVault.deposit(topUp, { nonce: bNonce1 });
+                    await dTx.wait();
+
+                    funded = true;
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'success',
+                        message: `✅ ${buyerAddr.slice(0, 10)}… pre-funded +$${ethers.formatUnits(topUp, 6)} → vault $${PRE_FUND_TARGET}`,
+                    });
+                } catch (err: any) {
+                    if (err.message === 'Demo aborted') throw err;
+                    if (attempt < 2) {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-fund attempt ${attempt}/2 for ${buyerAddr.slice(0, 10)}… failed: ${err.message?.slice(0, 60)} — retrying…` });
+                        await new Promise(r => setTimeout(r, 2000));
+                    } else {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-fund failed for ${buyerAddr.slice(0, 10)}… after 2 attempts: ${err.message?.slice(0, 60)}` });
+                    }
                 }
-
-                // Deposit into vault
-                const dTx = await bVault.deposit(topUp);
-                await dTx.wait();
-
-                preFundedCount++;
-                emit(io, {
-                    ts: new Date().toISOString(),
-                    level: 'success',
-                    message: `✅ ${buyerAddr.slice(0, 10)}… pre-funded +$${ethers.formatUnits(topUp, 6)} → vault $${PRE_FUND_TARGET}`,
-                });
-            } catch (err: any) {
-                if (err.message === 'Demo aborted') throw err;
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-fund failed for ${buyerAddr.slice(0, 10)}… (non-fatal): ${err.message?.slice(0, 70)}` });
             }
+            if (funded) preFundedCount++;
         }
 
         emit(io, {
