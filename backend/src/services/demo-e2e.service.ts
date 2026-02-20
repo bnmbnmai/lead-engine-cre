@@ -1534,11 +1534,11 @@ export async function runFullDemo(
             message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
         });
 
-        // ── Step 2: Staggered lead drip — one lead every 8–12 seconds, marketplace fills up progressively ──
-        // Bidding cycles begin immediately after drip completes (no extra delay).
-        // At 8-12s per lead × 10 cycles, the marketplace will show 3-5 active simultaneous auctions.
+        // ── Step 2: Natural lead drip — first lead appears immediately, then one every 10–15s ──
+        // At 10-15s per lead × N cycles the marketplace shows 4–8 simultaneous 60-second auctions.
+        // Bidding cycles begin immediately after the last lead is dripped (no extra delay).
         if (signal.aborted) throw new Error('Demo aborted');
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Dripping ${cycles} leads into marketplace — one every 8–12s, bidding starts immediately after…` });
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Lead 1/${cycles} live now — remaining leads drip every 10–15s, bidding follows immediately…` });
         const cycleSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
         interface DrippedLead { leadId: string; vertical: string; baseBid: number; }
         const drippedLeads: DrippedLead[] = [];
@@ -1554,7 +1554,7 @@ export async function runFullDemo(
                 const auctionEnd = new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000);
                 const newLead = await prisma.lead.create({ data: { sellerId: cycleSellerId, vertical: piVertical, geo: { country: geo.country, state: geo.state, city: geo.city } as any, source: 'DEMO', status: 'IN_AUCTION', reservePrice: piBid, isVerified: true, qualityScore: qs, tcpaConsentAt: new Date(), auctionStartAt: new Date(), auctionEndAt: auctionEnd, parameters: params as any } });
                 // Emit to marketplace IMMEDIATELY — auctionRoom DB write happens in background
-                // so the 8-12s stagger starts counting from the moment the lead appears on screen.
+                // so the 10-15s stagger starts counting from the moment the lead appears on screen.
                 io.emit('marketplace:lead:new', { lead: { id: newLead.id, vertical: piVertical, status: 'IN_AUCTION', reservePrice: piBid, geo: { country: geo.country, state: geo.state }, isVerified: true, sellerId: cycleSellerId, auctionStartAt: newLead.auctionStartAt?.toISOString(), auctionEndAt: auctionEnd.toISOString(), parameters: params, qualityScore: qs != null ? Math.floor(qs / 100) : null, _count: { bids: 0 } } });
                 // Non-blocking auctionRoom creation — doesn't block the stagger timer
                 prisma.auctionRoom.create({ data: { leadId: newLead.id, roomId: `auction_${newLead.id}`, phase: 'BIDDING', biddingEndsAt: auctionEnd, revealEndsAt: auctionEnd } }).catch(() => { /* non-fatal */ });
@@ -1564,13 +1564,15 @@ export async function runFullDemo(
                 drippedLeads.push({ leadId: '', vertical: piVertical, baseBid: piBid });
                 emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Lead ${pi + 1} inject failed: ${piErr.message?.slice(0, 80)}` });
             }
-            // Stagger: 8–12s before each subsequent lead (skip pause after the last one)
-            if (pi < cycles - 1) await sleep(rand(8000, 12000));
+            // Stagger: 10–15s before each subsequent lead; first lead (pi=0) appears immediately.
+            if (pi < cycles - 1) await sleep(rand(10000, 15000));
         }
         emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ All ${drippedLeads.length} leads dripped — bidding phase starting now!` });
         // ── No extra delay here — bidding begins immediately ──
 
         // ── Auction Cycles ──
+        // Round-robin offset ensures all 10 buyer wallets are used evenly with no clustering.
+        let buyerRoundRobinOffset = 0;
         for (let cycle = 1; cycle <= cycles; cycle++) {
             if (signal.aborted) throw new Error('Demo aborted');
 
@@ -1578,15 +1580,14 @@ export async function runFullDemo(
             const baseBid = drippedLeads[cycle - 1]?.baseBid ?? rand(25, 65);
             const demoLeadId = drippedLeads[cycle - 1]?.leadId || '';
 
-            // ── Per-cycle: pick 2–6 DISTINCT buyer wallets from the 10-wallet pool.
-            // Uses a mini Fisher-Yates shuffle so every cycle has a unique, randomised set,
-            // giving judges maximum multi-wallet evidence on Basescan.
-            const numBuyers = rand(2, 6);
-            const shuffled = [...DEMO_BUYER_WALLETS]
-                .map(addr => ({ addr, sort: Math.random() }))
-                .sort((a, b) => a.sort - b.sort)
-                .map(x => x.addr);
-            const cycleBuyers = shuffled.slice(0, numBuyers);
+            // ── Per-cycle: pick 3–6 buyer wallets via round-robin rotation through all 10.
+            // Advancing the start index by numBuyers each cycle ensures every wallet gets
+            // equal Basescan exposure and no clustering on the first N addresses.
+            const numBuyers = rand(3, 6);
+            const cycleBuyers = Array.from({ length: numBuyers }, (_, i) =>
+                DEMO_BUYER_WALLETS[(buyerRoundRobinOffset + i) % DEMO_BUYER_WALLETS.length]
+            );
+            buyerRoundRobinOffset = (buyerRoundRobinOffset + numBuyers) % DEMO_BUYER_WALLETS.length;
             // Winner is determined at settle time (first lock = first bidder by convention)
             const buyerWallet = cycleBuyers[0];
 
