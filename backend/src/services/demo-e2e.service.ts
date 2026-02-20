@@ -1460,13 +1460,15 @@ export async function runFullDemo(
             if (signal.aborted) throw new Error('Demo aborted');
 
             const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
-            // ── Per-cycle: pick 2 DISTINCT buyer wallets (rotating offset so every cycle
-            //    uses a different pair from the 10-wallet pool, giving Basescan multi-wallet evidence)
-            const offset = (cycle - 1) * 2;
-            const cycleBuyers = [
-                DEMO_BUYER_WALLETS[offset % DEMO_BUYER_WALLETS.length],
-                DEMO_BUYER_WALLETS[(offset + 1) % DEMO_BUYER_WALLETS.length],
-            ];
+            // ── Per-cycle: pick 4–6 DISTINCT buyer wallets from the 10-wallet pool.
+            // Uses a mini Fisher-Yates shuffle so every cycle has a unique, randomised set,
+            // giving judges maximum multi-wallet evidence on Basescan.
+            const numBuyers = rand(4, 6);
+            const shuffled = [...DEMO_BUYER_WALLETS]
+                .map(addr => ({ addr, sort: Math.random() }))
+                .sort((a, b) => a.sort - b.sort)
+                .map(x => x.addr);
+            const cycleBuyers = shuffled.slice(0, numBuyers);
             // Winner is determined at settle time (first lock = first bidder by convention)
             const buyerWallet = cycleBuyers[0];
 
@@ -1480,8 +1482,9 @@ export async function runFullDemo(
 
             for (let bi = 0; bi < cycleBuyers.length; bi++) {
                 const bAddr = cycleBuyers[bi];
-                // Stagger bid amounts slightly (+/-$5) so Basescan shows different values
-                const bidAmount = Math.max(10, baseBid + (bi === 0 ? 0 : bi === 1 ? rand(-5, 5) : rand(-8, 8)));
+                // Stagger bid amounts ±20% of baseBid so Basescan shows realistic variance across bidders
+                const variance = Math.round(baseBid * 0.20);
+                const bidAmount = Math.max(10, baseBid + (bi === 0 ? 0 : rand(-variance, variance)));
                 const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
                 try {
                     const bVaultBal = await vault.balanceOf(bAddr);
@@ -1552,7 +1555,7 @@ export async function runFullDemo(
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'warn',
-                    message: `⚠️ All 2 buyers vault-depleted — skipping cycle ${cycle}. Run pre-fund step or wait for recycle.`,
+                    message: `⚠️ All ${numBuyers} selected buyers vault-depleted — skipping cycle ${cycle}. Wait for recycle phase to replenish.`,
                     cycle, totalCycles: cycles,
                 });
                 continue;
@@ -1565,7 +1568,7 @@ export async function runFullDemo(
             emit(io, {
                 ts: new Date().toISOString(),
                 level: 'step',
-                message: `\n${'─'.repeat(56)}\n🔄 Cycle ${cycle}/${cycles} — ${vertical.toUpperCase()} | ${readyBuyers} bidders | $${buyerBids.map(b => b.amount).join('/$')}\n   Buyers: ${cycleBuyers.map(a => a.slice(0, 10) + '…').join(', ')}\n${'─'.repeat(56)}`,
+                message: `\n${'─'.repeat(56)}\n🔄 Cycle ${cycle}/${cycles} — ${vertical.toUpperCase()} | ${readyBuyers} bids incoming | $${buyerBids.map(b => b.amount).join('/$')}\n   Bidders: ${cycleBuyers.slice(0, readyBuyers).map(a => a.slice(0, 10) + '…').join(', ')}\n${'─'.repeat(56)}`,
                 cycle,
                 totalCycles: cycles,
             });
@@ -1672,7 +1675,7 @@ export async function runFullDemo(
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `🔒 Bidder ${b + 1}/2 — $${bAmount} USDC from ${bAddr.slice(0, 10)}… (competing against ${readyBuyers - 1} other bidder)`,
+                    message: `🔒 Bidder ${b + 1}/${readyBuyers} — $${bAmount} USDC from ${bAddr.slice(0, 10)}… (competing against ${readyBuyers - 1} other bidder${readyBuyers - 1 !== 1 ? 's' : ''})`,
                     cycle,
                     totalCycles: cycles,
                 });
