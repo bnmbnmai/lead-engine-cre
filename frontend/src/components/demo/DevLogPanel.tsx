@@ -140,6 +140,8 @@ export function DevLogPanel() {
     const [copiedAll, setCopiedAll] = useState(false);
     const [demoComplete, setDemoComplete] = useState(false);
     const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+    // Judge View — ON by default: hides noisy recycling/nonce/fee internals
+    const [judgeView, setJudgeView] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -261,6 +263,33 @@ export function DevLogPanel() {
         setTimeout(() => setCopiedAll(false), 1500);
     }, [entries]);
 
+    // Judge View filter — keeps only signal, hides operator noise
+    const JUDGE_ALLOW = [
+        'autobidding', 'buyer #', 'bid placed', 'highest bid',
+        'settled', 'settlement', 'won auction', 'auction won',
+        'vrf', 'tiebreak', 'kyc', 'ace', 'cre', 'chainlink',
+        'por', 'proof of reserve', 'data feed',
+        'lead injected', 'auction started', 'cycle', 'cycles',
+        'demo complete', '✅', '🎉', '❌', '⚠️',
+        'demo:success', 'demo:error', 'demo:warn',
+        'escrow', 'funding', 'funded', 'refund',
+    ];
+    const NOISE_DENY = [
+        'nonce', 'replacement fee', 'fee-retry', 'replenish',
+        'recycle', 'recycling', 'vault', 'withdraw',
+        'topup', 'top-up', 'top up', 'faucet',
+        'usdc balance', 'gas price', 'underpriced',
+        'wallet lock', 'lock released', 'retry in',
+    ];
+    function isJudgeRelevant(entry: DevLogEntry): boolean {
+        // Always show ace:dev-log events (Chainlink service calls)
+        if (!entry.action.startsWith('demo:')) return true;
+        const text = (String(entry[' '] ?? entry.action)).toLowerCase();
+        if (NOISE_DENY.some(kw => text.includes(kw))) return false;
+        return JUDGE_ALLOW.some(kw => text.includes(kw.toLowerCase()));
+    }
+    const filteredEntries = judgeView ? entries.filter(isJudgeRelevant) : entries;
+
     // Toggle shortcut
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -344,6 +373,25 @@ export function DevLogPanel() {
                 <span style={{ color: '#c4b5fd', fontWeight: 700, fontSize: '13px', flex: 1 }}>
                     Chainlink Services Dev Log
                 </span>
+                {/* Judge View toggle */}
+                <button
+                    onClick={() => setJudgeView(v => !v)}
+                    title={judgeView ? 'Judge View ON — showing only key events. Click to see full log.' : 'Full Log — showing all events. Click to filter for judges.'}
+                    style={{
+                        background: judgeView ? 'rgba(139,92,246,0.15)' : 'none',
+                        border: `1px solid ${judgeView ? '#8b5cf6' : '#2d2a3e'}`,
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        color: judgeView ? '#c4b5fd' : '#4a4560',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        letterSpacing: '0.05em',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {judgeView ? '👁 Judge' : 'Full'}
+                </button>
                 {/* Socket connection status dot + text */}
                 <span
                     style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}
@@ -367,7 +415,7 @@ export function DevLogPanel() {
                     padding: '2px 6px',
                     borderRadius: '4px',
                 }}>
-                    {entries.length}
+                    {filteredEntries.length}{judgeView && filteredEntries.length !== entries.length ? `/${entries.length}` : ''}
                 </span>
                 <button
                     onClick={copyAll}
@@ -427,15 +475,17 @@ export function DevLogPanel() {
                     padding: '4px 0',
                 }}
             >
-                {entries.length === 0 && (
+                {filteredEntries.length === 0 && (
                     <div style={{ color: '#2d2a3e', textAlign: 'center', padding: '40px 16px', fontSize: '12px' }}>
-                        Waiting for Chainlink service events…
+                        {judgeView && entries.length > 0
+                            ? 'No judge-relevant events yet — bids and settlements will appear here.'
+                            : 'Waiting for Chainlink service events…'}
                         <div style={{ marginTop: '8px', fontSize: '10px', color: '#1e1b2e' }}>
                             ACE · CRE · Data Feeds · VRF · Functions
                         </div>
                     </div>
                 )}
-                {entries.map((entry, idx) => {
+                {filteredEntries.map((entry, idx) => {
                     const badge = getServiceBadge(entry.action);
                     return (
                         <div
