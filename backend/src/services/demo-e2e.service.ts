@@ -861,9 +861,8 @@ async function injectOneLead(
     });
 
     // Kick off staggered buyer bids for this lead (non-blocking, fire-and-forget)
-    // Signal is captured from the outer drip loop's AbortSignal via scheduleBuyerBids closure.
-    // The io reference is passed through so each buyer's bid can emit real-time updates.
-    scheduleBuyerBids(io, lead.id, vertical, qualityScore ?? 0, reservePrice);
+    // auctionEndAt is passed so timer callbacks can bail out before the chain call.
+    scheduleBuyerBids(io, lead.id, vertical, qualityScore ?? 0, reservePrice, lead.auctionEndAt!);
 }
 
 // ── Staggered Per-Buyer Bid Scheduling ──────────────
@@ -883,6 +882,7 @@ function scheduleBuyerBids(
     vertical: string,
     qualityScore: number,
     reservePrice: number,
+    auctionEndAt: Date,
 ): void {
     if (!VAULT_ADDRESS) return; // Off-chain mode — no bidding
 
@@ -937,6 +937,30 @@ function scheduleBuyerBids(
         const buyerIdx = profile.index;
         const timer = setTimeout(async () => {
             try {
+                // ── Auction-closed guard: zero-RPC time check ──
+                // If the auction window has already passed, silently skip.
+                if (Date.now() >= auctionEndAt.getTime()) {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'info',
+                        message: `⏳ Buyer #${buyerIdx + 1} (${profile.name}) skipping — auction ${leadId.slice(0, 8)}… already closed (time-based)`,
+                    });
+                    return;
+                }
+
+                // ── Auction-closed guard: DB status check ──
+                // One DB read to confirm the lead hasn't been settled early.
+                const currentLead = await prisma.lead.findUnique({
+                    where: { id: leadId },
+                    select: { status: true },
+                });
+                if (currentLead?.status !== 'IN_AUCTION') {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'info',
+                        message: `⏳ Buyer #${buyerIdx + 1} (${profile.name}) skipping — auction ${leadId.slice(0, 8)}… status is ${currentLead?.status ?? 'unknown'}`,
+                    });
+                    return;
+                }
+
                 // Re-acquire deployer signer + vault inside the timer callback
                 // (closures over module-level getSigner/getVault are safe —
                 //  both return the shared provider reference)
