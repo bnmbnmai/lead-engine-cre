@@ -1094,10 +1094,10 @@ async function recycleTokens(
             message: `✅ Full USDC recovery complete\n   Before: $${ethers.formatUnits(deployerBalBefore, 6)}\n   After:  $${ethers.formatUnits(deployerBalAfter, 6)}\n   Net recovered: $${ethers.formatUnits(netRecovered > 0n ? netRecovered : 0n, 6)} (gas costs excluded)`,
         });
 
-        // ── Step R7: Replenish buyer vaults to $250 each for the NEXT run ──
+        // ── Step R7: Replenish buyer vaults to $200 each for the NEXT run ──
         // This is the background phase that replaces the old blocking pre-fund.
         // All viewers see the 'resetting' phase (Run Demo button disabled globally).
-        const REPLENISH_AMOUNT = 250; // $250 per buyer
+        const REPLENISH_AMOUNT = 200; // $200 per buyer — 10×$200=$2,000 total
         const replenishUnits = ethers.parseUnits(String(REPLENISH_AMOUNT), 6);
         const replenishNeeded = replenishUnits * BigInt(DEMO_BUYER_WALLETS.length);
         const deployerUsdcNow = await usdc.balanceOf(signer.address);
@@ -1534,41 +1534,37 @@ export async function runFullDemo(
             message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
         });
 
-        // ── Step 2: Pre-inject ALL auction leads upfront — marketplace shows full list before bidding starts ──
+        // ── Step 2: Inject one lead per cycle — staggered, with bidding starting immediately after each ──
         if (signal.aborted) throw new Error('Demo aborted');
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Dripping all ${cycles} auction leads into marketplace before bidding starts…` });
-        const preinjectSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
-        interface PreinjectedLead { leadId: string; vertical: string; bidAmount: number; }
-        const preinjectLeads: PreinjectedLead[] = [];
-        for (let pi = 0; pi < cycles && !signal.aborted; pi++) {
-            const piVertical = DEMO_VERTICALS[pi % DEMO_VERTICALS.length];
-            const piBid = rand(25, 65);
-            try {
-                const geo = pick(GEOS);
-                const params = buildDemoParams(piVertical);
-                const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
-                const scoreInput: LeadScoringInput = { tcpaConsentAt: new Date(), geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` }, hasEncryptedData: false, encryptedDataValid: false, parameterCount: paramCount, source: 'PLATFORM', zipMatchesState: false };
-                const qs = computeCREQualityScore(scoreInput);
-                const lead = await prisma.lead.create({ data: { sellerId: preinjectSellerId, vertical: piVertical, geo: { country: geo.country, state: geo.state, city: geo.city } as any, source: 'DEMO', status: 'IN_AUCTION', reservePrice: piBid, isVerified: true, qualityScore: qs, tcpaConsentAt: new Date(), auctionStartAt: new Date(), auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), parameters: params as any } });
-                await prisma.auctionRoom.create({ data: { leadId: lead.id, roomId: `auction_${lead.id}`, phase: 'BIDDING', biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000) } });
-                io.emit('marketplace:lead:new', { lead: { id: lead.id, vertical: piVertical, status: 'IN_AUCTION', reservePrice: piBid, geo: { country: geo.country, state: geo.state }, isVerified: true, sellerId: preinjectSellerId, auctionStartAt: lead.auctionStartAt?.toISOString(), auctionEndAt: lead.auctionEndAt?.toISOString(), parameters: params, qualityScore: qs != null ? Math.floor(qs / 100) : null, _count: { bids: 0 } } });
-                preinjectLeads.push({ leadId: lead.id, vertical: piVertical, bidAmount: piBid });
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 Lead ${pi + 1}/${cycles} → ${lead.id.slice(0, 8)}… (${piVertical}, $${piBid})` });
-            } catch (piErr: any) {
-                preinjectLeads.push({ leadId: '', vertical: piVertical, bidAmount: piBid });
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Pre-inject lead ${pi + 1} failed: ${piErr.message?.slice(0, 80)}` });
-            }
-            await sleep(300);
-        }
-        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ All ${preinjectLeads.length} leads dripped — bidding phase starting in 12s…` });
-        await sleep(12000);
+        const cycleSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
 
         // ── Auction Cycles ──
         for (let cycle = 1; cycle <= cycles; cycle++) {
             if (signal.aborted) throw new Error('Demo aborted');
 
-            const vertical = preinjectLeads[cycle - 1]?.vertical ?? DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
-            // ── Per-cycle: pick 4–6 DISTINCT buyer wallets from the 10-wallet pool.
+            // ── Stagger lead appearance: 9–12s between cycles (except the first) ──
+            if (cycle > 1) await sleep(rand(9000, 12000));
+
+            // ── Inject this cycle's lead into the marketplace NOW ──
+            const vertical = DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
+            const baseBid = rand(25, 65);
+            let demoLeadId = '';
+            try {
+                const geo = pick(GEOS);
+                const params = buildDemoParams(vertical);
+                const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
+                const scoreInput: LeadScoringInput = { tcpaConsentAt: new Date(), geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` }, hasEncryptedData: false, encryptedDataValid: false, parameterCount: paramCount, source: 'PLATFORM', zipMatchesState: false };
+                const qs = computeCREQualityScore(scoreInput);
+                const newLead = await prisma.lead.create({ data: { sellerId: cycleSellerId, vertical, geo: { country: geo.country, state: geo.state, city: geo.city } as any, source: 'DEMO', status: 'IN_AUCTION', reservePrice: baseBid, isVerified: true, qualityScore: qs, tcpaConsentAt: new Date(), auctionStartAt: new Date(), auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), parameters: params as any } });
+                await prisma.auctionRoom.create({ data: { leadId: newLead.id, roomId: `auction_${newLead.id}`, phase: 'BIDDING', biddingEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000), revealEndsAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000) } });
+                io.emit('marketplace:lead:new', { lead: { id: newLead.id, vertical, status: 'IN_AUCTION', reservePrice: baseBid, geo: { country: geo.country, state: geo.state }, isVerified: true, sellerId: cycleSellerId, auctionStartAt: newLead.auctionStartAt?.toISOString(), auctionEndAt: newLead.auctionEndAt?.toISOString(), parameters: params, qualityScore: qs != null ? Math.floor(qs / 100) : null, _count: { bids: 0 } } });
+                demoLeadId = newLead.id;
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 Lead ${cycle}/${cycles} → ${newLead.id.slice(0, 8)}… (${vertical}, $${baseBid}) — bidding starts now`, cycle, totalCycles: cycles });
+            } catch (leadErr: any) {
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Lead injection cycle ${cycle} failed: ${leadErr.message?.slice(0, 80)} — cycle will proceed without a marketplace entry` });
+            }
+
+            // ── Per-cycle: pick 2–6 DISTINCT buyer wallets from the 10-wallet pool.
             // Uses a mini Fisher-Yates shuffle so every cycle has a unique, randomised set,
             // giving judges maximum multi-wallet evidence on Basescan.
             const numBuyers = rand(2, 6);
@@ -1579,9 +1575,6 @@ export async function runFullDemo(
             const cycleBuyers = shuffled.slice(0, numBuyers);
             // Winner is determined at settle time (first lock = first bidder by convention)
             const buyerWallet = cycleBuyers[0];
-
-            // ── Per-cycle bid amount — realistic $30–$60 range for CRE leads
-            const baseBid = preinjectLeads[cycle - 1]?.bidAmount ?? rand(25, 65);
 
             // ── Pre-cycle vault check — ensure all 3 cycle buyers have enough balance
             // If any buyer is critically low, emit a warning. We skip only if ALL fail.
@@ -1649,8 +1642,6 @@ export async function runFullDemo(
 
             emitStatus(io, { running: true, currentCycle: cycle, totalCycles: cycles, percent: Math.round(((cycle - 1) / cycles) * 100), phase: 'on-chain', runId });
 
-            // ── Use pre-injected lead for this cycle ──
-            const demoLeadId: string | null = preinjectLeads[cycle - 1]?.leadId || null;
 
             // ── Lock 1 bid per distinct buyer (3 distinct wallets → 3 distinct Basescan from-addresses) ──
             const lockIds: number[] = [];
