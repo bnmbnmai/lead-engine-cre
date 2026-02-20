@@ -1400,8 +1400,8 @@ export async function runFullDemo(
         // This eliminates all mid-cycle emergency top-up spam and ensures every buyer can bid
         // for the full demo run (~10 cycles × $60 max bid = $600 needed worst-case, 6 buyers
         // each need $100 max, well within $350). ETH is sent only if wallet has zero ETH.
-        const PRE_FUND_TARGET = 350;   // target vault balance per buyer ($)
-        const PRE_FUND_THRESHOLD = 300; // only top up if available balance is below this
+        const PRE_FUND_TARGET = 250;   // target vault balance per buyer ($) — 10×$250=$2,500 fits deployer
+        const PRE_FUND_THRESHOLD = 200; // only top up if available balance is below this
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_TARGET), 6);
 
         emit(io, {
@@ -1453,7 +1453,12 @@ export async function runFullDemo(
                     const bUsdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
                     const bVault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
 
-                    // Step A: Transfer USDC from deployer → buyer wallet (uses deployer nonce queue)
+                    // Step A: Check deployer has enough USDC, then transfer deployer → buyer
+                    const deployerUsdc = await usdc.balanceOf(await signer.getAddress());
+                    if (deployerUsdc < topUp) {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Deployer only has $${Number(deployerUsdc) / 1e6} USDC — skipping ${buyerAddr.slice(0, 10)}… (need $${Number(topUp) / 1e6})` });
+                        break;
+                    }
                     const tNonce = await getNextNonce();
                     const tTx = await sendWithGasEscalation(
                         signer,

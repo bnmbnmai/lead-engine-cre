@@ -149,8 +149,26 @@ export function DevLogPanel() {
         const sock = socketClient.connect();
 
         // Track connection status for the status dot
-        const onConnect = () => setSocketStatus('connected');
-        const onDisconnect = () => setSocketStatus('disconnected');
+        const onConnect = () => {
+            setSocketStatus('connected');
+            // Show a reconnect notice in the log so users know the stream resumed
+            setEntries(prev => {
+                if (prev.length === 0) return prev; // nothing was here before, skip the notice
+                return [...prev, {
+                    ts: new Date().toISOString(),
+                    action: 'demo:info',
+                    ' ': '🔄 Socket reconnected — stream resumed (server may have redeployed)',
+                }];
+            });
+        };
+        const onDisconnect = () => {
+            setSocketStatus('disconnected');
+            setEntries(prev => [...prev, {
+                ts: new Date().toISOString(),
+                action: 'demo:warn',
+                ' ': '⚠️ Socket disconnected — waiting to reconnect…',
+            }]);
+        };
         const onConnectError = () => setSocketStatus('disconnected');
         sock.on('connect', onConnect);
         sock.on('disconnect', onDisconnect);
