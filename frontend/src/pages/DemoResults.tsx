@@ -13,7 +13,7 @@
  * - History tabs for last 5 runs
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ExternalLink, ArrowLeft, Download, RotateCcw,
@@ -75,10 +75,11 @@ export default function DemoResults() {
     const navigate = useNavigate();
     const { startDemo, partialResults, isRecycling, recyclePercent } = useDemo();
     const [result, setResult] = useState<DemoResult | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => !partialResults && !false); // skip loading if we have cached data
     const [error, setError] = useState<string | null>(null);
     const [history, setHistory] = useState<RunSummary[]>([]);
     const [showConfetti, setShowConfetti] = useState(false);
+    const hasInitRef = useRef(false);
 
     // ── Determine what to display ──────────────────────────────────────────────
     // partialResults (from socket) takes priority — instant, no API needed.
@@ -146,14 +147,18 @@ export default function DemoResults() {
         }).catch(() => { });
     }, [result]);
 
-    // Initial fetch — skip if we already have partialResults from socket
+    // Initial fetch — skip if we already have cached partialResults and no specific runId requested
     useEffect(() => {
+        if (hasInitRef.current) return;  // prevent re-run on partialResults state change
+        hasInitRef.current = true;
+
         if (partialResults && !paramRunId) {
             setLoading(false);
             return;
         }
         fetchResults(paramRunId);
-    }, [paramRunId, fetchResults, partialResults]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // intentionally empty — run once on mount only
 
     const downloadLogs = () => {
         if (!display) return;

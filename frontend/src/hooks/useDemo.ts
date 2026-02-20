@@ -11,6 +11,21 @@ import api from '@/lib/api';
 import socketClient from '@/lib/socket';
 import { toast } from '@/hooks/useToast';
 
+const LS_KEY = 'demo:partialResults';
+
+function lsRead(): PartialResults | null {
+    try {
+        const raw = localStorage.getItem(LS_KEY);
+        return raw ? (JSON.parse(raw) as PartialResults) : null;
+    } catch { return null; }
+}
+
+function lsWrite(data: PartialResults | null) {
+    try {
+        if (data) localStorage.setItem(LS_KEY, JSON.stringify(data));
+        else localStorage.removeItem(LS_KEY);
+    } catch { /* non-fatal */ }
+}
 
 export interface DemoLogEntry {
     ts: string;
@@ -61,7 +76,7 @@ export function useDemo(): UseDemoReturn {
     const [logs, setLogs] = useState<DemoLogEntry[]>([]);
     const [runId, setRunId] = useState<string | null>(null);
     const [completedRunId, setCompletedRunId] = useState<string | null>(null);
-    const [partialResults, setPartialResults] = useState<PartialResults | null>(null);
+    const [partialResults, setPartialResultsState] = useState<PartialResults | null>(() => lsRead());
     const [recyclePercent, setRecyclePercent] = useState(0);
     const [progress, setProgress] = useState<DemoProgress>({
         currentCycle: 0,
@@ -73,6 +88,12 @@ export function useDemo(): UseDemoReturn {
 
     // Keep ref in sync for callbacks
     logsRef.current = logs;
+
+    // Wrapper that syncs partialResults to localStorage every time state changes
+    const setPartialResults = useCallback((value: PartialResults | null) => {
+        setPartialResultsState(value);
+        lsWrite(value);
+    }, []);
 
     // Subscribe to demo:log events
     useEffect(() => {
