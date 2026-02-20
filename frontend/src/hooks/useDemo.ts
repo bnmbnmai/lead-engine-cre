@@ -28,6 +28,14 @@ export interface DemoProgress {
     phase: string;
 }
 
+export interface PartialResults {
+    runId: string;
+    totalSettled: number;
+    totalCycles: number;
+    elapsedSec?: number;
+    cycles: any[];
+}
+
 export interface UseDemoReturn {
     isRunning: boolean;
     isComplete: boolean;
@@ -35,6 +43,8 @@ export interface UseDemoReturn {
     runId: string | null;
     completedRunId: string | null;
     progress: DemoProgress;
+    partialResults: PartialResults | null;
+    recyclePercent: number;
     startDemo: (cycles?: number) => Promise<void>;
     stopDemo: () => Promise<void>;
     clearLogs: () => void;
@@ -46,6 +56,8 @@ export function useDemo(): UseDemoReturn {
     const [logs, setLogs] = useState<DemoLogEntry[]>([]);
     const [runId, setRunId] = useState<string | null>(null);
     const [completedRunId, setCompletedRunId] = useState<string | null>(null);
+    const [partialResults, setPartialResults] = useState<PartialResults | null>(null);
+    const [recyclePercent, setRecyclePercent] = useState(0);
     const [progress, setProgress] = useState<DemoProgress>({
         currentCycle: 0,
         totalCycles: 0,
@@ -132,6 +144,42 @@ export function useDemo(): UseDemoReturn {
         return unsub;
     }, []);
 
+    // Subscribe to demo:results-ready — fires BEFORE recycle starts, carries partial cycle data.
+    // Allows the frontend to show results immediately without waiting for wallet recycling.
+    useEffect(() => {
+        const unsub = socketClient.on('demo:results-ready', (data: any) => {
+            setIsComplete(true);
+            setIsRunning(false);
+            setCompletedRunId(data.runId);
+            setRunId(data.runId);
+            setPartialResults({
+                runId: data.runId,
+                totalSettled: data.totalSettled,
+                totalCycles: data.totalCycles,
+                elapsedSec: data.elapsedSec,
+                cycles: data.cycles ?? [],
+            });
+            setProgress(prev => ({ ...prev, percent: 100, phase: 'recycling' }));
+            toast({
+                type: 'success',
+                title: '⚡ Results Ready!',
+                description: `${data.totalCycles} cycles · $${data.totalSettled} settled · Wallets recycling in background`,
+            });
+        });
+
+        return unsub;
+    }, []);
+
+    // Subscribe to demo:recycle-progress — shows live recycle completion %
+    useEffect(() => {
+        const unsub = socketClient.on('demo:recycle-progress', (data: any) => {
+            setRecyclePercent(data.percent ?? 0);
+            setProgress(prev => ({ ...prev, phase: 'recycling' }));
+        });
+
+        return unsub;
+    }, []);
+
     // Check initial status on mount
     useEffect(() => {
         api.demoFullE2EStatus().then(({ data }) => {
@@ -146,6 +194,8 @@ export function useDemo(): UseDemoReturn {
 
         setLogs([]);
         setCompletedRunId(null);
+        setPartialResults(null);
+        setRecyclePercent(0);
         setIsRunning(true);
         setIsComplete(false);
         setProgress({ currentCycle: 0, totalCycles: cycles || 5, percent: 0, phase: 'starting' });
@@ -183,6 +233,8 @@ export function useDemo(): UseDemoReturn {
         setLogs([]);
         setCompletedRunId(null);
         setIsComplete(false);
+        setPartialResults(null);
+        setRecyclePercent(0);
         setProgress({ currentCycle: 0, totalCycles: 0, percent: 0, phase: 'idle' });
     }, []);
 
@@ -193,6 +245,8 @@ export function useDemo(): UseDemoReturn {
         runId,
         completedRunId,
         progress,
+        partialResults,
+        recyclePercent,
         startDemo,
         stopDemo,
         clearLogs,

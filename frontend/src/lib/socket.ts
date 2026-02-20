@@ -54,6 +54,11 @@ type AuctionEventHandler = {
     // Demo E2E events
     'demo:log': (data: { ts: string; level: string; message: string; txHash?: string; basescanLink?: string; data?: Record<string, any>; cycle?: number; totalCycles?: number }) => void;
     'demo:complete': (data: { runId: string; status: string; totalCycles: number; totalSettled: number; error?: string }) => void;
+    // demo:results-ready fires BEFORE recycle starts — carries partial cycle data for instant navigation
+    'demo:results-ready': (data: { runId: string; status: string; totalCycles: number; totalSettled: number; elapsedSec?: number; cycles: any[] }) => void;
+    // Recycle progress events
+    'demo:recycle-progress': (data: { percent: number; step?: string }) => void;
+    'demo:recycle-complete': () => void;
     // Global demo state broadcast (for all viewers, including Guests)
     'demo:status': (data: { running: boolean; recycling: boolean; currentCycle: number; totalCycles: number; percent: number; phase: string; runId?: string; ts: string }) => void;
 };
@@ -120,6 +125,9 @@ class SocketClient {
             // Demo E2E events
             'demo:log',
             'demo:complete',
+            'demo:results-ready',
+            'demo:recycle-progress',
+            'demo:recycle-complete',
             // Global demo state (all viewers, including Guests)
             'demo:status',
         ];

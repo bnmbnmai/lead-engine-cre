@@ -69,6 +69,8 @@ export function DemoPanel() {
     const [expandedSection, setExpandedSection] = useState<string | null>('marketplace');
     const [demoBuyersEnabled, setDemoBuyersEnabled] = useState(true);
     const [demoSellerAddress, setDemoSellerAddress] = useState<string | null>(null);
+    const [demoComplete, setDemoComplete] = useState<{ runId: string; totalSettled: number; elapsedSec?: number } | null>(null);
+    const [recyclePercent, setRecyclePercent] = useState<number | null>(null);
 
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -78,6 +80,21 @@ export function DemoPanel() {
     // (React batches setActions, so the ActionButton's disabled-while-loading check
     //  can miss clicks that arrive before the re-render)
     const runningActionsRef = useRef<Set<string>>(new Set());
+
+    // Track demo completion + recycle progress for in-panel notifications
+    useEffect(() => {
+        const unsubReady = socketClient.on('demo:results-ready', (data: any) => {
+            setDemoComplete({ runId: data.runId, totalSettled: data.totalSettled, elapsedSec: data.elapsedSec });
+            setRecyclePercent(0);
+        });
+        const unsubProgress = socketClient.on('demo:recycle-progress', (data: any) => {
+            setRecyclePercent(data.percent ?? 0);
+        });
+        const unsubComplete = socketClient.on('demo:recycle-complete', () => {
+            setRecyclePercent(null);
+        });
+        return () => { unsubReady(); unsubProgress(); unsubComplete(); };
+    }, []);
 
     // Fetch demo status on open
     const refreshStatus = useCallback(async () => {
@@ -501,6 +518,40 @@ export function DemoPanel() {
 
                     {/* Content */}
                     <div className="p-4 space-y-3">
+
+                        {/* Demo Complete – Results Ready banner */}
+                        {demoComplete && (
+                            <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-xs font-semibold text-green-400">⚡ Demo Complete – Results Ready</p>
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                                            ${demoComplete.totalSettled} settled{demoComplete.elapsedSec ? ` in ${demoComplete.elapsedSec}s` : ''}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => { navigate(`/demo/results/${demoComplete.runId}`); setDemoComplete(null); }}
+                                        className="shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md bg-green-500/20 text-green-400 hover:bg-green-500/30 transition"
+                                    >
+                                        View →
+                                    </button>
+                                </div>
+                                {recyclePercent !== null && (
+                                    <div className="mt-2">
+                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                                            <span>♻️ Recycling wallets…</span>
+                                            <span>{recyclePercent}%</span>
+                                        </div>
+                                        <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden">
+                                            <div
+                                                className="h-full bg-green-500/60 rounded-full transition-all duration-500"
+                                                style={{ width: `${recyclePercent}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {/* Section 1: Marketplace Data */}
                         <Section id="marketplace" title="Marketplace Data">
                             <ActionButton
