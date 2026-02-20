@@ -496,6 +496,11 @@ export function HomePage() {
             },
             'lead:status-changed': (data: any) => {
                 if (data?.leadId) {
+                    // Only apply the overlay for terminal auction statuses.
+                    // Ignore re-queue events (e.g. back to IN_AUCTION) to prevent
+                    // premature grey-out in rapid demo cycles.
+                    if (data.newStatus !== 'SOLD' && data.newStatus !== 'UNSOLD') return;
+
                     console.log('[setLeads:status-changed] lead:status-changed:', data.leadId, '->', data.newStatus);
                     const endStatus = data.newStatus === 'SOLD' ? 'SOLD' as const : 'UNSOLD' as const;
 
@@ -519,7 +524,9 @@ export function HomePage() {
                 }
             },
         },
-        refetchData,
+        // Wrap refetchData so the socket-disconnect polling fallback is silenced
+        // while the demo is running — socket events are the sole source of truth then.
+        isGlobalRunning ? undefined : refetchData,
         { autoConnect: false }, // Don't require auth for marketplace
     );
 
@@ -1099,14 +1106,21 @@ export function HomePage() {
                         layoutMode === 'table' && (view === 'leads' || view === 'buyNow') ? (
                             /* Table View for Leads / Buy Now */
                             leads.length === 0 ? (
-                                <EmptyState
-                                    icon={Search}
-                                    title={hasFilters ? "No leads match your criteria" : "No active leads"}
-                                    description={hasFilters
-                                        ? "Try adjusting your filters to see more leads."
-                                        : "No leads are currently in auction. Check back soon."}
-                                    action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
-                                />
+                                isGlobalRunning ? (
+                                    <div className="col-span-full flex flex-col items-center justify-center py-16 gap-3">
+                                        <span className="inline-block w-3 h-3 rounded-full bg-blue-400 animate-pulse" />
+                                        <p className="text-sm text-muted-foreground">Demo is live — leads are streaming in…</p>
+                                    </div>
+                                ) : (
+                                    <EmptyState
+                                        icon={Search}
+                                        title={hasFilters ? "No leads match your criteria" : "No active leads"}
+                                        description={hasFilters
+                                            ? "Try adjusting your filters to see more leads."
+                                            : "No leads are currently in auction. Check back soon."}
+                                        action={hasFilters ? { label: 'Clear All Filters', onClick: clearFilters } : undefined}
+                                    />
+                                )
                             ) : (
                                 <div className="rounded-xl border border-border overflow-hidden bg-card">
                                     <div className="overflow-x-auto">
