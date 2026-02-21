@@ -9,8 +9,9 @@
  */
 
 import { Router, Response } from 'express';
-import { authMiddleware, AuthenticatedRequest, requireBuyer } from '../middleware/auth';
+import { authMiddleware, AuthenticatedRequest, requireBuyer, requireAdmin } from '../middleware/auth';
 import * as vaultService from '../services/vault.service';
+import { reconcileAll } from '../services/vault-reconciliation.service';
 import { prisma } from '../lib/prisma';
 
 const router = Router();
@@ -144,5 +145,28 @@ router.post('/verify-por', authMiddleware, async (_req: AuthenticatedRequest, re
         res.status(500).json({ error: 'Failed to verify reserves' });
     }
 });
+
+// ── Admin: Full Reconciliation (on-demand) ──────────
+// POST /api/v1/vault/reconcile-all
+// Requires ADMIN role. Scans all non-zero vault balances and reports drift.
+
+router.post(
+    '/reconcile-all',
+    authMiddleware,
+    requireAdmin,
+    async (_req: AuthenticatedRequest, res: Response) => {
+        try {
+            const report = await reconcileAll();
+            const status = report.drifted > 0 ? 207 : 200; // 207 Multi-Status if any drift
+            res.status(status).json({
+                success: true,
+                report,
+            });
+        } catch (error: any) {
+            console.error('[VaultRoutes] reconcile-all error:', error.message);
+            res.status(500).json({ error: 'Reconciliation failed', detail: error.message });
+        }
+    }
+);
 
 export default router;
