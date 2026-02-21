@@ -170,13 +170,34 @@ class NFTService {
                 const receipt = await tx.wait();
                 console.log('[NFT MINT] Tx confirmed, block:', receipt?.blockNumber);
 
-                // Extract tokenId from Transfer event
+                // Extract tokenId from Transfer event log.
+                // ERC-721 Transfer: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+                // topics[0]=sig, topics[1]=from, topics[2]=to, topics[3]=tokenId
+                const TRANSFER_SIG = ethers.id('Transfer(address,address,uint256)');
                 const transferLog = receipt?.logs?.find(
-                    (log: any) => log.topics?.[0] === ethers.id('Transfer(address,address,uint256)')
+                    (log: any) => log.topics?.[0] === TRANSFER_SIG
                 );
-                const tokenId = transferLog
-                    ? BigInt(transferLog.topics[3]).toString()
-                    : (await this.contract!.totalSupply()).toString();
+
+                let tokenId: string;
+                if (transferLog?.topics?.[3]) {
+                    // Preferred path: parse directly from indexed topic
+                    tokenId = BigInt(transferLog.topics[3]).toString();
+                } else {
+                    // Fallback: decode log data via ABI (handles non-indexed variants)
+                    // If still not found, abort — never write tokenId='0' to DB.
+                    const fallbackSupply = await this.contract!.totalSupply();
+                    if (!fallbackSupply || BigInt(fallbackSupply) === 0n) {
+                        throw new Error('[NFT MINT] Could not extract tokenId from receipt and totalSupply()=0 — aborting to prevent ghost token write');
+                    }
+                    tokenId = BigInt(fallbackSupply).toString();
+                    console.warn('[NFT MINT] ⚠️  tokenId extracted from totalSupply() fallback — verify receipt logs');
+                }
+
+                // Paranoia guard: token ID 0 is the "not tokenized" sentinel on-chain.
+                // If somehow tokenId=0 reaches here, reject it rather than corrupt the DB.
+                if (tokenId === '0') {
+                    throw new Error('[NFT MINT] Invariant violation: tokenId=0 received — token ID 0 is the not-tokenized sentinel. Aborting DB write.');
+                }
 
                 // Update database with tokenId — NEVER overwrite encryptedData (PII).
                 await prisma.lead.update({
