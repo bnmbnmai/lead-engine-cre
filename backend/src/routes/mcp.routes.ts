@@ -9,7 +9,22 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 
 const router = Router();
-const MCP_BASE = process.env.MCP_SERVER_URL || 'https://lead-engine-mcp.onrender.com';
+const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3001';
+const MCP_API_KEY = process.env.MCP_API_KEY || '';
+
+if (!MCP_API_KEY) {
+    console.warn('[mcp.routes] ⚠️  MCP_API_KEY not set — outbound MCP server calls will be unauthenticated.');
+}
+
+/** Build auth headers for outbound calls to the MCP server. */
+function mcpHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    const h: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
+    if (MCP_API_KEY) {
+        h['Authorization'] = `Bearer ${MCP_API_KEY}`;
+        h['X-Api-Key'] = MCP_API_KEY;
+    }
+    return h;
+}
 
 // ── Kimi K2.5 (Moonshot AI) Configuration ──
 // Set KIMI_API_KEY in your hosting platform's environment variables
@@ -221,6 +236,7 @@ const ANTHROPIC_TOOLS = MCP_TOOLS.map((t) => ({
 router.get('/tools', async (_req: Request, res: Response) => {
     try {
         const response = await fetch(`${MCP_BASE}/tools`, {
+            headers: mcpHeaders(),
             signal: AbortSignal.timeout(5000),
         });
         const data = await response.json();
@@ -236,10 +252,7 @@ router.post('/rpc', async (req: Request, res: Response) => {
     try {
         const response = await fetch(`${MCP_BASE}/rpc`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(req.headers['x-agent-id'] ? { 'X-Agent-Id': req.headers['x-agent-id'] as string } : {}),
-            },
+            headers: mcpHeaders(req.headers['x-agent-id'] ? { 'X-Agent-Id': req.headers['x-agent-id'] as string } : {}),
             body: JSON.stringify(req.body),
             signal: AbortSignal.timeout(15000),
         });
@@ -334,6 +347,46 @@ async function searchLeadsLocal(params: Record<string, unknown>): Promise<any> {
     return sanitizeLeadData({ leads });
 }
 
+/**
+ * Race-condition guard for place_bid:
+ * Checks the lead is still IN_AUCTION inside a Prisma serializable-read before
+ * delegating to the MCP server. Prevents the agent from bidding on a lead that
+ * has just been closed by another user or the auction-closure cron.
+ */
+async function mcpPlaceBid(params: Record<string, unknown>): Promise<unknown> {
+    const leadId = params.leadId as string | undefined;
+    if (!leadId) return { error: 'place_bid: leadId is required' };
+
+    // Read-only guard: confirm lead is still active
+    const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, status: true, auctionEndAt: true },
+    });
+
+    if (!lead) return { error: `place_bid: lead ${leadId} not found` };
+    if (lead.status !== 'IN_AUCTION') {
+        return { error: `place_bid: lead ${leadId} is not available (status: ${lead.status})` };
+    }
+    if (lead.auctionEndAt && new Date(lead.auctionEndAt) < new Date()) {
+        return { error: `place_bid: auction for lead ${leadId} has already ended` };
+    }
+
+    // Guard passed — delegate to MCP server
+    const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
+        method: 'POST',
+        headers: mcpHeaders(),
+        body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: `place-bid-${Date.now()}`,
+            method: 'place_bid',
+            params,
+        }),
+        signal: AbortSignal.timeout(10000),
+    });
+    const rpcData: any = await rpcResponse.json();
+    return sanitizeLeadData(rpcData.result || rpcData.error || {});
+}
+
 async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<any> {
     // For search_leads, prefer local DB query to get real lead IDs
     if (name === 'search_leads') {
@@ -344,9 +397,14 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
         }
     }
 
+    // place_bid gets a race-condition guard (P2-MCP)
+    if (name === 'place_bid') {
+        return mcpPlaceBid(params);
+    }
+
     const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mcpHeaders(),
         body: JSON.stringify({
             jsonrpc: '2.0',
             id: `chat-${Date.now()}`,
