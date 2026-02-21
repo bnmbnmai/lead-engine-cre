@@ -11,6 +11,7 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthenticatedRequest, requireBuyer } from '../middleware/auth';
 import * as vaultService from '../services/vault.service';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
 
@@ -50,6 +51,10 @@ router.post('/deposit', authMiddleware, requireBuyer, async (req: AuthenticatedR
 });
 
 // ── Withdraw (deduct from vault balance) ──────
+// ⚠️  DB-ONLY: This records the withdrawal intent in the DB cache but does NOT
+// call withdraw() on-chain. The user must sign and submit the on-chain tx
+// from their wallet (wagmi/MetaMask). reconcileVaultBalance() runs in the
+// background to detect drift and alert operators.
 
 router.post('/withdraw', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -60,8 +65,22 @@ router.post('/withdraw', authMiddleware, requireBuyer, async (req: Authenticated
             return;
         }
 
-        const result = await vaultService.recordWithdraw(req.user!.id, numAmount);
-        res.json(result);
+        // Use the explicit cache-withdraw function (not the deprecated alias)
+        const result = await vaultService.recordCacheWithdraw(req.user!.id, numAmount);
+
+        // Fire reconciliation async — don't block the response
+        // This detects DB/on-chain drift caused by the DB-only write above
+        const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+        if (user?.walletAddress) {
+            vaultService.reconcileVaultBalance(user.walletAddress).catch((err: Error) =>
+                console.warn('[VaultRoutes] reconcileVaultBalance failed (non-fatal):', err.message)
+            );
+        }
+
+        res.json({
+            ...result,
+            warning: 'DB balance updated. Please sign and submit the on-chain withdraw() transaction from your wallet to sync on-chain state.',
+        });
     } catch (error: any) {
         console.error('[VaultRoutes] withdraw error:', error.message);
         const status = error.message?.includes('Insufficient') ? 400 : 500;
@@ -114,10 +133,12 @@ router.get('/reserves', async (_req, res: Response) => {
     }
 });
 
-router.post('/verify-por', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/verify-por', authMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
     try {
         const result = await vaultService.verifyReserves();
-        res.json(result);
+        // BUG-02 FIX: return 503 when solvent:false so callers get a clear HTTP error signal
+        const status = result.solvent ? 200 : 503;
+        res.status(status).json(result);
     } catch (error: any) {
         console.error('[VaultRoutes] verifyReserves error:', error.message);
         res.status(500).json({ error: 'Failed to verify reserves' });
