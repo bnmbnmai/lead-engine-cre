@@ -1154,4 +1154,39 @@ router.post('/:slug/bounty/withdraw', authMiddleware, async (req: AuthenticatedR
     }
 });
 
+// ============================================
+// GET /:id/sync-status — VerticalField sync validation (Admin)
+// P2-13: Compare formConfig.fields[] vs VerticalField rows
+// ============================================
+
+router.get('/:id/sync-status', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        // Verify the vertical exists (look up by id directly)
+        const vertical = await prisma.vertical.findUnique({
+            where: { id },
+            select: { id: true, slug: true, name: true },
+        });
+
+        if (!vertical) {
+            res.status(404).json({ error: 'Vertical not found' });
+            return;
+        }
+
+        const { validateVerticalFieldSync } = await import('../services/vertical-field.service');
+        const result = await validateVerticalFieldSync(id);
+
+        res.json({
+            verticalId: id,
+            verticalSlug: vertical.slug,
+            verticalName: vertical.name,
+            ...result,
+        });
+    } catch (error) {
+        console.error('Vertical sync-status error:', error);
+        res.status(500).json({ error: 'Failed to check vertical sync status' });
+    }
+});
+
 export default router;

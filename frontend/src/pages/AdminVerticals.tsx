@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
     Search, Check, X, Loader2, ChevronLeft, ChevronRight,
-    Sparkles, Gem, AlertTriangle, Pause, Play, Trash2,
+    Sparkles, Gem, AlertTriangle, Pause, Play, Trash2, RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -36,6 +36,14 @@ interface Pagination {
     totalPages: number;
 }
 
+// P2-13: sync-status result shape
+interface SyncStatus {
+    inSync: boolean;
+    missingFields: string[];
+    extraFields: string[];
+    warnings: string[];
+}
+
 type TabStatus = 'PROPOSED' | 'ACTIVE' | 'DEPRECATED' | 'REJECTED';
 
 // ============================================
@@ -52,6 +60,10 @@ export default function AdminVerticals() {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectDialog, setShowRejectDialog] = useState<string | null>(null);
+
+    // P2-13: per-row sync-check loading and result state
+    const [syncLoading, setSyncLoading] = useState<string | null>(null);
+    const [syncResults, setSyncResults] = useState<Record<string, SyncStatus>>({});
 
     // Redirect non-admins
     if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
@@ -70,6 +82,8 @@ export default function AdminVerticals() {
             if (res.data) {
                 setSuggestions(res.data.suggestions);
                 setPagination(res.data.pagination);
+                // Clear stale sync results when the list refreshes
+                setSyncResults({});
             }
         } catch {
             toast({ title: 'Failed to load suggestions', type: 'error' });
@@ -124,6 +138,37 @@ export default function AdminVerticals() {
             }
         } finally {
             setActionLoading(null);
+        }
+    };
+
+    // P2-13: Sync Check handler — calls GET /api/v1/verticals/:id/sync-status
+    const handleSyncCheck = async (id: string, name: string) => {
+        setSyncLoading(id);
+        try {
+            const res = await api.getVerticalSyncStatus(id);
+            if (res.data) {
+                setSyncResults((prev) => ({ ...prev, [id]: res.data! }));
+                if (res.data.inSync) {
+                    toast({ title: `✅ "${name}" fields are in sync`, type: 'success' });
+                } else {
+                    const parts: string[] = [];
+                    if (res.data.missingFields.length)
+                        parts.push(`Missing: ${res.data.missingFields.join(', ')}`);
+                    if (res.data.extraFields.length)
+                        parts.push(`Extra: ${res.data.extraFields.join(', ')}`);
+                    if (res.data.warnings.length)
+                        parts.push(`Warnings: ${res.data.warnings.length}`);
+                    toast({
+                        title: `⚠️ "${name}" out of sync`,
+                        description: parts.join(' | '),
+                        type: 'error',
+                    });
+                }
+            } else {
+                toast({ title: res.error?.error || 'Sync check failed', type: 'error' });
+            }
+        } finally {
+            setSyncLoading(null);
         }
     };
 
@@ -205,120 +250,163 @@ export default function AdminVerticals() {
                                             <th className="text-right py-2 px-3 font-medium">Confidence</th>
                                             <th className="text-right py-2 px-3 font-medium">Hits</th>
                                             <th className="text-left py-2 px-3 font-medium">Source</th>
+                                            <th className="text-center py-2 px-3 font-medium">Fields</th>
                                             {tab === 'PROPOSED' && <th className="text-right py-2 px-3 font-medium">Actions</th>}
                                             {(tab === 'ACTIVE' || tab === 'DEPRECATED') && <th className="text-right py-2 px-3 font-medium">Manage</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {suggestions.map((s) => (
-                                            <tr key={s.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                                                <td className="py-2.5 px-3 font-medium">{s.suggestedName}</td>
-                                                <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs">{s.suggestedSlug}</td>
-                                                <td className="py-2.5 px-3 text-muted-foreground">{s.parentSlug || '—'}</td>
-                                                <td className="py-2.5 px-3 text-right tabular-nums">
-                                                    <span className={s.confidence >= 0.7 ? 'text-emerald-500' : s.confidence >= 0.4 ? 'text-amber-500' : 'text-red-400'}>
-                                                        {(s.confidence * 100).toFixed(0)}%
-                                                    </span>
-                                                </td>
-                                                <td className="py-2.5 px-3 text-right tabular-nums">{s.hitCount}</td>
-                                                <td className="py-2.5 px-3">
-                                                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{s.source}</span>
-                                                </td>
-                                                {tab === 'PROPOSED' && (
-                                                    <td className="py-2.5 px-3 text-right">
-                                                        <div className="flex items-center gap-1.5 justify-end">
+                                        {suggestions.map((s) => {
+                                            const sync = syncResults[s.id];
+                                            return (
+                                                <tr key={s.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                                                    <td className="py-2.5 px-3 font-medium">{s.suggestedName}</td>
+                                                    <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs">{s.suggestedSlug}</td>
+                                                    <td className="py-2.5 px-3 text-muted-foreground">{s.parentSlug || '—'}</td>
+                                                    <td className="py-2.5 px-3 text-right tabular-nums">
+                                                        <span className={s.confidence >= 0.7 ? 'text-emerald-500' : s.confidence >= 0.4 ? 'text-amber-500' : 'text-red-400'}>
+                                                            {(s.confidence * 100).toFixed(0)}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right tabular-nums">{s.hitCount}</td>
+                                                    <td className="py-2.5 px-3">
+                                                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{s.source}</span>
+                                                    </td>
+                                                    {/* P2-13: Sync Check button + inline badge */}
+                                                    <td className="py-2.5 px-3 text-center">
+                                                        <div className="flex items-center gap-1 justify-center">
                                                             <Button
                                                                 size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => handleApprove(s.id, false)}
+                                                                variant="ghost"
+                                                                className="h-6 w-6 p-0"
+                                                                disabled={syncLoading === s.id}
+                                                                onClick={() => handleSyncCheck(s.id, s.suggestedName)}
+                                                                title="Check VerticalField sync status"
+                                                                id={`sync-check-${s.id}`}
                                                             >
-                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                                                                Approve
+                                                                {syncLoading === s.id
+                                                                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                                    : <RefreshCw className="h-3 w-3" />}
                                                             </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => handleApprove(s.id, true)}
-                                                                title="Approve and mint as NFT"
-                                                            >
-                                                                <Gem className="h-3 w-3" />
-                                                                + NFT
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => setShowRejectDialog(s.id)}
-                                                            >
-                                                                <X className="h-3 w-3" />
-                                                                Reject
-                                                            </Button>
+                                                            {sync != null && (
+                                                                <span
+                                                                    className={`text-xs px-1 py-0.5 rounded font-mono ${sync.inSync
+                                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                                                            : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                                                                        }`}
+                                                                    title={
+                                                                        sync.inSync
+                                                                            ? 'All fields in sync'
+                                                                            : [
+                                                                                sync.missingFields.length ? `Missing: ${sync.missingFields.join(', ')}` : '',
+                                                                                sync.extraFields.length ? `Extra: ${sync.extraFields.join(', ')}` : '',
+                                                                                ...sync.warnings,
+                                                                            ]
+                                                                                .filter(Boolean)
+                                                                                .join('\n')
+                                                                    }
+                                                                >
+                                                                    {sync.inSync ? '✓' : '!'}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </td>
-                                                )}
-                                                {tab === 'ACTIVE' && (
-                                                    <td className="py-2.5 px-3 text-right">
-                                                        <div className="flex items-center gap-1.5 justify-end">
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-amber-600 border-amber-600/30 hover:bg-amber-50 dark:hover:bg-amber-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => handleUpdateStatus(s.id, 'DEPRECATED')}
-                                                                title="Pause — hides from marketplace but keeps data"
-                                                            >
-                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pause className="h-3 w-3" />}
-                                                                Pause
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => handleUpdateStatus(s.id, 'REJECTED')}
-                                                                title="Delete — removes this vertical"
-                                                            >
-                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                                                Delete
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                                {tab === 'DEPRECATED' && (
-                                                    <td className="py-2.5 px-3 text-right">
-                                                        <div className="flex items-center gap-1.5 justify-end">
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => handleUpdateStatus(s.id, 'ACTIVE')}
-                                                                title="Reactivate this vertical"
-                                                            >
-                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                                                                Reactivate
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
-                                                                disabled={actionLoading === s.id}
-                                                                onClick={() => handleUpdateStatus(s.id, 'REJECTED')}
-                                                                title="Permanently delete this vertical"
-                                                            >
-                                                                {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                                                Delete
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
+                                                    {tab === 'PROPOSED' && (
+                                                        <td className="py-2.5 px-3 text-right">
+                                                            <div className="flex items-center gap-1.5 justify-end">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => handleApprove(s.id, false)}
+                                                                >
+                                                                    {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                                                    Approve
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => handleApprove(s.id, true)}
+                                                                    title="Approve and mint as NFT"
+                                                                >
+                                                                    <Gem className="h-3 w-3" />
+                                                                    + NFT
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => setShowRejectDialog(s.id)}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                    Reject
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    )}
+                                                    {tab === 'ACTIVE' && (
+                                                        <td className="py-2.5 px-3 text-right">
+                                                            <div className="flex items-center gap-1.5 justify-end">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-amber-600 border-amber-600/30 hover:bg-amber-50 dark:hover:bg-amber-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => handleUpdateStatus(s.id, 'DEPRECATED')}
+                                                                    title="Pause — hides from marketplace but keeps data"
+                                                                >
+                                                                    {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pause className="h-3 w-3" />}
+                                                                    Pause
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => handleUpdateStatus(s.id, 'REJECTED')}
+                                                                    title="Delete — removes this vertical"
+                                                                >
+                                                                    {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    )}
+                                                    {tab === 'DEPRECATED' && (
+                                                        <td className="py-2.5 px-3 text-right">
+                                                            <div className="flex items-center gap-1.5 justify-end">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => handleUpdateStatus(s.id, 'ACTIVE')}
+                                                                    title="Reactivate this vertical"
+                                                                >
+                                                                    {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                                                                    Reactivate
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs text-red-500 border-red-500/30 hover:bg-red-50 dark:hover:bg-red-950"
+                                                                    disabled={actionLoading === s.id}
+                                                                    onClick={() => handleUpdateStatus(s.id, 'REJECTED')}
+                                                                    title="Permanently delete this vertical"
+                                                                >
+                                                                    {actionLoading === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

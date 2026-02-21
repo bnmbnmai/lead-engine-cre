@@ -132,3 +132,89 @@ export async function syncVerticalFieldsInTransaction(
         return syncVerticalFields(verticalId, fields, tx);
     });
 }
+
+// ============================================
+// P2-13 — VerticalField Sync Validation
+// ============================================
+
+export interface SyncValidationResult {
+    inSync: boolean;
+    missingFields: string[];  // keys in formConfig but absent from VerticalField rows
+    extraFields: string[];  // keys in VerticalField rows but absent from formConfig
+    warnings: string[];  // informational notes (type mismatches, PII flag drift, etc.)
+}
+
+/**
+ * Compare a vertical's formConfig.fields[] against its VerticalField rows.
+ *
+ * Detects:
+ *  - Fields that exist in formConfig but have no corresponding VerticalField row (missing).
+ *  - VerticalField rows whose key is absent from formConfig (extra / stale).
+ *  - Type mismatches between the formConfig field type and the VerticalField.fieldType.
+ *
+ * Does NOT write to the database — purely a read-only comparison.
+ *
+ * @param verticalId  Prisma Vertical.id
+ */
+export async function validateVerticalFieldSync(
+    verticalId: string
+): Promise<SyncValidationResult> {
+    // 1. Load the vertical to get its formConfig
+    const vertical = await (prisma as any).vertical.findUnique({
+        where: { id: verticalId },
+        select: { id: true, formConfig: true },
+    });
+
+    if (!vertical) {
+        return {
+            inSync: false,
+            missingFields: [],
+            extraFields: [],
+            warnings: [`Vertical '${verticalId}' not found`],
+        };
+    }
+
+    // 2. Parse formConfig fields
+    const formConfig = (vertical.formConfig as any) || {};
+    const configFields: FormConfigField[] = Array.isArray(formConfig.fields)
+        ? formConfig.fields
+        : [];
+    const configKeys = new Set(configFields.map((f) => f.key));
+
+    // 3. Load existing VerticalField rows
+    const dbFields: Array<{ key: string; fieldType: string }> = await (prisma as any).verticalField.findMany({
+        where: { verticalId },
+        select: { key: true, fieldType: true },
+    });
+    const dbKeyToType = new Map(dbFields.map((f) => [f.key, f.fieldType]));
+
+    // 4. Compute diff
+    const missingFields: string[] = [];
+    const warnings: string[] = [];
+
+    for (const field of configFields) {
+        if (!dbKeyToType.has(field.key)) {
+            missingFields.push(field.key);
+        } else {
+            // Type check: compare mapped type
+            const expectedType = mapFieldType(field.type);
+            const actualType = dbKeyToType.get(field.key);
+            if (expectedType !== actualType) {
+                warnings.push(
+                    `Field '${field.key}': formConfig type '${field.type}' → expected '${expectedType}', DB has '${actualType}'`
+                );
+            }
+        }
+    }
+
+    const extraFields: string[] = [];
+    for (const [dbKey] of dbKeyToType) {
+        if (!configKeys.has(dbKey)) {
+            extraFields.push(dbKey);
+        }
+    }
+
+    const inSync = missingFields.length === 0 && extraFields.length === 0 && warnings.length === 0;
+
+    return { inSync, missingFields, extraFields, warnings };
+}
