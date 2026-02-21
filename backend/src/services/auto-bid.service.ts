@@ -142,14 +142,14 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         // ── 2. Geo state include/exclude ──
         const state = lead.geo.state?.toUpperCase();
         if (state && prefSet.geoInclude.length > 0) {
-            const included = prefSet.geoInclude.map(s => s.toUpperCase());
+            const included = prefSet.geoInclude.map((s: string) => s.toUpperCase());
             if (!included.includes(state)) {
                 result.skipped.push({ buyerId, preferenceSetId: setId, reason: `State ${state} not in include list` });
                 continue;
             }
         }
         if (state && prefSet.geoExclude.length > 0) {
-            const excluded = prefSet.geoExclude.map(s => s.toUpperCase());
+            const excluded = prefSet.geoExclude.map((s: string) => s.toUpperCase());
             if (excluded.includes(state)) {
                 result.skipped.push({ buyerId, preferenceSetId: setId, reason: `State ${state} in exclude list` });
                 continue;

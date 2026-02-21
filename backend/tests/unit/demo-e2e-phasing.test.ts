@@ -105,7 +105,10 @@ const mockVault = {
 };
 
 const mockUsdc = {
-    balanceOf: jest.fn().mockResolvedValue(BigInt(0)),
+    // Return $5,000 USDC so checkDeployerUSDCReserve (requires $2,800) passes
+    // when DEPLOYER_PRIVATE_KEY is set in CI (otherwise the guard early-returns
+    // before demo:complete fires, causing resultAvailableOnComplete=false).
+    balanceOf: jest.fn().mockResolvedValue(BigInt(5000 * 1e6)),
     transfer: jest.fn().mockImplementation(() => {
         usdcTransferCalls++;
         return Promise.resolve({ wait: jest.fn().mockResolvedValue({ hash: '0xtransfer' }) });

@@ -1680,10 +1680,18 @@ export async function runFullDemo(
     // ── Validate ──
     cycles = Math.max(1, Math.min(cycles, MAX_CYCLES));
 
+    // ── Claim the singleton lock synchronously ──
+    // Set BEFORE any await so concurrent calls always hit the isRunning guard above.
+    isRunning = true;
+
     // ── P0 Guard: Deployer USDC reserve check ──
-    // Must run BEFORE isRunning=true so we can return cleanly.
-    await checkDeployerUSDCReserve(io);
-    if (!isRunning) return {} as DemoResult; // guard emitted error + returned early
+    // Runs after isRunning=true so concurrent calls are blocked.
+    // checkDeployerUSDCReserve never sets isRunning — we own it here.
+    const reserveOk = await checkDeployerUSDCReserve(io);
+    if (!reserveOk) {
+        isRunning = false;
+        return {} as DemoResult; // guard emitted error + returned early
+    }
 
     const runId = uuidv4();
     const startedAt = new Date().toISOString();
@@ -2511,11 +2519,10 @@ export function getAllResults(): DemoResult[] {
  * checkDeployerUSDCReserve — verifies deployer has >= $2,800 USDC before any demo starts.
  *
  * Required = $2,500 for 10 buyers × $250 each + $300 buffer for fees/gas/edge cases.
- * If insufficient: emits an informative log, emits demo:status with error, and
- * sets isRunning=false so runFullDemo() can detect the early-return.
+ * Returns true if the reserve is sufficient (or check failed non-fatally), false to block.
  * Does NOT throw — always resolves.
  */
-async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
+async function checkDeployerUSDCReserve(io: SocketServer): Promise<boolean> {
     const requiredUnits = ethers.parseUnits(String(DEMO_DEPLOYER_USDC_MIN_REQUIRED), 6);
 
     try {
@@ -2543,8 +2550,7 @@ async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
                 phase: 'idle',
                 ts: new Date().toISOString(),
             });
-            // Signal runFullDemo to abort (isRunning is still false at this point)
-            return;
+            return false; // insufficient — caller should abort
         }
 
         emit(io, {
@@ -2552,12 +2558,11 @@ async function checkDeployerUSDCReserve(io: SocketServer): Promise<void> {
             level: 'success',
             message: `✅ Deployer USDC reserve sufficient ($${balanceUsd.toFixed(2)} ≥ $${DEMO_DEPLOYER_USDC_MIN_REQUIRED}) — proceeding.`,
         });
-        // Set isRunning=true here so runFullDemo can detect the guard passed
-        isRunning = true;
+        return true;
     } catch (err: any) {
         // Guard failure is non-fatal — let the demo proceed and fail naturally
         console.warn('[DEMO] USDC reserve check failed (non-fatal):', err.message?.slice(0, 80));
-        isRunning = true; // allow demo to continue
+        return true; // allow demo to continue
     }
 }
 
