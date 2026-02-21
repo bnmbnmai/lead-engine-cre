@@ -2,6 +2,15 @@
 
 **On-chain tokenized lead marketplace with autonomous AI agents on Base.**
 
+[![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
+![Tests](https://img.shields.io/badge/tests-1288%20passing-brightgreen)
+![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)
+![Chainlink ACE](https://img.shields.io/badge/Chainlink-ACE-blue)
+![Chainlink Automation](https://img.shields.io/badge/Automation-PoR%20%2B%20Refunds-orange)
+![Chainlink Functions](https://img.shields.io/badge/Chainlink-Functions-purple)
+![Base Sepolia](https://img.shields.io/badge/Deployed-Base%20Sepolia-blue)
+![Live Demo](https://img.shields.io/badge/Live%20Demo-vercel.app-brightgreen)
+
 [Live Demo](https://lead-engine-cre-frontend.vercel.app) | [GitHub](https://github.com/bnmbnmai/lead-engine-cre)
 
 ---
