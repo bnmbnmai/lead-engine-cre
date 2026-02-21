@@ -11,7 +11,7 @@ import { calculateFees, type BidSourceType } from '../lib/fees';
 import { getConfig, setConfig } from '../lib/config';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
-import { generateToken } from '../middleware/auth';
+import { generateToken, authMiddleware, requireAdmin, AuthenticatedRequest } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
@@ -19,6 +19,7 @@ import { nftService } from '../services/nft.service';
 import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 
 const router = Router();
+
 
 // ============================================
 // Production Guard — block all demo routes in prod
@@ -456,12 +457,12 @@ const DEMO_BUYERS = [
 // POST /demo-buyers-toggle — flip it
 // ============================================
 
-router.get('/demo-buyers-toggle', async (_req: Request, res: Response) => {
+router.get('/demo-buyers-toggle', authMiddleware, requireAdmin, async (_req: Request, res: Response) => {
     const enabled = await getDemoBuyersEnabled();
     res.json({ enabled });
 });
 
-router.post('/demo-buyers-toggle', async (req: Request, res: Response) => {
+router.post('/demo-buyers-toggle', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     const { enabled } = req.body as { enabled?: boolean };
     let newValue: boolean;
     if (typeof enabled === 'boolean') {
@@ -567,7 +568,7 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 // POST /seed — populate marketplace with demo data
 // ============================================
-router.post('/seed', async (req: Request, res: Response) => {
+router.post('/seed', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         // Seed Vertical table records first (ensures hierarchy API returns data)
         await seedVerticals();
@@ -857,7 +858,7 @@ router.post('/seed', async (req: Request, res: Response) => {
 // ============================================
 // POST /clear — remove all demo data
 // ============================================
-router.post('/clear', async (req: Request, res: Response) => {
+router.post('/clear', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         // TD-09 fix: only delete demo-tagged records, not ALL data
         const deletedBids = await prisma.bid.deleteMany({ where: { lead: { source: 'DEMO' } } });
@@ -891,7 +892,7 @@ router.post('/clear', async (req: Request, res: Response) => {
 // ============================================
 // POST /lead — inject single random lead
 // ============================================
-router.post('/lead', async (req: Request, res: Response) => {
+router.post('/lead', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
         const geo = req.body?.geo || pick(GEOS);
@@ -1008,7 +1009,7 @@ router.post('/lead', async (req: Request, res: Response) => {
 // ============================================
 // POST /auction — simulate live auction (create lead + bids over time)
 // ============================================
-router.post('/auction', async (req: Request, res: Response) => {
+router.post('/auction', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
         const geo = pick(GEOS);
@@ -1030,7 +1031,7 @@ router.post('/auction', async (req: Request, res: Response) => {
         });
         // Fallback to demoUser if buyers don't exist yet
         const bidderIds = demoBuyerUsers.length > 0
-            ? demoBuyerUsers.map(u => u.id)
+            ? demoBuyerUsers.map((u: { id: string }) => u.id)
             : demoUser ? [demoUser.id] : [];
 
         if (!seller || !demoUser) {
@@ -1159,7 +1160,7 @@ router.post('/auction', async (req: Request, res: Response) => {
 // POST /reset — clear ALL non-sold leads + demo-sold leads
 // Comprehensive reset: catches lander-submitted leads that lack DEMO_TAG
 // ============================================
-router.post('/reset', async (req: Request, res: Response) => {
+router.post('/reset', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         // 1. Delete ALL non-sold leads (IN_AUCTION, UNSOLD, PENDING_AUCTION, EXPIRED, CANCELLED)
         //    This catches lander-submitted leads that don't have source: DEMO
@@ -1212,7 +1213,7 @@ router.post('/reset', async (req: Request, res: Response) => {
 // POST /wipe — FULL marketplace data wipe (nuclear option)
 // Deletes ALL leads, bids, transactions, auction rooms, asks regardless of tag
 // ============================================
-router.post('/wipe', async (req: Request, res: Response) => {
+router.post('/wipe', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         const { confirm } = req.body as { confirm?: boolean };
         if (!confirm) {
@@ -1259,7 +1260,7 @@ router.post('/wipe', async (req: Request, res: Response) => {
 // ============================================
 // POST /seed-templates — Reset + seed all formConfig templates
 // ============================================
-router.post('/seed-templates', async (req: Request, res: Response) => {
+router.post('/seed-templates', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         // 1. Clear all existing formConfig
         await prisma.vertical.updateMany({
@@ -1296,7 +1297,7 @@ router.post('/seed-templates', async (req: Request, res: Response) => {
 // Settle (x402 Escrow Release) — on-chain settlement
 // ============================================
 
-router.post('/settle', async (req: Request, res: Response) => {
+router.post('/settle', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.body as { leadId?: string };
         const { x402Service } = await import('../services/x402.service');
@@ -1603,7 +1604,7 @@ function safeSend(res: Response, body: any, status = 200): void {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post('/full-e2e', async (req: Request, res: Response) => {
+router.post('/full-e2e', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     try {
         if (demoE2E.isDemoRunning()) {
             res.status(409).json({ error: 'A demo is already running', running: true, recycling: false });
@@ -1650,7 +1651,7 @@ router.post('/full-e2e', async (req: Request, res: Response) => {
 // POST /full-e2e/stop — Abort running demo
 // ============================================
 
-router.post('/full-e2e/stop', async (_req: Request, res: Response) => {
+router.post('/full-e2e/stop', authMiddleware, requireAdmin, async (_req: Request, res: Response) => {
     const wasRunning = demoE2E.isDemoRunning();
     const wasRecycling = demoE2E.isDemoRecycling();
     const stopped = demoE2E.stopDemo();
@@ -1744,7 +1745,7 @@ router.get('/full-e2e/status', async (_req: Request, res: Response) => {
 // Stops any running demo, cleans up stranded locked funds, forces USDC recycle,
 // prunes stale DEMO leads, and emits demo:reset-complete for the frontend.
 
-router.post('/full-e2e/reset', async (req: Request, res: Response) => {
+router.post('/full-e2e/reset', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
     const io = req.app.get('io');
 
     // 1. Abort any running demo or recycle
@@ -1828,7 +1829,7 @@ router.post('/full-e2e/reset', async (req: Request, res: Response) => {
 // POST /fund-eth — Pre-fund all 11 demo wallets with 0.015 ETH each
 // Fund-once model: run before first demo, or any time wallets run dry.
 // ============================================
-router.post('/fund-eth', async (_req: Request, res: Response) => {
+router.post('/fund-eth', authMiddleware, requireAdmin, async (_req: Request, res: Response) => {
     const { ethers } = await import('ethers');
 
     const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || 'https://sepolia.base.org';
