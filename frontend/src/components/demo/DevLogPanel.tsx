@@ -18,7 +18,17 @@ interface DevLogEntry {
     [key: string]: unknown;
 }
 
-const MAX_ENTRIES = 200;
+/** Maximum number of entries kept in the DevLogPanel ring buffer. */
+export const MAX_DEV_LOG_ENTRIES = 200;
+
+/**
+ * Ring-buffer append: push `entry` onto `prev` and drop the oldest entry
+ * if the array would exceed MAX_DEV_LOG_ENTRIES. O(1) amortized.
+ */
+function addCapped(prev: DevLogEntry[], entry: DevLogEntry): DevLogEntry[] {
+    const next = [...prev, entry];
+    return next.length > MAX_DEV_LOG_ENTRIES ? next.slice(-MAX_DEV_LOG_ENTRIES) : next;
+}
 const BASESCAN_TX_URL = 'https://sepolia.basescan.org/tx/';
 const BASESCAN_ADDR_URL = 'https://sepolia.basescan.org/address/';
 
@@ -156,20 +166,20 @@ export function DevLogPanel() {
             // Show a reconnect notice in the log so users know the stream resumed
             setEntries(prev => {
                 if (prev.length === 0) return prev; // nothing was here before, skip the notice
-                return [...prev, {
+                return addCapped(prev, {
                     ts: new Date().toISOString(),
                     action: 'demo:info',
                     ' ': '🔄 Socket reconnected — stream resumed (server may have redeployed)',
-                }];
+                });
             });
         };
         const onDisconnect = () => {
             setSocketStatus('disconnected');
-            setEntries(prev => [...prev, {
+            setEntries(prev => addCapped(prev, {
                 ts: new Date().toISOString(),
                 action: 'demo:warn',
                 ' ': '⚠️ Socket disconnected — waiting to reconnect…',
-            }]);
+            }));
         };
         const onConnectError = () => setSocketStatus('disconnected');
 
@@ -177,11 +187,11 @@ export function DevLogPanel() {
         // with reconnectionAttempts:Infinity, but guards against future config changes)
         // — manually call reconnect() to reset the retry counter.
         const onReconnectFailed = () => {
-            setEntries(prev => [...prev, {
+            setEntries(prev => addCapped(prev, {
                 ts: new Date().toISOString(),
                 action: 'demo:warn',
                 ' ': '🔁 Reconnect attempts exhausted — forcing manual reconnect…',
-            }]);
+            }));
             socketClient.reconnect();
         };
 
@@ -193,10 +203,7 @@ export function DevLogPanel() {
 
         // ace:dev-log events from Chainlink services (ACE, CRE, Data Feeds, VRF, Functions)
         const handler = (data: DevLogEntry) => {
-            setEntries(prev => {
-                const next = [...prev, data];
-                return next.length > MAX_ENTRIES ? next.slice(-MAX_ENTRIES) : next;
-            });
+            setEntries(prev => addCapped(prev, data));
         };
         socketClient.on('ace:dev-log', handler);
 
@@ -210,10 +217,7 @@ export function DevLogPanel() {
                 ...(data.txHash ? { tx: data.txHash } : {}),
                 ...(data.cycle != null ? { cyc: `${data.cycle}/${data.totalCycles}` } : {}),
             };
-            setEntries(prev => {
-                const next = [...prev, entry];
-                return next.length > MAX_ENTRIES ? next.slice(-MAX_ENTRIES) : next;
-            });
+            setEntries(prev => addCapped(prev, entry));
         };
         socketClient.on('demo:log', demoHandler);
 
@@ -227,7 +231,7 @@ export function DevLogPanel() {
                     ? `✅ Demo Complete — ${data.totalCycles} cycles, $${data.totalSettled} settled`
                     : `❌ Demo ${data.status}: ${data.error || 'Unknown error'}`,
             };
-            setEntries(prev => [...prev, completionEntry]);
+            setEntries(prev => addCapped(prev, completionEntry));
         };
         socketClient.on('demo:complete', completeHandler);
 
