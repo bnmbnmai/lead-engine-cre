@@ -167,12 +167,13 @@ The platform is fully deployed and functional on Base Sepolia. Detailed local de
 
 | Layer | Technology |
 |-------|-----------|
+| Chainlink Services | CRE, ACE, Automation, VRF, Functions, Data Feeds |
 | Blockchain | Base Sepolia |
 | Smart Contracts | Solidity + Hardhat |
 | Backend | Node.js, Express, Socket.IO, Prisma |
 | Frontend | React, Vite, Tailwind, ethers.js |
 | AI Agents | LangChain ReAct + Moonshot Kimi (OpenAI-compatible) |
-| Chainlink Services | CRE, ACE, Automation, VRF, Functions, Data Feeds |
+
 
 ---
 
