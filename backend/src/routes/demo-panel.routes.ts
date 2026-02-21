@@ -457,7 +457,7 @@ const DEMO_BUYERS = [
 // POST /demo-buyers-toggle — flip it
 // ============================================
 
-router.get('/demo-buyers-toggle', authMiddleware, requireAdmin, async (_req: Request, res: Response) => {
+router.get('/demo-buyers-toggle', authMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
     const enabled = await getDemoBuyersEnabled();
     res.json({ enabled });
 });
@@ -1609,17 +1609,22 @@ function safeSend(res: Response, body: any, status = 200): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// requireAdminOrTestToken
+// publicDemoBypass
 //
-// Security exception for the two public-facing one-click demo endpoints
-// (/full-e2e and /full-e2e/stop). These must remain accessible from the
-// marketplace "Run Full On-Chain Demo" button, which does not carry an ADMIN
-// JWT but can present the TEST_API_TOKEN via `X-Api-Token` header.
+// Reusable middleware for demo-panel endpoints that must be accessible from
+// the public marketplace page and Demo Control Panel without a full ADMIN JWT.
+// Allows passage if the caller is an ADMIN OR presents the shared
+// TEST_API_TOKEN secret via `X-Api-Token` header.
 //
-// All other destructive routes (seed, wipe, clear, reset, inject, etc.) still
-// require a full ADMIN JWT via authMiddleware + requireAdmin — no exceptions.
+// Applied to:
+//   GET  /demo-buyers-toggle  — polling state read for demo control panel
+//   POST /full-e2e            — "Run Full On-Chain Demo" marketplace button
+//   POST /full-e2e/stop       — companion stop button
+//
+// All other destructive routes (seed, wipe, clear, reset, inject,
+// full-e2e/reset, fund-eth, etc.) retain strict requireAdmin — NO exceptions.
 // ─────────────────────────────────────────────────────────────────────────────
-function requireAdminOrTestToken(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+function publicDemoBypass(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
     // Path 1: caller has a valid ADMIN JWT (set by authMiddleware)
     const user = (req as any).user;
     if (user?.role === 'ADMIN') {
@@ -1642,7 +1647,7 @@ function requireAdminOrTestToken(req: AuthenticatedRequest, res: Response, next:
     });
 }
 
-router.post('/full-e2e', authMiddleware, requireAdminOrTestToken, async (req: Request, res: Response) => {
+router.post('/full-e2e', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         if (demoE2E.isDemoRunning()) {
             res.status(409).json({ error: 'A demo is already running', running: true, recycling: false });
@@ -1689,7 +1694,7 @@ router.post('/full-e2e', authMiddleware, requireAdminOrTestToken, async (req: Re
 // POST /full-e2e/stop — Abort running demo
 // ============================================
 
-router.post('/full-e2e/stop', authMiddleware, requireAdminOrTestToken, async (_req: Request, res: Response) => {
+router.post('/full-e2e/stop', authMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
     const wasRunning = demoE2E.isDemoRunning();
     const wasRecycling = demoE2E.isDemoRecycling();
     const stopped = demoE2E.stopDemo();
