@@ -83,7 +83,7 @@ export function AgentChatWidget() {
         if (isOpen && messages.length === 0) {
             setMessages([{
                 role: 'assistant',
-                content: '👋 Hi! I\'m **LEAD Engine AI**, your autonomous bidding agent. I can search leads, check bid floors, configure auto-bid rules, and navigate the platform.\n\nTry asking:\n• "Search solar leads in California"\n• "What\'s the bid floor for mortgage?"\n• "Show my preferences"\n• "Take me to the marketplace"',
+                content: '👋 Hi! I\'m **LEAD Engine AI**, your autonomous bidding agent. I can search leads, check bid floors, configure auto bid rules, and navigate the platform.\n\nTry asking:\n• "Search solar leads in California"\n• "What\'s the bid floor for mortgage?"\n• "Show my auto bid rules"\n• "Take me to the marketplace"',
             }]);
         }
     }, [isOpen, messages.length]);
@@ -309,11 +309,11 @@ export function AgentChatWidget() {
                 </div>
             )}
 
-            {/* Red X close button — floats at bottom-right of open panel, mirrors DemoPanel toggle style */}
+            {/* Red X close button — inline with DemoPanel row (bottom-6), left of demo toggle */}
             {isOpen && (
                 <button
                     onClick={handleClose}
-                    className="fixed bottom-[76px] right-6 z-[60] w-9 h-9 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+                    className="fixed bottom-6 right-20 z-[60] w-9 h-9 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
                     title="Close chat (Esc)"
                     aria-label="Close agent chat"
                 >

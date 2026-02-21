@@ -658,9 +658,8 @@ export function DemoPanel() {
                                 onClick={handleStartAuction}
                                 variant="accent"
                             />
-                            <p className="text-[11px] text-muted-foreground pl-1">
-                                Creates a 60s auction lead{demoBuyersEnabled ? ' + simulates 3 bot bids over 30s' : ' (no bot bids — demo buyers disabled)'}.
-                                Click any IN_AUCTION lead on the Marketplace to watch bids arrive live.
+                            <p className="text-[10px] text-muted-foreground pl-1">
+                                60s auction{demoBuyersEnabled ? ' + 3 bot bids over 30s' : ' (no bot bids)'}. Click IN_AUCTION on Marketplace to watch live.
                             </p>
 
                             {/* Drip info chip */}
@@ -701,10 +700,8 @@ export function DemoPanel() {
                                 onClick={handleSettle}
                                 variant="accent"
                             />
-                            <p className="text-[11px] text-muted-foreground pl-1">
-                                Calls on-chain escrow release on the most recent won auction.
-                                Triggers USDC transfer, marks escrowReleased=true, and unlocks PII for the buyer.
-                                Refresh the lead detail page after to see decrypted contact info.
+                            <p className="text-[10px] text-muted-foreground pl-1">
+                                Releases escrow on-chain for the most recent won auction. Refresh lead detail page to see decrypted PII.
                             </p>
 
                             {/* Demo Seller Address */}
@@ -728,8 +725,8 @@ export function DemoPanel() {
                                 onClick={handleFundEth}
                                 variant="accent"
                             />
-                            <p className="text-[11px] text-muted-foreground pl-1">
-                                Sends 0.015 ETH from the deployer to all 11 demo wallets, topping up to target. Run once before first demo, or any time balances run low. ETH is no longer auto-topped during demo runs.
+                            <p className="text-[10px] text-muted-foreground pl-1">
+                                Tops up all 11 demo wallets to 0.015 ETH from deployer. Run once before first demo or when balances run low.
                             </p>
                         </Section>
 
@@ -765,10 +762,8 @@ export function DemoPanel() {
                                     {actions.fullReset.message}
                                 </p>
                             )}
-                            <p className="text-[11px] text-muted-foreground pl-1">
-                                Use if demo gets stuck or after a Render restart. Stops active demo, refunds
-                                stranded locked funds, prunes stale DEMO leads, then emits ready status.
-                                Watch the Dev Log panel for real-time progress.
+                            <p className="text-[10px] text-muted-foreground pl-1">
+                                Use if demo gets stuck or after Render restart. Watch Dev Log for progress.
                             </p>
                         </Section>
 
@@ -835,7 +830,7 @@ export function DemoPanel() {
                                 ))}
                             </div>
                             <p className="text-[10px] text-muted-foreground mt-2 pl-1">
-                                Header nav buttons only navigate — this is the only way to change the active role + KYC bypass.
+                                Only header nav changes persona + KYC bypass.
                             </p>
                             {actions.persona?.message && (
                                 <p className="text-[11px] text-muted-foreground pl-1 mt-1">{actions.persona.message}</p>

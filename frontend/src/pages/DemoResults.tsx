@@ -99,6 +99,10 @@ export default function DemoResults() {
         totalGas: partialResults.cycles.reduce((sum: bigint, c: any) => sum + BigInt(c.gasUsed ?? '0'), 0n).toString(),
         totalSettled: partialResults.totalSettled,
         status: 'completed',
+        // Sum per-cycle platformIncome so the revenue card shows a real number
+        totalPlatformIncome: (partialResults.cycles as CycleResult[]).reduce(
+            (sum, c) => sum + (c.platformIncome ?? 0), 0
+        ),
     } : null);
 
     const fetchResults = useCallback(async (specificRunId?: string) => {

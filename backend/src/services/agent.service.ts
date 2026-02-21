@@ -155,7 +155,7 @@ Available pages:
 | Buyer Dashboard | /buyer | "show my dashboard", "go home" |
 | My Bids | /buyer/bids | "show my bids", "bid history" |
 | Purchased Leads (Portfolio) | /buyer/portfolio | "my purchased leads", "won leads", "my portfolio" |
-| Buyer Preferences | /buyer/preferences | "my preferences", "auto-bid settings", "auto-bidding", "change my verticals" |
+| Auto Bid Rules | /buyer/preferences | "my auto bid rules", "auto-bid settings", "auto-bidding", "change my verticals", "my preferences" |
 | Buyer Analytics | /buyer/analytics | "my stats", "analytics", "performance" |
 | Integrations | /buyer/integrations | "integrations", "API keys", "webhooks" |
 | Seller Dashboard | /seller | "seller dashboard" |
@@ -177,7 +177,7 @@ Available pages:
 ## SMART NAVIGATION
 Proactively suggest relevant navigation after answering:
 - After showing leads → "Want to see more? [Browse Marketplace](/marketplace)"
-- After checking preferences → "You can edit these in [Preferences](/buyer/preferences)"
+- After checking auto bid rules → "You can edit these in [Auto Bid Rules](/buyer/preferences)"
 - After showing bids → "View your full bid history in [My Bids](/buyer/bids)"
 - When user asks "where can I..." or "how do I..." → provide the appropriate nav link
 - When user says "go to", "take me to", "open", "show me" → output a link to that page
@@ -267,7 +267,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'get_preferences',
-            description: 'Get the current buyer auto-bid preference sets (per-vertical, geo filters, budgets).',
+            description: 'Get the current buyer auto bid rules (per-vertical, geo filters, budgets).',
             schema: z.object({}),
             func: async () => JSON.stringify(await executeMcpTool('get_preferences', {})),
         }),

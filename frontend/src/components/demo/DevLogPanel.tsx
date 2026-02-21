@@ -203,12 +203,16 @@ export function DevLogPanel() {
 
         // ace:dev-log events from Chainlink services (ACE, CRE, Data Feeds, VRF, Functions)
         const handler = (data: DevLogEntry) => {
+            // Receiving any event proves the socket is live
+            setSocketStatus('connected');
             setEntries(prev => addCapped(prev, data));
         };
         socketClient.on('ace:dev-log', handler);
 
         // demo:log events — the message IS the log line; render it as the primary text.
         const demoHandler = (data: any) => {
+            // Receiving demo:log proves the socket is live
+            setSocketStatus('connected');
             const level = data.level || 'info';
             const entry: DevLogEntry = {
                 ts: data.ts || new Date().toISOString(),
@@ -425,7 +429,7 @@ export function DevLogPanel() {
                     onClick={copyAll}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        color: copiedAll ? '#22c55e' : '#4a4560', padding: '2px',
+                        color: copiedAll ? '#22c55e' : '#3b82f6', padding: '2px',
                     }}
                     title="Copy All Logs"
                 >
@@ -445,7 +449,7 @@ export function DevLogPanel() {
                     onClick={() => setOpen(false)}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#4a4560', padding: '2px',
+                        color: '#6b7280', padding: '2px',
                     }}
                     title="Minimize (Ctrl+Shift+L)"
                 >
