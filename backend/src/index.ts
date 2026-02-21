@@ -10,6 +10,7 @@ import { prisma } from './lib/prisma';
 import RTBSocketServer from './rtb/socket';
 import { startQuarterlyResetCron } from './services/quarterly-reset.service';
 import { resolveExpiredAuctions } from './services/auction-closure.service';
+import { startVaultReconciliationJob } from './services/vault-reconciliation.service';
 
 // Load environment variables FIRST
 dotenv.config();
@@ -94,10 +95,18 @@ const ALLOWED_ORIGINS = [
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, curl, server-to-server)
-        if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+        // Only allow explicitly listed origins — reject everything else.
+        // SECURITY: The previous fallback callback(null, true) allowed all origins,
+        // bypassing CORS entirely. In production this would allow any site to make
+        // credentialed cross-origin requests on behalf of logged-in users.
+        if (ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
             callback(null, true);
         } else {
-            callback(null, true); // permissive in demo — tighten for prod
+            callback(new Error(`CORS: origin '${origin}' is not in the allowlist`));
         }
     },
     credentials: true,
@@ -276,6 +285,11 @@ httpServer.listen(PORT, () => {
 
     // Start quarterly lease reset cron (daily at midnight UTC)
     startQuarterlyResetCron();
+
+    // Start EscrowVault DB ↔ on-chain reconciliation cron (every 5 min, production only)
+    if (process.env.NODE_ENV !== 'test') {
+        startVaultReconciliationJob();
+    }
 
     // Sweep any auctions that expired during downtime
     resolveExpiredAuctions()

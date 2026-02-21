@@ -262,6 +262,12 @@ export const api = {
     getVerticalFields: (slug: string) =>
         apiFetch<{ fields: any[] }>(`/api/v1/verticals/${slug}/fields`),
 
+    // P2-13: VerticalField sync validation (admin-only)
+    getVerticalSyncStatus: (id: string) =>
+        apiFetch<{ inSync: boolean; missingFields: string[]; extraFields: string[]; warnings: string[] }>(
+            `/api/v1/verticals/${id}/sync-status`
+        ),
+
     searchLeadsAdvanced: (params: {
         vertical: string;
         state?: string;

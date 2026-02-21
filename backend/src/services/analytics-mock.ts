@@ -1,7 +1,11 @@
 /**
- * Seeded mock data provider for analytics endpoints.
- * Activated when USE_MOCK_DATA=true.
- * Uses @faker-js/faker with a fixed seed (42) so output is deterministic.
+ * @deprecated P2-15: analytics-mock.ts is deprecated in favour of analytics.service.ts.
+ *
+ * This file is kept temporarily so the `?source=mock` query param still works for
+ * local development and demo walkthroughs. The production guard below ensures it can
+ * never be activated on Render.
+ *
+ * DO NOT add new functionality here. All new analytics logic goes in analytics.service.ts.
  */
 import { faker } from '@faker-js/faker';
 

@@ -6,7 +6,7 @@ import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } fr
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService, aceDevBus } from '../services/ace.service';
-import { x402Service } from '../services/x402.service';
+import { x402Service } from '../services/escrow-impl.service';
 import { nftService } from '../services/nft.service';
 import { marketplaceAsksCache } from '../lib/cache';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
@@ -1840,8 +1840,12 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
                         }
                     }
                 } else {
-                    console.warn(`[CONFIRM-ESCROW] NFT mint failed: ${mintResult.error}`);
+                    // BUG-08: Set nftMintFailed flag + schedule retry instead of silent warn.
+                    // Auction/sale already succeeded — this is non-blocking.
+                    console.warn(`[CONFIRM-ESCROW] NFT mint failed (non-fatal): ${mintResult.error}`);
+                    await nftService.scheduleMintRetry(leadId, mintResult.error || 'unknown mint error');
                 }
+
             } catch (err: any) {
                 console.error('[CONFIRM-ESCROW] NFT mint/record error:', err.message);
             }

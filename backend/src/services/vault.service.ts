@@ -186,21 +186,26 @@ export async function recordDeposit(userId: string, amount: number, txHash: stri
 }
 
 /**
- * Record a withdrawal: updates the DB vault balance.
+ * Record a vault withdrawal in the DB cache ONLY.
  *
- * BUG-03 TODO: Future client-side signed withdraw required to prevent DB/on-chain desync.
- * withdraw(uint256) on the deployed contract operates on msg.sender — the deployer key
- * cannot call it on behalf of users. The correct fix requires the user to sign and
- * broadcast the on-chain withdrawal from their own wallet (frontend change). Until then,
- * this function remains DB-only and the on-chain vault balance will diverge from the DB
- * after a withdrawal.
+ * ⚠️  BUG-03 — DB-only: this does NOT call withdraw() on-chain.
+ *
+ * The PersonalEscrowVault.withdraw(uint256) function operates on msg.sender,
+ * meaning only the user's own wallet can trigger it. The backend deployer key
+ * cannot withdraw on behalf of users. The correct flow is:
+ *   1. Frontend calls vault.withdraw(amount) via wagmi/MetaMask (user signs)
+ *   2. Frontend confirms the tx hash, then calls POST /api/buyer/vault/withdraw
+ *      with { amount, txHash } so the backend can record it.
+ *
+ * Until the frontend is wired up to pass txHash, this function records
+ * the intent in the DB. Call reconcileVaultBalance() afterward to detect
+ * any divergence between the DB cache and the on-chain balance.
  */
-export async function recordWithdraw(userId: string, amount: number) {
+export async function recordCacheWithdraw(userId: string, amount: number) {
     const vault = await getOrCreateVault(userId);
     let available = Number(vault.balance);
 
     // Best-effort: read on-chain balanceOf + lockedBalances to get true free balance.
-    // These are read-only calls — safe to make with any signer/provider.
     let onChainLocked = 0;
     try {
         if (VAULT_ADDRESS) {
@@ -229,7 +234,8 @@ export async function recordWithdraw(userId: string, amount: number) {
         throw new Error(`Insufficient balance. Available: $${available.toFixed(2)}${lockedNote}`);
     }
 
-    // DB-only update (see BUG-03 TODO above for why on-chain call is omitted)
+    // ⚠️ DB-only update — on-chain state NOT changed here.
+    // This will diverge from on-chain until the user calls withdraw() via their wallet.
     const [updatedVault] = await prisma.$transaction([
         prisma.escrowVault.update({
             where: { id: vault.id },
@@ -243,22 +249,35 @@ export async function recordWithdraw(userId: string, amount: number) {
                 vaultId: vault.id,
                 type: 'WITHDRAW',
                 amount: withdrawAmount,
-                reference: `withdraw-${Date.now()}`,
-                note: `Vault withdrawal $${withdrawAmount.toFixed(2)} USDC (DB-only — see BUG-03)`,
+                reference: `cache-withdraw-${Date.now()}`,
+                note: `Vault withdrawal $${withdrawAmount.toFixed(2)} USDC (DB-cache only — user must sign on-chain tx)`,
             },
         }),
     ]);
 
     aceDevBus.emit('ace:dev-log', {
         ts: new Date().toISOString(),
-        action: 'vault:withdraw',
+        action: 'vault:cache-withdraw',
         userId,
         amount: `$${withdrawAmount.toFixed(2)}`,
         lockedBids: `$${onChainLocked.toFixed(2)}`,
-        source: 'db-only',
+        warning: 'DB-only: on-chain vault not updated. User must call withdraw() from their wallet.',
     });
 
-    return { success: true, balance: Number(updatedVault.balance), withdrawn: withdrawAmount };
+    return { success: true, balance: Number(updatedVault.balance), withdrawn: withdrawAmount, dbOnly: true };
+}
+
+/**
+ * @deprecated Use recordCacheWithdraw() explicitly.
+ * Kept for backward compatibility — emits a warning so callers are aware.
+ */
+export async function recordWithdraw(userId: string, amount: number) {
+    console.warn(
+        '[VaultService] recordWithdraw() is deprecated and DB-only. '
+        + 'Use recordCacheWithdraw() and ensure the user signs the on-chain withdraw() tx. '
+        + 'Call reconcileVaultBalance() afterward to verify balance consistency.'
+    );
+    return recordCacheWithdraw(userId, amount);
 }
 
 
@@ -505,8 +524,18 @@ export async function checkBidBalance(
 
 /**
  * Verify Proof of Reserves on-chain.
+ *
+ * BUG-02 FIX: Returns structured { solvent, txHash?, error?, details? }.
+ * - solvent defaults to FALSE (not true) when the on-chain event cannot be parsed.
+ * - Catch block returns { solvent: false, error } so callers see real failures
+ *   instead of a ghost "healthy" status.
  */
-export async function verifyReserves(): Promise<{ solvent: boolean; txHash?: string }> {
+export async function verifyReserves(): Promise<{
+    solvent: boolean;
+    txHash?: string;
+    error?: string;
+    details?: { contractBalance?: string; obligations?: string; margin?: string };
+}> {
     try {
         const contract = getSignedVaultContract();
         const tx = await contract.verifyReserves();
@@ -518,23 +547,111 @@ export async function verifyReserves(): Promise<{ solvent: boolean; txHash?: str
             } catch { return false; }
         });
         const parsed = porEvent ? contract.interface.parseLog(porEvent) : null;
-        const solvent = parsed ? parsed.args[2] : true;
+
+        // BUG-02 FIX: default to FALSE if event not found — never assume solvent
+        const solvent: boolean = parsed ? Boolean(parsed.args[2]) : false;
+
+        // Capture PoR details for structured response
+        const details = parsed ? {
+            contractBalance: (Number(parsed.args[0]) / 1e6).toFixed(6),
+            obligations: (Number(parsed.args[1]) / 1e6).toFixed(6),
+            margin: ((Number(parsed.args[0]) - Number(parsed.args[1])) / 1e6).toFixed(6),
+        } : undefined;
+
+        if (!parsed) {
+            console.warn('[VaultService] verifyReserves: ReservesVerified event not found in receipt — defaulting to solvent:false');
+        }
 
         aceDevBus.emit('ace:dev-log', {
             ts: new Date().toISOString(),
             action: 'vault:por-verify',
             solvent,
             txHash: tx.hash,
+            details,
             source: 'on-chain',
         });
 
-        return { solvent, txHash: tx.hash };
+        return { solvent, txHash: tx.hash, details };
     } catch (err) {
-        // BUG-02 fix: return solvent:false on any error so failures are visible
-        // rather than silently swallowing RPC/config errors as "healthy".
-        console.error('[VaultService] verifyReserves failed:', err);
-        return { solvent: false };
+        // BUG-02 FIX: surface the real error — do NOT force solvent:true.
+        // Any RPC failure, config error, or revert now propagates as solvent:false
+        // so operators see real failures instead of a ghost "healthy" status.
+        const message = (err as Error).message || String(err);
+        console.error('[VaultService] verifyReserves failed:', message);
+        return { solvent: false, error: message };
     }
+}
+
+/**
+ * Compare the DB-cached vault balance against the on-chain balance for a user.
+ * Logs a warning and emits an alert event if they diverge by more than $0.01
+ * (the minimum meaningful USDC unit after rounding).
+ *
+ * Use this after recordCacheWithdraw() or any operation that may cause drift.
+ *
+ * @returns { dbBalance, onChainBalance, drift, driftUsd, synced }
+ */
+export async function reconcileVaultBalance(userAddress: string): Promise<{
+    dbBalance: number;
+    onChainBalance: number;
+    drift: number;
+    driftUsd: string;
+    synced: boolean;
+    error?: string;
+}> {
+    // Look up the user by wallet address to get the DB vault record
+    const user = await prisma.user.findFirst({ where: { walletAddress: userAddress.toLowerCase() } });
+    if (!user) {
+        return { dbBalance: 0, onChainBalance: 0, drift: 0, driftUsd: '$0.00', synced: true, error: 'User not found' };
+    }
+
+    const vault = await prisma.escrowVault.findUnique({ where: { userId: user.id } });
+    const dbBalance = vault ? Number(vault.balance) : 0;
+
+    if (!VAULT_ADDRESS) {
+        return { dbBalance, onChainBalance: dbBalance, drift: 0, driftUsd: '$0.00', synced: true, error: 'VAULT_ADDRESS not configured' };
+    }
+
+    let onChainBalance = 0;
+    try {
+        const contract = getVaultContract();
+        const [bal, locked] = await Promise.all([
+            contract.balanceOf(userAddress),
+            contract.lockedBalances(userAddress),
+        ]);
+        // On-chain free balance = total balance − locked
+        onChainBalance = Math.max(0, unitsToUsdc(bal) - unitsToUsdc(locked));
+    } catch (err) {
+        const message = (err as Error).message;
+        console.error('[VaultService] reconcileVaultBalance: on-chain read failed:', message);
+        return { dbBalance, onChainBalance: 0, drift: 0, driftUsd: '$0.00', synced: false, error: message };
+    }
+
+    const drift = Math.abs(dbBalance - onChainBalance);
+    const synced = drift < 0.01; // $0.01 tolerance for rounding
+
+    if (!synced) {
+        const driftMsg = `[VaultService] ⚠️ BALANCE DRIFT DETECTED for ${userAddress}: `
+            + `DB=$${dbBalance.toFixed(2)}, on-chain=$${onChainBalance.toFixed(2)}, drift=$${drift.toFixed(6)}`;
+        console.warn(driftMsg);
+        aceDevBus.emit('ace:dev-log', {
+            ts: new Date().toISOString(),
+            action: 'vault:reconcile-drift',
+            userAddress,
+            dbBalance,
+            onChainBalance,
+            drift,
+            severity: 'WARNING',
+        });
+    }
+
+    return {
+        dbBalance,
+        onChainBalance,
+        drift,
+        driftUsd: `$${drift.toFixed(6)}`,
+        synced,
+    };
 }
 
 /**

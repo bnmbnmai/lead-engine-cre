@@ -22,7 +22,16 @@ import { prisma } from '../lib/prisma';
 
 const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.kimi.com/coding/v1';
-const MCP_BASE = process.env.MCP_SERVER_URL || 'https://lead-engine-mcp.onrender.com';
+const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3001';
+const MCP_API_KEY = process.env.MCP_API_KEY || '';
+
+// ── Startup validation ──
+if (!KIMI_API_KEY) {
+    console.warn('[AgentService] ⚠️  KIMI_API_KEY is not set — LangChain agent will throw on first call.');
+}
+if (!MCP_API_KEY) {
+    console.warn('[AgentService] ⚠️  MCP_API_KEY is not set — tool calls to MCP server will be unauthenticated.');
+}
 
 // ── PII sanitization (shared with mcp.routes.ts) ──
 
@@ -95,11 +104,18 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
         return localSearchLeads(params as any);
     }
 
+    // Build auth headers for MCP server
+    const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (MCP_API_KEY) {
+        authHeaders['Authorization'] = `Bearer ${MCP_API_KEY}`;
+        authHeaders['X-Api-Key'] = MCP_API_KEY;
+    }
+
     // For all other tools, call MCP server
     try {
         const res = await fetch(`${MCP_BASE}/tools/${name}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders,
             body: JSON.stringify(params),
         });
         if (!res.ok) return { error: `MCP tool ${name} returned ${res.status}` };

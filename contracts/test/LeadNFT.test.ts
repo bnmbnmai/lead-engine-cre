@@ -305,4 +305,107 @@ describe("LeadNFTv2", function () {
             expect(offsiteMeta.source).to.equal(2);
         });
     });
+    // ============================================================
+    // BUG-01: Token ID 0 Collision — Invariant Tests
+    // ============================================================
+    // The sentinel _platformLeadToToken[id] == 0 means "not minted".
+    // Token ID 0 must NEVER be issued. _nextTokenId starts at 1 and
+    // uses post-increment, so the first minted token is always 1.
+    // These tests lock in that invariant as a regression guard.
+
+    describe("Token ID Invariants (BUG-01)", function () {
+        const lead1 = ethers.keccak256(ethers.toUtf8Bytes("bug01_lead_1"));
+        const lead2 = ethers.keccak256(ethers.toUtf8Bytes("bug01_lead_2"));
+        const lead3 = ethers.keccak256(ethers.toUtf8Bytes("bug01_lead_3"));
+
+        async function expiresIn(seconds: number) {
+            return (await time.latest()) + seconds;
+        }
+
+        async function mintOne(platformId: string, expiresAt: number) {
+            return leadNFT.connect(minter).mintLead(
+                seller.address,
+                platformId,
+                vertical,
+                geoHash,
+                piiHash,
+                reservePrice,
+                expiresAt,
+                0,      // PLATFORM source
+                true,   // TCPA consent
+                uri
+            );
+        }
+
+        it("first lead minted gets tokenId === 1, never 0", async function () {
+            const expiresAt = await expiresIn(86400);
+            const tx = await mintOne(lead1, expiresAt);
+            const receipt = await tx.wait();
+
+            // Confirm via emitted event
+            await expect(tx)
+                .to.emit(leadNFT, "LeadMinted")
+                .withArgs(1n, lead1, seller.address, vertical, 0);
+
+            // Confirm ownership at token 1
+            expect(await leadNFT.ownerOf(1n)).to.equal(seller.address);
+
+            // Confirm token 0 was never minted (ownerOf(0) should revert)
+            await expect(leadNFT.ownerOf(0n)).to.be.reverted;
+        });
+
+        it("isTokenized sentinel: unminted lead maps to 0, minted lead maps to >=1", async function () {
+            const expiresAt = await expiresIn(86400);
+            const unmintedId = ethers.keccak256(ethers.toUtf8Bytes("never_minted_lead"));
+
+            // Before mint: getLeadByPlatformId should revert with "Not found"
+            await expect(
+                leadNFT.getLeadByPlatformId(unmintedId)
+            ).to.be.revertedWith("LeadNFTv2: Not found");
+
+            // Mint lead1
+            await mintOne(lead1, expiresAt);
+
+            // After mint: getLeadByPlatformId returns tokenId >= 1
+            const [tokenId, meta] = await leadNFT.getLeadByPlatformId(lead1);
+            expect(tokenId).to.equal(1n);
+            expect(tokenId).to.be.greaterThan(0n);
+            expect(meta.seller).to.equal(seller.address);
+        });
+
+        it("sequential mints produce sequential IDs starting from 1", async function () {
+            const expiresAt = await expiresIn(86400);
+
+            const tx1 = await mintOne(lead1, expiresAt);
+            const tx2 = await mintOne(lead2, expiresAt);
+            const tx3 = await mintOne(lead3, expiresAt);
+
+            await expect(tx1).to.emit(leadNFT, "LeadMinted").withArgs(1n, lead1, seller.address, vertical, 0);
+            await expect(tx2).to.emit(leadNFT, "LeadMinted").withArgs(2n, lead2, seller.address, vertical, 0);
+            await expect(tx3).to.emit(leadNFT, "LeadMinted").withArgs(3n, lead3, seller.address, vertical, 0);
+        });
+
+        it("totalSupply() returns accurate minted count (not _nextTokenId counter)", async function () {
+            expect(await leadNFT.totalSupply()).to.equal(0n); // nothing minted yet
+
+            const expiresAt = await expiresIn(86400);
+            await mintOne(lead1, expiresAt);
+            expect(await leadNFT.totalSupply()).to.equal(1n);
+
+            await mintOne(lead2, expiresAt);
+            expect(await leadNFT.totalSupply()).to.equal(2n);
+
+            await mintOne(lead3, expiresAt);
+            expect(await leadNFT.totalSupply()).to.equal(3n);
+        });
+
+        it("duplicate mint for same platformLeadId is rejected (already-tokenized guard)", async function () {
+            const expiresAt = await expiresIn(86400);
+            await mintOne(lead1, expiresAt);
+
+            await expect(
+                mintOne(lead1, expiresAt) // same ID again
+            ).to.be.revertedWith("LeadNFTv2: Already tokenized");
+        });
+    });
 });

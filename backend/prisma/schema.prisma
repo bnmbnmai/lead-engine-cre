@@ -512,6 +512,11 @@ model Lead {
   nftTokenId      String?     @unique
   nftContractAddr String?
   nftMintTxHash   String?     // Tx hash of the on-chain LeadNFT mint
+  // BUG-08: Graceful mint failure — lead enters auction/sale regardless
+  nftMintFailed   Boolean     @default(false)  // Set true when on-chain mint fails
+  nftMintError    String?     // Last error message from failed mint attempt
+  nftMintRetryAt  DateTime?   // Next scheduled retry time (null = not scheduled)
+
   
   // Compliance
   tcpaConsentAt   DateTime?
@@ -549,11 +554,8 @@ enum LeadSource {
 }
 
 enum LeadStatus {
-  PENDING_PING      // @deprecated — kept for data compat
-  IN_PING_POST      // @deprecated — kept for data compat
   PENDING_AUCTION
   IN_AUCTION        // Active 60s sealed-bid auction
-  REVEAL_PHASE      // @deprecated — kept for data compat
   SOLD
   UNSOLD            // Auction ended with no winner → available for Buy It Now
   EXPIRED
@@ -588,6 +590,11 @@ model AuctionRoom {
   
   // Participants (cached for quick lookup)
   participants    String[]     // Array of user IDs
+
+  // BUG-09: VRF tie-breaking — persisted so Judge View can display provenance
+  vrfRequestId    String?      // On-chain VRF requestId when a tie is detected
+  vrfWinner       String?      // Wallet address selected by VRF (may differ from initial fallback winner)
+
   
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
@@ -597,9 +604,7 @@ model AuctionRoom {
 }
 
 enum AuctionPhase {
-  PING_POST     // @deprecated — kept for data compat
   BIDDING       // Active sealed-bid auction
-  REVEAL        // @deprecated — kept for data compat
   RESOLVED
   CANCELLED
 }

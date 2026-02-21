@@ -18,7 +18,11 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
     // State Variables (Optimized Storage Layout)
     // ============================================
     
-    uint256 private _nextTokenId;
+    /// @dev Token ID counter. Starts at 1 — token ID 0 is the "not tokenized"
+    ///      sentinel in _platformLeadToToken. This invariant MUST be preserved:
+    ///      any lead whose platformLeadId maps to 0 has not been minted yet.
+    ///      Do NOT change this initializer without updating mintLead() guards.
+    uint256 private _nextTokenId = 1;
     
     // Packed struct for gas optimization (fits in 3 storage slots)
     struct PackedLeadMetadata {
@@ -126,7 +130,10 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
         require(_platformLeadToToken[platformLeadId] == 0, "LeadNFTv2: Already tokenized");
         require(expiresAt > block.timestamp, "LeadNFTv2: Invalid expiry");
         
-        uint256 tokenId = ++_nextTokenId;
+        // _nextTokenId starts at 1, so the first token minted is always 1.
+        // This preserves the invariant: _platformLeadToToken[id] == 0 means "not minted".
+        uint256 tokenId = _nextTokenId++;
+        assert(tokenId >= 1); // Sentinel invariant: token ID 0 must never be minted
         
         _leadMetadata[tokenId] = PackedLeadMetadata({
             vertical: vertical,
@@ -255,8 +262,11 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
         );
     }
 
+    /// @notice Returns the number of leads minted so far.
     function totalSupply() external view returns (uint256) {
-        return _nextTokenId;
+        // _nextTokenId starts at 1 and is post-incremented on each mint,
+        // so the count of minted tokens is _nextTokenId - 1.
+        return _nextTokenId - 1;
     }
 
     // ============================================

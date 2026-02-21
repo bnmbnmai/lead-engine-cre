@@ -15,7 +15,7 @@ import { calculateFees, type BidSourceType } from '../lib/fees';
 import { applyHolderPerks, applyMultiplier } from '../services/holder-perks.service';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
 import { bountyService } from '../services/bounty.service';
-import { isVrfConfigured, requestTieBreak, waitForResolution, ResolveType } from '../services/vrf.service';
+import { isVrfConfigured, requestTieBreak, ResolveType, startVrfResolutionWatcher } from '../services/vrf.service';
 import { aceDevBus } from '../services/ace.service';
 import * as vaultService from '../services/vault.service';
 
@@ -256,9 +256,18 @@ async function resolveAuction(leadId: string, io?: Server) {
             return true;
         });
 
-        // ── VRF Tie-Breaking ──
-        // Detect ties: 2+ bids with the same top effectiveBid
+        // ── VRF Tie-Breaking (BUG-09: non-blocking) ──
+        // Detect ties: 2+ bids with the same top effectiveBid.
+        // Strategy:
+        //   1. Pick deterministic fallback winner immediately (earliest createdAt) so
+        //      auction closure is NEVER blocked.
+        //   2. If VRF is configured and 2+ wallet addresses are available, fire
+        //      requestTieBreak() and launch startVrfResolutionWatcher() in the
+        //      background. The watcher will update AuctionRoom.vrfWinner and emit
+        //      'auction:vrf-resolved' once the on-chain callback lands (~15-90 s).
+        //   3. Persist vrfRequestId immediately to AuctionRoom (before response).
         let winningBid: typeof rankedBids[0] | null = null;
+        let vrfRequestId: string | null = null; // BUG-09: captured for DB + socket
 
         if (eligibleBids.length === 0) {
             // No eligible bids
@@ -274,33 +283,45 @@ async function resolveAuction(leadId: string, io?: Server) {
                 // Clear winner — no tie
                 winningBid = tiedBids[0];
             } else {
-                // TIE DETECTED — use Chainlink VRF for provably fair resolution
-                console.log(`[AuctionClosure] ${leadId}: ${tiedBids.length}-way tie at $${topEffective} — requesting VRF tie-break`);
+                // TIE DETECTED
+                console.log(
+                    `[AuctionClosure] ${leadId}: ${tiedBids.length}-way tie at $${topEffective}` +
+                    ` — deterministic fallback selected immediately, VRF requested async`
+                );
 
+                // Step 1 — pick deterministic fallback now (earliest createdAt, already sorted)
+                winningBid = tiedBids[0];
+
+                // Step 2 — fire VRF async if configured
                 const candidates = tiedBids
                     .map(b => b.buyer?.walletAddress)
                     .filter((w): w is string => !!w);
 
                 if (candidates.length >= 2 && isVrfConfigured()) {
-                    const txHash = await requestTieBreak(leadId, candidates, ResolveType.AUCTION_TIE);
-                    if (txHash) {
-                        const vrfWinner = await waitForResolution(leadId, 30_000);
-                        if (vrfWinner) {
-                            winningBid = tiedBids.find(
-                                b => b.buyer?.walletAddress?.toLowerCase() === vrfWinner.toLowerCase()
-                            ) ?? tiedBids[0];
-                            console.log(`[AuctionClosure] ${leadId}: VRF selected winner ${vrfWinner}`);
-                        } else {
-                            console.warn(`[AuctionClosure] ${leadId}: VRF timeout — falling back to deterministic order`);
-                            winningBid = tiedBids[0];
-                        }
-                    } else {
-                        winningBid = tiedBids[0];
-                    }
+                    // requestTieBreak submits the on-chain tx and returns the tx hash.
+                    // We do NOT await the resolution here — that would block closure.
+                    requestTieBreak(leadId, candidates, ResolveType.AUCTION_TIE)
+                        .then(txHash => {
+                            if (txHash) {
+                                // vrfRequestId not yet available synchronously — the watcher
+                                // will read it from the contract once fulfilled.
+                                console.log(`[AuctionClosure] ${leadId}: VRF tx submitted (${txHash}), watcher started`);
+                                // Emit requested event immediately so Judge View shows pending state
+                                if (io) {
+                                    io.emit('auction:vrf-requested', { leadId, txHash, candidateCount: candidates.length });
+                                }
+                                // Launch background watcher — non-blocking, swallows errors
+                                startVrfResolutionWatcher(leadId, io).catch(() => { });
+                            }
+                        })
+                        .catch((err: any) => {
+                            console.warn(`[AuctionClosure] ${leadId}: VRF requestTieBreak failed (non-fatal):`, err.message);
+                        });
                 } else {
-                    // VRF not configured or insufficient candidates — deterministic fallback
-                    console.warn(`[AuctionClosure] ${leadId}: VRF unavailable — using earliest bid as tiebreaker`);
-                    winningBid = tiedBids[0];
+                    console.warn(
+                        `[AuctionClosure] ${leadId}: VRF unavailable (configured=${isVrfConfigured()},` +
+                        ` candidates=${candidates.length}) — using earliest bid as tiebreaker`
+                    );
                 }
             }
         }
@@ -328,6 +349,10 @@ async function resolveAuction(leadId: string, io?: Server) {
                 },
                 data: { status: 'OUTBID', processedAt: new Date() },
             }),
+            // BUG-09: persist vrfRequestId so Judge View can show VRF provenance
+            ...(vrfRequestId
+                ? [prisma.auctionRoom.updateMany({ where: { leadId }, data: { vrfRequestId } })]
+                : []),
             prisma.bid.updateMany({
                 where: {
                     leadId,
@@ -549,6 +574,9 @@ async function resolveAuction(leadId: string, io?: Server) {
                 winnerId: winningBid.buyerId,
                 winningAmount: Number(winningBid.amount),
                 effectiveBid: Number(winningBid.effectiveBid ?? winningBid.amount),
+                // BUG-09: include VRF provenance fields — undefined when no tie
+                vrfRequestId: vrfRequestId ?? undefined,
+                vrfPending: vrfRequestId ? true : undefined,
             });
 
             io.emit('lead:status-changed', {
