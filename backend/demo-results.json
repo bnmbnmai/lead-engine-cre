@@ -1188,5 +1188,285 @@
     "totalSettled": 0,
     "status": "failed",
     "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "fdf2c7d9-5b31-47d5-a32a-363d0da2afe4",
+    "startedAt": "2026-02-21T02:55:05.078Z",
+    "completedAt": "2026-02-21T02:55:05.079Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "0f30b82e-4f6c-42da-939f-11d337b7bb82",
+    "startedAt": "2026-02-21T02:55:05.143Z",
+    "completedAt": "2026-02-21T02:55:05.143Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "04bbd2de-da95-419b-9d2d-1542eb8ef487",
+    "startedAt": "2026-02-21T02:55:05.262Z",
+    "completedAt": "2026-02-21T02:55:05.263Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "4b698888-0ff8-4ef5-b38d-9740857454ae",
+    "startedAt": "2026-02-21T02:55:05.277Z",
+    "completedAt": "2026-02-21T02:55:05.278Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "07b6c9c0-2fb7-4494-a0cd-875c608fc751",
+    "startedAt": "2026-02-21T02:55:05.296Z",
+    "completedAt": "2026-02-21T02:55:05.296Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "d86413ca-d8e7-4570-afcb-7e30485e432b",
+    "startedAt": "2026-02-21T02:55:05.308Z",
+    "completedAt": "2026-02-21T02:55:05.308Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "56392ca0-0eb1-480f-bd81-6d2ac1f846c9",
+    "startedAt": "2026-02-21T02:55:05.318Z",
+    "completedAt": "2026-02-21T02:55:05.318Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "1a58f694-bc34-4570-a007-699a4ef7c8bf",
+    "startedAt": "2026-02-21T02:58:31.949Z",
+    "completedAt": "2026-02-21T02:58:31.949Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "91e0ac47-c1e3-459e-8909-5e6de1f34abc",
+    "startedAt": "2026-02-21T02:58:32.019Z",
+    "completedAt": "2026-02-21T02:58:32.019Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "f7c13048-ebf4-4203-9f4d-136eb01c9b94",
+    "startedAt": "2026-02-21T02:58:32.143Z",
+    "completedAt": "2026-02-21T02:58:32.143Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "efdc42d3-3a5b-4836-ac4e-659f073e0257",
+    "startedAt": "2026-02-21T02:58:32.154Z",
+    "completedAt": "2026-02-21T02:58:32.154Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "1d37d56a-cb4d-4760-9cd0-3536d733b97c",
+    "startedAt": "2026-02-21T02:58:32.170Z",
+    "completedAt": "2026-02-21T02:58:32.170Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "20f970b6-cb10-4032-b248-360d26678612",
+    "startedAt": "2026-02-21T02:58:32.182Z",
+    "completedAt": "2026-02-21T02:58:32.182Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "ef8bdfb8-0d69-4e29-bd8e-d3ce3f0e8731",
+    "startedAt": "2026-02-21T02:58:32.194Z",
+    "completedAt": "2026-02-21T02:58:32.194Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "4572f72c-bc4b-4779-be0e-a591ea7d74a6",
+    "startedAt": "2026-02-21T02:59:45.910Z",
+    "completedAt": "2026-02-21T02:59:45.910Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "c0670cca-85c0-4004-a600-23fdb6a53bca",
+    "startedAt": "2026-02-21T02:59:45.982Z",
+    "completedAt": "2026-02-21T02:59:45.982Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "132a8a84-943a-4cc5-aa8e-75e211cee2e0",
+    "startedAt": "2026-02-21T02:59:46.106Z",
+    "completedAt": "2026-02-21T02:59:46.106Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "6cf8d9d0-eac5-4c23-8707-6637b85fc92e",
+    "startedAt": "2026-02-21T02:59:46.120Z",
+    "completedAt": "2026-02-21T02:59:46.120Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "3638208a-a1d1-4206-beb3-0e25c000c8b2",
+    "startedAt": "2026-02-21T02:59:46.138Z",
+    "completedAt": "2026-02-21T02:59:46.138Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "453b7c27-60bc-47b4-b260-83bf2f5a51f8",
+    "startedAt": "2026-02-21T02:59:46.150Z",
+    "completedAt": "2026-02-21T02:59:46.151Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "072f975f-9275-4c8f-8a08-434663ea9a7b",
+    "startedAt": "2026-02-21T02:59:46.161Z",
+    "completedAt": "2026-02-21T02:59:46.162Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "459efa20-8c65-41b0-8a26-3b9d13617a70",
+    "startedAt": "2026-02-21T03:01:20.108Z",
+    "completedAt": "2026-02-21T03:01:20.108Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "e3e2efbc-74b9-4242-9224-d177110bbbf5",
+    "startedAt": "2026-02-21T03:01:20.184Z",
+    "completedAt": "2026-02-21T03:01:20.184Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "8349d1a5-5e9c-4c00-ac59-c2d9a5c56e10",
+    "startedAt": "2026-02-21T03:01:20.311Z",
+    "completedAt": "2026-02-21T03:01:20.311Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "798a9990-a069-40ae-807b-4b67ed4bc49c",
+    "startedAt": "2026-02-21T03:01:20.322Z",
+    "completedAt": "2026-02-21T03:01:20.322Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "86bbb274-0550-4f1a-b2d2-8d47d5c2286b",
+    "startedAt": "2026-02-21T03:01:20.338Z",
+    "completedAt": "2026-02-21T03:01:20.338Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "a257b8aa-8fb0-4d5a-98cb-2dd25580a413",
+    "startedAt": "2026-02-21T03:01:20.348Z",
+    "completedAt": "2026-02-21T03:01:20.348Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+  },
+  {
+    "runId": "efb259c1-304c-4f4a-ad2a-6cf7eed9b65d",
+    "startedAt": "2026-02-21T03:01:20.359Z",
+    "completedAt": "2026-02-21T03:01:20.359Z",
+    "cycles": [],
+    "totalGas": "0",
+    "totalSettled": 0,
+    "status": "failed",
+    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
   }
 ]

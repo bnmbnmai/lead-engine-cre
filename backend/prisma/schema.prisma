@@ -554,11 +554,8 @@ enum LeadSource {
 }
 
 enum LeadStatus {
-  PENDING_PING      // @deprecated — kept for data compat
-  IN_PING_POST      // @deprecated — kept for data compat
   PENDING_AUCTION
   IN_AUCTION        // Active 60s sealed-bid auction
-  REVEAL_PHASE      // @deprecated — kept for data compat
   SOLD
   UNSOLD            // Auction ended with no winner → available for Buy It Now
   EXPIRED
@@ -607,9 +604,7 @@ model AuctionRoom {
 }
 
 enum AuctionPhase {
-  PING_POST     // @deprecated — kept for data compat
   BIDDING       // Active sealed-bid auction
-  REVEAL        // @deprecated — kept for data compat
   RESOLVED
   CANCELLED
 }

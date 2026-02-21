@@ -1164,7 +1164,7 @@ router.post('/reset', authMiddleware, requireAdmin, async (req: Request, res: Re
     try {
         // 1. Delete ALL non-sold leads (IN_AUCTION, UNSOLD, PENDING_AUCTION, EXPIRED, CANCELLED)
         //    This catches lander-submitted leads that don't have source: DEMO
-        const nonSoldStatuses = ['IN_AUCTION', 'UNSOLD', 'PENDING_AUCTION', 'EXPIRED', 'CANCELLED', 'DISPUTED', 'PENDING_PING', 'IN_PING_POST', 'REVEAL_PHASE'] as any;
+        const nonSoldStatuses = ['IN_AUCTION', 'UNSOLD', 'PENDING_AUCTION', 'EXPIRED', 'CANCELLED', 'DISPUTED'] as any;
 
         // Delete related records for non-sold leads (FK order: bids → auctionRoom → transactions → leads)
         await prisma.bid.deleteMany({ where: { lead: { status: { in: nonSoldStatuses } } } });
