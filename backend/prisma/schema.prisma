@@ -512,6 +512,11 @@ model Lead {
   nftTokenId      String?     @unique
   nftContractAddr String?
   nftMintTxHash   String?     // Tx hash of the on-chain LeadNFT mint
+  // BUG-08: Graceful mint failure — lead enters auction/sale regardless
+  nftMintFailed   Boolean     @default(false)  // Set true when on-chain mint fails
+  nftMintError    String?     // Last error message from failed mint attempt
+  nftMintRetryAt  DateTime?   // Next scheduled retry time (null = not scheduled)
+
   
   // Compliance
   tcpaConsentAt   DateTime?

@@ -238,6 +238,53 @@ class NFTService {
     }
 
     // ============================================
+    // Schedule Mint Retry (BUG-08)
+    // ============================================
+
+    /**
+     * Called by route handlers when mintLeadNFT() fails.
+     *
+     * - Persists nftMintFailed=true and nftMintError to the Lead record so the
+     *   failure is visible in dashboards and queryable for re-trigger scripts.
+     * - Sets nftMintRetryAt to retryDelayMs from now (default 5 minutes).
+     * - Does NOT throw — always returns gracefully so the caller (e.g. confirm-
+     *   escrow, demo settle) can continue completing the user-facing flow.
+     *
+     * Production re-trigger: a cron / admin command queries
+     *   WHERE nftMintFailed=true AND nftMintRetryAt <= now() AND nftTokenId IS NULL
+     * and calls mintLeadNFT() for each.
+     */
+    async scheduleMintRetry(
+        leadId: string,
+        error: string,
+        retryDelayMs = 5 * 60 * 1000, // 5 minutes
+    ): Promise<void> {
+        const retryAt = new Date(Date.now() + retryDelayMs);
+        const truncatedError = error.slice(0, 500); // Guard against oversized error blobs
+
+        console.warn(
+            `[NFT MINT] ⚠️  BUG-08 graceful degradation — lead=${leadId} mint failed.` +
+            ` Flag set: nftMintFailed=true. Retry scheduled at ${retryAt.toISOString()}.` +
+            ` Error: ${truncatedError}`,
+        );
+
+        try {
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    nftMintFailed: true,
+                    nftMintError: truncatedError,
+                    nftMintRetryAt: retryAt,
+                },
+            });
+        } catch (dbErr: any) {
+            // Non-fatal: log but don't rethrow — the lead sale already succeeded.
+            console.error(`[NFT MINT] scheduleMintRetry DB update failed for lead=${leadId}:`, dbErr.message);
+        }
+    }
+
+
+    // ============================================
     // Record Sale On-Chain
     // ============================================
 

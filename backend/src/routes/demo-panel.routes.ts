@@ -1538,11 +1538,15 @@ router.post('/settle', authMiddleware, requireAdmin, async (req: Request, res: R
                     }
                 }
             } else {
+                // BUG-08: Persist failure flag + schedule retry instead of silent warn.
+                // Settlement has already succeeded — NFT mint is non-blocking.
                 console.warn(`[DEMO SETTLE] LeadNFT mint failed (non-fatal): ${mintResult.error}`);
+                await nftService.scheduleMintRetry(transaction.leadId, mintResult.error || 'unknown mint error');
             }
         } catch (nftErr: any) {
             console.warn(`[DEMO SETTLE] NFT minting error (non-fatal):`, nftErr.message);
         }
+
 
         console.log(`[DEMO SETTLE] ✅ Complete — txHash=${settleResult.txHash}`);
 
