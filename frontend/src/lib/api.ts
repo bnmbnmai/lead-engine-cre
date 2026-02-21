@@ -468,10 +468,10 @@ export const api = {
             '/api/v1/buyer/vault/deposit',
             { method: 'POST', body: JSON.stringify({ amount, txHash }) },
         ),
-    withdrawVault: (amount: number) =>
+    withdrawVault: (amount: number, txHash?: string) =>
         apiFetch<{ success: boolean; balance: number; error?: string }>(
             '/api/v1/buyer/vault/withdraw',
-            { method: 'POST', body: JSON.stringify({ amount }) },
+            { method: 'POST', body: JSON.stringify({ amount, txHash }) },
         ),
 
     // ── Demo E2E (Full On-Chain Demo) ──────────────

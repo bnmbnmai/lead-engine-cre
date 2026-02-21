@@ -16,6 +16,7 @@ import { formatSealedBid } from '@/utils/sealedBid';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useVault } from '@/hooks/useVault';
 
 import { BountyPanel } from '@/components/marketplace/BountyPanel';
 
@@ -35,11 +36,17 @@ export function BuyerDashboard() {
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
     const [csvExporting, setCsvExporting] = useState(false);
 
-    // Vault state
-    const [vaultBalance, setVaultBalance] = useState<number>(0);
-    const [vaultTxs, setVaultTxs] = useState<any[]>([]);
-    const [depositAmount, setDepositAmount] = useState('');
-    const [vaultLoading, setVaultLoading] = useState(false);
+    // Vault state — delegated to useVault hook (on-chain read + MetaMask signing)
+    const {
+        vaultBalance,
+        vaultTxs,
+        depositLoading,
+        withdrawLoading,
+        depositAmount,
+        setDepositAmount,
+        deposit,
+        withdraw,
+    } = useVault();
 
     const handleCrmPushSingle = (leadId: string) => {
         setCrmPushed((prev) => new Set(prev).add(leadId));
@@ -121,15 +128,7 @@ export function BuyerDashboard() {
         fetchData();
     }, [debouncedSearch, sellerName]);
 
-    // Fetch vault info
-    useEffect(() => {
-        api.getVault().then(({ data }) => {
-            if (data) {
-                setVaultBalance(data.balance);
-                setVaultTxs(data.transactions?.slice(0, 5) || []);
-            }
-        }).catch(() => { });
-    }, []);
+    // Vault data is loaded and refreshed by useVault hook (no local useEffect needed)
 
     // Re-fetch callback for socket events & polling fallback
     const refetchData = useCallback(() => {
@@ -333,23 +332,12 @@ export function BuyerDashboard() {
                                     />
                                     <Button
                                         size="sm"
-                                        disabled={vaultLoading || !depositAmount || Number(depositAmount) <= 0}
-                                        onClick={async () => {
-                                            setVaultLoading(true);
-                                            const amt = Number(depositAmount);
-                                            // For demo: record deposit via API (in production, this is triggered after on-chain tx)
-                                            const { data } = await api.depositVault(amt, 'demo-deposit');
-                                            if (data?.success) {
-                                                setVaultBalance(data.balance);
-                                                setDepositAmount('');
-                                                toast({ type: 'success', title: 'Vault Funded', description: `Deposited $${amt.toFixed(2)} USDC` });
-                                                api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
-                                            }
-                                            setVaultLoading(false);
-                                        }}
+                                        disabled={depositLoading || !depositAmount || Number(depositAmount) <= 0}
+                                        onClick={() => deposit(Number(depositAmount))}
                                         className="shrink-0"
                                     >
-                                        <ArrowDown className="h-4 w-4 mr-1" /> Deposit
+                                        <ArrowDown className="h-4 w-4 mr-1" />
+                                        {depositLoading ? 'Depositing…' : 'Deposit'}
                                     </Button>
                                 </div>
                             </div>
@@ -360,26 +348,12 @@ export function BuyerDashboard() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={vaultLoading || vaultBalance <= 0}
-                                    onClick={async () => {
-                                        setVaultLoading(true);
-                                        try {
-                                            const { data } = await api.withdrawVault(vaultBalance);
-                                            if (data?.success) {
-                                                setVaultBalance(data.balance);
-                                                toast({ type: 'success', title: 'Withdrawn', description: `Withdrew $${vaultBalance.toFixed(2)} USDC from vault` });
-                                                api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
-                                            } else {
-                                                toast({ type: 'error', title: 'Withdraw Failed', description: data?.error || 'Unknown error' });
-                                            }
-                                        } catch (err: any) {
-                                            toast({ type: 'error', title: 'Withdraw Failed', description: err.message || 'Failed to withdraw' });
-                                        }
-                                        setVaultLoading(false);
-                                    }}
+                                    disabled={withdrawLoading || vaultBalance <= 0}
+                                    onClick={() => withdraw(vaultBalance)}
                                     className="w-full h-9"
                                 >
-                                    <ArrowUp className="h-4 w-4 mr-1" /> Withdraw All
+                                    <ArrowUp className="h-4 w-4 mr-1" />
+                                    {withdrawLoading ? 'Withdrawing…' : 'Withdraw All'}
                                 </Button>
                                 <p className="text-xs text-muted-foreground">Withdraw available balance from vault</p>
                             </div>

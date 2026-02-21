@@ -52,22 +52,21 @@ router.post('/deposit', authMiddleware, requireBuyer, async (req: AuthenticatedR
 });
 
 // ── Withdraw (deduct from vault balance) ──────
-// ⚠️  DB-ONLY: This records the withdrawal intent in the DB cache but does NOT
-// call withdraw() on-chain. The user must sign and submit the on-chain tx
-// from their wallet (wagmi/MetaMask). reconcileVaultBalance() runs in the
-// background to detect drift and alert operators.
+// Withdraw flow: frontend signs vault.withdraw(amount) via MetaMask -> waits for confirmation
+// -> calls this endpoint with { amount, txHash }. recordCacheWithdraw() records the confirmed
+// on-chain tx hash in Prisma. Reconciliation fires async as a consistency check.
 
 router.post('/withdraw', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { amount } = req.body;
+        const { amount, txHash } = req.body;
         const numAmount = Number(amount || 0);
         if (numAmount < 0) {
             res.status(400).json({ error: 'Amount cannot be negative' });
             return;
         }
 
-        // Use the explicit cache-withdraw function (not the deprecated alias)
-        const result = await vaultService.recordCacheWithdraw(req.user!.id, numAmount);
+        // Pass real txHash (from user's MetaMask-signed on-chain tx) to the service
+        const result = await vaultService.recordCacheWithdraw(req.user!.id, numAmount, txHash || undefined);
 
         // Fire reconciliation async — don't block the response
         // This detects DB/on-chain drift caused by the DB-only write above
@@ -80,7 +79,8 @@ router.post('/withdraw', authMiddleware, requireBuyer, async (req: Authenticated
 
         res.json({
             ...result,
-            warning: 'DB balance updated. Please sign and submit the on-chain withdraw() transaction from your wallet to sync on-chain state.',
+            // Only warn when no txHash was provided (legacy / direct API calls)
+            ...(txHash ? {} : { warning: 'No txHash provided — DB recorded without on-chain confirmation. Call reconcile to check drift.' }),
         });
     } catch (error: any) {
         console.error('[VaultRoutes] withdraw error:', error.message);
