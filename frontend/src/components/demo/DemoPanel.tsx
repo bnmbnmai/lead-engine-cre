@@ -421,7 +421,7 @@ export function DemoPanel() {
         const action = actions[actionKey] || { state: 'idle' };
         const isLoading = action.state === 'loading';
 
-        const baseStyle = 'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 w-full';
+        const baseStyle = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 w-full';
         const variants = {
             default: 'bg-white/[0.06] hover:bg-white/[0.12] text-foreground border border-border',
             danger: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20',
@@ -516,7 +516,7 @@ export function DemoPanel() {
 
             {/* Panel drawer */}
             {isOpen && (
-                <div className="fixed bottom-20 right-6 z-50 w-80 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+                <div className="fixed bottom-20 right-6 z-50 w-72 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-border bg-background/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
                     {/* Header */}
                     <div className="sticky top-0 bg-background/95 backdrop-blur-xl px-4 py-3 border-b border-border rounded-t-2xl">
                         <div className="flex items-center gap-2">
@@ -546,7 +546,7 @@ export function DemoPanel() {
                     </div>
 
                     {/* Content */}
-                    <div className="p-4 space-y-3">
+                    <div className="p-3 space-y-2">
 
                         {/* Live Metrics Banner — emitted by emitLiveMetrics every 30 s while demo is running */}
                         {demoMetrics && (
@@ -641,12 +641,6 @@ export function DemoPanel() {
                             <p className="text-[10px] text-red-400/70 pl-1">
                                 ⚠️ Wipe removes EVERYTHING — including real SOLD leads and transactions.
                             </p>
-                            <ActionButton
-                                actionKey="seedTemplates"
-                                label="Sync Form Templates"
-                                icon={Layers}
-                                onClick={handleSeedTemplates}
-                            />
                         </Section>
 
                         {/* Section 2: Live Simulation */}
@@ -868,22 +862,6 @@ export function DemoPanel() {
                             </p>
                         </Section>
 
-                        {/* Section 5: Guided Tour */}
-                        <Section id="tour" title="Guided Tour">
-                            <ActionButton
-                                actionKey="tour"
-                                label="Start Feature Tour"
-                                icon={Sparkles}
-                                onClick={() => {
-                                    setActions(prev => ({
-                                        ...prev,
-                                        tour: { state: 'success', message: '🚧 Coming soon — tooltip walkthrough of key features' },
-                                    }));
-                                    setTimeout(() => setActions(prev => ({ ...prev, tour: { state: 'idle' } })), 3000);
-                                }}
-                                variant="accent"
-                            />
-                        </Section>
                     </div>
 
                     {/* Footer */}

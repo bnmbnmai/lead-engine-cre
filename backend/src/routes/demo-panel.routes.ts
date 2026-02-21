@@ -462,7 +462,7 @@ router.get('/demo-buyers-toggle', authMiddleware, publicDemoBypass, async (_req:
     res.json({ enabled });
 });
 
-router.post('/demo-buyers-toggle', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/demo-buyers-toggle', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     const { enabled } = req.body as { enabled?: boolean };
     let newValue: boolean;
     if (typeof enabled === 'boolean') {
@@ -568,7 +568,7 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 // POST /seed — populate marketplace with demo data
 // ============================================
-router.post('/seed', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // Seed Vertical table records first (ensures hierarchy API returns data)
         await seedVerticals();
@@ -858,7 +858,7 @@ router.post('/seed', authMiddleware, requireAdmin, async (req: Request, res: Res
 // ============================================
 // POST /clear — remove all demo data
 // ============================================
-router.post('/clear', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/clear', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // TD-09 fix: only delete demo-tagged records, not ALL data
         const deletedBids = await prisma.bid.deleteMany({ where: { lead: { source: 'DEMO' } } });
@@ -892,7 +892,7 @@ router.post('/clear', authMiddleware, requireAdmin, async (req: Request, res: Re
 // ============================================
 // POST /lead — inject single random lead
 // ============================================
-router.post('/lead', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
         const geo = req.body?.geo || pick(GEOS);
@@ -1009,7 +1009,7 @@ router.post('/lead', authMiddleware, requireAdmin, async (req: Request, res: Res
 // ============================================
 // POST /auction — simulate live auction (create lead + bids over time)
 // ============================================
-router.post('/auction', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/auction', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
         const geo = pick(GEOS);
@@ -1160,7 +1160,7 @@ router.post('/auction', authMiddleware, requireAdmin, async (req: Request, res: 
 // POST /reset — clear ALL non-sold leads + demo-sold leads
 // Comprehensive reset: catches lander-submitted leads that lack DEMO_TAG
 // ============================================
-router.post('/reset', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/reset', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // 1. Delete ALL non-sold leads (IN_AUCTION, UNSOLD, PENDING_AUCTION, EXPIRED, CANCELLED)
         //    This catches lander-submitted leads that don't have source: DEMO
@@ -1260,7 +1260,7 @@ router.post('/wipe', authMiddleware, requireAdmin, async (req: Request, res: Res
 // ============================================
 // POST /seed-templates — Reset + seed all formConfig templates
 // ============================================
-router.post('/seed-templates', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/seed-templates', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // 1. Clear all existing formConfig
         await prisma.vertical.updateMany({
@@ -1297,7 +1297,7 @@ router.post('/seed-templates', authMiddleware, requireAdmin, async (req: Request
 // Settle (x402 Escrow Release) — on-chain settlement
 // ============================================
 
-router.post('/settle', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.body as { leadId?: string };
         const { x402Service } = await import('../services/escrow-impl.service');
@@ -1611,18 +1611,28 @@ function safeSend(res: Response, body: any, status = 200): void {
 // ─────────────────────────────────────────────────────────────────────────────
 // publicDemoBypass
 //
-// Reusable middleware for demo-panel endpoints that must be accessible from
-// the public marketplace page and Demo Control Panel without a full ADMIN JWT.
-// Allows passage if the caller is an ADMIN OR presents the shared
-// TEST_API_TOKEN secret via `X-Api-Token` header.
+// Reusable middleware for demo-panel endpoints accessible from the public
+// marketplace page and Demo Control Panel (Buyer/Seller personas included).
+// Allows passage if the caller is an ADMIN OR presents TEST_API_TOKEN via
+// `X-Api-Token` header.
 //
-// Applied to:
-//   GET  /demo-buyers-toggle  — polling state read for demo control panel
-//   POST /full-e2e            — "Run Full On-Chain Demo" marketplace button
-//   POST /full-e2e/stop       — companion stop button
+// Applied to (non-destructive):
+//   GET  /demo-buyers-toggle  — status poll
+//   POST /demo-buyers-toggle  — toggle bot buyers on/off
+//   POST /seed                — seed marketplace data
+//   POST /clear               — clear demo data (preserves real transactions)
+//   POST /reset               — reset to clean demo state
+//   POST /seed-templates      — sync form templates
+//   POST /settle              — trigger on-chain settlement
+//   POST /lead                — inject a single lead
+//   POST /auction             — start a live auction
+//   POST /full-e2e            — run full on-chain demo
+//   POST /full-e2e/stop       — stop running demo
 //
-// All other destructive routes (seed, wipe, clear, reset, inject,
-// full-e2e/reset, fund-eth, etc.) retain strict requireAdmin — NO exceptions.
+// Strict requireAdmin (truly destructive — never from public demo):
+//   POST /wipe          — nukes ALL data including real transactions
+//   POST /fund-eth      — sends real ETH from deployer
+//   POST /full-e2e/reset — full environment reset
 // ─────────────────────────────────────────────────────────────────────────────
 function publicDemoBypass(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
     // Path 1: caller has a valid ADMIN JWT (set by authMiddleware)

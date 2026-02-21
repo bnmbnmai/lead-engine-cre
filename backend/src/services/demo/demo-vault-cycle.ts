@@ -246,7 +246,9 @@ export async function recycleTokens(
             const deployerVaultBal = await vault.balanceOf(signer.address);
             if (deployerVaultBal > 0n) {
                 emit(io, { ts: new Date().toISOString(), level: 'info', message: `📤 Withdrawing $${ethers.formatUnits(deployerVaultBal, 6)} from deployer vault...` });
-                const withdrawTx = await vault.withdraw(deployerVaultBal);
+                // Use shared nonce queue to avoid nonce-too-low if other deployer txs are in-flight
+                const wNonce = await getNextNonce();
+                const withdrawTx = await vault.withdraw(deployerVaultBal, { nonce: wNonce });
                 await withdrawTx.wait();
                 totalRecovered += deployerVaultBal;
                 emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ Deployer vault withdrawn: $${ethers.formatUnits(deployerVaultBal, 6)}` });
