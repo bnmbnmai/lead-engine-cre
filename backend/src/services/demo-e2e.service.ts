@@ -743,6 +743,85 @@ async function sendTx(
     throw new Error(`${label} failed after ${retries} attempts`);
 }
 
+// ── Active Lead Minimum Top-Up (BUG-10) ──────────────
+
+/**
+ * Count how many leads are currently active in the marketplace:
+ * status = 'IN_AUCTION' and auctionEndAt in the future.
+ * Used by checkActiveLeadsAndTopUp to decide whether to inject more leads.
+ * @internal — exported for unit testing
+ */
+export async function countActiveLeads(): Promise<number> {
+    return prisma.lead.count({
+        where: {
+            status: 'IN_AUCTION',
+            auctionEndAt: { gt: new Date() },
+        },
+    });
+}
+
+/**
+ * After each drip cycle (and after the initial burst), check the count of
+ * currently active (IN_AUCTION, non-expired) leads.  If the count is below
+ * DEMO_MIN_ACTIVE_LEADS, call injectOneLead() repeatedly until the minimum
+ * is restored — or the deadline is reached or the signal is aborted.
+ *
+ * This implements BUG-10: the drip was not enforcing a floor.  Leads that
+ * settled fast (sold/expired early) left the marketplace looking empty.
+ *
+ * @param io         Socket.IO server for emitting lead:new events
+ * @param sellerId   Seller DB id (passed through to injectOneLead)
+ * @param created    Current total injected lead count (mutated externally, so pass by ref wrapper)
+ * @param signal     AbortSignal from the demo run
+ * @param deadline   Unix ms timestamp — never top-up past this point
+ * @internal — exported for unit testing
+ */
+export async function checkActiveLeadsAndTopUp(
+    io: SocketServer,
+    sellerId: string,
+    createdRef: { value: number },
+    signal: AbortSignal,
+    deadline: number,
+): Promise<void> {
+    if (signal.aborted || Date.now() >= deadline) return;
+
+    let active: number;
+    try {
+        active = await countActiveLeads();
+    } catch {
+        // Non-fatal — don't block the drip loop
+        return;
+    }
+
+    if (active >= DEMO_MIN_ACTIVE_LEADS) return; // Already at or above threshold
+
+    const needed = DEMO_MIN_ACTIVE_LEADS - active;
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: 'warn',
+        message: `⚡ Active leads (${active}) below minimum (${DEMO_MIN_ACTIVE_LEADS}) — injecting ${needed} top-up lead(s)`,
+    });
+
+    for (let i = 0; i < needed && !signal.aborted && Date.now() < deadline; i++) {
+        try {
+            await injectOneLead(io, sellerId, createdRef.value);
+            createdRef.value++;
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'info',
+                message: `📋 Top-up lead #${createdRef.value} injected (active=${active + i + 1}/${DEMO_MIN_ACTIVE_LEADS})`,
+            });
+        } catch (err: any) {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Top-up inject failed: ${(err?.message ?? 'unknown').slice(0, 80)}`,
+            });
+        }
+        await sleep(300); // tiny gap so socket events don't collide
+    }
+}
+
 // ── Staggered Lead Drip (Background) ──────────────
 
 /**
@@ -799,6 +878,12 @@ function startLeadDrip(
             message: `⚡ Initial burst complete — ${created} leads live in marketplace`,
         });
 
+        // BUG-10: After the initial burst, top-up if active leads are still below minimum
+        // (e.g. seller DB creation may have taken time, or pre-existing sold leads skew the count).
+        const _createdRef = { value: created };
+        await checkActiveLeadsAndTopUp(io, sellerId, _createdRef, signal, deadline);
+        created = _createdRef.value;
+
         // ── Continuous drip: randomised 3–9 s intervals ──
         while (
             (maxLeads === 0 || created < maxLeads) &&
@@ -829,6 +914,12 @@ function startLeadDrip(
                     message: `⚠️ Lead drip #${created + 1} failed: ${err.message?.slice(0, 80)}`,
                 });
             }
+
+            // BUG-10: After each drip cycle, check if active leads fell below minimum
+            // and top up if needed. Respects the deadline and abort signal.
+            const _ref = { value: created };
+            await checkActiveLeadsAndTopUp(io, sellerId, _ref, signal, deadline);
+            created = _ref.value;
         }
 
         emit(io, {
