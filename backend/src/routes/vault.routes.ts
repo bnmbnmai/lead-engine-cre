@@ -97,7 +97,7 @@ router.get('/contract', async (_req, res: Response) => {
             address: vaultService.getContractAddress(),
             abi: vaultService.getContractAbi(),
         });
-    } catch (error: any) {
+    } catch (_error: any) {
         res.status(500).json({ error: 'Failed to get contract info' });
     }
 });

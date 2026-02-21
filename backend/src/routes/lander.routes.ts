@@ -74,7 +74,7 @@ function generateLanderHTML(config: z.infer<typeof LanderExportSchema>): string 
         const req = f.required ? ' required' : '';
         const ph = f.placeholder ? ` placeholder="${escapeHtml(f.placeholder)}"` : '';
         const lbl = escapeHtml(f.label);
-        const showWhenAttr = f.showWhen
+        const _showWhenAttr = f.showWhen
             ? ` data-show-when-field="${escapeHtml(f.showWhen.field)}" data-show-when-equals="${escapeHtml(String(f.showWhen.equals))}"`
             : '';
         const autoFmtAttr = f.autoFormat ? ` data-auto-format="${f.autoFormat}"` : '';

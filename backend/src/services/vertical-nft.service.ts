@@ -522,7 +522,7 @@ export async function resaleVertical(
     let royaltyInfo: RoyaltyInfo;
     try {
         royaltyInfo = await getResaleRoyalty(vertical.nftTokenId, salePriceBigInt);
-    } catch (error: any) {
+    } catch (_error: any) {
         // Dev mode: simulate 2% royalty
         royaltyInfo = {
             receiver: platformWallet,

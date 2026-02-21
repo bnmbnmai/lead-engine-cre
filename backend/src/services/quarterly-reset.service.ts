@@ -80,7 +80,7 @@ export async function notifyLeaseHolder(
         }
 
         // Queue notification
-        const messages: Record<LeaseEvent, string> = {
+        const _messages: Record<LeaseEvent, string> = {
             GRACE_PERIOD_ENTERED: `Your lease on vertical "${auction.verticalSlug}" has expired. You have ${GRACE_PERIOD_DAYS} days to renew before re-auction.`,
             LEASE_EXPIRED: `Your lease on vertical "${auction.verticalSlug}" has expired and the vertical is now open for re-auction.`,
             LEASE_RENEWED: `Your lease on vertical "${auction.verticalSlug}" has been renewed for ${LEASE_DURATION_DAYS} days.`,

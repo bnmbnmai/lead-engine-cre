@@ -154,7 +154,7 @@ class PrivacyService {
                 salt: data.salt,
                 valid: expectedCommitment === encryptedBid.commitment,
             };
-        } catch (error) {
+        } catch (_error) {
             return { amount: 0, salt: '', valid: false };
         }
     }

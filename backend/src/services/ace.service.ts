@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 import { prisma } from '../lib/prisma';
 import { crossBorderRequirements, getPolicy } from '../lib/jurisdiction-policies';
-import { isValidRegion } from '../lib/geo-registry';
 
 // Global event bus for dev-log events (consumed by socket layer → frontend DevLog panel)
 export const aceDevBus = new EventEmitter();

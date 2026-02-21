@@ -163,7 +163,7 @@ const healthHandler = async (_req: Request, res: Response) => {
             database: 'connected',
             socket: 'active',
         });
-    } catch (error) {
+    } catch (_error) {
         res.status(503).json({
             status: 'error',
             timestamp: new Date().toISOString(),

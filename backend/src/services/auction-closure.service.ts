@@ -267,7 +267,7 @@ async function resolveAuction(leadId: string, io?: Server) {
         //      'auction:vrf-resolved' once the on-chain callback lands (~15-90 s).
         //   3. Persist vrfRequestId immediately to AuctionRoom (before response).
         let winningBid: typeof rankedBids[0] | null = null;
-        let vrfRequestId: string | null = null; // BUG-09: captured for DB + socket
+        const vrfRequestId: string | null = null; // BUG-09: captured for DB + socket
 
         if (eligibleBids.length === 0) {
             // No eligible bids

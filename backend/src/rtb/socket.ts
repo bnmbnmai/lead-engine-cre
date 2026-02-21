@@ -9,7 +9,7 @@ import {
     checkActivityThreshold,
 } from '../services/holder-perks.service';
 import { SPAM_THRESHOLD_BIDS_PER_MINUTE } from '../config/perks.env';
-import { setHolderNotifyOptIn, getHolderNotifyOptIn } from '../services/notification.service';
+import { setHolderNotifyOptIn } from '../services/notification.service';
 import { resolveExpiredAuctions, resolveStuckAuctions, resolveExpiredBuyNow } from '../services/auction-closure.service';
 import * as vaultService from '../services/vault.service';
 
@@ -70,7 +70,7 @@ class DebouncedNotifyHandler {
                         ariaLive: 'polite',
                         role: 'status',
                     });
-                } catch (error) {
+                } catch (_error) {
                     socket.emit('error', { message: 'Failed to update notification preference' });
                 }
             }, waitMs);
@@ -173,7 +173,7 @@ class RTBSocketServer {
                 socket.role = decoded.role;
 
                 next();
-            } catch (error) {
+            } catch (_error) {
                 // JWT verify failed — downgrade to guest
                 socket.userId = undefined;
                 socket.role = 'GUEST';

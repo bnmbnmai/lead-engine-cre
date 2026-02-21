@@ -8,7 +8,7 @@ import { rtbBiddingLimiter } from '../middleware/rateLimit';
 import { aceService } from '../services/ace.service';
 import { dataStreamsService } from '../services/datastreams.service';
 import { evaluateLeadForAutoBid, LeadData } from '../services/auto-bid.service';
-import { applyHolderPerks, applyMultiplier } from '../services/holder-perks.service';
+import { applyHolderPerks } from '../services/holder-perks.service';
 
 const router = Router();
 

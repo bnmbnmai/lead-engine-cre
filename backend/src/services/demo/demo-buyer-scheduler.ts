@@ -19,7 +19,6 @@ import {
     USDC_ADDRESS,
     USDC_ABI,
     VAULT_ADDRESS,
-    VAULT_ABI,
     emit,
     getSigner,
     getVault,

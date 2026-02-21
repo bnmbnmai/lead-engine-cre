@@ -643,7 +643,7 @@ export async function suggestVertical(input: SuggestInput): Promise<SuggestionRe
     console.log(`[VERTICAL-OPTIMIZER] Processing: "${scrubbed.slice(0, 80)}..." (LLM: ${LLM_ENABLED})`);
 
     // 2. Check if exact match to existing vertical
-    const keywords = extractKeywords(scrubbed);
+    const _keywords = extractKeywords(scrubbed);
     const existingVerticals = await prisma.vertical.findMany({
         where: { status: 'ACTIVE' },
         select: { slug: true, name: true, aliases: true },

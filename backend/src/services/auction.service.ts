@@ -17,10 +17,8 @@ import {
     checkActivityThreshold,
     computePrePing,
     isInPrePingWindow,
-    HolderPerks,
 } from './holder-perks.service';
 import {
-    NFT_AUCTION_DURATION_SECS,
     LEAD_AUCTION_DURATION_SECS,
     AUTO_EXTEND_INCREMENT_SECS,
     AUTO_EXTEND_MAX,

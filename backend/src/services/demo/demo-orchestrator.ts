@@ -70,7 +70,7 @@ import {
     getIsRecycling,
     setIsRecycling,
     getRecycleAbort,
-    setRecycleAbort,
+    setRecycleAbort as _setRecycleAbort,
 } from './demo-vault-cycle';
 
 // Re-export types for external consumers
@@ -594,7 +594,7 @@ export async function runFullDemo(
             }
 
             const bidAmount = buyerBids[0]?.amount ?? baseBid;
-            const bidAmountUnits = buyerBids[0]?.amountUnits ?? ethers.parseUnits(String(bidAmount), 6);
+            const _bidAmountUnits = buyerBids[0]?.amountUnits ?? ethers.parseUnits(String(bidAmount), 6);
 
             let hadTiebreaker = false;
             if (buyerBids.length >= 2 && Math.random() < 0.20) {

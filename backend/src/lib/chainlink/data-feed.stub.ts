@@ -136,7 +136,7 @@ export async function collectPlatformMetrics(): Promise<PlatformMetrics> {
 
         console.log(`[DATA-FEED STUB] metrics: avgScore=${metrics.averageQualityScore} settled=$${(metrics.totalVolumeSettledCents / 100).toFixed(2)} tokenized=${metrics.totalLeadsTokenized} fillRate=${(metrics.auctionFillRateBps / 100).toFixed(1)}%`);
         return metrics;
-    } catch (err) {
+    } catch (_err) {
         // DB failure → return last-known-good cache
         console.warn('[DATA-FEED STUB] DB query failed — returning cached metrics');
 

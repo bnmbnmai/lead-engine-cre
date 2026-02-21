@@ -280,7 +280,7 @@ class BountyService {
                                     break; // break out of the pool loop — we've matched via Functions
                                 }
                             }
-                        } catch (err) {
+                        } catch (_err) {
                             console.warn('[BountyService] Functions matching failed, falling back to in-memory');
                         }
                     }
@@ -348,7 +348,7 @@ class BountyService {
                                     console.log(`[BountyService] VRF allocated bounty priority to ${vrfWinner}`);
                                 }
                             }
-                        } catch (err) {
+                        } catch (_err) {
                             console.warn('[BountyService] VRF bounty allocation failed, using default order');
                         }
                     }

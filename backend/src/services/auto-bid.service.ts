@@ -23,7 +23,7 @@ import { dataStreamsService } from './datastreams.service';
 // On-chain config for USDC allowance checks
 // ============================================
 
-const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
+const _ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
 const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 
@@ -36,7 +36,7 @@ const ERC20_ABI = [
  * Read on-chain USDC allowance for a buyer → escrow contract.
  * Returns allowance in raw wei (6 decimals for USDC).
  */
-async function getUsdcAllowance(ownerAddress: string, spenderAddress: string): Promise<bigint> {
+async function _getUsdcAllowance(ownerAddress: string, spenderAddress: string): Promise<bigint> {
     if (!USDC_CONTRACT_ADDRESS) return BigInt(0);
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const usdc = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, provider);

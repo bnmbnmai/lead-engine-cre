@@ -15,7 +15,7 @@ import { scrubPII } from './vertical-optimizer.service';
 // ============================================
 
 /** Fields that are ALWAYS PII and must never appear in previews */
-const PII_FIELDS = new Set([
+const _PII_FIELDS = new Set([
     'firstName', 'lastName', 'email', 'phone', 'address',
     'ssn', 'dob', 'dateOfBirth', 'ip', 'ipAddress',
     'driversLicense', 'bankAccount', 'routingNumber',
@@ -23,7 +23,7 @@ const PII_FIELDS = new Set([
 ]);
 
 /** Top-level Lead model fields that are safe to show in previews */
-const SAFE_LEAD_FIELDS = new Set([
+const _SAFE_LEAD_FIELDS = new Set([
     'vertical', 'geo', 'source', 'status', 'isVerified',
     'createdAt', 'auctionStartAt', 'auctionEndAt',
     'reservePrice', 'parameters',
@@ -171,7 +171,7 @@ export const VERTICAL_PREVIEW_CONFIG: Record<string, VerticalPreviewConfig> = {
 };
 
 /** Fallback config for verticals not explicitly mapped */
-const DEFAULT_PREVIEW_CONFIG: VerticalPreviewConfig = {
+const _DEFAULT_PREVIEW_CONFIG: VerticalPreviewConfig = {
     safeKeys: [],
     formSteps: [{ label: 'Lead Details', keys: [] }],
 };

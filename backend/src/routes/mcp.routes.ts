@@ -172,7 +172,7 @@ const MCP_TOOLS = [
 ];
 
 // Use relative paths for lead links — the AgentChatModal renders these inside the SPA
-const FRONTEND_URL = '';
+const _FRONTEND_URL = '';
 
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
@@ -465,7 +465,7 @@ router.post('/chat', async (req: Request, res: Response) => {
 
             // Anthropic format: response has content[] array with text and tool_use blocks
             const contentBlocks = completion.content || [];
-            const stopReason = completion.stop_reason;
+            const _stopReason = completion.stop_reason;
 
             // Extract text content
             const textBlocks = contentBlocks.filter((b: any) => b.type === 'text');

@@ -4,7 +4,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { AnalyticsQuerySchema } from '../utils/validation';
 import { z } from 'zod';
 import { analyticsLimiter } from '../middleware/rateLimit';
-import { analyticsOverviewCache, analyticsLeadCache } from '../lib/cache';
+import { analyticsOverviewCache } from '../lib/cache';
 import { analyticsService } from '../services/analytics.service';
 // analytics-mock.ts is @deprecated (P2-15). The real data paths below are now the sole live paths.
 // The ?source=mock query param and USE_MOCK_DATA env var have been removed.
@@ -38,7 +38,7 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
 
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const _sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
         if (role === 'SELLER') {
             const seller = await prisma.sellerProfile.findFirst({

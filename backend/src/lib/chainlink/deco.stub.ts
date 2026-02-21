@@ -151,7 +151,7 @@ class DECOWebAttester {
 
             console.log(`[DECO STUB] result: valid=${isValid} confidence=${result.confidence} latency=${latencyMs}ms`);
             return result;
-        } catch (err) {
+        } catch (_err) {
             const elapsed = Date.now() - start;
             console.warn(`[DECO STUB] TIMEOUT after ${elapsed}ms — returning fallback`);
 

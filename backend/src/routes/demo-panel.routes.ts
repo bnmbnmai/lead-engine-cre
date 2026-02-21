@@ -13,7 +13,7 @@ import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
 import { generateToken, authMiddleware, requireAdmin, AuthenticatedRequest } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
-import { creService } from '../services/cre.service';
+// creService import removed — not used in demo-panel routes
 import { aceService } from '../services/ace.service';
 import { nftService } from '../services/nft.service';
 import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
@@ -1446,7 +1446,7 @@ router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, re
         const buyerWallet = transaction.buyer?.walletAddress;
         const sellerWallet = (transaction.lead as any)?.seller?.user?.walletAddress;
         const amount = Number(transaction.amount);
-        const tokenId = parseInt(transaction.lead?.nftTokenId || '0', 10);
+        const _tokenId = parseInt(transaction.lead?.nftTokenId || '0', 10);
 
         console.log(`[DEMO SETTLE] Found tx=${transaction.id} | lead=${transaction.leadId} | $${amount} | escrowId=${transaction.escrowId || '(none)'} | buyer=${buyerWallet?.slice(0, 10)} | seller=${sellerWallet?.slice(0, 10)}`);
 
