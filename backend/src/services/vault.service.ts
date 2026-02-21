@@ -653,6 +653,47 @@ export async function reconcileVaultBalance(userAddress: string): Promise<{
             + `dbBalanceUsd=$${dbBalance.toFixed(2)}, onChainBalanceUsd=$${onChainBalance.toFixed(2)}, driftUsd=${driftFormatted}`;
         console.warn(driftMsg);
 
+        // ── Deposit Grace Period ─────────────────────────────────────────────
+        // Base Sepolia RPC can return stale balanceOf for ~60s after a confirmation.
+        // If the DB is HIGHER than on-chain (sync-down direction) and a real 0x tx
+        // was recorded in the last 5 minutes, this is almost certainly RPC lag —
+        // not real drift. Skip the sync-down and wait for the next cron cycle.
+        if (dbBalance > onChainBalance && vault) {
+            const GRACE_MS = 5 * 60 * 1000; // 5 minutes
+            const recentTx = await prisma.vaultTransaction.findFirst({
+                where: {
+                    vaultId: vault.id,
+                    reference: { startsWith: '0x' },
+                    createdAt: { gte: new Date(Date.now() - GRACE_MS) },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (recentTx) {
+                console.log(
+                    `[VaultService] ⏳ Skipping sync-down for ${userAddress} — `
+                    + `recent 0x tx within 5min (${(recentTx.reference ?? '').slice(0, 12)}…). RPC lag suspected.`,
+                );
+                aceDevBus.emit('ace:dev-log', {
+                    ts: new Date().toISOString(),
+                    action: 'vault:reconcile-rpc-lag',
+                    userAddress,
+                    dbBalanceUsd: `$${dbBalance.toFixed(2)}`,
+                    onChainBalanceUsd: `$${onChainBalance.toFixed(2)}`,
+                    driftUsd: driftFormatted,
+                    severity: 'INFO',
+                    note: `RPC lag suspected — skipping sync-down, retrying next cycle (recentTx=${(recentTx.reference ?? '').slice(0, 14)}…)`,
+                });
+                return {
+                    dbBalance,
+                    onChainBalance: dbBalance, // treat DB as truth during grace period
+                    drift: 0,
+                    driftUsd: '$0.00',
+                    synced: true,
+                };
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         // AUTO-SYNC: update Prisma EscrowVault.balance to on-chain truth
         try {
             if (vault) {
