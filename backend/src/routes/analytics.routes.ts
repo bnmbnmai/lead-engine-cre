@@ -5,24 +5,19 @@ import { AnalyticsQuerySchema } from '../utils/validation';
 import { z } from 'zod';
 import { analyticsLimiter } from '../middleware/rateLimit';
 import { analyticsOverviewCache, analyticsLeadCache } from '../lib/cache';
-import { getMockOverview, getMockLeadAnalytics, getMockBidAnalytics } from '../services/analytics-mock';
+import { analyticsService } from '../services/analytics.service';
+// analytics-mock.ts is @deprecated (P2-15). The real data paths below are now the sole live paths.
+// The ?source=mock query param and USE_MOCK_DATA env var have been removed.
 
 const router = Router();
 
-const IS_PROD = process.env.NODE_ENV === 'production';
-const USE_MOCK_DEFAULT = process.env.USE_MOCK_DATA === 'true' && !IS_PROD;
-
-if (process.env.USE_MOCK_DATA === 'true' && IS_PROD) {
-    console.warn('[analytics] ⚠️  USE_MOCK_DATA=true ignored in production. Using real data from Prisma/Redis.');
-}
-
-/** Per-request data source: `?source=real|mock` overrides server default */
-function shouldUseMock(req: AuthenticatedRequest): boolean {
-    const src = (req.query.source as string || '').toLowerCase();
-    if (src === 'real') return false;
-    if (src === 'mock') return !IS_PROD;   // never allow mock in prod
-    return USE_MOCK_DEFAULT;
-}
+// Wire the Socket.IO server into analyticsService lazily on the first request,
+// so events emitted from within this router are broadcast to all connected clients.
+router.use((req: AuthenticatedRequest, _res: Response, next) => {
+    const io = req.app.get('io');
+    if (io) analyticsService.setIO(io);
+    next();
+});
 
 // ============================================
 // Dashboard Overview
@@ -33,11 +28,7 @@ router.get('/overview', analyticsLimiter, authMiddleware, async (req: Authentica
         const userId = req.user!.id;
         const role = req.user!.role;
 
-        // ── Mock data shortcut ──
-        if (shouldUseMock(req)) {
-            res.json(getMockOverview(role));
-            return;
-        }
+        analyticsService.emit('analytics:overview-read', { role, userId });
         const cacheKey = `overview:${role}:${userId}:${req.query.source || 'default'}`;
         const cached = analyticsOverviewCache.get(cacheKey);
         if (cached) {
@@ -189,12 +180,7 @@ router.get('/leads', analyticsLimiter, authMiddleware, async (req: Authenticated
             return;
         }
 
-        // ── Mock data shortcut ──
-        if (shouldUseMock(req)) {
-            const { groupBy } = validation.data;
-            res.json(getMockLeadAnalytics(groupBy || 'day'));
-            return;
-        }
+        analyticsService.emit('analytics:leads-read', { userId: req.user!.id, role: req.user!.role });
 
         const { startDate, endDate, vertical, groupBy } = validation.data;
 
@@ -303,11 +289,7 @@ router.get('/leads', analyticsLimiter, authMiddleware, async (req: Authenticated
 
 router.get('/bids', analyticsLimiter, authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        // ── Mock data shortcut ──
-        if (shouldUseMock(req)) {
-            res.json(getMockBidAnalytics());
-            return;
-        }
+        analyticsService.emit('analytics:bids-read', { userId: req.user!.id, role: req.user!.role });
 
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -647,6 +629,23 @@ router.get('/conversions', analyticsLimiter, authMiddleware, async (req: Authent
         console.error('Conversion analytics error:', error);
         res.status(500).json({ error: 'Failed to fetch conversion analytics' });
     }
+});
+
+// ============================================
+// Analytics Events Ring Buffer (P2-15)
+// GET /api/v1/analytics/events — last N events from the in-memory ring buffer
+// Admin-only; callers may also subscribe via Socket.IO 'analytics:event'
+// ============================================
+
+router.get('/events', analyticsLimiter, authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+    if (req.user!.role !== 'ADMIN') {
+        res.status(403).json({ error: 'Admin access required' });
+        return;
+    }
+
+    const limit = Math.min(parseInt((req.query.limit as string) || '100') || 100, 500);
+    const events = analyticsService.getRecentEvents(limit);
+    res.json({ events, count: events.length });
 });
 
 export default router;
