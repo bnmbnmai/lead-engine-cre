@@ -9,7 +9,7 @@
  */
 
 import { Router, Response } from 'express';
-import { authMiddleware, optionalAuthMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware, requireAdmin, AuthenticatedRequest } from '../middleware/auth';
 import { generalLimiter } from '../middleware/rateLimit';
 import { VerticalCreateSchema, VerticalUpdateSchema, VerticalQuerySchema } from '../utils/validation';
 import * as verticalService from '../services/vertical.service';
@@ -110,13 +110,8 @@ router.post('/suggest', optionalAuthMiddleware, async (req: AuthenticatedRequest
 // Supports: ?status=, ?minHits=, ?search=, ?page=, ?limit=
 // ============================================
 
-router.get('/suggestions', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/suggestions', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const status = req.query.status as string | undefined;
         const minHits = req.query.minHits ? parseInt(req.query.minHits as string) : undefined;
         const search = req.query.search as string | undefined;
@@ -153,13 +148,8 @@ router.get('/suggestions', authMiddleware, async (req: AuthenticatedRequest, res
 // Optionally mints NFT when NFT_FEATURES_ENABLED=true
 // ============================================
 
-router.put('/suggestions/:id/approve', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/suggestions/:id/approve', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const { id } = req.params;
         const { mintNft } = req.body || {};
 
@@ -228,13 +218,8 @@ router.put('/suggestions/:id/approve', authMiddleware, async (req: Authenticated
 // PUT /suggestions/:id/reject — Reject a suggestion
 // ============================================
 
-router.put('/suggestions/:id/reject', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/suggestions/:id/reject', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const { id } = req.params;
         const { reason } = req.body || {};
 
@@ -270,13 +255,8 @@ router.put('/suggestions/:id/reject', authMiddleware, async (req: AuthenticatedR
 // PATCH /suggestions/:id/status — Update vertical status (pause/reactivate/delete)
 // ============================================
 
-router.patch('/suggestions/:id/status', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/suggestions/:id/status', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const { id } = req.params;
         const { status } = req.body as { status?: string };
 
@@ -441,13 +421,8 @@ const FormConfigSchema = z.object({
     croConfig: CROConfigSchema.optional(),
 });
 
-router.put('/:slug/form-config', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:slug/form-config', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const { slug } = req.params;
         const validation = FormConfigSchema.safeParse(req.body);
         if (!validation.success) {
@@ -605,13 +580,8 @@ router.post('/', optionalAuthMiddleware, async (req: AuthenticatedRequest, res: 
 // PUT /:id — Update vertical (Admin only)
 // ============================================
 
-router.put('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const validation = VerticalUpdateSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({ error: 'Invalid request', details: validation.error.issues });
@@ -636,13 +606,8 @@ router.put('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Respon
 // Requires ?confirm=true for cascade
 // ============================================
 
-router.delete('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:id', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const confirm = req.query.confirm === 'true';
         const result = await verticalService.deleteVertical(req.params.id, confirm);
 
@@ -668,14 +633,8 @@ router.delete('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Res
 // Runs: CRE verification → ACE compliance → Mint VerticalNFT → Update Prisma
 // ============================================
 
-router.put('/:slug/activate', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:slug/activate', authMiddleware, requireAdmin, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        // Admin only
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const { slug } = req.params;
 
         // Run full activation pipeline (mints to platform wallet)
@@ -717,14 +676,8 @@ const ResaleSchema = z.object({
     salePrice: z.number().positive('Sale price must be positive'),
 });
 
-router.post('/:slug/resale', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:slug/resale', authMiddleware, requireAdmin, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        // Admin only
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         // Validate input
         const validation = ResaleSchema.safeParse(req.body);
         if (!validation.success) {
@@ -777,13 +730,8 @@ const AuctionCreateSchema = z.object({
     durationSecs: z.number().int().min(60).max(60).optional(), // locked to 60s for hackathon
 });
 
-router.post('/:slug/auction', authMiddleware, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:slug/auction', authMiddleware, requireAdmin, requireNFT, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const validation = AuctionCreateSchema.safeParse(req.body);
         if (!validation.success) {
             res.status(400).json({ error: 'Invalid request', details: validation.error.issues });
@@ -843,13 +791,8 @@ router.post('/auctions/:id/bid', authMiddleware, async (req: AuthenticatedReques
 // POST /auctions/:id/settle — Settle completed auction (Admin only)
 // ============================================
 
-router.post('/auctions/:id/settle', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/auctions/:id/settle', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        if (req.user!.role !== 'ADMIN') {
-            res.status(403).json({ error: 'Admin access required' });
-            return;
-        }
-
         const { id } = req.params;
         const result = await auctionService.settleAuction(id);
 

@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * @notice Each token represents a unique lead with metadata stored on IPFS
  */
 contract LeadNFT is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, ReentrancyGuard {
-    uint256 private _nextTokenId;
+    uint256 private _nextTokenId = 1;  // Start at 1 — 0 is the "not tokenized" sentinel in platformLeadToToken
     
     // Lead metadata
     struct LeadMetadata {

@@ -186,30 +186,39 @@ export async function recordDeposit(userId: string, amount: number, txHash: stri
 }
 
 /**
- * Record a withdrawal: deduct from DB vault balance.
- * In production, this would be triggered after an on-chain withdraw tx.
- * For demo, this directly deducts from the cached balance.
+ * Record a withdrawal: updates the DB vault balance.
+ *
+ * BUG-03 TODO: Future client-side signed withdraw required to prevent DB/on-chain desync.
+ * withdraw(uint256) on the deployed contract operates on msg.sender — the deployer key
+ * cannot call it on behalf of users. The correct fix requires the user to sign and
+ * broadcast the on-chain withdrawal from their own wallet (frontend change). Until then,
+ * this function remains DB-only and the on-chain vault balance will diverge from the DB
+ * after a withdrawal.
  */
 export async function recordWithdraw(userId: string, amount: number) {
     const vault = await getOrCreateVault(userId);
     let available = Number(vault.balance);
 
-    // If on-chain vault is configured, check locked balance to prevent
-    // withdrawing funds that are locked in active bids
+    // Best-effort: read on-chain balanceOf + lockedBalances to get true free balance.
+    // These are read-only calls — safe to make with any signer/provider.
     let onChainLocked = 0;
     try {
         if (VAULT_ADDRESS) {
             const user = await prisma.user.findUnique({ where: { id: userId } });
             if (user?.walletAddress) {
                 const contract = getVaultContract();
-                const locked = await contract.lockedBalances(user.walletAddress);
+                const [onChainBal, locked] = await Promise.all([
+                    contract.balanceOf(user.walletAddress),
+                    contract.lockedBalances(user.walletAddress),
+                ]);
                 onChainLocked = unitsToUsdc(locked);
-                available = Math.max(0, available - onChainLocked);
+                // Prefer on-chain balance as source of truth when available
+                available = Math.max(0, unitsToUsdc(onChainBal) - onChainLocked);
             }
         }
     } catch (err) {
-        console.warn('[VaultService] Could not check locked balance:', (err as Error).message);
-        // Continue with DB balance — on-chain check is best-effort
+        console.warn('[VaultService] Could not check on-chain balance, falling back to DB:', (err as Error).message);
+        available = Math.max(0, Number(vault.balance) - onChainLocked);
     }
 
     // amount 0 = withdraw all available (unlocked)
@@ -220,6 +229,7 @@ export async function recordWithdraw(userId: string, amount: number) {
         throw new Error(`Insufficient balance. Available: $${available.toFixed(2)}${lockedNote}`);
     }
 
+    // DB-only update (see BUG-03 TODO above for why on-chain call is omitted)
     const [updatedVault] = await prisma.$transaction([
         prisma.escrowVault.update({
             where: { id: vault.id },
@@ -234,7 +244,7 @@ export async function recordWithdraw(userId: string, amount: number) {
                 type: 'WITHDRAW',
                 amount: withdrawAmount,
                 reference: `withdraw-${Date.now()}`,
-                note: `Vault withdrawal $${withdrawAmount.toFixed(2)} USDC`,
+                note: `Vault withdrawal $${withdrawAmount.toFixed(2)} USDC (DB-only — see BUG-03)`,
             },
         }),
     ]);
@@ -245,11 +255,12 @@ export async function recordWithdraw(userId: string, amount: number) {
         userId,
         amount: `$${withdrawAmount.toFixed(2)}`,
         lockedBids: `$${onChainLocked.toFixed(2)}`,
-        source: 'demo',
+        source: 'db-only',
     });
 
     return { success: true, balance: Number(updatedVault.balance), withdrawn: withdrawAmount };
 }
+
 
 /**
  * Lock funds for a bid on-chain (backend-signed, gas-sponsored).
@@ -519,8 +530,10 @@ export async function verifyReserves(): Promise<{ solvent: boolean; txHash?: str
 
         return { solvent, txHash: tx.hash };
     } catch (err) {
+        // BUG-02 fix: return solvent:false on any error so failures are visible
+        // rather than silently swallowing RPC/config errors as "healthy".
         console.error('[VaultService] verifyReserves failed:', err);
-        return { solvent: true };
+        return { solvent: false };
     }
 }
 

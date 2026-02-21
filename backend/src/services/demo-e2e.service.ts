@@ -1108,7 +1108,7 @@ async function sweepBuyerUSDC(io: SocketServer): Promise<void> {
 // ── Live Metrics Pulse ──────────────────────────
 
 let _demoRunStartTime: number | null = null;
-let _demoTotalSettledSnapshot: number = 0;
+const _demoTotalSettledSnapshot: number = 0;
 
 /**
  * emitLiveMetrics — called every 30 s while a demo is running.

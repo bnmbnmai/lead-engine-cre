@@ -295,7 +295,7 @@ describe('Demo E2E Phasing Contract', () => {
             vaultBalanceFunded = true;
             await demoE2E.runFullDemo(mockIo as any, 1);
 
-            const latest = demoE2E.getLatestResult();
+            const latest = await demoE2E.getLatestResult();
             expect(latest).toBeDefined();
             expect(['completed', 'failed', 'aborted']).toContain(latest?.status);
         }, 30_000);
