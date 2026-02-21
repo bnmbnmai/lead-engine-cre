@@ -91,18 +91,13 @@ async function getOrCreateVault(userId: string) {
 export async function getVaultInfo(userId: string) {
     const vault = await getOrCreateVault(userId);
 
-    // Filter out legacy fake records created before the on-chain restore
-    // (those with synthetic references like 'demo-deposit' or 'cache-withdraw-*')
-    const LEGACY_CUTOFF = new Date('2026-02-21T03:00:00.000Z');
+    // Only show real on-chain transactions (reference starts with '0x').
+    // Synthetic/legacy records (demo-deposit, cache-withdraw-*, etc.) are excluded
+    // regardless of creation date — some were created today during pre-restore testing.
     const transactions = await prisma.vaultTransaction.findMany({
         where: {
             vaultId: vault.id,
-            OR: [
-                // Keep all real on-chain records (reference starts with '0x')
-                { reference: { startsWith: '0x' } },
-                // Keep recent records regardless (post-restore)
-                { createdAt: { gte: LEGACY_CUTOFF } },
-            ],
+            reference: { startsWith: '0x' },
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
@@ -697,14 +692,13 @@ export async function cleanupLegacyRecords(
     userId: string,
 ): Promise<{ deleted: number; newBalance: number; onChainBalance: number }> {
     const vault = await getOrCreateVault(userId);
-    const LEGACY_CUTOFF = new Date('2026-02-21T03:00:00.000Z');
 
-    // Delete all non-0x records created before the restore cutoff
+    // Delete ALL non-0x reference records — regardless of creation date.
+    // Some fake records were created today (after the cutoff) during pre-restore testing.
     const { count: deleted } = await prisma.vaultTransaction.deleteMany({
         where: {
             vaultId: vault.id,
-            reference: { not: { startsWith: '0x' } },
-            createdAt: { lt: LEGACY_CUTOFF },
+            NOT: { reference: { startsWith: '0x' } },
         },
     });
 
