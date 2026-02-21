@@ -676,7 +676,7 @@ export async function reconcileVaultBalance(userAddress: string): Promise<{
             dbBalanceUsd: `$${dbBalance.toFixed(2)}`,
             onChainBalanceUsd: `$${onChainBalance.toFixed(2)}`,
             driftUsd: driftFormatted,
-            severity: 'WARNING',
+            severity: 'INFO',
             note: 'legacy data detected — auto-synced',
         });
     }

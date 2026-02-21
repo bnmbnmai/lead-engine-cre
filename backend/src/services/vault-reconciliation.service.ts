@@ -64,11 +64,13 @@ export async function reconcileAll(): Promise<ReconcileReport> {
         completedAt: '',
     };
 
-    // Fetch all users that have a vault record with balance > 0
+    // Fetch all vaults that have ever had a deposit (totalDeposited > 0).
+    // Using balance > 0 excluded post-withdraw vaults (DB=$0) that can still have
+    // on-chain residual balance — causing the cron to scan 0 users after a full withdraw.
     let vaults: Array<{ userId: string; balance: any }> = [];
     try {
         vaults = await prisma.escrowVault.findMany({
-            where: { balance: { gt: 0 } },
+            where: { totalDeposited: { gt: 0 } },
             select: { userId: true, balance: true },
         });
     } catch (err: any) {
