@@ -204,33 +204,42 @@ export async function recordDeposit(userId: string, amount: number, txHash: stri
  */
 export async function recordCacheWithdraw(userId: string, amount: number, txHash?: string) {
     const vault = await getOrCreateVault(userId);
-    let available = Number(vault.balance);
 
-    // Best-effort: read on-chain balanceOf + lockedBalances to get true free balance.
+    let available: number;
     let onChainLocked = 0;
-    try {
-        if (VAULT_ADDRESS) {
-            const user = await prisma.user.findUnique({ where: { id: userId } });
-            if (user?.walletAddress) {
-                const contract = getVaultContract();
-                const [onChainBal, locked] = await Promise.all([
-                    contract.balanceOf(user.walletAddress),
-                    contract.lockedBalances(user.walletAddress),
-                ]);
-                onChainLocked = unitsToUsdc(locked);
-                // Prefer on-chain balance as source of truth when available
-                available = Math.max(0, unitsToUsdc(onChainBal) - onChainLocked);
+
+    if (txHash) {
+        // ✅ Fast-path: on-chain tx already confirmed (txHash is proof of funds).
+        // Do NOT re-read on-chain balance — it will be 0 post-withdrawal.
+        // Trust the DB balance as the pre-withdrawal amount.
+        available = Number(vault.balance);
+    } else {
+        // Legacy/fallback: no txHash — read on-chain to get true free balance.
+        available = Number(vault.balance);
+        try {
+            if (VAULT_ADDRESS) {
+                const user = await prisma.user.findUnique({ where: { id: userId } });
+                if (user?.walletAddress) {
+                    const contract = getVaultContract();
+                    const [onChainBal, locked] = await Promise.all([
+                        contract.balanceOf(user.walletAddress),
+                        contract.lockedBalances(user.walletAddress),
+                    ]);
+                    onChainLocked = unitsToUsdc(locked);
+                    available = Math.max(0, unitsToUsdc(onChainBal) - onChainLocked);
+                }
             }
+        } catch (err) {
+            console.warn('[VaultService] Could not check on-chain balance, falling back to DB:', (err as Error).message);
+            available = Math.max(0, Number(vault.balance) - onChainLocked);
         }
-    } catch (err) {
-        console.warn('[VaultService] Could not check on-chain balance, falling back to DB:', (err as Error).message);
-        available = Math.max(0, Number(vault.balance) - onChainLocked);
     }
 
     // amount 0 = withdraw all available (unlocked)
     const withdrawAmount = amount === 0 ? available : amount;
     if (withdrawAmount <= 0) throw new Error('Nothing to withdraw');
-    if (withdrawAmount > available) {
+    if (!txHash && withdrawAmount > available) {
+        // Only enforce cap on DB-only calls — txHash path already cleared on-chain
         const lockedNote = onChainLocked > 0 ? ` ($${onChainLocked.toFixed(2)} locked in active bids)` : '';
         throw new Error(`Insufficient balance. Available: $${available.toFixed(2)}${lockedNote}`);
     }
