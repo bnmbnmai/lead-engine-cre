@@ -211,16 +211,21 @@ class RTBSocketServer {
                     const roomId = `auction_${leadId}`;
                     socket.join(roomId);
 
-                    // Add to participants
+                    // BUG-07: Use Set semantics — only add userId if not already a participant.
+                    // Prisma push always appends, so without this guard every reconnect
+                    // creates a duplicate entry.
                     if (lead.auctionRoom) {
-                        await prisma.auctionRoom.update({
-                            where: { id: lead.auctionRoom.id },
-                            data: {
-                                participants: {
-                                    push: socket.userId!,
+                        const alreadyJoined = (lead.auctionRoom.participants as string[]).includes(socket.userId!);
+                        if (!alreadyJoined) {
+                            await prisma.auctionRoom.update({
+                                where: { id: lead.auctionRoom.id },
+                                data: {
+                                    participants: {
+                                        push: socket.userId!,
+                                    },
                                 },
-                            },
-                        });
+                            });
+                        }
                     }
 
                     // Send current auction state
