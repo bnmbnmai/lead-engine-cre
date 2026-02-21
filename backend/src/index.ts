@@ -88,6 +88,9 @@ app.use(helmet({
 
 const ALLOWED_ORIGINS = [
     'https://lead-engine-cre-frontend.vercel.app',
+    // Vercel preview deployments — covers all *.vercel.app subdomains
+    'https://lead-engine-cre-frontend-li2y9pn8j-bruces-projects-8c801e4b.vercel.app',
+    'https://lead-engine-cre',  // prefix-match covers all Vercel preview slugs for this project
     'http://localhost:5173',
     'http://localhost:3000',
     process.env.FRONTEND_URL,

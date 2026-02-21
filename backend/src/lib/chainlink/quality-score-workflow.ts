@@ -139,8 +139,13 @@ export async function executeQualityScoreWorkflow(
     const start = Date.now();
     const client = options?.client || confidentialHTTPClient;
     const encryptOutput = options?.encryptOutput ?? false;
+    // Use RENDER_EXTERNAL_URL in production (set automatically by Render).
+    // Falls back to API_URL, then to the local port — never hardcoded localhost:3001.
     const apiBaseUrl =
-        input.apiBaseUrl || process.env.API_URL || 'http://localhost:3001';
+        input.apiBaseUrl ||
+        process.env.RENDER_EXTERNAL_URL ||
+        process.env.API_URL ||
+        `http://localhost:${process.env.PORT || 3001}`;
 
     console.log(
         `[CHTT STUB] [QualityScoreWorkflow] Starting for lead ${input.leadTokenId}`,
@@ -148,7 +153,7 @@ export async function executeQualityScoreWorkflow(
 
     // ── Step 1: Build the Confidential HTTP request for scoring-data ──────
     const scoringRequest: ConfidentialHTTPRequest = {
-        url: `${apiBaseUrl}/api/marketplace/leads/${input.leadTokenId}/scoring-data`,
+        url: `${apiBaseUrl}/api/v1/leads/${input.leadTokenId}/scoring-data`,
         method: 'GET',
         headers: {
             'x-cre-key': '{{.creApiKey}}',
