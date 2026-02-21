@@ -8,6 +8,10 @@ export const API_BASE_URL = (
     'http://localhost:3001'
 ).replace(/\/$/, ''); // strip trailing slash so /api/v1/... paths compose cleanly
 
+// Shared secret for the public demo button — must match TEST_API_TOKEN on the backend.
+// Set VITE_TEST_API_TOKEN in Vercel env vars.
+const TEST_API_TOKEN = (import.meta.env.VITE_TEST_API_TOKEN as string) || '';
+
 // ============================================
 // Types
 // ============================================
@@ -474,12 +478,16 @@ export const api = {
     demoFullE2EStart: (cycles?: number) =>
         apiFetch<{ success: boolean; message: string; running: boolean }>(
             '/api/v1/demo-panel/full-e2e',
-            { method: 'POST', body: JSON.stringify({ cycles: cycles || 5 }) },
+            {
+                method: 'POST',
+                body: JSON.stringify({ cycles: cycles || 5 }),
+                headers: { 'X-Api-Token': TEST_API_TOKEN },
+            },
         ),
     demoFullE2EStop: () =>
         apiFetch<{ success: boolean; message: string }>(
             '/api/v1/demo-panel/full-e2e/stop',
-            { method: 'POST' },
+            { method: 'POST', headers: { 'X-Api-Token': TEST_API_TOKEN } },
         ),
     demoFullE2EResults: (runId: string) =>
         apiFetch<any>(
