@@ -200,11 +200,60 @@ let moduleIo: SocketServer | null = null;
 // Cleared on stop/abort so timers never outlive a demo run.
 const activeBidTimers = new Map<string, NodeJS.Timeout[]>();
 
+// ── BUG-04: Pending Vault Lock Registry ────────────
+// Tracks all on-chain lockIds that have been issued via lockForBid() but not
+// yet settled or refunded. On abort, abortCleanup() iterates this Set and
+// issues refundBid() for each orphaned lock so funds are never stranded.
+const pendingLockIds = new Set<number>();
+
 function clearAllBidTimers() {
     for (const timers of activeBidTimers.values()) {
         for (const t of timers) clearTimeout(t);
     }
     activeBidTimers.clear();
+}
+
+/**
+ * abortCleanup — refunds all on-chain vault locks that are still pending
+ * (issued via lockForBid but not yet settled or refunded) when the demo is
+ * aborted mid-cycle.
+ *
+ * Fires best-effort: one lock failure never blocks others. Always resolves.
+ * Called from the catch(isAbort) path and from stopDemo().
+ */
+async function abortCleanup(
+    io: SocketServer,
+    vault: ethers.Contract,
+): Promise<void> {
+    const locks = Array.from(pendingLockIds);
+    if (locks.length === 0) return;
+
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: 'warn',
+        message: `⏹️ Abort cleanup: refunding ${locks.length} orphaned vault lock${locks.length !== 1 ? 's' : ''} [${locks.join(', ')}]…`,
+    });
+
+    await Promise.allSettled(
+        locks.map(async (lockId) => {
+            try {
+                const tx = await vault.refundBid(lockId);
+                await tx.wait();
+                pendingLockIds.delete(lockId);
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: `✅ Abort cleanup: lock #${lockId} refunded (${tx.hash.slice(0, 12)}…)`,
+                });
+            } catch (refundErr: any) {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `⚠️ Abort cleanup: could not refund lock #${lockId}: ${refundErr.message?.slice(0, 60)}`,
+                });
+            }
+        })
+    );
 }
 
 
@@ -1737,6 +1786,12 @@ export async function runFullDemo(
     // Set start time for live metrics daily-volume extrapolation
     _demoRunStartTime = Date.now();
 
+    // BUG-04: Hoist vault to function scope so abortCleanup() in the catch block
+    // can refund orphaned lockIds even if the abort fires mid-cycle.
+    // Definite-assignment assertion (null!) avoids TS null-check noise at every usage
+    // site inside the try block — vault is always set before any usage.
+    let vault: ethers.Contract = null!;
+
     try {
         // ── Validate chain ──
         const provider = getProvider();
@@ -1746,7 +1801,7 @@ export async function runFullDemo(
         }
 
         const signer = getSigner();
-        const vault = getVault(signer);
+        vault = getVault(signer);
         const usdc = getUSDC(signer);
 
         emit(io, {
@@ -2116,6 +2171,7 @@ export async function runFullDemo(
                             const lockId = Number(parsed.args[0]);
                             lockIds.push(lockId);
                             lockBuyerMap.push({ lockId, addr: bAddr, amount: bAmount });
+                            pendingLockIds.add(lockId); // BUG-04: register for abort cleanup
                         }
                     } catch { /* skip other events */ }
                 }
@@ -2162,6 +2218,7 @@ export async function runFullDemo(
                 cycles,
             );
             cycleGas += settleGas;
+            pendingLockIds.delete(winnerLockId); // BUG-04: deregister settled lock
             totalSettled += bidAmount;
 
             // ── Platform income for this cycle ──
@@ -2195,6 +2252,7 @@ export async function runFullDemo(
                     cycles,
                 );
                 cycleGas += refundGas;
+                pendingLockIds.delete(lockIds[r]); // BUG-04: deregister refunded lock
                 refundTxHashes.push(refundReceipt.hash);
 
                 await sleep(300);
@@ -2408,7 +2466,17 @@ export async function runFullDemo(
 
         // Recycle on abort/failure too — best effort, non-blocking.
         // IMPORTANT: runs regardless of whether the emit calls above succeeded.
-        if (!isAbort) {
+        if (isAbort) {
+            // BUG-04: refund any locks that were issued before the abort signal fired.
+            // vault may be null if abort fires before chain validation completes.
+            if (vault) {
+                void abortCleanup(io, vault).catch((e: Error) =>
+                    console.warn('[DEMO] abortCleanup failed (non-fatal):', e.message)
+                );
+            } else {
+                pendingLockIds.clear(); // no vault = no locks could have been issued
+            }
+        } else {
             void withRecycleTimeout(io, recycleTokens(io, signal, BUYER_KEYS));
         }
 
@@ -2453,6 +2521,13 @@ export function stopDemo(): boolean {
 
     // Cancel any staggered buyer-bid timers so they don't fire after stop
     clearAllBidTimers();
+
+    // BUG-04: clear the pending lock registry so abortCleanup (fired by the
+    // catch block) has the right set. pendingLockIds is already populated;
+    // abortCleanup() will read it when the abort signal propagates into runFullDemo.
+    // We do NOT call abortCleanup() directly here because we don't have a vault
+    // reference in stopDemo() scope — abortCleanup() runs via the catch(isAbort)
+    // path inside runFullDemo() which DOES have the vault in scope.
 
     // Broadcast updated state to all viewers immediately so UI unblocks
     if (moduleIo) {
