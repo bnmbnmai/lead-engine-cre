@@ -9,103 +9,43 @@
 ![Base Sepolia](https://img.shields.io/badge/Deployed-Base%20Sepolia-blue)
 ![Live Demo](https://img.shields.io/badge/Live%20Demo-vercel.app-brightgreen)
 
-> **Built for Chainlink Convergence Hackathon 2026 · Mandatory CRE + ACE Track**
+> **Built for Chainlink Convergence Hackathon 2026**
 
-**Lead Engine CRE** is a decentralized, tokenized real-time bidding marketplace for verified sales leads in the $200B+ lead generation industry.
+[🚀 Live Demo](https://lead-engine-cre-frontend.vercel.app) · [GitHub](https://github.com/bnmbnmai/lead-engine-cre) · [Video (coming soon)](#)
 
-Sellers submit high-intent leads that receive cryptographic quality scores via **Chainlink CRE**. **ACE** enforces wallet KYC, jurisdiction policies, and reputation gating. Buyers compete in sealed-bid auctions backed by **pre-funded on-chain USDC PersonalEscrowVaults** with **Chainlink Automation** delivering 24-hour Proof-of-Reserves and automatic refunds. Every purchased lead is minted as an immutable **ERC-721 LeadNFT** with full provenance, resale rights, and royalties.
+## Overview
 
-[🚀 Live Demo](https://lead-engine-cre-frontend.vercel.app) · [3-Min Demo Video (coming soon)](https://www.loom.com/share/...) · [ROADMAP](./ROADMAP.md) · [Full Docs](./docs)
+Lead Engine CRE is an on-chain marketplace for tokenized leads. Sellers mint high-quality leads as tradable LeadNFTs. Buyers participate in real-time sealed-bid auctions with instant USDC settlement and verifiable provenance through Chainlink.
 
----
+Autonomous MCP agents, powered by LangChain ReAct and 11 integrated tools, continuously hunt and bid on leads according to buyer-defined rules for verticals, quality scores, budgets, and geo-targeting.
 
-## Live Demo & Guided Flow
+Built for the Chainlink Convergence Hackathon 2026 (CRE + ACE track), the platform demonstrates deep integration across the Chainlink ecosystem while addressing core inefficiencies in lead generation: fraud, delayed payouts, lack of provenance, and poor matching.
 
-Experience the full end-to-end flow on Base Sepolia (gas-sponsored — no ETH required).
+## Key Features
 
-**Quick Try (5 minutes):**
-1. Visit the [Live Demo](https://lead-engine-cre-frontend.vercel.app) and connect a test wallet.
-2. **As Seller**: Submit a lead via the CRO lander (pre-filled demo data available).
-3. **As Buyer**: Deposit USDC to your PersonalEscrowVault, set field-level auto-bid rules or use the MCP LangChain agent.
-4. Watch the 60-second sealed-bid auction in real time via WebSocket.
-5. Win → atomic settlement, PII decryption, LeadNFT mint, and bounty release.
-6. Check PoR status and 7-day auto-refund protection.
+- One-click full on-chain demo that runs the complete lifecycle end-to-end
+- LeadNFTs with built-in royalties for recurring creator revenue
+- Autonomous MCP agents that operate using buyer-configured preferences and LangChain ReAct reasoning
+- Programmable buyer bounties funded per vertical and executed via Chainlink Functions
+- PersonalEscrowVault with Chainlink Automation for Proof of Reserves and automatic lock expiry
+- Sealed-bid auctions with commit-reveal privacy and Chainlink VRF for fair tie resolution
+- Dynamic verticals with drag-and-drop form builder and field-level auto-bid rules
+- Real-time analytics with structured Socket.IO events and continuous vault reconciliation monitoring
 
-**Seeded demo data** available via `pnpm run seed:demo` (populates solar/roofing leads).
+## Chainlink Integration
 
-One-Click On-Chain Demo — run the complete marketplace flow live with natural lead arrival, real-time bidding, and on-chain settlement.
+The platform uses six Chainlink services in production flows:
 
-## One-Click On-Chain Demo
+| Service | Role |
+|---------|------|
+| **CRE** | On-chain quality scoring with ZK proofs for lead verification and parameter matching |
+| **ACE** | TCPA consent management, jurisdiction validation, and compliance checks |
+| **Automation** | Proof of Reserves every 24 hours and automatic refund of expired bid locks |
+| **VRF v2.5** | Verifiable random tiebreaker for equal bids |
+| **Functions** | Dynamic bounty matching and payout execution |
+| **Data Feeds** | Real-time price references for bidding logic |
 
-The Marketplace includes a button labeled "🚀 Run Full On-Chain Demo (Testnet)" that runs a complete end-to-end demonstration of the platform on Base Sepolia.
-
-Clicking it triggers:
-- Leads appearing naturally in the marketplace every 8–15 seconds
-- Real-time sealed-bid auctions with multiple competing buyers
-- Live bid count updates on the lead cards
-- PersonalEscrowVault operations including locks, atomic settlements, and refunds
-- Chainlink Automation Proof-of-Reserves checks returning SOLVENT
-- LeadNFT minting with provenance and royalties
-- Real-time streaming of every step in the Chainlink Services Dev Log
-
-Upon completion, the Dev Log displays a "View Summary" button that links to a detailed results page showing cycle-by-cycle breakdown, transaction hashes, and Basescan links.
-
-
-**Screenshots** (add these to `/assets/` folder):
-- `assets/marketplace-sealed-bid.png` — Sealed-bid interface with hidden amounts
-- `assets/seller-cro-lander.png` — CRO lander with trust badges
-- `assets/mcp-agent-console.png` — Autonomous bidding agent
-- `assets/leadnft-metadata.png` — Example LeadNFT on Basescan
-- `assets/vault-por-status.png` — PersonalEscrowVault + PoR dashboard
-
----
-
-## Table of Contents
-- [Problem & Solution](#problem--solution)
-- [Key Differentiators](#key-differentiators)
-- [How a Lead Moves Through the System](#how-a-lead-moves-through-the-system)
-- [Fraud Prevention](#fraud-prevention)
-- [Lead Engine vs. Legacy](#lead-engine-vs-legacy)
-- [Chainlink Integrations](#chainlink-integrations)
-- [Architecture Overview](#architecture-overview)
-- [Security, Trust & Solvency](#security-trust--solvency)
-- [Core Features](#core-features)
-- [Pricing](#pricing)
-- [Smart Contracts](#smart-contracts)
-- [Quick Start](#quick-start)
-- [Roadmap](#roadmap)
-- [Testnet Validation](#testnet-validation)
-- [Contributing](#contributing)
-
----
-
-## Problem & Solution
-
-**The $200B lead generation market** is plagued by slow payouts (7–30 days), rampant fraud (20–40% loss), commingled funds, opaque quality scoring, manual compliance, and zero provenance.
-
-**Lead Engine CRE** delivers the first fully on-chain, trustless alternative:
-- Cryptographic quality + compliance via Chainlink CRE + ACE
-- Instant USDC settlement with institutional-grade solvency
-- Tokenized leads as tradable ERC-721 assets
-- Autonomous AI bidding and buyer-funded bounties
-
-Result: Sellers get paid instantly with upside from royalties and bounties. Buyers get verifiable quality, zero chargebacks, and programmatic precision.
-
----
-
-## Key Differentiators
-
-- **PII never touches the blockchain** — non-PII previews only; AES-256 encrypted full data revealed post-purchase
-- **Sealed-bid commit-reveal auctions** with keccak256 commitments
-- **Instant atomic USDC settlement** via per-user PersonalEscrowVaults
-- **Immutable LeadNFT provenance** with built-in royalties
-- **Buyer-funded bounties** with criteria matching (stackable, 2× cap, auto-release)
-- **MCP LangChain Agents** — 12-tool autonomous bidding server
-- **Dynamic verticals** — 50+ instantly creatable, zero-code sync
-- **Field-level filtering & auto-bidding** on granular attributes
-- **CRO landers + My Funnels redesign** with built-in trust signals
-
----
+This integration enables trust-minimized, verifiable lead transactions at scale.
 
 ## How a Lead Moves Through the System
 
@@ -148,169 +88,93 @@ sequenceDiagram
     BP->>S: Bounty auto-released
 ```
 
----
-
-## Fraud Prevention
-
-| Fraud Type          | Legacy Approach                  | Lead Engine Protection                          |
-|---------------------|----------------------------------|-------------------------------------------------|
-| Click/Form Stuffing | Post-facto detection             | CRE + ZK proofs reject at submission           |
-| Lead Farming/Sybil  | Manual review                    | ACE wallet KYC + reputation + unique LeadNFT   |
-| Recycled Leads      | None                             | Immutable ERC-721 ownership history            |
-| Bounty Gaming       | Easy exploitation                | 2× cap + scoring + Functions criteria match    |
-
----
-
-## Lead Engine vs. Legacy
-
-| Dimension     | Legacy Marketplaces          | Lead Engine                              |
-|---------------|------------------------------|------------------------------------------|
-| Payout Speed  | 7–30 days                    | Instant USDC                             |
-| Trust         | Opaque                       | CRE score + ZK proofs + PoR              |
-| Privacy       | Full PII exposed             | Non-PII previews only                    |
-| Compliance    | Manual                       | ACE auto-KYC + jurisdiction engine       |
-| Provenance    | None                         | LeadNFT with royalties                   |
-| Incentives    | Fixed pricing                | Stacked buyer bounties + resale royalties|
-
----
-
-## Chainlink Integrations
-
-| Service              | Role                                      | Status          |
-|----------------------|-------------------------------------------|-----------------|
-| **CRE**              | Quality scoring (0–10,000) + ZK proofs    | Implemented     |
-| **ACE**              | Wallet KYC, jurisdiction, reputation      | Implemented     |
-| **Automation**       | 24h PoR + 7-day auto-refunds              | Implemented     |
-| **Functions**        | Bounty criteria matching                  | Implemented     |
-| **VRF**              | Fair tiebreakers                          | Implemented     |
-| **Data Streams**     | Real-time floor prices                    | Implemented     |
-| **DECO**             | zkTLS lead provenance                     | Architectural stub |
-| **Confidential HTTP**| TEE fraud signals on encrypted PII        | Architectural stub |
-
-**Deep Dive** (concise):
-- **CRE**: `CREVerifier.sol` evaluates TCPA, geo, completeness via ZK proofs.
-- **ACE**: Per-vertical policies (e.g., mortgage state-restricted).
-- **Automation**: `verifyReserves()` every 24h + gas-capped refunds.
-- **Functions**: `matchBounties()` triggered at auction close; DON secrets refreshed via GitHub Actions.
-- **Data Producer**: Anonymized market metrics published as public custom feed.
-
----
-
-## Architecture Overview
+## Architecture
 
 ```mermaid
 graph TD
-    A[Frontend Vercel] --> B[API + MCP Server]
-    B --> C[Chainlink Services<br>CRE • ACE • Automation • Functions • VRF]
-    B --> D[PersonalEscrowVault + RTBEscrow]
-    D --> E[LeadNFTv2 + VerticalBountyPool]
-    F[WebSocket] <--> B
-    G[Dynamic Verticals Admin] --> B
-    style C fill:#375BD2,color:#fff,stroke:#2a4aa0
+    subgraph Frontend ["Frontend (Vite / React / Tailwind)"]
+        MP[Marketplace & LeadCards]
+        LD[LeadDetailPage]
+        DP[Demo Control Panel]
+        DLP[DevLogPanel]
+        JV[Judge View / DemoResults]
+        AP[Admin Panel]
+        PS[Persona Switcher]
+        HF[HostedForm - Lander]
+        BD[BuyerDashboard]
+        SD[SellerDashboard]
+    end
+
+    subgraph Backend ["Backend (Express + Socket.IO, Render)"]
+        API[REST API /api/v1/*]
+        SCK[RTBSocketServer Socket.IO]
+        SVC_DEMO[demo-orchestrator + modules]
+        SVC_CRE[cre.service]
+        SVC_VAULT[vault.service]
+        SVC_AUCTION[auction-closure.service]
+        SVC_ACE[ace.service]
+        SVC_AUTOBID[auto-bid.service]
+        SVC_BOUNTY[bounty.service]
+        SVC_NFT[nft.service]
+        PRISMA[Prisma / PostgreSQL]
+    end
+
+    subgraph MCP ["MCP Agent Server (port 3002)"]
+        MCP_RPC[JSON-RPC /rpc]
+        MCP_TOOLS[11 tools]
+    end
+
+    subgraph Contracts ["Smart Contracts - Base Sepolia"]
+        VAULT_C[PersonalEscrowVault.sol]
+        NFT_C[LeadNFTv2.sol]
+        CRE_C[CREVerifier.sol]
+        VRF_C[VRFTieBreaker.sol]
+        BOUNTY_C[VerticalBountyPool.sol]
+    end
+
+    subgraph Chainlink
+        CL_AUTO[Automation - PoR + lock expiry]
+        CL_DATA[Data Feeds]
+        CL_FUNC[Functions - CRE scoring & bounties]
+        CL_VRF[VRF v2.5 - tiebreaker]
+    end
+
+    Frontend -->|REST + WS| Backend
+    MCP -->|REST proxy| Backend
+    Backend -->|ethers.js| Contracts
+    Contracts -->|integrates| Chainlink
 ```
 
----
+## Market Opportunity
 
-## Security, Trust & Solvency
+The global lead generation market exceeds $200 billion annually. Key verticals such as solar, roofing, HVAC, mortgage, and insurance are experiencing rapid growth but remain highly fragmented and inefficient.
 
-Institutional-grade foundation:
+Sellers face high fraud rates and delayed payouts. Buyers waste time and capital on low-quality leads. Lead Engine addresses these challenges with atomic settlement, verifiable quality scoring, recurring royalties through LeadNFTs, and autonomous demand generation via AI agents.
 
-- **PersonalEscrowVault v2** (`0x11bb8AFe2143bc93E0F0b5a488C1aE6BEB3b26B4` on Base Sepolia): Per-user USDC pre-funding with atomic settlement. (v1 retired; includes PoR accounting fix.)
-- **Chainlink Automation PoR**: 24-hour `verifyReserves()` + automatic 7-day refunds for expired locks.
-- **2-Pass Security Review** (Feb 2026): 11 findings identified, 10 fixed, 1 low-risk acknowledged. Full details in [`current-stubs-audit.md`](./current-stubs-audit.md).
-- **Test Coverage**: 42 dedicated vault tests + 1,288 total passing Hardhat tests with full CI.
-- **Gas Sponsorship**: Buyers require zero ETH for bidding and settlement.
-- **PII Privacy**: AES-256 encrypted, never stored on-chain.
-- All contracts verified on Basescan.
+## Post-Hackathon Vision
 
----
+- Secondary marketplace for trading LeadNFTs
+- Enterprise white-label version for large lead buyers
+- Fiat on-ramps and direct CRM integrations (HubSpot, Salesforce)
+- Expanded autonomous agent capabilities for multi-vertical orchestration
+- Institutional lead portfolio tokenization as RWAs
 
-## Core Features
+## Getting Started
 
-**Marketplace**
-- Real-time 60-second sealed-bid auctions
-- WebSocket streaming + field-level redaction
-- Buy-It-Now fallback
+The platform is fully deployed and functional on Base Sepolia. Detailed local development instructions are available in the repository.
 
-**Buyer Tools**
-- Field-level auto-bid engine (credit, ZIP, roof condition, etc.)
-- MCP LangChain 12-tool ReAct agents for autonomous trading
+## Built With
 
-**Seller Tools**
-- CRO landers with Chainlink trust badges and social proof
-- My Funnels horizontal gallery with metrics
-- Dynamic vertical creation (admin → instant template sync)
-
-**Bounties**
-- Per-vertical USDC pools with granular criteria
-- Stacking capped at 2× lead price
-- Auto-release via Functions
+| Layer | Technology |
+|-------|-----------|
+| Blockchain | Base Sepolia |
+| Smart Contracts | Solidity + Hardhat |
+| Backend | Node.js, Express, Socket.IO, Prisma |
+| Frontend | React, Vite, Tailwind, ethers.js |
+| AI Agents | LangChain ReAct + Moonshot Kimi (OpenAI-compatible) |
+| Chainlink Services | CRE, ACE, Automation, VRF, Functions, Data Feeds |
 
 ---
 
-## Pricing
-
-| Channel                  | Platform Fee | Convenience Fee | Total          |
-|--------------------------|--------------|-----------------|----------------|
-| Manual / Buy It Now      | 5%           | $1.00           | 5% + $1        |
-| Auto-bid / MCP Agent     | 5%           | $1.00           | 5% + $1        |
-| Bounty Release           | 5%           | $1.00           | 5% + $1        |
-
----
-
-## Smart Contracts (Base Sepolia)
-
-| Contract                  | Address / Status                  | Description                          |
-|---------------------------|-----------------------------------|--------------------------------------|
-| PersonalEscrowVault.sol v2| `0x11bb8AFe2143bc93E0F0b5a488C1aE6BEB3b26B4` | Per-user USDC vault + PoR (v1 retired; includes PoR accounting fix) |
-| CREVerifier.sol           | Deployed & verified               | Quality scoring + ZK proofs         |
-| ACECompliance.sol         | Deployed & verified               | KYC, jurisdiction, reputation       |
-| LeadNFTv2.sol             | Deployed & verified               | ERC-721 tokenized leads + royalties |
-| VerticalBountyPool.sol    | Deployed & verified               | Buyer-funded bounties               |
-| RTBEscrow.sol             | Deployed & verified               | Atomic settlement                   |
-| CustomLeadFeed.sol        | Deployed & verified               | Public market metrics feed          |
-| VerticalNFT.sol / Auction | Deployed & verified               | Vertical ownership                  |
-
-Full list and verification links in [`contracts/deployments`](./contracts).
-
----
-
-## Quick Start
-
-```bash
-git clone https://github.com/bnmbnmai/lead-engine-cre.git
-cd lead-engine-cre
-
-# Frontend + Backend + MCP
-pnpm install
-
-# Backend + MCP (separate terminals)
-cd backend && pnpm dev
-cd mcp && pnpm dev
-
-# Frontend
-cd frontend && pnpm dev
-```
-
----
-
-## Roadmap
-
-- **Q1 2026**: Mainnet migration, full DECO + Confidential HTTP
-- **Q2 2026**: BullMQ scaling, secondary LeadNFT marketplace, dispute arbitration
-- **Q3+**: Enterprise white-label verticals, fiat on-ramp, CRM deep integrations
-
-See full [ROADMAP.md](./ROADMAP.md).
-
----
-
-## Testnet Validation
-
-- Multiple full on-chain settlement cycles with 100% success rate
-- Consistent SOLVENT Proof-of-Reserves via Chainlink Automation
-- Natural staggered lead creation with live bid count updates
-- All contracts verified on Base Sepolia
-- Gas-sponsored UX (buyers need zero ETH)
-- Ready for mainnet migration
-
-Latest contract addresses and detailed test results are available in `TESTNET-E2E-RESULTS.md`.
+Lead Engine CRE provides a new infrastructure layer for the lead economy — transparent, instant, and autonomous.  
+Built for the Chainlink Convergence Hackathon 2026.
