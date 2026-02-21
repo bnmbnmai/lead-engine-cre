@@ -663,6 +663,7 @@ export async function reconcileVaultBalance(userAddress: string): Promise<{
             const recentTx = await prisma.vaultTransaction.findFirst({
                 where: {
                     vaultId: vault.id,
+                    type: 'DEPOSIT',         // Only protect deposits — withdrawals should sync-down immediately
                     reference: { startsWith: '0x' },
                     createdAt: { gte: new Date(Date.now() - GRACE_MS) },
                 },

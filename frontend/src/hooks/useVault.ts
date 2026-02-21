@@ -261,15 +261,17 @@ export function useVault(): UseVaultResult {
                 setStep('confirming');
                 const { data: recordData } = await api.depositVault(amount, depositHash);
                 if (recordData?.success) {
-                    setVaultBalance(recordData.balance);
+                    // Optimistic update — RPC may be stale for ~60s after confirmation;
+                    // immediately reflect the known deposit amount without waiting for a re-read.
+                    setVaultBalance(prev => prev + amount);
                     setDepositAmount('');
                     toast({ type: 'success', title: 'Vault Funded', description: `Deposited $${amount.toFixed(2)} USDC` });
                     // Refresh activity log
                     api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
                 }
 
-                // Confirm on-chain balance
-                await refreshOnChainBalance();
+                // Background on-chain confirm (non-blocking — optimistic update already applied above)
+                refreshOnChainBalance().catch(() => { });
                 setStep('done');
             } catch (err: any) {
                 console.error('[useVault] deposit error:', err);
@@ -337,13 +339,14 @@ export function useVault(): UseVaultResult {
                     console.warn('[useVault] Backend withdraw record failed (non-fatal):', recordError);
                     toast({ type: 'error', title: 'Record Warning', description: 'On-chain withdrawal succeeded but backend record failed' });
                 } else if (recordData?.success) {
-                    setVaultBalance(recordData.balance);
+                    // Optimistic update — immediately clear the withdrawn amount
+                    setVaultBalance(prev => Math.max(0, prev - amount));
                     toast({ type: 'success', title: 'Withdrawn', description: `Withdrew $${amount.toFixed(2)} USDC from vault` });
                     api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
                 }
 
-                // Confirm on-chain balance
-                await refreshOnChainBalance();
+                // Background on-chain confirm (non-blocking — optimistic update already applied above)
+                refreshOnChainBalance().catch(() => { });
                 setStep('done');
             } catch (err: any) {
                 console.error('[useVault] withdraw error:', err);
