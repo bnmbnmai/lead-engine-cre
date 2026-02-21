@@ -2,8 +2,16 @@ import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 
 // ============================================
-// x402 Payment Protocol Service
+// Escrow Implementation Service
 // ============================================
+// Previously named x402.service.ts (x402 HTTP payment protocol origin).
+// Renamed to escrow-impl.service.ts in P2-11 to better reflect the file's
+// actual role: wrapping RTBEscrow for platform payment flows.
+//
+// The exported singleton `x402Service` is intentionally kept under that name
+// for backward compatibility — escrow.service.ts re-exports it as `escrowService`.
+// New code should import from escrow.service.ts:
+//   import { escrowService } from '../services/escrow.service';
 // Wraps RTBEscrow for HTTP-native payment flows
 
 // Normalize addresses with ethers.getAddress() — ethers v6 enforces EIP-55 checksums

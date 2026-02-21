@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
-import { x402Service } from '../services/x402.service';
+import { x402Service } from '../services/escrow-impl.service';
 import { privacyService } from '../services/privacy.service';
 import { nftService } from '../services/nft.service';
 import { zkService } from '../services/zk.service';

@@ -1,8 +1,11 @@
 /**
- * x402 Service Unit Tests
- * 
+ * Escrow Implementation Service Unit Tests
+ *
  * Tests payment lifecycle (create, settle, refund), off-chain fallback,
  * payment status retrieval, and x402 HTTP header generation.
+ *
+ * Previously named x402.service.test.ts — renamed in P2-11 to match
+ * the escrow-impl.service.ts rename.
  */
 
 jest.mock('../../src/lib/prisma', () => ({
@@ -19,7 +22,7 @@ import { prisma } from '../../src/lib/prisma';
 let x402Service: any;
 
 beforeAll(async () => {
-    const mod = await import('../../src/services/x402.service');
+    const mod = await import('../../src/services/escrow-impl.service');
     x402Service = mod.x402Service;
 });
 
