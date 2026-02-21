@@ -1608,7 +1608,41 @@ function safeSend(res: Response, body: any, status = 200): void {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post('/full-e2e', authMiddleware, requireAdmin, async (req: Request, res: Response) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// requireAdminOrTestToken
+//
+// Security exception for the two public-facing one-click demo endpoints
+// (/full-e2e and /full-e2e/stop). These must remain accessible from the
+// marketplace "Run Full On-Chain Demo" button, which does not carry an ADMIN
+// JWT but can present the TEST_API_TOKEN via `X-Api-Token` header.
+//
+// All other destructive routes (seed, wipe, clear, reset, inject, etc.) still
+// require a full ADMIN JWT via authMiddleware + requireAdmin — no exceptions.
+// ─────────────────────────────────────────────────────────────────────────────
+function requireAdminOrTestToken(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+    // Path 1: caller has a valid ADMIN JWT (set by authMiddleware)
+    const user = (req as any).user;
+    if (user?.role === 'ADMIN') {
+        next();
+        return;
+    }
+
+    // Path 2: caller presents the shared TEST_API_TOKEN secret
+    const token = process.env.TEST_API_TOKEN;
+    const provided = req.headers['x-api-token'] as string | undefined;
+    if (token && provided && provided === token) {
+        next();
+        return;
+    }
+
+    // Neither — reject
+    res.status(403).json({
+        error: 'Forbidden: ADMIN role or valid X-Api-Token required',
+        code: 'DEMO_AUTH_REQUIRED',
+    });
+}
+
+router.post('/full-e2e', authMiddleware, requireAdminOrTestToken, async (req: Request, res: Response) => {
     try {
         if (demoE2E.isDemoRunning()) {
             res.status(409).json({ error: 'A demo is already running', running: true, recycling: false });
@@ -1655,7 +1689,7 @@ router.post('/full-e2e', authMiddleware, requireAdmin, async (req: Request, res:
 // POST /full-e2e/stop — Abort running demo
 // ============================================
 
-router.post('/full-e2e/stop', authMiddleware, requireAdmin, async (_req: Request, res: Response) => {
+router.post('/full-e2e/stop', authMiddleware, requireAdminOrTestToken, async (_req: Request, res: Response) => {
     const wasRunning = demoE2E.isDemoRunning();
     const wasRecycling = demoE2E.isDemoRecycling();
     const stopped = demoE2E.stopDemo();
