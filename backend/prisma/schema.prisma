@@ -593,6 +593,11 @@ model AuctionRoom {
   
   // Participants (cached for quick lookup)
   participants    String[]     // Array of user IDs
+
+  // BUG-09: VRF tie-breaking — persisted so Judge View can display provenance
+  vrfRequestId    String?      // On-chain VRF requestId when a tie is detected
+  vrfWinner       String?      // Wallet address selected by VRF (may differ from initial fallback winner)
+
   
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 

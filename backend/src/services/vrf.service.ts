@@ -148,3 +148,86 @@ export async function getResolution(leadId: string): Promise<{
         return null;
     }
 }
+
+// ============================================
+// Non-Blocking Watcher (BUG-09)
+// ============================================
+
+/**
+ * Start a background watcher for VRF resolution after a tie-break is requested.
+ *
+ * Design (BUG-09 fix):
+ *   - Called AFTER requestTieBreak() returns (fire-and-forget).
+ *   - Does NOT block auction closure — the closure loop already picked a
+ *     deterministic fallback winner via createdAt ordering.
+ *   - Polls `isResolved()` every pollMs until fulfilled or timeout.
+ *   - On fulfillment: updates AuctionRoom.vrfWinner, emits
+ *     'auction:vrf-resolved' so Judge View / demo display can refresh.
+ *
+ * @param leadId     Platform lead ID
+ * @param tiedBidIds Bid DB IDs involved in the tie (for AuctionRoom update)
+ * @param io         Socket.IO server instance (may be undefined in tests)
+ * @param timeoutMs  Max wait time (default 90s — 3 VRF block confirmations)
+ * @param pollMs     Poll interval (default 3s)
+ */
+export async function startVrfResolutionWatcher(
+    leadId: string,
+    io: { emit: (event: string, data: unknown) => void } | undefined,
+    timeoutMs = 90_000,
+    pollMs = 3_000,
+): Promise<void> {
+    if (!isVrfConfigured()) return;
+
+    try {
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const contract = new ethers.Contract(VRF_TIE_BREAKER_ADDRESS, VRF_TIE_BREAKER_ABI, provider);
+        const leadIdHash = ethers.keccak256(ethers.toUtf8Bytes(leadId));
+        const { prisma } = await import('../lib/prisma');
+
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            await new Promise(r => setTimeout(r, pollMs));
+
+            const resolved = await contract.isResolved(leadIdHash);
+            if (resolved) {
+                const res = await contract.getResolution(leadIdHash);
+                const vrfWinner: string = res.winner;
+                const randomWord: bigint = BigInt(res.randomWord);
+                const requestId: bigint = BigInt(res.requestId);
+
+                console.log(
+                    `[VRF] 🎲 BUG-09 watcher — lead=${leadId} VRF resolved.` +
+                    ` winner=${vrfWinner} randomWord=${randomWord} requestId=${requestId}`
+                );
+
+                // Persist vrfWinner to AuctionRoom
+                try {
+                    await prisma.auctionRoom.updateMany({
+                        where: { leadId },
+                        data: { vrfWinner },
+                    });
+                } catch (dbErr: any) {
+                    console.warn(`[VRF] Failed to persist vrfWinner for lead=${leadId}:`, dbErr.message);
+                }
+
+                // Emit socket event so Judge View / demo panel can display VRF provenance
+                if (io) {
+                    io.emit('auction:vrf-resolved', {
+                        leadId,
+                        vrfWinner,
+                        requestId: requestId.toString(),
+                        randomWord: randomWord.toString(),
+                    });
+                }
+
+                return;
+            }
+        }
+
+        console.warn(`[VRF] startVrfResolutionWatcher: timeout after ${timeoutMs}ms for lead=${leadId}`);
+    } catch (err: any) {
+        // Non-blocking — never propagate errors to the caller
+        console.error(`[VRF] startVrfResolutionWatcher error for lead=${leadId}:`, err.message);
+    }
+}
+
