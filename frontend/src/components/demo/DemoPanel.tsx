@@ -625,6 +625,12 @@ export function DemoPanel() {
                                 onClick={handleInjectLead}
                             />
                             <ActionButton
+                                actionKey="seedTemplates"
+                                label="Sync Form Templates"
+                                icon={Layers}
+                                onClick={handleSeedTemplates}
+                            />
+                            <ActionButton
                                 actionKey="reset"
                                 label="Reset to Clean Demo State"
                                 icon={RefreshCw}

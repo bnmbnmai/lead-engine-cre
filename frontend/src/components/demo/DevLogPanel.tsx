@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Terminal, X, Trash2, Copy, Check, ExternalLink, ClipboardList, BarChart3 } from 'lucide-react';
+import { Terminal, Trash2, Copy, Check, ExternalLink, ClipboardList, BarChart3, Minus } from 'lucide-react';
 import socketClient from '@/lib/socket';
 
 interface DevLogEntry {
@@ -435,9 +435,9 @@ export function DevLogPanel() {
                     onClick={() => { setEntries([]); setDemoComplete(false); }}
                     style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#4a4560', padding: '2px',
+                        color: '#ef4444', padding: '2px',
                     }}
-                    title="Clear"
+                    title="Clear logs"
                 >
                     <Trash2 size={13} />
                 </button>
@@ -447,9 +447,9 @@ export function DevLogPanel() {
                         background: 'none', border: 'none', cursor: 'pointer',
                         color: '#4a4560', padding: '2px',
                     }}
-                    title="Close (Ctrl+Shift+L)"
+                    title="Minimize (Ctrl+Shift+L)"
                 >
-                    <X size={13} />
+                    <Minus size={13} />
                 </button>
             </div>
             {/* Socket reconnecting banner — visible amber stripe while stream is interrupted */}

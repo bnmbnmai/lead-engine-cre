@@ -308,6 +308,18 @@ export function AgentChatWidget() {
                     </div>
                 </div>
             )}
+
+            {/* Red X close button — floats at bottom-right of open panel, mirrors DemoPanel toggle style */}
+            {isOpen && (
+                <button
+                    onClick={handleClose}
+                    className="fixed bottom-[76px] right-6 z-[60] w-9 h-9 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+                    title="Close chat (Esc)"
+                    aria-label="Close agent chat"
+                >
+                    <X className="h-4 w-4 text-white" />
+                </button>
+            )}
         </>,
         document.body,
     );
