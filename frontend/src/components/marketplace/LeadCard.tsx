@@ -173,13 +173,22 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         )}
                         {/* TEE badge — visible only when score enriched by CHTT fraud-signal workflow */}
                         {lead.chttEnriched && (
-                            <Tooltip content="Quality score enriched by Chainlink Confidential HTTP TEE fraud signals">
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold tracking-widest border bg-violet-500/15 text-violet-400 border-violet-500/30 cursor-help uppercase">
+                            <Tooltip content="Quality score enriched by Chainlink Confidential HTTP inside a Trusted Execution Environment (TEE). External fraud signals (phone validation, email hygiene, conversion propensity) processed securely in enclave without exposing any PII.">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-widest border bg-violet-500/25 text-violet-300 border-violet-500/50 cursor-help uppercase shadow-sm shadow-violet-500/20">
                                     🔒 TEE
                                 </span>
                             </Tooltip>
                         )}
-                        {lead.isVerified && <ChainlinkBadge size="sm" />}
+                        {lead.isVerified && (
+                            <Tooltip content={lead.chttEnriched
+                                ? 'Lead data verified on-chain via Chainlink CRE oracle network + Confidential HTTP TEE enrichment.'
+                                : 'Lead data verified on-chain via Chainlink CRE oracle network.'}
+                            >
+                                <span className="cursor-help">
+                                    <ChainlinkBadge size="sm" />
+                                </span>
+                            </Tooltip>
+                        )}
                         {(lead.parameters?._bountyTotal ?? 0) > 0 && (
                             <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool on this vertical`}>
                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold border bg-amber-500/15 text-amber-400 border-amber-500/30 cursor-help">
