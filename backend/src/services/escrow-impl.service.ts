@@ -20,7 +20,8 @@ function safeChecksum(raw: string): string {
     if (!raw) return '';
     try { return ethers.getAddress(raw.toLowerCase()); } catch { return raw; }
 }
-const ESCROW_CONTRACT_ADDRESS = safeChecksum(process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '');
+const ESCROW_CONTRACT_ADDRESS = safeChecksum(process.env.RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '');
+
 const USDC_CONTRACT_ADDRESS = safeChecksum(process.env.USDC_CONTRACT_ADDRESS || '');
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
@@ -125,7 +126,8 @@ class X402Service {
         console.log(`[x402]   DEPLOYER_KEY    = ${DEPLOYER_KEY ? '✓ set' : '⚠️  NOT SET'}`);
         console.log(`[x402]   PLATFORM_WALLET = ${PLATFORM_WALLET_ADDRESS || '⚠️  NOT SET'}`);
         if (!ESCROW_CONTRACT_ADDRESS || !USDC_CONTRACT_ADDRESS || !DEPLOYER_KEY) {
-            console.warn(`[x402] ⚠️  Missing env vars — prepareEscrowTx will return 503. Set ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA, USDC_CONTRACT_ADDRESS, and DEPLOYER_PRIVATE_KEY on Render.`);
+            console.warn(`[x402] ⚠️  Missing env vars — prepareEscrowTx will return 503. Set RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA, USDC_CONTRACT_ADDRESS, and DEPLOYER_PRIVATE_KEY on Render.`);
+
         }
     }
 

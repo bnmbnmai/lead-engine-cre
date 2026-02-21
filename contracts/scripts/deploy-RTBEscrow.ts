@@ -41,7 +41,7 @@ async function main() {
     console.log(`\nRemaining balance: ${ethers.formatEther(remaining)} ETH`);
 
     console.log("\n⚠️  Update your .env:");
-    console.log(`   ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA=${escrowAddr}`);
+    console.log(`   RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA=${escrowAddr}`);
 }
 
 main()

@@ -1312,10 +1312,12 @@ router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, re
             });
             return;
         }
-        if (!process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA && !process.env.ESCROW_CONTRACT_ADDRESS) {
+        if (!process.env.RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA && !process.env.ESCROW_CONTRACT_ADDRESS) {
+
             res.status(503).json({
                 error: 'Escrow contract address not configured',
-                hint: 'Set ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA (or ESCROW_CONTRACT_ADDRESS) env var on Render',
+                hint: 'Set RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA (or ESCROW_CONTRACT_ADDRESS) env var on Render',
+
             });
             return;
         }
@@ -1474,7 +1476,8 @@ router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, re
                 res.status(500).json({
                     error: 'Failed to create on-chain escrow',
                     details: createResult.error,
-                    hint: 'Ensure DEPLOYER_PRIVATE_KEY has Base Sepolia ETH for gas and ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA is deployed.',
+                    hint: 'Ensure DEPLOYER_PRIVATE_KEY has Base Sepolia ETH for gas and RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA is deployed.',
+
                 });
                 return;
             }

@@ -23,7 +23,7 @@ import { dataStreamsService } from './datastreams.service';
 // On-chain config for USDC allowance checks
 // ============================================
 
-const _ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
+const _ESCROW_CONTRACT_ADDRESS = process.env.RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || process.env.ESCROW_CONTRACT_ADDRESS || '';
 const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 
