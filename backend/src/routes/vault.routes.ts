@@ -169,4 +169,25 @@ router.post(
     }
 );
 
+// ── Legacy Cleanup (one-time, buyer self-serve) ──────
+// GET /api/v1/buyer/vault/cleanup-legacy
+// Deletes synthetic pre-restore records and syncs EscrowVault.balance to on-chain truth.
+// Safe to call multiple times (idempotent).
+
+router.get('/cleanup-legacy', authMiddleware, requireBuyer, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const result = await vaultService.cleanupLegacyRecords(req.user!.id);
+        res.json({
+            success: true,
+            deleted: result.deleted,
+            newBalance: result.newBalance,
+            onChainBalance: result.onChainBalance,
+            message: `Legacy cleanup complete: ${result.deleted} synthetic record(s) removed. Balance synced to $${result.onChainBalance.toFixed(2)} USDC.`,
+        });
+    } catch (error: any) {
+        console.error('[VaultRoutes] cleanup-legacy error:', error.message);
+        res.status(500).json({ error: error.message || 'Legacy cleanup failed' });
+    }
+});
+
 export default router;

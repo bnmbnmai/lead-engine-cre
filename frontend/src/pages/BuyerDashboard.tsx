@@ -348,7 +348,7 @@ export function BuyerDashboard() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={withdrawLoading || vaultBalance <= 0}
+                                    disabled={withdrawLoading || vaultBalance <= 0.01}
                                     onClick={() => withdraw(vaultBalance)}
                                     className="w-full h-9"
                                 >

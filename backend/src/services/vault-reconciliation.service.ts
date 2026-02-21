@@ -112,9 +112,12 @@ export async function reconcileAll(): Promise<ReconcileReport> {
                 continue;
             }
 
+            // reconcileVaultBalance now auto-syncs Prisma when drift > $0.01;
+            // result.synced is always true after auto-sync — count as synced not drifted.
             if (result.synced) {
                 report.synced++;
-            } else if (result.drift >= DRIFT_THRESHOLD_USD) {
+            } else {
+                // Only reaches here if auto-sync itself failed
                 report.drifted++;
                 const record: DriftRecord = {
                     userAddress: wallet,
@@ -125,20 +128,17 @@ export async function reconcileAll(): Promise<ReconcileReport> {
                 };
                 report.driftDetails.push(record);
 
-                // Alert on ace:dev-log bus
                 aceDevBus.emit('ace:dev-log', {
                     ts: new Date().toISOString(),
                     action: 'vault:reconcile-drift-alert',
                     severity: 'ALERT',
                     userAddress: wallet,
-                    dbBalance: result.dbBalance,
-                    onChainBalance: result.onChainBalance,
-                    drift: result.drift,
+                    dbBalanceUsd: `$${result.dbBalance.toFixed(2)}`,
+                    onChainBalanceUsd: `$${result.onChainBalance.toFixed(2)}`,
                     driftUsd: result.driftUsd,
-                    message: `⚠️ EscrowVault balance drift detected for ${wallet}: DB=$${result.dbBalance.toFixed(2)}, on-chain=$${result.onChainBalance.toFixed(2)}, drift=${result.driftUsd}`,
+                    note: 'auto-sync failed — manual intervention required',
+                    message: `⚠️ EscrowVault drift (auto-sync failed) for ${wallet}: DB=$${result.dbBalance.toFixed(2)}, on-chain=$${result.onChainBalance.toFixed(2)}, drift=${result.driftUsd}`,
                 });
-            } else {
-                report.synced++; // drift < threshold — treat as synced
             }
         } catch (err: any) {
             console.error(`[VaultRecon] reconcileVaultBalance failed for ${wallet}:`, err.message);

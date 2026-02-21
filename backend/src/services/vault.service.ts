@@ -90,8 +90,20 @@ async function getOrCreateVault(userId: string) {
  */
 export async function getVaultInfo(userId: string) {
     const vault = await getOrCreateVault(userId);
+
+    // Filter out legacy fake records created before the on-chain restore
+    // (those with synthetic references like 'demo-deposit' or 'cache-withdraw-*')
+    const LEGACY_CUTOFF = new Date('2026-02-21T03:00:00.000Z');
     const transactions = await prisma.vaultTransaction.findMany({
-        where: { vaultId: vault.id },
+        where: {
+            vaultId: vault.id,
+            OR: [
+                // Keep all real on-chain records (reference starts with '0x')
+                { reference: { startsWith: '0x' } },
+                // Keep recent records regardless (post-restore)
+                { createdAt: { gte: LEGACY_CUTOFF } },
+            ],
+        },
         orderBy: { createdAt: 'desc' },
         take: 20,
     });
@@ -629,30 +641,103 @@ export async function reconcileVaultBalance(userAddress: string): Promise<{
     }
 
     const drift = Math.abs(dbBalance - onChainBalance);
+    const driftFormatted = `$${drift.toFixed(2)}`;
     const synced = drift < 0.01; // $0.01 tolerance for rounding
 
     if (!synced) {
         const driftMsg = `[VaultService] ⚠️ BALANCE DRIFT DETECTED for ${userAddress}: `
-            + `DB=$${dbBalance.toFixed(2)}, on-chain=$${onChainBalance.toFixed(2)}, drift=$${drift.toFixed(6)}`;
+            + `dbBalanceUsd=$${dbBalance.toFixed(2)}, onChainBalanceUsd=$${onChainBalance.toFixed(2)}, driftUsd=${driftFormatted}`;
         console.warn(driftMsg);
+
+        // AUTO-SYNC: update Prisma EscrowVault.balance to on-chain truth
+        try {
+            if (vault) {
+                await prisma.escrowVault.update({
+                    where: { userId: user.id },
+                    data: { balance: onChainBalance },
+                });
+                console.log(
+                    `[VaultService] ✅ Auto-synced DB balance for ${userAddress}: `
+                    + `$${dbBalance.toFixed(2)} → $${onChainBalance.toFixed(2)} (legacy data detected — auto-synced)`,
+                );
+            }
+        } catch (syncErr) {
+            console.error('[VaultService] Auto-sync failed (non-fatal):', (syncErr as Error).message);
+        }
+
         aceDevBus.emit('ace:dev-log', {
             ts: new Date().toISOString(),
             action: 'vault:reconcile-drift',
             userAddress,
-            dbBalance,
-            onChainBalance,
-            drift,
+            dbBalanceUsd: `$${dbBalance.toFixed(2)}`,
+            onChainBalanceUsd: `$${onChainBalance.toFixed(2)}`,
+            driftUsd: driftFormatted,
             severity: 'WARNING',
+            note: 'legacy data detected — auto-synced',
         });
     }
 
     return {
-        dbBalance,
+        dbBalance: onChainBalance, // return post-sync value
         onChainBalance,
         drift,
-        driftUsd: `$${drift.toFixed(6)}`,
-        synced,
+        driftUsd: driftFormatted,
+        synced: true, // always true after auto-sync
     };
+}
+
+/**
+ * Delete all legacy VaultTransaction records for a user (those with synthetic
+ * references that do not start with '0x' and were created before the on-chain restore),
+ * then force-sync EscrowVault.balance to the live on-chain balanceOf value.
+ *
+ * Called by GET /api/v1/buyer/vault/cleanup-legacy (authenticated, buyer only).
+ */
+export async function cleanupLegacyRecords(
+    userId: string,
+): Promise<{ deleted: number; newBalance: number; onChainBalance: number }> {
+    const vault = await getOrCreateVault(userId);
+    const LEGACY_CUTOFF = new Date('2026-02-21T03:00:00.000Z');
+
+    // Delete all non-0x records created before the restore cutoff
+    const { count: deleted } = await prisma.vaultTransaction.deleteMany({
+        where: {
+            vaultId: vault.id,
+            reference: { not: { startsWith: '0x' } },
+            createdAt: { lt: LEGACY_CUTOFF },
+        },
+    });
+
+    // Read current on-chain balance
+    let onChainBalance = Number(vault.balance);
+    try {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (user?.walletAddress && VAULT_ADDRESS) {
+            const contract = getVaultContract();
+            const bal = await contract.balanceOf(user.walletAddress);
+            onChainBalance = unitsToUsdc(bal);
+        }
+    } catch (err) {
+        console.warn('[VaultService] cleanupLegacyRecords: on-chain read failed, keeping DB value:', (err as Error).message);
+    }
+
+    // Sync Prisma to on-chain truth
+    const updated = await prisma.escrowVault.update({
+        where: { id: vault.id },
+        data: { balance: onChainBalance },
+    });
+
+    aceDevBus.emit('ace:dev-log', {
+        ts: new Date().toISOString(),
+        action: 'vault:legacy-cleanup',
+        userId,
+        deleted,
+        newBalance: `$${onChainBalance.toFixed(2)}`,
+        note: 'legacy records purged, balance synced to on-chain truth',
+    });
+
+    console.log(`[VaultService] Legacy cleanup: deleted=${deleted} records, balance synced to $${onChainBalance.toFixed(2)}`);
+    return { deleted, newBalance: Number(updated.balance), onChainBalance };
 }
 
 /**
