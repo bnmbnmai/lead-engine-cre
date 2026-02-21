@@ -346,8 +346,8 @@ export function useVault(): UseVaultResult {
                     api.getVault().then(({ data: d }) => d && setVaultTxs(d.transactions?.slice(0, 5) || []));
                 }
 
-                // Background on-chain confirm (non-blocking — optimistic update already applied above)
-                refreshOnChainBalance().catch(() => { });
+                // Background on-chain confirm — delayed 10s so stale RPC doesn't overwrite optimistic balance.
+                setTimeout(() => refreshOnChainBalance().catch(() => { }), 10_000);
                 setStep('done');
             } catch (err: any) {
                 console.error('[useVault] withdraw error:', err);
