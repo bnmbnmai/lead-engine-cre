@@ -18,6 +18,10 @@ interface Lead {
     reservePrice: number;
     isVerified: boolean;
     qualityScore?: number;
+    /** True when the score was enriched by the Chainlink CHTT TEE fraud-signal workflow. */
+    chttEnriched?: boolean;
+    /** CHTT-enriched score (0–100) for display. Falls back to qualityScore. */
+    chttScore?: number;
     auctionEndAt?: string;
     auctionStartAt?: string;
     auctionDuration?: number;
@@ -144,7 +148,10 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     </div>
                     <div className="flex items-center gap-2">
                         {lead.qualityScore != null ? (
-                            <Tooltip content="CRE Pre-score — confirmed on-chain after purchase">
+                            <Tooltip content={lead.chttEnriched
+                                ? 'Quality score enriched by Chainlink Confidential HTTP TEE fraud signals'
+                                : 'CRE Pre-score — confirmed on-chain after purchase'}
+                            >
                                 <span
                                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
                                         ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
@@ -161,6 +168,14 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             <Tooltip content="Quality score pending — will be confirmed on-chain">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
                                     QS —
+                                </span>
+                            </Tooltip>
+                        )}
+                        {/* TEE badge — visible only when score enriched by CHTT fraud-signal workflow */}
+                        {lead.chttEnriched && (
+                            <Tooltip content="Quality score enriched by Chainlink Confidential HTTP TEE fraud signals">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold tracking-widest border bg-violet-500/15 text-violet-400 border-violet-500/30 cursor-help uppercase">
+                                    🔒 TEE
                                 </span>
                             </Tooltip>
                         )}

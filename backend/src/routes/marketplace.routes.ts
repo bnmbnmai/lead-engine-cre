@@ -714,6 +714,98 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
     }
 });
 
+// ============================================================
+// Scoring Data Endpoint — Called by Chainlink CRE CHTT Workflow
+// ============================================================
+//
+// This route returns the LeadScoringInput shape used by:
+//   1. The Confidential HTTP workflow (quality-score-workflow.ts)
+//   2. The DON quality score source (cre-quality-score.ts DON_QUALITY_SCORE_SOURCE)
+//
+// Guarded by x-cre-key header — in production the CHTT TEE injects
+// this key from the Vault DON (never exposed in plaintext node memory).
+// Here we accept any truthy value for development / demo.
+//
+// Path: GET /api/v1/leads/:leadId/scoring-data
+// ============================================================
+
+router.get('/leads/:leadId/scoring-data', generalLimiter, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        // Key guard — simulates production Vault DON secret validation
+        const apiKey = req.headers['x-cre-key'] as string | undefined;
+        if (!apiKey) {
+            res.status(401).json({ error: 'Missing x-cre-key header' });
+            return;
+        }
+
+        const { leadId } = req.params;
+        const lead = await prisma.lead.findFirst({
+            where: {
+                OR: [
+                    { id: leadId },
+                    { nftTokenId: leadId },
+                ],
+            },
+            select: {
+                tcpaConsentAt: true,
+                geo: true,
+                encryptedData: true,
+                parameters: true,
+                source: true,
+            },
+        });
+
+        if (!lead) {
+            res.status(404).json({ error: 'Lead not found' });
+            return;
+        }
+
+        // Reconstruct the LeadScoringInput shape expected by computeCREQualityScore
+        const geo = lead.geo as any;
+        const params = lead.parameters as any;
+        const paramCount = params
+            ? Object.keys(params)
+                .filter(k => !k.startsWith('_')) // exclude internal _chtt etc.
+                .filter(k => params[k] != null && params[k] !== '')
+                .length
+            : 0;
+
+        let encryptedDataValid = false;
+        if (lead.encryptedData) {
+            try {
+                const parsed = JSON.parse(lead.encryptedData);
+                encryptedDataValid = !!(parsed?.ciphertext && parsed?.iv && parsed?.tag);
+            } catch { /* malformed */ }
+        }
+
+        // Zip ↔ state cross-validation (mirrors verifyGeo in cre.service.ts)
+        const { getStateForZip } = await import('../lib/geo-registry');
+        let zipMatchesState = false;
+        if (geo?.zip && geo?.state) {
+            const expectedState = getStateForZip(geo.zip);
+            zipMatchesState = !expectedState || expectedState === geo.state;
+        }
+
+        const scoringData = {
+            tcpaConsentAt: lead.tcpaConsentAt?.toISOString() ?? null,
+            geo: geo
+                ? { state: geo.state, zip: geo.zip, country: geo.country, geoHash: geo.geoHash }
+                : null,
+            hasEncryptedData: !!lead.encryptedData,
+            encryptedDataValid,
+            parameterCount: paramCount,
+            source: lead.source,
+            zipMatchesState,
+        };
+
+        console.log(`[SCORING DATA] Served scoring-data for lead ${leadId} to CHTT workflow`);
+        res.json(scoringData);
+    } catch (error) {
+        console.error('Scoring-data error:', error);
+        res.status(500).json({ error: 'Failed to fetch scoring data' });
+    }
+});
+
 // ============================================
 // Lead Count Today (Public — used by SocialProofBanner)
 // Returns the number of verified leads submitted in the last 24 hours.
@@ -847,11 +939,17 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
             prisma.lead.count({ where }),
         ]);
 
-        // Map leads — normalize stored CRE quality score from 0-10000 to 0-100
-        const leads = rawLeads.map((lead: any) => ({
-            ...lead,
-            qualityScore: lead.qualityScore != null ? Math.floor(lead.qualityScore / 100) : null,
-        }));
+        // Map leads — normalize stored CRE quality score (0–10000 → 0–100) and
+        // extract CHTT provenance from parameters._chtt JSONB.
+        const leads = rawLeads.map((lead: any) => {
+            const chttMeta = (lead.parameters as any)?._chtt;
+            return {
+                ...lead,
+                qualityScore: lead.qualityScore != null ? Math.floor(lead.qualityScore / 100) : null,
+                chttEnriched: chttMeta?.enriched === true,
+                chttScore: chttMeta?.score != null ? Math.floor(chttMeta.score / 100) : null,
+            };
+        });
 
         res.json({
             leads,

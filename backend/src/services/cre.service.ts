@@ -46,6 +46,9 @@ interface VerificationResult {
     score?: number;
     reason?: string;
     requestId?: string;
+    /** True when the score was enriched by the CHTT fraud-signal workflow. */
+    chttEnriched?: boolean;
+    chttScore?: number;
 }
 
 class CREService {
@@ -108,18 +111,55 @@ class CREService {
             return failed;
         }
 
-        // Compute numeric pre-score using the shared CRE scoring JavaScript
-        const preScore = this.computeNumericPreScoreFromLead(lead);
+        // Compute numeric pre-score — CHTT path (when enabled) or direct-DB path.
+        let preScore: number;
+        let chttEnriched = false;
+        let chttScore: number | undefined;
 
-        console.log(`[CRE PRE-GATE] Lead ${leadId}: pre-score=${preScore}/10000`);
+        if (USE_CONFIDENTIAL_HTTP) {
+            // Use Confidential HTTP workflow stub: fetches scoring-data + fraud signals
+            // from the TEE enclave with API key injected from Vault DON secrets.
+            const chttResult = await this.computeScoreViaConfidentialHTTP(leadId);
+            preScore = chttResult.score;
+            chttEnriched = chttResult.enriched;
+            chttScore = chttResult.chttScore;
 
-        await prisma.lead.update({
-            where: { id: leadId },
-            data: {
-                isVerified: true,
-                qualityScore: preScore,
-            },
-        });
+            // Persist CHTT provenance in parameters JSONB — no migration needed.
+            // Stored under a _chtt key to avoid colliding with lead-specific params.
+            const existingParams = (lead.parameters as any) || {};
+            const chttMeta: Record<string, any> = {
+                enriched: chttResult.enriched,
+                score: chttResult.chttScore,
+                bonus: chttResult.bonus,
+                nonce: chttResult.nonce,
+                ciphertext: chttResult.ciphertext,
+                computedAt: new Date().toISOString(),
+            };
+
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    isVerified: true,
+                    qualityScore: preScore,
+                    parameters: { ...existingParams, _chtt: chttMeta } as any,
+                },
+            });
+        } else {
+            preScore = this.computeNumericPreScoreFromLead(lead);
+
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    isVerified: true,
+                    qualityScore: preScore,
+                },
+            });
+        }
+
+        console.log(
+            `[CRE PRE-GATE] Lead ${leadId}: pre-score=${preScore}/10000` +
+            (chttEnriched ? ` (CHTT enriched, bonus included)` : ''),
+        );
 
         await prisma.complianceCheck.create({
             data: {
@@ -131,7 +171,7 @@ class CREService {
             },
         });
 
-        return { isValid: true, score: preScore };
+        return { isValid: true, score: preScore, chttEnriched, chttScore };
     }
 
     /**
@@ -181,9 +221,10 @@ class CREService {
         // ── Scoring: CHTT path vs direct-DB path ──────────────
         let score = 0;
         if (admitted) {
-            if (USE_CONFIDENTIAL_HTTP && lead.nftTokenId) {
-                // Use Confidential HTTP workflow stub to fetch + score
-                score = await this.computeScoreViaConfidentialHTTP(lead.nftTokenId);
+            if (USE_CONFIDENTIAL_HTTP) {
+                // Use Confidential HTTP workflow stub to fetch + score (uses lead.id pre-mint)
+                const chttResult = await this.computeScoreViaConfidentialHTTP(lead.id);
+                score = chttResult.score;
             } else {
                 // Direct-DB scoring (default, always works)
                 score = this.computeNumericPreScoreFromLead(lead);
@@ -219,33 +260,52 @@ class CREService {
      *
      * isStub: true
      */
-    private async computeScoreViaConfidentialHTTP(tokenId: string): Promise<number> {
+    private async computeScoreViaConfidentialHTTP(leadId: string): Promise<{
+        score: number;
+        enriched: boolean;
+        chttScore?: number;
+        bonus?: number;
+        nonce?: string;
+        ciphertext?: string;
+    }> {
+        // Note: verifyLead() calls this with the lead UUID (not nftTokenId)
+        // because the lead may not have been minted as NFT yet at verification time.
+        // The workflow uses it as a path param for the scoring-data + fraud-signal endpoints.
         try {
             const result = await executeQualityScoreWorkflow({
-                leadTokenId: tokenId,
+                leadTokenId: leadId,
             });
 
             if (result.success && result.score !== null) {
                 console.log(
-                    `[CRE] CHTT workflow scored lead ${tokenId}: ${result.score}/10000 ` +
-                    `(enclave=${result.confidentialHTTP.executedInEnclave}, ` +
+                    `[CRE] CHTT workflow scored lead ${leadId}: ${result.score}/10000 ` +
+                    `(bonus=${result.externalFraudBonus ?? 0}, ` +
+                    `enclave=${result.confidentialHTTP.executedInEnclave}, ` +
                     `latency=${result.workflowLatencyMs}ms, isStub=${result.isStub})`,
                 );
-                return result.score;
+                return {
+                    score: result.score,
+                    enriched: result.fraudSignal !== null,
+                    chttScore: result.score,
+                    bonus: result.externalFraudBonus ?? 0,
+                    nonce: result.chttProvenance?.nonce,
+                    ciphertext: result.chttProvenance?.ciphertext,
+                };
             }
 
             console.warn(
-                `[CRE] CHTT workflow failed for lead ${tokenId}: ${result.error} — falling back to direct scoring`,
+                `[CRE] CHTT workflow failed for lead ${leadId}: ${result.error} — falling back to direct scoring`,
             );
         } catch (err: any) {
             console.warn(
-                `[CRE] CHTT workflow error for lead ${tokenId}: ${err.message} — falling back to direct scoring`,
+                `[CRE] CHTT workflow error for lead ${leadId}: ${err.message} — falling back to direct scoring`,
             );
         }
 
         // Fallback: score directly from DB (same as the non-CHTT path)
-        const lead = await prisma.lead.findUnique({ where: { nftTokenId: tokenId } });
-        return lead ? this.computeNumericPreScoreFromLead(lead) : 0;
+        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+        const score = lead ? this.computeNumericPreScoreFromLead(lead) : 0;
+        return { score, enriched: false };
     }
 
     /**
