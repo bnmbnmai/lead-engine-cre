@@ -15,6 +15,11 @@
  *   auction:closed          → store.closeLead()  (atomic — all cards freeze simultaneously)
  *   lead:status-changed     → store.closeLead()  if SOLD|UNSOLD
  *   leads:updated           → re-fetch active leads from REST API → store.bulkLoad()
+ *
+ * v4 addition:
+ *   WS Heartbeat — emits a client-side 'ping' every 8 s to keep the WebSocket
+ *   alive through load balancers / reverse proxies that drop idle connections
+ *   during long demo runs. The socket.io server ignores unknown events.
  */
 
 import { useEffect } from 'react';
@@ -86,6 +91,26 @@ export function useSocketBridge(): void {
             void fetchAndBulkLoad();
         });
 
+        // ── v4: 8-second heartbeat ping ────────────────────────────────────────
+        // Keeps the WebSocket alive through load balancers / reverse proxies that
+        // silently drop idle connections during long (30-min) demo runs.
+        // socket.io server ignores unknown events — this is purely a transport keepalive.
+        const heartbeatInterval = setInterval(() => {
+            const rawSocket = socketClient.getSocket();
+            if (rawSocket?.connected) {
+                rawSocket.emit('ping');
+            } else if (rawSocket && !rawSocket.connected) {
+                // Socket exists but disconnected — trigger reconnect immediately
+                if (import.meta.env.DEV) {
+                    console.warn('[socketBridge] heartbeat: socket disconnected, reconnecting…');
+                }
+                socketClient.reconnect();
+                // After reconnect, do a full refresh so nothing was missed during the gap
+                void fetchAndBulkLoad();
+            }
+        }, 8_000);
+        // ───────────────────────────────────────────────────────────────────────
+
         return () => {
             unsubNew();
             unsubBidUpdate();
@@ -93,6 +118,7 @@ export function useSocketBridge(): void {
             unsubClosed();
             unsubStatusChanged();
             unsubLeadsUpdated();
+            clearInterval(heartbeatInterval);
         };
     }, []); // empty deps — mounts once for the lifetime of the app
 }

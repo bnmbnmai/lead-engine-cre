@@ -68,10 +68,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     const phaseLabel = getPhaseLabel(lead.status);
     const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
 
-    // Bid button is disabled when auction is closed, sealed, or status is not IN_AUCTION.
-    // This triple-guards against: (a) auction:closed event, (b) sealed window, (c) stale API data.
-    const bidDisabled = isClosed || isSealed || effectiveStatus !== 'IN_AUCTION';
-
     // ── Local countdown (visual only — ticks every second) ─────────────────
     const [timeLeft, setTimeLeft] = useState<string | null>(
         lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null
@@ -346,50 +342,57 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         )}
                     </div>
 
+                    {/* ── Action buttons ─────────────────────────────────────────────────────
+                         * IRONCLAD v4 gate: isLive is the ONLY key that unlocks bid actions.
+                         *   isLive = !isClosed && !isSealed && effectiveStatus === 'IN_AUCTION'
+                         * If the store says the lead is closed, effectiveStatus is forced to
+                         * SOLD|UNSOLD regardless of what the API prop says, so isLive is false.
+                         * No bid button is ever rendered for !isLive cards — only "View Details".
+                         * ─────────────────────────────────────────────────────────────────── */}
                     {showBidButton && (
                         <div className="flex items-center gap-2">
-                            {isLive && (
-                                <Button asChild size="sm" variant="outline">
-                                    <Link to={`/lead/${lead.id}`}>
-                                        <Eye className="h-3.5 w-3.5 mr-1" />
-                                        Details
-                                    </Link>
-                                </Button>
-                            )}
+                            {isLive ? (
+                                /* ── LIVE: Details + action button ── */
+                                <>
+                                    <Button asChild size="sm" variant="outline">
+                                        <Link to={`/lead/${lead.id}`}>
+                                            <Eye className="h-3.5 w-3.5 mr-1" />
+                                            Details
+                                        </Link>
+                                    </Button>
 
-                            {isLive && isAuthenticated && (
-                                <Button
-                                    asChild={!bidDisabled}
-                                    size="sm"
-                                    variant="gradient"
-                                    disabled={bidDisabled}
-                                    aria-disabled={bidDisabled}
-                                >
-                                    {bidDisabled ? (
-                                        <span>{isSealed ? '🔒 Sealed' : 'Ended'}</span>
+                                    {isAuthenticated ? (
+                                        /* Authenticated: Place Bid (sealed guard) */
+                                        <Button
+                                            asChild={!isSealed}
+                                            size="sm"
+                                            variant="gradient"
+                                            disabled={isSealed}
+                                            aria-disabled={isSealed}
+                                        >
+                                            {isSealed ? (
+                                                <span>🔒 Sealed</span>
+                                            ) : (
+                                                <Link to={`/auction/${lead.id}`}>Place Bid</Link>
+                                            )}
+                                        </Button>
                                     ) : (
-                                        <Link to={`/auction/${lead.id}`}>Place Bid</Link>
+                                        /* Unauthenticated: Connect to Bid */
+                                        <Button
+                                            size="sm"
+                                            variant="glass"
+                                            onClick={openConnectModal}
+                                            aria-label="Connect wallet to place a bid"
+                                            className="gap-1.5"
+                                        >
+                                            <Wallet className="h-3.5 w-3.5" />
+                                            Connect to Bid
+                                        </Button>
                                     )}
-                                </Button>
-                            )}
-
-                            {/* Unauthenticated: only show Connect to Bid if auction is actually live */}
-                            {isLive && !isAuthenticated && !bidDisabled && (
-                                <Button
-                                    size="sm"
-                                    variant="glass"
-                                    onClick={openConnectModal}
-                                    aria-label="Connect wallet to place a bid"
-                                    className="gap-1.5"
-                                >
-                                    <Wallet className="h-3.5 w-3.5" />
-                                    Connect to Bid
-                                </Button>
-                            )}
-
-                            {/* Closed auction — always show View Details, never a bid button */}
-                            {!isLive && (
-                                <Button asChild size="sm" variant="outline">
+                                </>
+                            ) : (
+                                /* ── ENDED / SOLD / UNSOLD: passive View Details only ── */
+                                <Button asChild size="sm" variant="outline" disabled>
                                     <Link to={`/lead/${lead.id}`}>
                                         <Eye className="h-3.5 w-3.5 mr-1" />
                                         View Details

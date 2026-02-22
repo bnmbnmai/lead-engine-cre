@@ -20,6 +20,7 @@ import api from '@/lib/api';
 import { toast } from '@/hooks/useToast';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import socketClient from '@/lib/socket';
+import { useAuctionStore } from '@/store/auctionStore';
 
 // ─── Types ──────────────────────────────────
 
@@ -297,12 +298,29 @@ export default function LeadDetailPage() {
         }
     };
 
+    // ─── Zustand store override — v4 ironclad gate ───────────────────────────
+    // Subscribe to the global auction store for THIS lead so that auction:closed
+    // socket events flip the UI to Ended instantly — even if the API hasn't
+    // responded yet.  storeSlice is undefined when the lead is not in the store
+    // (e.g. direct /lead/<id> navigations before the store is populated), in which
+    // case we fall back to the API response (lead.status).
+    const storeSlice = useAuctionStore((s) => (id ? s.leads.get(id) : undefined));
+    const storeIsClosed = storeSlice?.isClosed ?? false;
+    const storeStatus = storeSlice?.status;   // 'SOLD' | 'UNSOLD' | 'IN_AUCTION' | undefined
+
     // ─── Derived values ─────────────────────
     const geoDisplay = lead
         ? [lead.geo?.city, lead.geo?.state, lead.geo?.country].filter(Boolean).join(', ') || 'Nationwide'
         : '';
-    const isUnsold = lead?.status === 'UNSOLD';
-    const isLive = lead?.status === 'IN_AUCTION';
+
+    // isLive: auction is active ONLY if API says IN_AUCTION AND store does NOT say closed.
+    // storeIsClosed is set by socketBridge on auction:closed — so this gates the BidPanel
+    // and Buy-Now button off the moment the socket event fires, before the API refetch.
+    const isLive = lead?.status === 'IN_AUCTION' && !storeIsClosed;
+    // For isSold / isUnsold: prefer store status, fall back to API
+    const isSold = storeStatus === 'SOLD' || lead?.status === 'SOLD';
+    const isUnsold = storeStatus === 'UNSOLD' || lead?.status === 'UNSOLD';
+
     const reputationDisplay = lead?.seller
         ? `${(Number(lead.seller.reputationScore) / 100).toFixed(0)}%`
         : null;
@@ -310,7 +328,6 @@ export default function LeadDetailPage() {
     const phase = auctionState?.phase || 'BIDDING';
     const displayBidCount = localBidCount ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0;
     const displayHighestBid = localHighestBid ?? auctionState?.highestBid ?? lead?.highestBidAmount ?? null;
-    const isSold = lead?.status === 'SOLD';
     const isBuyerViewing = !!(lead as any)?.isBuyer;
     const isOwnerViewing = !!(lead as any)?.isOwner;
     const isSettlementPending = !!(lead as any)?.settlementPending;
@@ -386,8 +403,8 @@ export default function LeadDetailPage() {
                                             <Badge
                                                 variant="outline"
                                                 className={`gap-1 ${lead.aceCompliant
-                                                        ? 'text-emerald-400 border-emerald-400/30'
-                                                        : 'text-red-400 border-red-400/30'
+                                                    ? 'text-emerald-400 border-emerald-400/30'
+                                                    : 'text-red-400 border-red-400/30'
                                                     }`}
                                             >
                                                 {lead.aceCompliant ? '✓' : '✗'} ACE {lead.aceCompliant ? 'Verified' : 'Non-Compliant'}
