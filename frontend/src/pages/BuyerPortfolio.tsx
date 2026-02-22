@@ -50,19 +50,36 @@ function SkeletonCard() {
     );
 }
 
-// ─── Quality Score Badge ────────────────────
+// ─── CRE Quality Score Badge ────────────────
 
-function QualityBadge({ score }: { score: number }) {
+function CREBadge({ score }: { score: number }) {
     const displayed = Math.floor(score / 100); // 0-10,000 → 0-100
     const color =
         displayed >= 70 ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' :
             displayed >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
                 'text-red-400 bg-red-500/15 border-red-500/30';
     return (
-        <Tooltip content="CRE Pre-score — confirmed on-chain after purchase">
+        <Tooltip content={`CRE Quality Score: ${displayed}/100 — confirmed on-chain after purchase`}>
             <Badge variant="outline" className={`text-xs ${color}`}>
                 <Shield className="h-3 w-3 mr-1" />
-                {displayed}/100
+                CRE {displayed}/100
+            </Badge>
+        </Tooltip>
+    );
+}
+
+// ─── ACE Compliance Badge ────────────────────
+
+function ACEBadge({ compliant }: { compliant: boolean }) {
+    return (
+        <Tooltip content={compliant
+            ? 'ACE Compliance: on-chain check passed — caller is compliant with all active policies'
+            : 'ACE Compliance: on-chain check failed — caller did not pass active policies'}>
+            <Badge variant="outline" className={`text-xs ${compliant
+                    ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+                    : 'text-red-400 bg-red-500/15 border-red-500/30'
+                }`}>
+                {compliant ? '✓' : '✗'} ACE
             </Badge>
         </Tooltip>
     );
@@ -427,11 +444,16 @@ export function BuyerPortfolio() {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {lead?.qualityScore != null ? (
-                                                        <QualityBadge score={lead.qualityScore} />
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground">—</span>
-                                                    )}
+                                                    <div className="flex items-center gap-1.5">
+                                                        {lead?.qualityScore != null ? (
+                                                            <CREBadge score={lead.qualityScore} />
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">—</span>
+                                                        )}
+                                                        {lead?.aceCompliant != null && (
+                                                            <ACEBadge compliant={lead.aceCompliant} />
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td>
                                                     <div className="flex items-center gap-1.5">
@@ -487,7 +509,10 @@ export function BuyerPortfolio() {
                                                 </div>
                                             </div>
                                             {lead?.qualityScore != null && (
-                                                <QualityBadge score={lead.qualityScore} />
+                                                <CREBadge score={lead.qualityScore} />
+                                            )}
+                                            {lead?.aceCompliant != null && (
+                                                <ACEBadge compliant={lead.aceCompliant} />
                                             )}
                                         </div>
 

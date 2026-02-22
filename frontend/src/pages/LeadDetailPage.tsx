@@ -56,6 +56,7 @@ interface LeadDetail {
     escrowId?: string | null;
     chainId?: number | null;
     escrowReleased?: boolean;
+    aceCompliant?: boolean | null;
     nftContractAddr?: string | null;
     nftMintTxHash?: string | null;
     pii?: {
@@ -379,6 +380,17 @@ export default function LeadDetailPage() {
                                         {lead.isVerified && (
                                             <Badge variant="outline" className="text-emerald-400 border-emerald-400/30 gap-1">
                                                 <Shield className="h-3 w-3" /> CRE Verified
+                                            </Badge>
+                                        )}
+                                        {lead.aceCompliant != null && (
+                                            <Badge
+                                                variant="outline"
+                                                className={`gap-1 ${lead.aceCompliant
+                                                        ? 'text-emerald-400 border-emerald-400/30'
+                                                        : 'text-red-400 border-red-400/30'
+                                                    }`}
+                                            >
+                                                {lead.aceCompliant ? '✓' : '✗'} ACE {lead.aceCompliant ? 'Verified' : 'Non-Compliant'}
                                             </Badge>
                                         )}
                                         {lead.nftTokenId && (

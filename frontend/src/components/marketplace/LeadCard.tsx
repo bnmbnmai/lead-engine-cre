@@ -22,6 +22,8 @@ interface Lead {
     chttEnriched?: boolean;
     /** CHTT-enriched score (0–100) for display. Falls back to qualityScore. */
     chttScore?: number;
+    /** True when ACECompliance.isCompliant() returned true for this lead's seller/minter. */
+    aceCompliant?: boolean | null;
     auctionEndAt?: string;
     auctionStartAt?: string;
     auctionDuration?: number;
@@ -147,10 +149,11 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* CRE Quality Score badge */}
                         {lead.qualityScore != null ? (
                             <Tooltip content={lead.chttEnriched
-                                ? 'Quality score enriched by Chainlink Confidential HTTP TEE fraud signals'
-                                : 'CRE Pre-score — confirmed on-chain after purchase'}
+                                ? `CRE Quality Score — enriched by Chainlink CHTT TEE (${Math.floor(lead.qualityScore / 100)}/100)`
+                                : `CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}
                             >
                                 <span
                                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
@@ -161,16 +164,32 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                         }`}
                                 >
                                     <Shield className="h-3 w-3" />
-                                    QS {Math.floor(lead.qualityScore / 100)}
+                                    CRE {Math.floor(lead.qualityScore / 100)}/100
+                                    {lead.chttEnriched && <span className="ml-0.5 opacity-75">🔒</span>}
                                 </span>
                             </Tooltip>
                         ) : (
-                            <Tooltip content="Quality score pending — will be confirmed on-chain">
+                            <Tooltip content="CRE quality score pending — confirmed on-chain after purchase">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
-                                    QS —
+                                    <Shield className="h-3 w-3" />
+                                    CRE —
                                 </span>
                             </Tooltip>
                         )}
+                        {/* ACE Compliance badge */}
+                        {lead.aceCompliant != null ? (
+                            <Tooltip content={lead.aceCompliant
+                                ? 'ACE Compliance: on-chain check passed — caller is compliant with all active policies'
+                                : 'ACE Compliance: on-chain check failed — caller did not pass active policies'}
+                            >
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.aceCompliant
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    }`}>
+                                    {lead.aceCompliant ? '✓' : '✗'} ACE
+                                </span>
+                            </Tooltip>
+                        ) : null}
                         {/* TEE badge — visible only when score enriched by CHTT fraud-signal workflow */}
                         {lead.chttEnriched && (
                             <Tooltip content="Quality score enriched by Chainlink Confidential HTTP inside a Trusted Execution Environment (TEE). External fraud signals (phone validation, email hygiene, conversion propensity) processed securely in enclave without exposing any PII.">

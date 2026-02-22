@@ -19,6 +19,7 @@ interface BuyNowLead {
     buyNowPrice: number;
     isVerified: boolean;
     qualityScore?: number;
+    aceCompliant?: boolean | null;
     expiresAt: string;
     createdAt: string;
     seller?: {
@@ -126,8 +127,9 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                             <Tag className="h-3 w-3 mr-1" />
                             Buy Now
                         </Badge>
+                        {/* CRE Quality Score */}
                         {lead.qualityScore != null ? (
-                            <Tooltip content="CRE Pre-score — confirmed on-chain after purchase">
+                            <Tooltip content={`CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}>
                                 <span
                                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
                                         ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
@@ -136,13 +138,26 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                                             : 'bg-red-500/15 text-red-400 border-red-500/30'
                                         }`}
                                 >
-                                    QS {Math.floor(lead.qualityScore / 100)}
+                                    CRE {Math.floor(lead.qualityScore / 100)}/100
                                 </span>
                             </Tooltip>
                         ) : (
-                            <Tooltip content="Quality score pending — will be confirmed on-chain">
+                            <Tooltip content="CRE quality score pending — confirmed on-chain after purchase">
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
-                                    QS —
+                                    CRE —
+                                </span>
+                            </Tooltip>
+                        )}
+                        {/* ACE Compliance */}
+                        {lead.aceCompliant != null && (
+                            <Tooltip content={lead.aceCompliant
+                                ? 'ACE Compliance: on-chain check passed'
+                                : 'ACE Compliance: on-chain check failed'}>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border cursor-help ${lead.aceCompliant
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    }`}>
+                                    {lead.aceCompliant ? '✓' : '✗'} ACE
                                 </span>
                             </Tooltip>
                         )}
