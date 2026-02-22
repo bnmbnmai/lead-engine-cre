@@ -238,6 +238,9 @@ class CREService {
             // Read ACE compliance for the seller wallet (best-effort; defaults to false)
             let aceCompliantP2 = false;
             try {
+                // FIX 2026-02-21: walletAddress lives on User (via SellerProfile relation),
+                // not directly on Lead. Using (lead as any) to avoid Prisma TS2339 error
+                // without requiring an extra include: { seller: { include: { user: true } } }.
                 const _walletAddr = (lead as any).walletAddress || '';
                 if (_walletAddr) aceCompliantP2 = (await this.checkACECompliance(_walletAddr)).compliant;
             } catch { /* non-blocking */ }
