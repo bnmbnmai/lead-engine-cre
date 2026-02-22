@@ -366,6 +366,43 @@ export async function runFullDemo(
 ╚══════════════════════════════════════════════════════════╝`,
         });
 
+        // ── Startup: Ensure deployer is authorizedMinter on LeadNFTv2 ──────────
+        // If not authorized, the BuyItNow fallback mintLead tx will revert.
+        // Self-heal: call setAuthorizedMinter(deployer, true) before any cycle.
+        {
+            const LEAD_NFT_ADDR = process.env.LEAD_NFT_CONTRACT_ADDRESS_BASE_SEPOLIA
+                || process.env.LEAD_NFT_CONTRACT_ADDRESS
+                || '';
+            if (LEAD_NFT_ADDR) {
+                try {
+                    const nftCheck = new ethers.Contract(LEAD_NFT_ADDR, [
+                        'function authorizedMinters(address) view returns (bool)',
+                        'function setAuthorizedMinter(address,bool) external',
+                    ], signer);
+                    const isMinter = await nftCheck.authorizedMinters(signer.address);
+                    console.log(`[NFT MINT] Pre-flight — Is Authorized Minter: ${isMinter} (deployer=${signer.address.slice(0, 10)}…)`);
+                    emit(io, {
+                        ts: new Date().toISOString(), level: isMinter ? 'success' : 'warn',
+                        message: `[NFT MINT] Authorized Minter check: ${isMinter ? '✅ true' : '⚠️ false — self-healing…'}`,
+                    });
+                    if (!isMinter) {
+                        const authTx = await nftCheck.setAuthorizedMinter(signer.address, true, { gasLimit: 100_000 });
+                        await authTx.wait(1);
+                        const isMinterAfter = await nftCheck.authorizedMinters(signer.address);
+                        console.log(`[NFT MINT] setAuthorizedMinter tx: ${authTx.hash} — Is Authorized Minter now: ${isMinterAfter}`);
+                        emit(io, {
+                            ts: new Date().toISOString(), level: isMinterAfter ? 'success' : 'error',
+                            message: `[NFT MINT] setAuthorizedMinter complete — Is Authorized Minter: ${isMinterAfter ? '✅ true' : '❌ still false'}`,
+                        });
+                    }
+                } catch (nftCheckErr: any) {
+                    console.warn(`[NFT MINT] authorizedMinter pre-flight failed (non-fatal): ${nftCheckErr.message?.slice(0, 80)}`);
+                }
+            } else {
+                console.warn('[NFT MINT] LEAD_NFT_CONTRACT_ADDRESS not set — skipping authorizedMinter check');
+            }
+        }
+
         if (signal.aborted) throw new Error('Demo aborted');
 
         const deployerBal = await vault.balanceOf(signer.address);
