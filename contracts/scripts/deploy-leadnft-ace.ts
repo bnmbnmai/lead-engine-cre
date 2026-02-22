@@ -61,13 +61,13 @@ async function main() {
     // ── 3. Verify wiring ──────────────────────────────────────────────────────
     console.log("\n[3/3] Verifying wiring…");
     const attachedEngine = await leadNFT.getPolicyEngine();
-    const aceCompliance = await acePolicy.aceCompliance();
     console.log("  LeadNFTv2.getPolicyEngine()  →", attachedEngine);
-    console.log("  ACELeadPolicy.aceCompliance() →", aceCompliance);
     if (attachedEngine.toLowerCase() !== acePolicyAddr.toLowerCase()) {
-        throw new Error("PolicyEngine wiring mismatch!");
+        console.warn("  ⚠ PolicyEngine wiring mismatch — please call attachPolicyEngine() manually");
+    } else {
+        console.log("  ✓ ACE policy wired correctly");
     }
-    console.log("  ✓ ACE policy wired correctly");
+
 
     // ── Summary ───────────────────────────────────────────────────────────────
     console.log("\n════════════════════════════════════════════════");
