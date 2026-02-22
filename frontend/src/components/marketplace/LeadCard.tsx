@@ -52,16 +52,21 @@ interface LeadCardProps {
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice, auctionEndFeedback }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
 
-    // ── AUCTION-SYNC: server-authoritative closed state ──
-    // isClosed is set to true immediately on `auction:closed` socket event.
-    // Until that event arrives, the card uses local countdown + server re-baseline.
-    const [isClosed, setIsClosed] = useState(lead.status !== 'IN_AUCTION');
+    // ── AUCTION-SYNC: server-authoritative state ──
+    // KEY FIX: isClosed starts FALSE. The card is always shown as live
+    // (if status===IN_AUCTION) until the server explicitly sends auction:closed.
+    // Do NOT initialise from lead.status here ─ that would freeze cards that
+    // arrive in the list while still in auction (e.g. rehydrated from DB).
+    const [isClosed, setIsClosed] = useState(false);
     const [remainingMs, setRemainingMs] = useState<number | null>(
         lead.auctionEndAt ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now()) : null
     );
+    // Live bid counters updated per auction:updated (so card updates without re-render from parent)
+    const [liveBidCount, setLiveBidCount] = useState<number | null>(null);
+    const [isSealed, setIsSealed] = useState(false); // 5-second sealed-bid window
 
+    const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
     const isLive = !isClosed && lead.status === 'IN_AUCTION';
-    const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
     const phaseLabel = getPhaseLabel(lead.status);
 
     // Local countdown — ticks every second; stopped immediately when isClosed
@@ -100,20 +105,24 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     }, [isLive, lead.auctionEndAt, lead.auctionStartAt]);
 
     // ── AUCTION-SYNC: Socket event listeners ──
+    // These now use proper types (no as-any) because socket.ts ALL_EVENTS includes them.
     useEffect(() => {
-        // auction:updated — re-baseline remaining time from server on every bid
-        const unsubUpdated = socketClient.on('auction:updated' as any, (data: any) => {
+        // auction:updated — re-baseline remaining time + update live counters on every bid
+        const unsubUpdated = socketClient.on('auction:updated', (data) => {
             if (data?.leadId !== lead.id) return;
-            if (data.remainingTime != null) {
-                setRemainingMs(data.remainingTime);
-            }
+            console.debug('[auction:updated] card', lead.id, data);
+            if (data.remainingTime != null) setRemainingMs(data.remainingTime);
+            if (data.bidCount != null) setLiveBidCount(data.bidCount);
+            if (data.isSealed != null) setIsSealed(data.isSealed);
         });
 
         // auction:closed — immediately freeze the card regardless of local timer
-        const unsubClosed = socketClient.on('auction:closed' as any, (data: any) => {
+        const unsubClosed = socketClient.on('auction:closed', (data) => {
             if (data?.leadId !== lead.id) return;
+            console.debug('[auction:closed] card', lead.id, data);
             setIsClosed(true);
             setRemainingMs(0);
+            setIsSealed(false);
             if (intervalRef.current) clearInterval(intervalRef.current);
         });
 
@@ -123,25 +132,52 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
         };
     }, [lead.id]);
 
+    // ── AUCTION-SYNC: Polling fallback (5s) when socket disconnected ──
+    useEffect(() => {
+        if (!isLive || isClosed) return;
+        const poll = async () => {
+            if (socketClient.isConnected()) return; // socket live — skip poll
+            try {
+                const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+                const res = await fetch(`${baseUrl}/api/v1/leads/${lead.id}/auction-state`);
+                if (!res.ok) return;
+                const state = await res.json();
+                console.debug('[auction-state:poll]', lead.id, state);
+                if (state.isClosed) {
+                    setIsClosed(true);
+                    setRemainingMs(0);
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                } else if (state.remainingTime != null) {
+                    setRemainingMs(state.remainingTime);
+                }
+                if (state.bidCount != null) setLiveBidCount(state.bidCount);
+            } catch { /* no-op */ }
+        };
+        const pollInterval = setInterval(poll, 5_000);
+        return () => clearInterval(pollInterval);
+    }, [isLive, isClosed, lead.id]);
+
     // Animated bid counter — pulse on change
-    const prevBidCount = useRef(bidCount);
+    const prevBidCount = useRef(effectiveBidCount);
     const [bidPulse, setBidPulse] = useState(false);
 
     useEffect(() => {
-        if (bidCount > prevBidCount.current) {
+        if (effectiveBidCount > prevBidCount.current) {
             setBidPulse(true);
             const timer = setTimeout(() => setBidPulse(false), 600);
-            prevBidCount.current = bidCount;
+            prevBidCount.current = effectiveBidCount;
             return () => clearTimeout(timer);
         }
-        prevBidCount.current = bidCount;
-    }, [bidCount]);
+        prevBidCount.current = effectiveBidCount;
+    }, [effectiveBidCount]);
+
+
 
 
     return (
-        <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback || isClosed ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
+        <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
-                {/* Auction End Feedback Overlay */}
+                {/* Auction End Feedback Overlay (from parent 8s timer) */}
                 {auctionEndFeedback && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 animate-pulse ${auctionEndFeedback === 'SOLD'
                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
@@ -151,17 +187,23 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
                     </div>
                 )}
-                {/* AUCTION-SYNC: isClosed overlay — shown when server emits auction:closed */}
+                {/* AUCTION-SYNC: isClosed overlay — shown the instant server emits auction:closed */}
                 {isClosed && !auctionEndFeedback && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 bg-gray-500/15 text-gray-400 border border-gray-500/30">
                         <Clock className="h-3.5 w-3.5" />
                         Auction Ended
                     </div>
                 )}
-                {/* AUCTION-SYNC: closing imminently banner (≤10 s) */}
-                {isLive && remainingMs !== null && remainingMs > 0 && remainingMs <= 10_000 && (
+                {/* AUCTION-SYNC: 🔒 SEALED banner — backend still accepts bids but window is closing */}
+                {isLive && isSealed && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-bold animate-pulse mb-3">
+                        🔒 Sealed — bids locked, resolving winner…
+                    </div>
+                )}
+                {/* AUCTION-SYNC: ⚠️ Closing imminently banner (≤10 s) — not sealed yet */}
+                {isLive && !isSealed && remainingMs !== null && remainingMs > 0 && remainingMs <= 10_000 && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold animate-pulse mb-3">
-                        🔒 Closing in {Math.ceil(remainingMs / 1000)}s — final bids now
+                        🔒 Closing in {Math.ceil(remainingMs / 1000)}s — place final bids now
                     </div>
                 )}
                 {/* Header */}
@@ -295,7 +337,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             }`}
                     >
                         <Users className="h-4 w-4" />
-                        <span className="font-medium">{bidCount}</span> bids
+                        <span className="font-medium">{effectiveBidCount}</span> bids
                     </div>
                     {!isLive && timeLeft && (
                         <div className="flex items-center gap-1 text-blue-500">

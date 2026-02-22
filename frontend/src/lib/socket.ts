@@ -44,7 +44,7 @@ type AuctionEventHandler = {
     'marketplace:refreshAll': () => void;
     // Auction end events (no-winner paths)
     'lead:unsold': (data: { leadId: string; buyNowPrice: number | null; expiresAt: string }) => void;
-    'lead:status-changed': (data: { leadId: string; oldStatus: string; newStatus: string }) => void;
+    'lead:status-changed': (data: { leadId: string; oldStatus: string; newStatus: string; remainingTime?: number }) => void;
     // Analytics real-time updates
     'analytics:update': (data: { type: string; leadId: string; buyerId: string; amount: number; vertical: string; timestamp: string }) => void;
     // Escrow lifecycle
@@ -64,6 +64,31 @@ type AuctionEventHandler = {
     'demo:status': (data: { running: boolean; recycling: boolean; currentCycle: number; totalCycles: number; percent: number; phase: string; runId?: string; ts: string }) => void;
     // Live marketplace metrics (emitted every 30 s while demo runs)
     'demo:metrics': (data: { activeCount: number; leadsThisMinute: number; dailyRevenue: number }) => void;
+    // ── AUCTION-SYNC events (added 2026-02-22) ──────────────────────────────────
+    // auction:updated — server re-baselines remaining time on every bid so
+    // frontend countdown timers stay locked to backend. Also carries isSealed flag
+    // (5-second sealed-bid window) and updated bidCount / highestBid.
+    'auction:updated': (data: {
+        leadId: string;
+        remainingTime: number | null;
+        serverTs: string;
+        bidCount: number;
+        highestBid: number | null;
+        isSealed?: boolean;   // true for the final 5 s sealed-bid window
+    }) => void;
+    // auction:closed — single authoritative signal that the auction is fully resolved.
+    // Emitted AFTER all DB writes so frontend can freeze UI synchronously.
+    'auction:closed': (data: {
+        leadId: string;
+        status: 'SOLD' | 'UNSOLD';
+        remainingTime: 0;
+        isClosed: true;
+        serverTs: string;
+        winnerId?: string;
+        winningAmount?: number;
+        settleTxHash?: string;
+        finalBids?: { buyerId: string; amount: number | null; status: string }[];
+    }) => void;
 };
 
 // All events forwarded from raw socket → this.listeners Map.
@@ -93,6 +118,9 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     'demo:reset-complete',
     'demo:status',
     'demo:metrics',
+    // ── AUCTION-SYNC: must be here or setupEventForwarding() silently drops them ──
+    'auction:updated',
+    'auction:closed',
 ];
 
 // ============================================
@@ -280,6 +308,10 @@ class SocketClient {
     }
 
     private _emit(event: string, data: any) {
+        // Frontend console.debug for every socket event arrival (visible in browser DevTools)
+        if (import.meta.env.DEV || (typeof window !== 'undefined' && (window as any).__SOCKET_DEBUG__)) {
+            console.debug(`[socket:rx] ${event}`, data);
+        }
         this.listeners.get(event)?.forEach((handler) => handler(data));
     }
 

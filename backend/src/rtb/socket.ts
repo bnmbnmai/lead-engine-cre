@@ -396,15 +396,21 @@ class RTBSocketServer {
                         // AUCTION-SYNC: emit server-authoritative remaining time
                         // so frontend timers re-baseline on every bid rather than
                         // drifting from the initial page-load timestamp.
+                        // isSealed = true for the final 5 s — frontend shows 🔒 Sealed banner.
                         const auctionEndMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : null;
                         const remainingTime = auctionEndMs ? Math.max(0, auctionEndMs - Date.now()) : null;
+                        const isSealed = remainingTime != null && remainingTime <= 5_000;
+                        const updatedBidCount = (lead.auctionRoom.bidCount || 0) + 1;
+                        const updatedHighestBid = effectiveBid ?? bidAmount ?? null;
                         this.io.emit('auction:updated', {
                             leadId: data.leadId,
                             remainingTime,
                             serverTs: new Date().toISOString(),
-                            bidCount: (lead.auctionRoom.bidCount || 0) + 1,
-                            highestBid: effectiveBid ?? bidAmount ?? null,
+                            bidCount: updatedBidCount,
+                            highestBid: updatedHighestBid,
+                            isSealed,
                         });
+                        console.log(`[SOCKET-EMIT] auction:updated leadId=${data.leadId} remaining=${remainingTime}ms bidCount=${updatedBidCount} isSealed=${isSealed}`);
                     }
 
                     // Emit holder-specific event
