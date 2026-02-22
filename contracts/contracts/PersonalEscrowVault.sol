@@ -102,6 +102,10 @@ contract PersonalEscrowVault is
     ///         Base Sepolia: 0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF
     AggregatorV3Interface public usdcEthFeed;
 
+    /// @notice Demo mode: bypasses stale Chainlink price feed check for testnet demos.
+    ///         Owner-controlled via setDemoMode(). NEVER enable on mainnet.
+    bool public demoMode;
+
     // ============================================
     // Events
     // ============================================
@@ -116,6 +120,7 @@ contract PersonalEscrowVault is
     event CallerAuthorized(address indexed caller, bool authorized);
     event PlatformWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event FeedUpdated(address indexed oldFeed, address indexed newFeed);
+    event DemoModeUpdated(bool enabled);
 
     // ============================================
     // Modifiers
@@ -166,6 +171,14 @@ contract PersonalEscrowVault is
         require(_feed != address(0), "Zero feed");
         emit FeedUpdated(address(usdcEthFeed), _feed);
         usdcEthFeed = AggregatorV3Interface(_feed);
+    }
+
+    /// @notice Toggle demo mode. When true, skips Chainlink price feed check
+    ///         so testnet demos work even when the USDC/ETH feed is stale.
+    ///         ONLY safe on testnets — never enable on mainnet.
+    function setDemoMode(bool _demo) external onlyOwner {
+        demoMode = _demo;
+        emit DemoModeUpdated(_demo);
     }
 
     function pause() external onlyOwner { _pause(); }
@@ -231,8 +244,11 @@ contract PersonalEscrowVault is
         uint256 bidAmount
     ) external onlyAuthorizedCaller nonReentrant whenNotPaused returns (uint256) {
         // Chainlink Data Feed: require a valid, live USDC/ETH price before locking funds
-        (, int256 price,,,) = usdcEthFeed.latestRoundData();
-        require(price > 0, "Vault: Invalid USDC/ETH price");
+        // demoMode=true bypasses this for testnet demos where the feed may be stale
+        if (!demoMode) {
+            (, int256 price,,,) = usdcEthFeed.latestRoundData();
+            require(price > 0, "Vault: Invalid USDC/ETH price");
+        }
 
         uint256 total = bidAmount + CONVENIENCE_FEE;
         require(balances[user] >= total, "Insufficient vault balance");
@@ -267,8 +283,11 @@ contract PersonalEscrowVault is
         address seller
     ) external onlyAuthorizedCaller nonReentrant whenNotPaused {
         // Chainlink Data Feed: require a valid, live USDC/ETH price before settling
-        (, int256 price,,,) = usdcEthFeed.latestRoundData();
-        require(price > 0, "Vault: Invalid USDC/ETH price");
+        // demoMode=true bypasses this for testnet demos where the feed may be stale
+        if (!demoMode) {
+            (, int256 price,,,) = usdcEthFeed.latestRoundData();
+            require(price > 0, "Vault: Invalid USDC/ETH price");
+        }
 
         BidLock storage lock = bidLocks[lockId];
         require(!lock.settled, "Already settled");

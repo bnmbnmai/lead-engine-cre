@@ -26,7 +26,7 @@ async function main() {
     await vault.waitForDeployment();
     const vaultAddr = await vault.getAddress();
     const vaultTx = vault.deploymentTransaction()!.hash;
-    const feedAddr = await vault.usdcEthFeed();
+    const feedAddr = '0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF'; // Base Sepolia USDC/ETH feed (from constructor)
 
     const W = "═".repeat(60);
     console.log(`\n${W}`);
