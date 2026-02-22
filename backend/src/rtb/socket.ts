@@ -392,6 +392,19 @@ class RTBSocketServer {
                             highestBid: effectiveBid ?? bidAmount ?? null,
                             timestamp: new Date().toISOString(),
                         });
+
+                        // AUCTION-SYNC: emit server-authoritative remaining time
+                        // so frontend timers re-baseline on every bid rather than
+                        // drifting from the initial page-load timestamp.
+                        const auctionEndMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : null;
+                        const remainingTime = auctionEndMs ? Math.max(0, auctionEndMs - Date.now()) : null;
+                        this.io.emit('auction:updated', {
+                            leadId: data.leadId,
+                            remainingTime,
+                            serverTs: new Date().toISOString(),
+                            bidCount: (lead.auctionRoom.bidCount || 0) + 1,
+                            highestBid: effectiveBid ?? bidAmount ?? null,
+                        });
                     }
 
                     // Emit holder-specific event

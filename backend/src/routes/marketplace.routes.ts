@@ -967,6 +967,54 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
 });
 
 // ============================================
+// Auction State (AUCTION-SYNC: server-authoritative remaining time)
+// GET  /leads/:leadId/auction-state
+// Returns { remainingTime, status, isClosed, serverTs, bidCount }
+// Used by: frontend polling fallback every 5s when socket is disconnected.
+// ============================================
+
+router.get('/leads/:leadId/auction-state', generalLimiter, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { leadId } = req.params;
+        if (!leadId || typeof leadId !== 'string') {
+            res.status(400).json({ error: 'leadId required' });
+            return;
+        }
+
+        const lead = await prisma.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                id: true,
+                status: true,
+                auctionEndAt: true,
+                _count: { select: { bids: true } },
+            },
+        });
+
+        if (!lead) {
+            res.status(404).json({ error: 'Lead not found' });
+            return;
+        }
+
+        const auctionEndAt = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : null;
+        const remainingTime = auctionEndAt ? Math.max(0, auctionEndAt - Date.now()) : null;
+        const isClosed = lead.status !== 'IN_AUCTION';
+
+        res.json({
+            leadId: lead.id,
+            status: lead.status,
+            remainingTime,
+            isClosed,
+            serverTs: new Date().toISOString(),
+            bidCount: lead._count.bids,
+        });
+    } catch (error) {
+        console.error('Auction state error:', error);
+        res.status(500).json({ error: 'Failed to get auction state' });
+    }
+});
+
+// ============================================
 // Field-Level Lead Search
 // ============================================
 //

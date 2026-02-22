@@ -593,6 +593,32 @@ async function resolveAuction(leadId: string, io?: Server) {
                 vertical: lead.vertical || 'unknown',
                 timestamp: new Date().toISOString(),
             });
+
+            // ── AUCTION-SYNC: authoritative closure broadcast ──
+            // Emitted AFTER all DB writes are committed so the frontend
+            // can immediately freeze the UI and show winner/results.
+            const settleTxHash = (winningBid as any).escrowTxHash ?? undefined;
+            const finalBids = await prisma.bid.findMany({
+                where: { leadId },
+                select: { buyerId: true, amount: true, status: true },
+                orderBy: { effectiveBid: { sort: 'desc', nulls: 'last' } },
+            });
+            io.emit('auction:closed', {
+                leadId,
+                status: 'SOLD',
+                winnerId: winningBid.buyerId,
+                winningAmount: Number(winningBid.amount),
+                settleTxHash,
+                finalBids: finalBids.map(b => ({
+                    buyerId: b.buyerId,
+                    amount: b.amount != null ? Number(b.amount) : null,
+                    status: b.status,
+                })),
+                remainingTime: 0,
+                isClosed: true,
+                serverTs: new Date().toISOString(),
+            });
+            console.log(`[AUCTION-CLOSED] leadId=${leadId} winner=${winningBid.buyerId} amount=${Number(winningBid.amount)} tx=${settleTxHash ?? '—'}`);
         }
 
         // Log analytics
@@ -683,6 +709,16 @@ async function convertToUnsold(leadId: string, lead: any, io?: Server) {
             buyNowPrice: binPrice,
             expiresAt: expiresAt.toISOString(),
         });
+
+        // ── AUCTION-SYNC: authoritative closure broadcast (no winner) ──
+        io.emit('auction:closed', {
+            leadId,
+            status: 'UNSOLD',
+            remainingTime: 0,
+            isClosed: true,
+            serverTs: new Date().toISOString(),
+        });
+        console.log(`[AUCTION-CLOSED] leadId=${leadId} status=UNSOLD buyNowPrice=${binPrice ?? '—'}`);
     }
 
     // Log analytics

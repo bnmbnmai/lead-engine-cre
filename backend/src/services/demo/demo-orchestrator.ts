@@ -718,6 +718,21 @@ export async function runFullDemo(
                             highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
                             timestamp: new Date().toISOString(),
                         });
+
+                        // AUCTION-SYNC: emit server remaining time so frontend timers re-baseline
+                        const demoLead = drippedLeads[cycle - 1];
+                        if (demoLead?.leadId) {
+                            const leadRecord = await prisma.lead.findUnique({ where: { id: demoLead.leadId }, select: { auctionEndAt: true } }).catch(() => null);
+                            const auctionEndMs = leadRecord?.auctionEndAt ? new Date(leadRecord.auctionEndAt).getTime() : null;
+                            const remainingTime = auctionEndMs ? Math.max(0, auctionEndMs - Date.now()) : null;
+                            io.emit('auction:updated', {
+                                leadId: demoLeadId,
+                                remainingTime,
+                                serverTs: new Date().toISOString(),
+                                bidCount: b + 1,
+                                highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
+                            });
+                        }
                     }
 
                     await sleep(500);
@@ -750,6 +765,21 @@ export async function runFullDemo(
                 if (hadTiebreaker) { totalTiebreakers++; }
                 if (vrfTxHashForCycle) { vrfProofLinks.push(`https://sepolia.basescan.org/tx/${vrfTxHashForCycle}`); }
                 emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this cycle (5% fee: $${cyclePlatformFee.toFixed(2)} + ${lockIds.length} × $1 lock fees)`, cycle, totalCycles: cycles });
+
+                // AUCTION-SYNC: closed broadcast for SOLD path
+                if (demoLeadId) {
+                    io.emit('auction:closed', {
+                        leadId: demoLeadId,
+                        status: 'SOLD',
+                        winnerId: buyerWallet,
+                        winningAmount: bidAmount,
+                        settleTxHash: settleReceiptHash,
+                        remainingTime: 0,
+                        isClosed: true,
+                        serverTs: new Date().toISOString(),
+                    });
+                    console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} winner=${buyerWallet} amount=${bidAmount} tx=${settleReceiptHash}`);
+                }
 
                 // Refund losers
                 for (let r = 1; r < lockIds.length; r++) {
@@ -822,6 +852,18 @@ export async function runFullDemo(
                     }
                 } else {
                     emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-BUYNOW] No demoLeadId available for cycle ${cycle} — CRE dispatch skipped`, cycle, totalCycles: cycles });
+                }
+
+                // AUCTION-SYNC: closed broadcast for BuyItNow (unsold) path
+                if (demoLeadId) {
+                    io.emit('auction:closed', {
+                        leadId: demoLeadId,
+                        status: 'UNSOLD',
+                        remainingTime: 0,
+                        isClosed: true,
+                        serverTs: new Date().toISOString(),
+                    });
+                    console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (BuyItNow fallback)`);
                 }
             }
 

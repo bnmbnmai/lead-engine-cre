@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { formatCurrency, formatTimeRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
+import socketClient from '@/lib/socket';
 
 
 interface Lead {
@@ -50,15 +51,25 @@ interface LeadCardProps {
 
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice, auctionEndFeedback }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
-    const isLive = lead.status === 'IN_AUCTION';
+
+    // ── AUCTION-SYNC: server-authoritative closed state ──
+    // isClosed is set to true immediately on `auction:closed` socket event.
+    // Until that event arrives, the card uses local countdown + server re-baseline.
+    const [isClosed, setIsClosed] = useState(lead.status !== 'IN_AUCTION');
+    const [remainingMs, setRemainingMs] = useState<number | null>(
+        lead.auctionEndAt ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now()) : null
+    );
+
+    const isLive = !isClosed && lead.status === 'IN_AUCTION';
     const bidCount = lead._count?.bids || lead.auctionRoom?.bidCount || 0;
     const phaseLabel = getPhaseLabel(lead.status);
 
-    // Live countdown timer — ticks every second for in-auction leads
+    // Local countdown — ticks every second; stopped immediately when isClosed
     const [timeLeft, setTimeLeft] = useState<string | null>(
         lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null
     );
     const [progress, setProgress] = useState<number | null>(null);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         if (!isLive || !lead.auctionEndAt) {
@@ -68,22 +79,49 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
         }
 
         const tick = () => {
+            const endMs = new Date(lead.auctionEndAt!).getTime();
+            const ms = Math.max(0, endMs - Date.now());
+            setRemainingMs(ms);
             setTimeLeft(formatTimeRemaining(lead.auctionEndAt!));
             if (lead.auctionStartAt) {
                 const start = new Date(lead.auctionStartAt).getTime();
-                const end = new Date(lead.auctionEndAt!).getTime();
-                const now = Date.now();
-                const total = end - start;
+                const total = endMs - start;
                 if (total > 0) {
-                    setProgress(Math.min(Math.round(((now - start) / total) * 100), 100));
+                    setProgress(Math.min(Math.round(((Date.now() - start) / total) * 100), 100));
                 }
             }
         };
 
-        tick(); // initial value
-        const interval = setInterval(tick, 1000);
-        return () => clearInterval(interval);
+        tick();
+        intervalRef.current = setInterval(tick, 1000);
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
     }, [isLive, lead.auctionEndAt, lead.auctionStartAt]);
+
+    // ── AUCTION-SYNC: Socket event listeners ──
+    useEffect(() => {
+        // auction:updated — re-baseline remaining time from server on every bid
+        const unsubUpdated = socketClient.on('auction:updated' as any, (data: any) => {
+            if (data?.leadId !== lead.id) return;
+            if (data.remainingTime != null) {
+                setRemainingMs(data.remainingTime);
+            }
+        });
+
+        // auction:closed — immediately freeze the card regardless of local timer
+        const unsubClosed = socketClient.on('auction:closed' as any, (data: any) => {
+            if (data?.leadId !== lead.id) return;
+            setIsClosed(true);
+            setRemainingMs(0);
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        });
+
+        return () => {
+            unsubUpdated();
+            unsubClosed();
+        };
+    }, [lead.id]);
 
     // Animated bid counter — pulse on change
     const prevBidCount = useRef(bidCount);
@@ -100,9 +138,8 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     }, [bidCount]);
 
 
-
     return (
-        <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
+        <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback || isClosed ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
                 {/* Auction End Feedback Overlay */}
                 {auctionEndFeedback && (
@@ -112,6 +149,19 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         }`}>
                         <ArrowRight className="h-3.5 w-3.5" />
                         {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
+                    </div>
+                )}
+                {/* AUCTION-SYNC: isClosed overlay — shown when server emits auction:closed */}
+                {isClosed && !auctionEndFeedback && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 bg-gray-500/15 text-gray-400 border border-gray-500/30">
+                        <Clock className="h-3.5 w-3.5" />
+                        Auction Ended
+                    </div>
+                )}
+                {/* AUCTION-SYNC: closing imminently banner (≤10 s) */}
+                {isLive && remainingMs !== null && remainingMs > 0 && remainingMs <= 10_000 && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold animate-pulse mb-3">
+                        🔒 Closing in {Math.ceil(remainingMs / 1000)}s — final bids now
                     </div>
                 )}
                 {/* Header */}
@@ -183,8 +233,8 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 : 'ACE Compliance: on-chain check failed — caller did not pass active policies'}
                             >
                                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.aceCompliant
-                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                    : 'bg-red-500/15 text-red-400 border-red-500/30'
                                     }`}>
                                     {lead.aceCompliant ? '✓' : '✗'} ACE
                                 </span>

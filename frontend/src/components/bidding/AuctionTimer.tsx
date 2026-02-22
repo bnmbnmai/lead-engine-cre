@@ -7,12 +7,29 @@ interface AuctionTimerProps {
     biddingEndsAt?: string;
     revealEndsAt?: string;
     onPhaseChange?: (phase: string) => void;
+    /**
+     * Server-authoritative remaining milliseconds (from auction:updated or getAuctionState).
+     * When provided during BIDDING phase, the timer is initialised from this value
+     * instead of computing Date.now() vs biddingEndsAt — eliminating the initial desync.
+     */
+    serverRemainingMs?: number;
 }
 
-export function AuctionTimer({ phase, biddingEndsAt, revealEndsAt, onPhaseChange }: AuctionTimerProps) {
-    const [timeRemaining, setTimeRemaining] = useState<number>(0);
+export function AuctionTimer({ phase, biddingEndsAt, revealEndsAt, onPhaseChange, serverRemainingMs }: AuctionTimerProps) {
+    // Initialise from server value when available, otherwise use local calculation
+    const [timeRemaining, setTimeRemaining] = useState<number>(() => {
+        if (phase === 'BIDDING' && serverRemainingMs != null) return serverRemainingMs;
+        return 0;
+    });
 
     const endTime = phase === 'BIDDING' ? biddingEndsAt : revealEndsAt;
+
+    // Re-sync when server pushes an authoritative remaining time
+    useEffect(() => {
+        if (phase === 'BIDDING' && serverRemainingMs != null) {
+            setTimeRemaining(serverRemainingMs);
+        }
+    }, [serverRemainingMs, phase]);
 
     useEffect(() => {
         if (!endTime || phase === 'RESOLVED' || phase === 'CANCELLED') return;
@@ -33,6 +50,7 @@ export function AuctionTimer({ phase, biddingEndsAt, revealEndsAt, onPhaseChange
 
         return () => clearInterval(interval);
     }, [endTime, phase, onPhaseChange]);
+
 
     const formatTime = (ms: number) => {
         const totalSeconds = Math.floor(ms / 1000);
