@@ -27,6 +27,16 @@ const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA 
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 const USE_CONFIDENTIAL_HTTP = process.env.USE_CONFIDENTIAL_HTTP === 'true';
 
+// ACECompliance contract (Chainlink ACE KYC/geo/reputation registry)
+const ACE_COMPLIANCE_ADDRESS = process.env.ACE_COMPLIANCE_ADDRESS || '0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6';
+
+const ACE_COMPLIANCE_ABI = [
+    'function isCompliant(address wallet) view returns (bool)',
+    'function getKYCStatus(address wallet) view returns (uint8)',
+    'function getReputationScore(address wallet) view returns (uint256)',
+];
+
+
 // CREVerifier Contract ABI (read + write)
 const CRE_ABI = [
     // Read
@@ -55,6 +65,7 @@ class CREService {
     private provider: ethers.JsonRpcProvider;
     private contract: ethers.Contract | null = null;
     private signer: ethers.Wallet | null = null;
+    private aceComplianceContract: ethers.Contract | null = null;
 
     constructor() {
         this.provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -67,11 +78,47 @@ class CREService {
                 this.contract = this.contract.connect(this.signer) as ethers.Contract;
             }
         }
+
+        // ACECompliance is read-only (view calls only)
+        this.aceComplianceContract = new ethers.Contract(
+            ACE_COMPLIANCE_ADDRESS,
+            ACE_COMPLIANCE_ABI,
+            this.provider
+        );
     }
 
     // ============================================
-    // Stage 1: Pre-Auction Gate
+    // ACE Compliance Gate (Chainlink ACE PolicyEngine)
     // ============================================
+
+    /**
+     * Check a wallet address against the on-chain ACECompliance registry.
+     * Returns compliant=true when the wallet has passed KYC and is not sanctioned.
+     * Non-compliant wallets are rejected before any Chainlink Functions call is dispatched.
+     */
+    async checkACECompliance(walletAddress: string): Promise<{ compliant: boolean; kycStatus?: number; reputationScore?: string; reason?: string }> {
+        if (!this.aceComplianceContract) {
+            return { compliant: true }; // ACE not configured — pass through
+        }
+        try {
+            const compliant: boolean = await this.aceComplianceContract.isCompliant(walletAddress);
+            if (!compliant) {
+                const kycStatus: bigint = await this.aceComplianceContract.getKYCStatus(walletAddress);
+                return {
+                    compliant: false,
+                    kycStatus: Number(kycStatus),
+                    reason: `ACE_POLICY_REJECTED: wallet ${walletAddress} failed ACECompliance check (kycStatus=${kycStatus})`,
+                };
+            }
+            const reputationScore: bigint = await this.aceComplianceContract.getReputationScore(walletAddress);
+            return { compliant: true, reputationScore: reputationScore.toString() };
+        } catch (err: any) {
+            console.warn(`[ACE] isCompliant() reverted for ${walletAddress}: ${err.message}`);
+            // On-chain call failed (e.g. wallet not registered) — treat as non-compliant
+            return { compliant: false, reason: `ACE_POLICY_REJECTED: ${err.message}` };
+        }
+    }
+
 
     /**
      * Verify a lead before it enters the auction.
@@ -88,6 +135,20 @@ class CREService {
 
         if (lead.isVerified) {
             return { isValid: true };
+        }
+
+        // ── ACE Compliance Gate (Chainlink ACE PolicyEngine) ──
+        // Check the seller wallet against ACECompliance.isCompliant() BEFORE
+        // any Chainlink Functions calls are dispatched. Non-compliant wallets
+        // are rejected here — the same check the on-chain PolicyEngine runs
+        // on every mintLead() call via ACELeadPolicy.run().
+        if (lead.walletAddress) {
+            const aceResult = await this.checkACECompliance(lead.walletAddress);
+            if (!aceResult.compliant) {
+                console.warn(`[ACE PRE-GATE] Lead ${leadId}: REJECTED — ${aceResult.reason}`);
+                return { isValid: false, reason: aceResult.reason || 'ACE_POLICY_REJECTED' };
+            }
+            console.log(`[ACE PRE-GATE] Lead ${leadId}: compliant ✓ (reputation=${aceResult.reputationScore ?? 'n/a'})`);
         }
 
         const [dataCheck, tcpaCheck, geoCheck] = await Promise.all([

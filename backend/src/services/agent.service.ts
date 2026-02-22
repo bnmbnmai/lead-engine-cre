@@ -372,6 +372,25 @@ function buildTools() {
                 });
             },
         }),
+        new _DynamicStructuredTool({
+            name: 'ace_policy_check',
+            description: 'Check a wallet address against the on-chain ACECompliance registry (Chainlink ACE). Returns whether the wallet is compliant (KYC passed, not sanctioned), its KYC status code, and reputation score. Use before submitting a lead or placing a bid to confirm eligibility.',
+            schema: z.object({
+                walletAddress: z.string().describe('Ethereum wallet address to check (0x format)'),
+            }),
+            func: async (params: Record<string, unknown>) => {
+                const { creService } = await import('./cre.service');
+                const result = await creService.checkACECompliance(params.walletAddress as string);
+                return JSON.stringify({
+                    walletAddress: params.walletAddress,
+                    compliant: result.compliant,
+                    kycStatus: result.kycStatus ?? null,
+                    reputationScore: result.reputationScore ?? null,
+                    reason: result.reason ?? null,
+                    source: 'ACECompliance@0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6',
+                });
+            },
+        }),
     ];
 }
 
