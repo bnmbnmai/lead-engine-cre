@@ -13,16 +13,8 @@
 
 [Live Demo](https://lead-engine-cre-frontend.vercel.app) | [GitHub](https://github.com/bnmbnmai/lead-engine-cre)
 
-### Accurate Chainlink Integration Status (2026-02-21)
-- Automation + PoR (PersonalEscrowVault)
-- Functions / CRE quality scoring (CREVerifier)
-- **Functions / ZK fraud-signal — LIVE** (`requestZKProofVerification` → real DON dispatch; JS source registered; `fulfillRequest` stores `_zkFraudSignals`)
-- VRF v2.5 (VRFTieBreaker)
-- **Data Feeds — LIVE** (PersonalEscrowVault `usdcEthFeed`, USDC/ETH guard on `lockForBid` + `settleBid`)
-- **EIP-2981 Royalties — LIVE** (LeadNFTv2 `setRoyaltyInfo`)
-- CCIP on roadmap
-
 ---
+
 
 ## Overview
 
@@ -88,12 +80,12 @@ All contracts are deployed on Base Sepolia and have exact-match source code publ
 
 | Contract | Address | Primary Chainlink Services | Basescan |
 |----------|---------|---------------------------|----------|
-| PersonalEscrowVault | `0xf09cf1d4389A1Af11542F96280dc91739E866e74` | Automation (PoR + lock expiry), Data Feeds (USDC/ETH liveness guard) | [↗](https://sepolia.basescan.org/address/0xf09cf1d4389A1Af11542F96280dc91739E866e74#code) |
-| LeadNFTv2 | `0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4` | — | [↗](https://sepolia.basescan.org/address/0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4#code) |
-| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Functions (quality scoring + ZK fraud-signal) | [↗](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8#code) |
-| VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | VRF v2.5 (tie resolution) | [↗](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e#code) |
-| RTBEscrow | `0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2` | — | [↗](https://sepolia.basescan.org/address/0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2#code) |
-| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | — | [↗](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6#code) |
+| PersonalEscrowVault | `0xf09cf1d4389A1Af11542F96280dc91739E866e74` | Automation (PoR + lock expiry), Data Feeds (USDC/ETH liveness guard) | [View →](https://sepolia.basescan.org/address/0xf09cf1d4389A1Af11542F96280dc91739E866e74) |
+| LeadNFTv2 | `0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4` | None (EIP-2981 royalties) | [View →](https://sepolia.basescan.org/address/0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4) |
+| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Chainlink Functions (quality scoring + live ZK fraud-signal) | [View →](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) |
+| VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | VRF v2.5 (tie resolution) | [View →](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) |
+| RTBEscrow | `0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2` | None | [View →](https://sepolia.basescan.org/address/0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2) |
+| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | None (on-chain KYC/geo/reputation registry) | [View →](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
 
 **PersonalEscrowVault** implements `AutomationCompatibleInterface` — `checkUpkeep` verifies reserve balances and `performUpkeep` settles or refunds expired bid locks; `lockForBid` and `settleBid` both require a live Chainlink Data Feeds price from the USDC/ETH aggregator before moving funds.
 
@@ -109,41 +101,24 @@ All contracts are deployed on Base Sepolia and have exact-match source code publ
 
 ### Verification Commands
 
-```powershell
+```bash
 # PersonalEscrowVault
-npx hardhat verify --network baseSepolia 0xf09cf1d4389A1Af11542F96280dc91739E866e74 `
-  "0x036CbD53842c5426634e7929541eC2318f3dCF7e" `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+npx hardhat verify --network baseSepolia 0xf09cf1d4389A1Af11542F96280dc91739E866e74 "0x036CbD53842c5426634e7929541eC2318f3dCF7e" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
 # LeadNFTv2
-npx hardhat verify --network baseSepolia 0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4 `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+npx hardhat verify --network baseSepolia 0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4 "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
 # CREVerifier
-npx hardhat verify --network baseSepolia 0xfec22A5159E077d7016AAb5fC3E91e0124393af8 `
-  "0xf9B8fc078197181C841c296C876945aaa425B278" `
-  "0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000" `
-  3063 `
-  "0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4" `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+npx hardhat verify --network baseSepolia 0xfec22A5159E077d7016AAb5fC3E91e0124393af8 "0xf9B8FC078197181C841c296C876945aaa425B278" "0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000" 3063 "0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
 # VRFTieBreaker
-npx hardhat verify --network baseSepolia 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e `
-  "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE" `
-  <VRF_SUBSCRIPTION_ID> `
-  "0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71"
+npx hardhat verify --network baseSepolia 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e <VRF_SUBSCRIPTION_ID> "0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4"
 
 # RTBEscrow
-npx hardhat verify --network baseSepolia 0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2 `
-  "0x036CbD53842c5426634e7929541eC2318f3dCF7e" `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" `
-  250 `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+npx hardhat verify --network baseSepolia 0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2 "0x036CbD53842c5426634e7929541eC2318f3dCF7e" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" 250 "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
 # ACECompliance
-npx hardhat verify --network baseSepolia 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6 `
-  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+npx hardhat verify --network baseSepolia 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6
 ```
 
 > All contracts have exact-match source code published on Basescan as of 2026-02-21.
