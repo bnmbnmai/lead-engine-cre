@@ -67,7 +67,7 @@ describe("E2E Settlement — Full Lifecycle", function () {
 
         // 3. LeadNFTv2
         const NFT = await ethers.getContractFactory("LeadNFTv2");
-        leadNFT = await NFT.deploy(deployer.address);
+        leadNFT = await NFT.deploy(deployer.address, ethers.ZeroAddress);
         await leadNFT.waitForDeployment();
 
         // 4. RTBEscrow

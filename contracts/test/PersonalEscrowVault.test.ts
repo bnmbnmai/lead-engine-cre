@@ -35,6 +35,10 @@ describe("PersonalEscrowVault", function () {
         );
         await vault.waitForDeployment();
 
+        // Enable demo mode so lockForBid/settleBid bypass the hardcoded
+        // Base Sepolia Chainlink feed address (doesn't exist on Hardhat local network).
+        await vault.setDemoMode(true);
+
         // Authorize backend
         await vault.setAuthorizedCaller(backend.address, true);
 

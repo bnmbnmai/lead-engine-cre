@@ -37,7 +37,7 @@ describe("E2E Reorg Handling", function () {
         ace = await ACE.deploy(deployer.address);
 
         const NFT = await ethers.getContractFactory("LeadNFTv2");
-        leadNFT = await NFT.deploy(deployer.address);
+        leadNFT = await NFT.deploy(deployer.address, ethers.ZeroAddress);
 
         const MKT = await ethers.getContractFactory("Marketplace");
         marketplace = await MKT.deploy(

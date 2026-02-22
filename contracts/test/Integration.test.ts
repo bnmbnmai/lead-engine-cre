@@ -30,7 +30,7 @@ describe("Integration Tests", function () {
         aceCompliance = await ACEFactory.deploy(owner.address);
 
         const LeadNFTFactory = await ethers.getContractFactory("LeadNFTv2");
-        leadNFT = await LeadNFTFactory.deploy(owner.address);
+        leadNFT = await LeadNFTFactory.deploy(owner.address, ethers.ZeroAddress);
 
         const EscrowFactory = await ethers.getContractFactory("RTBEscrow");
         escrow = await EscrowFactory.deploy(

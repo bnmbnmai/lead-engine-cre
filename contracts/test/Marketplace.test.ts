@@ -63,7 +63,7 @@ describe("Marketplace", function () {
 
         // Deploy LeadNFTv2
         const LeadNFTFactory = await ethers.getContractFactory("LeadNFTv2");
-        leadNFT = await LeadNFTFactory.deploy(owner.address);
+        leadNFT = await LeadNFTFactory.deploy(owner.address, ethers.ZeroAddress);
         await leadNFT.waitForDeployment();
 
         // Deploy Marketplace

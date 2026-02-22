@@ -23,7 +23,7 @@ describe("LeadNFTv2", function () {
         [owner, seller, buyer, minter] = await ethers.getSigners();
 
         const LeadNFTv2Factory = await ethers.getContractFactory("LeadNFTv2");
-        leadNFT = await LeadNFTv2Factory.deploy(owner.address);
+        leadNFT = await LeadNFTv2Factory.deploy(owner.address, ethers.ZeroAddress);
         await leadNFT.waitForDeployment();
 
         // Authorize minter

@@ -33,7 +33,7 @@ describe("E2E Chainlink Stubs — CREVerifier", function () {
 
         // Deploy LeadNFTv2
         const NFT = await ethers.getContractFactory("LeadNFTv2");
-        leadNFT = await NFT.deploy(deployer.address);
+        leadNFT = await NFT.deploy(deployer.address, ethers.ZeroAddress);
         await leadNFT.waitForDeployment();
         await leadNFT.setAuthorizedMinter(deployer.address, true);
 
@@ -68,9 +68,16 @@ describe("E2E Chainlink Stubs — CREVerifier", function () {
             return Functions.encodeString(JSON.stringify({score: 7800}));
         `;
 
+        const zkSource = `
+            const tokenId = args[0];
+            const proof = args[1];
+            return Functions.encodeString(JSON.stringify({verified: true, tokenId: tokenId}));
+        `;
+
         await creVerifier.setSourceCode(0, paramSource);   // PARAMETER_MATCH
         await creVerifier.setSourceCode(1, geoSource);      // GEO_VALIDATION
         await creVerifier.setSourceCode(2, qualitySource);  // QUALITY_SCORE
+        await creVerifier.setSourceCode(3, zkSource);       // ZK_PROOF
     }
 
     async function mintTestLead() {
