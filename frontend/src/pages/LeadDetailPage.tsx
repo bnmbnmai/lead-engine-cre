@@ -305,8 +305,17 @@ export default function LeadDetailPage() {
     // (e.g. direct /lead/<id> navigations before the store is populated), in which
     // case we fall back to the API response (lead.status).
     const storeSlice = useAuctionStore((s) => (id ? s.leads.get(id) : undefined));
+    const forceRefreshLead = useAuctionStore((s) => s.forceRefreshLead);
     const storeIsClosed = storeSlice?.isClosed ?? false;
     const storeStatus = storeSlice?.status;   // 'SOLD' | 'UNSOLD' | 'IN_AUCTION' | undefined
+
+    // v5: On mount, force-fetch lead from API to reconcile store state.
+    // Fixes direct-navigation to /lead/:id on a SOLD/UNSOLD lead where store
+    // is empty and storeIsClosed defaults false (showing BidPanel/Buy-Now briefly).
+    useEffect(() => {
+        if (id) void forceRefreshLead(id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     // ─── Derived values ─────────────────────
     const geoDisplay = lead
@@ -320,6 +329,15 @@ export default function LeadDetailPage() {
     // For isSold / isUnsold: prefer store status, fall back to API
     const isSold = storeStatus === 'SOLD' || lead?.status === 'SOLD';
     const isUnsold = storeStatus === 'UNSOLD' || lead?.status === 'UNSOLD';
+
+    // v5: isAuctionEnded — lead loaded, not live, not in any buyer/escrow flow.
+    // Entire sidebar collapses to "Auction Ended" card, blocking all bid/buy actions.
+    const isAuctionEnded = !isLive && !isSold && !isUnsold && !!lead;
+
+    // v5: Buy-Now only available when UNSOLD and the expiry window hasn't passed.
+    const isAuctionStillBuyable = isUnsold && (
+        !lead?.expiresAt || new Date(lead.expiresAt).getTime() > Date.now()
+    );
 
     const reputationDisplay = lead?.seller
         ? `${(Number(lead.seller.reputationScore) / 100).toFixed(0)}%`
@@ -642,7 +660,7 @@ export default function LeadDetailPage() {
                                 )}
 
                                 {/* ── UNSOLD: Buy It Now sidebar ── */}
-                                {isUnsold && (
+                                {isAuctionStillBuyable && (
                                     <Card className="border-green-500/30">
                                         <CardContent className="p-6 space-y-5">
                                             <div>
@@ -865,12 +883,30 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
-                                {/* ── Generic SOLD/other for non-buyers ── */}
-                                {!isLive && !isUnsold && !(isSold && isBuyerViewing) && !(isSold && isSettlementPending) && (
+                                {/* ── Generic SOLD/UNSOLD-expired/other for non-buyers — v5 full-screen ended ── */}
+                                {isAuctionEnded && (
+                                    <Card className="border-border/50">
+                                        <CardContent className="p-6 text-center space-y-3">
+                                            <div className="mx-auto h-12 w-12 rounded-full bg-muted/50 flex items-center justify-center">
+                                                <Clock className="h-6 w-6 text-muted-foreground" />
+                                            </div>
+                                            <h2 className="text-base font-semibold">Auction Ended</h2>
+                                            <p className="text-xs text-muted-foreground">
+                                                This auction has concluded and the lead is no longer available for purchase.
+                                            </p>
+                                            <Button asChild variant="outline" size="sm" className="mt-2">
+                                                <Link to="/marketplace">Back to Marketplace</Link>
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                {/* SOLD non-buyer fallback */}
+                                {!isLive && !isUnsold && !isAuctionEnded && !(isSold && isBuyerViewing) && !(isSold && isSettlementPending) && (
                                     <Card>
                                         <CardContent className="p-5">
                                             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                                                {lead.status === 'SOLD' ? 'Lead Sold' : 'Auction Closed'}
+                                                {isSold ? 'Lead Sold' : 'Auction Closed'}
                                             </h2>
                                             <p className="text-xs text-muted-foreground mt-2">This lead is no longer available for purchase.</p>
                                         </CardContent>

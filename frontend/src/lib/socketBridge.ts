@@ -1,25 +1,17 @@
 /**
  * socketBridge.ts — Single global socket subscription
  *
- * Mount `useSocketBridge()` ONCE in App.tsx (inside GlobalOverlays or directly
- * in the App component). All marketplace socket events are handled here and
- * dispatched atomically to the Zustand auctionStore.
+ * Mount `useSocketBridge()` ONCE in App.tsx. All marketplace socket events
+ * are handled here and dispatched atomically to the Zustand auctionStore.
  *
- * This eliminates BUG-A (stale closures in per-page useSocketEvents) and
- * BUG-B (per-card listeners missing events for un-mounted cards).
- *
- * Events handled:
- *   marketplace:lead:new    → store.addLead()
- *   marketplace:bid:update  → store.updateBid()
- *   auction:updated         → store.updateBid()  (server-authoritative, drift-corrected)
- *   auction:closed          → store.closeLead()  (atomic — all cards freeze simultaneously)
- *   lead:status-changed     → store.closeLead()  if SOLD|UNSOLD
- *   leads:updated           → re-fetch active leads from REST API → store.bulkLoad()
- *
- * v4 addition:
- *   WS Heartbeat — emits a client-side 'ping' every 8 s to keep the WebSocket
- *   alive through load balancers / reverse proxies that drop idle connections
- *   during long demo runs. The socket.io server ignores unknown events.
+ * v5 changes:
+ *   - On reconnect, call forceRefreshLead() for ALL leads in the store
+ *     (not just bulkLoad of IN_AUCTION leads) — catches leads that closed
+ *     during the socket outage (they'd be SOLD/UNSOLD and not returned by
+ *     the ?status=IN_AUCTION query).
+ *   - After auction:closed and lead:status-changed, schedule a
+ *     forceRefreshLead() 1 s later to reconcile any race conditions between
+ *     the socket event and the DB write.
  */
 
 import { useEffect } from 'react';
@@ -56,7 +48,6 @@ export function useSocketBridge(): void {
                 leadId: data.leadId,
                 bidCount: data.bidCount,
                 highestBid: data.highestBid,
-                // marketplace:bid:update has no serverTs — no drift correction needed
             });
         });
 
@@ -65,7 +56,6 @@ export function useSocketBridge(): void {
             store().updateBid({
                 leadId: data.leadId,
                 remainingTime: data.remainingTime ?? undefined,
-                // serverTs from backend is now a number (ms epoch) — enables drift correction
                 serverTs: typeof data.serverTs === 'number' ? data.serverTs : undefined,
                 bidCount: data.bidCount,
                 highestBid: data.highestBid ?? undefined,
@@ -76,40 +66,43 @@ export function useSocketBridge(): void {
         const unsubClosed = socketClient.on('auction:closed', (data) => {
             if (!data?.leadId) return;
             store().closeLead(data.leadId, data.status === 'SOLD' ? 'SOLD' : 'UNSOLD');
+            // v5: belt-and-suspenders — force API reconcile 1 s later in case socket
+            // arrived before DB write completed (race condition on fast auction ends)
+            setTimeout(() => void store().forceRefreshLead(data.leadId), 1_000);
         });
 
         const unsubStatusChanged = socketClient.on('lead:status-changed', (data: any) => {
             if (!data?.leadId) return;
             if (data.newStatus === 'SOLD' || data.newStatus === 'UNSOLD') {
-                // Deduplicated by store.closeLead's idempotency check
                 store().closeLead(data.leadId, data.newStatus);
+                setTimeout(() => void store().forceRefreshLead(data.leadId), 1_000);
             }
         });
 
         const unsubLeadsUpdated = socketClient.on('leads:updated', (_data: any) => {
-            // Backend signals replenishment complete — refresh store from API
             void fetchAndBulkLoad();
         });
 
-        // ── v4: 8-second heartbeat ping ────────────────────────────────────────
-        // Keeps the WebSocket alive through load balancers / reverse proxies that
-        // silently drop idle connections during long (30-min) demo runs.
-        // socket.io server ignores unknown events — this is purely a transport keepalive.
+        // ── v4/v5: 8-second heartbeat ───────────────────────────────────────────
+        // On disconnect: forceRefreshLead for ALL known leads (not just IN_AUCTION
+        // bulk-fetch) so leads that closed during the outage get their final status.
         const heartbeatInterval = setInterval(() => {
             const rawSocket = socketClient.getSocket();
             if (rawSocket?.connected) {
                 rawSocket.emit('ping');
             } else if (rawSocket && !rawSocket.connected) {
-                // Socket exists but disconnected — trigger reconnect immediately
                 if (import.meta.env.DEV) {
                     console.warn('[socketBridge] heartbeat: socket disconnected, reconnecting…');
                 }
                 socketClient.reconnect();
-                // After reconnect, do a full refresh so nothing was missed during the gap
+                // Full refresh: bulkLoad for live leads + forceRefresh for every known lead
                 void fetchAndBulkLoad();
+                const knownLeadIds = Array.from(store().leads.keys());
+                for (const leadId of knownLeadIds) {
+                    void store().forceRefreshLead(leadId);
+                }
             }
         }, 8_000);
-        // ───────────────────────────────────────────────────────────────────────
 
         return () => {
             unsubNew();

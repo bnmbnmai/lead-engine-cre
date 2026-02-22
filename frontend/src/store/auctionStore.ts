@@ -109,6 +109,13 @@ interface AuctionStoreState {
     removeLead: (leadId: string) => void;
     /** Get ordered list of ALL leads (live + recently closed) for rendering */
     getOrderedLeads: () => LeadSlice[];
+    /**
+     * Force-fetch a single lead from the REST API and reconcile store state.
+     * Called: (a) on socketBridge reconnect for all known leads, (b) on auction:closed
+     * to guarantee the status/isClosed is correct even if the socket event was raced.
+     * Non-fatal: if the API call fails, the existing store state is preserved.
+     */
+    forceRefreshLead: (leadId: string) => Promise<void>;
 }
 
 // ─── Debug helper ────────────────────────────────────────────────────────────
@@ -168,19 +175,23 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 // If previously closed but API re-broadcast it as IN_AUCTION — treat as re-listed
                 if (lead.status !== 'IN_AUCTION') return state;
             }
+            const isActuallyLive = lead.status === 'IN_AUCTION';
             const slice: LeadSlice = {
                 ...lead,
-                isClosed: false,
+                // v5 fix: respect status when setting isClosed on addLead.
+                // Previously always false, which let SOLD leads added via marketplace:lead:new
+                // show as live.
+                isClosed: !isActuallyLive,
                 isSealed: false,
                 liveBidCount: null,
                 liveHighestBid: null,
-                liveRemainingMs: lead.auctionEndAt
+                liveRemainingMs: isActuallyLive && lead.auctionEndAt
                     ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now())
-                    : null,
+                    : 0,
             };
             const leads = new Map(state.leads);
             leads.set(lead.id, slice);
-            dbg('addLead', lead.id, 'auctionEndAt=', lead.auctionEndAt);
+            dbg('addLead', lead.id, 'auctionEndAt=', lead.auctionEndAt, 'isClosed=', slice.isClosed);
             return {
                 leads,
                 leadOrder: [lead.id, ...state.leadOrder.filter(id => id !== lead.id)],
@@ -319,5 +330,30 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             if (lead) result.push(lead);
         }
         return result;
+    },
+
+    async forceRefreshLead(leadId: string) {
+        // Derive API base from env — mirrors the fetchAndBulkLoad pattern in socketBridge
+        const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+        try {
+            const res = await fetch(`${apiBase}/api/v1/leads/${leadId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const lead = data?.lead ?? data; // endpoint may wrap or return directly
+            if (!lead?.id) return;
+
+            const { closeLead, bulkLoad } = get();
+            if (lead.status === 'SOLD') {
+                closeLead(lead.id, 'SOLD');
+            } else if (lead.status === 'UNSOLD') {
+                closeLead(lead.id, 'UNSOLD');
+            } else if (lead.status === 'IN_AUCTION') {
+                // Lead is still live — merge into store to keep static fields fresh
+                bulkLoad([lead]);
+            }
+            dbg('forceRefreshLead', leadId, 'resolved status=', lead.status);
+        } catch {
+            dbg('forceRefreshLead', leadId, 'fetch failed (non-fatal)');
+        }
     },
 }));
