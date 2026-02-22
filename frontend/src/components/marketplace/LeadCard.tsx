@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { formatCurrency, formatTimeRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
-import socketClient from '@/lib/socket';
-
+import { useAuctionStore } from '@/store/auctionStore';
 
 interface Lead {
     id: string;
@@ -45,36 +44,53 @@ interface LeadCardProps {
     isAuthenticated?: boolean;
     /** Real-time floor price from Chainlink Data Feeds */
     floorPrice?: number | null;
-    /** Temporary feedback when an auction ends — 'UNSOLD' or 'SOLD' */
+    /** Temporary feedback when an auction ends — 'UNSOLD' or 'SOLD' (from Zustand store) */
     auctionEndFeedback?: 'UNSOLD' | 'SOLD';
 }
 
 export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, floorPrice, auctionEndFeedback }: LeadCardProps) {
     const { openConnectModal } = useConnectModal();
 
-    // ── AUCTION-SYNC: server-authoritative state ──
-    // KEY FIX: isClosed starts FALSE. The card is always shown as live
-    // (if status===IN_AUCTION) until the server explicitly sends auction:closed.
-    // Do NOT initialise from lead.status here ─ that would freeze cards that
-    // arrive in the list while still in auction (e.g. rehydrated from DB).
-    const [isClosed, setIsClosed] = useState(false);
-    const [remainingMs, setRemainingMs] = useState<number | null>(
-        lead.auctionEndAt ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now()) : null
-    );
-    // Live bid counters updated per auction:updated (so card updates without re-render from parent)
-    const [liveBidCount, setLiveBidCount] = useState<number | null>(null);
-    const [isSealed, setIsSealed] = useState(false); // 5-second sealed-bid window
+    // ── Read live auction state from Zustand store ──────────────────────────
+    // The global socketBridge (mounted in App.tsx) maintains this store for ALL cards.
+    // No per-card socket listeners needed — eliminates BUG-B (missed events off-screen).
+    const storeSlice = useAuctionStore((s) => s.leads.get(lead.id));
 
-    const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
+    const isClosed = storeSlice?.isClosed ?? (lead.status !== 'IN_AUCTION');
+    const isSealed = storeSlice?.isSealed ?? false;
+    const liveBidCount = storeSlice?.liveBidCount ?? null;
+    // liveRemainingMs from store is clock-drift-corrected; fall back to local auctionEndAt calc
+    const storeRemainingMs = storeSlice?.liveRemainingMs ?? null;
+
     const isLive = !isClosed && lead.status === 'IN_AUCTION';
     const phaseLabel = getPhaseLabel(lead.status);
+    const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
 
-    // Local countdown — ticks every second; stopped immediately when isClosed
+    // Bid button is disabled when auction is closed or in sealed phase
+    const bidDisabled = isClosed || isSealed;
+
+    // ── Local countdown (visual only — ticks every second) ─────────────────
     const [timeLeft, setTimeLeft] = useState<string | null>(
         lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null
     );
+    const [remainingMs, setRemainingMs] = useState<number | null>(
+        storeRemainingMs ?? (lead.auctionEndAt ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now()) : null)
+    );
     const [progress, setProgress] = useState<number | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Sync remainingMs from store when it updates (drift-corrected from server)
+    useEffect(() => {
+        if (storeRemainingMs != null) setRemainingMs(storeRemainingMs);
+    }, [storeRemainingMs]);
+
+    // Stop countdown immediately when store marks card as closed
+    useEffect(() => {
+        if (isClosed) {
+            setRemainingMs(0);
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+    }, [isClosed]);
 
     useEffect(() => {
         if (!isLive || !lead.auctionEndAt) {
@@ -104,59 +120,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
         };
     }, [isLive, lead.auctionEndAt, lead.auctionStartAt]);
 
-    // ── AUCTION-SYNC: Socket event listeners ──
-    // These now use proper types (no as-any) because socket.ts ALL_EVENTS includes them.
-    useEffect(() => {
-        // auction:updated — re-baseline remaining time + update live counters on every bid
-        const unsubUpdated = socketClient.on('auction:updated', (data) => {
-            if (data?.leadId !== lead.id) return;
-            console.debug('[auction:updated] card', lead.id, data);
-            if (data.remainingTime != null) setRemainingMs(data.remainingTime);
-            if (data.bidCount != null) setLiveBidCount(data.bidCount);
-            if (data.isSealed != null) setIsSealed(data.isSealed);
-        });
-
-        // auction:closed — immediately freeze the card regardless of local timer
-        const unsubClosed = socketClient.on('auction:closed', (data) => {
-            if (data?.leadId !== lead.id) return;
-            console.debug('[auction:closed] card', lead.id, data);
-            setIsClosed(true);
-            setRemainingMs(0);
-            setIsSealed(false);
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        });
-
-        return () => {
-            unsubUpdated();
-            unsubClosed();
-        };
-    }, [lead.id]);
-
-    // ── AUCTION-SYNC: Polling fallback (5s) when socket disconnected ──
-    useEffect(() => {
-        if (!isLive || isClosed) return;
-        const poll = async () => {
-            if (socketClient.isConnected()) return; // socket live — skip poll
-            try {
-                const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-                const res = await fetch(`${baseUrl}/api/v1/leads/${lead.id}/auction-state`);
-                if (!res.ok) return;
-                const state = await res.json();
-                console.debug('[auction-state:poll]', lead.id, state);
-                if (state.isClosed) {
-                    setIsClosed(true);
-                    setRemainingMs(0);
-                    if (intervalRef.current) clearInterval(intervalRef.current);
-                } else if (state.remainingTime != null) {
-                    setRemainingMs(state.remainingTime);
-                }
-                if (state.bidCount != null) setLiveBidCount(state.bidCount);
-            } catch { /* no-op */ }
-        };
-        const pollInterval = setInterval(poll, 5_000);
-        return () => clearInterval(pollInterval);
-    }, [isLive, isClosed, lead.id]);
-
     // Animated bid counter — pulse on change
     const prevBidCount = useRef(effectiveBidCount);
     const [bidPulse, setBidPulse] = useState(false);
@@ -171,13 +134,10 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
         prevBidCount.current = effectiveBidCount;
     }, [effectiveBidCount]);
 
-
-
-
     return (
         <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
-                {/* Auction End Feedback Overlay (from parent 8s timer) */}
+                {/* Auction End Feedback Overlay (from Zustand store 8s timer) */}
                 {auctionEndFeedback && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 animate-pulse ${auctionEndFeedback === 'SOLD'
                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
@@ -187,20 +147,20 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
                     </div>
                 )}
-                {/* AUCTION-SYNC: isClosed overlay — shown the instant server emits auction:closed */}
+                {/* isClosed overlay — shown the instant server emits auction:closed */}
                 {isClosed && !auctionEndFeedback && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 bg-gray-500/15 text-gray-400 border border-gray-500/30">
                         <Clock className="h-3.5 w-3.5" />
                         Auction Ended
                     </div>
                 )}
-                {/* AUCTION-SYNC: 🔒 SEALED banner — backend still accepts bids but window is closing */}
+                {/* 🔒 SEALED banner — server accepted last bid, resolving winner */}
                 {isLive && isSealed && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-bold animate-pulse mb-3">
                         🔒 Sealed — bids locked, resolving winner…
                     </div>
                 )}
-                {/* AUCTION-SYNC: ⚠️ Closing imminently banner (≤10 s) — not sealed yet */}
+                {/* ⚠️ Closing imminently banner (≤10 s, not yet sealed) */}
                 {isLive && !isSealed && remainingMs !== null && remainingMs > 0 && remainingMs <= 10_000 && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold animate-pulse mb-3">
                         🔒 Closing in {Math.ceil(remainingMs / 1000)}s — place final bids now
@@ -282,7 +242,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 </span>
                             </Tooltip>
                         ) : null}
-                        {/* TEE badge — visible only when score enriched by CHTT fraud-signal workflow */}
+                        {/* TEE badge */}
                         {lead.chttEnriched && (
                             <Tooltip content="Quality score enriched by Chainlink Confidential HTTP inside a Trusted Execution Environment (TEE). External fraud signals (phone validation, email hygiene, conversion propensity) processed securely in enclave without exposing any PII.">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-widest border bg-violet-500/25 text-violet-300 border-violet-500/50 cursor-help uppercase shadow-sm shadow-violet-500/20">
@@ -293,8 +253,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         {lead.isVerified && (
                             <Tooltip content={lead.chttEnriched
                                 ? 'Lead data verified on-chain via Chainlink CRE oracle network + Confidential HTTP TEE enrichment.'
-                                : 'Lead data verified on-chain via Chainlink CRE oracle network.'}
-                            >
+                                : 'Lead data verified on-chain via Chainlink CRE oracle network.'}>
                                 <span className="cursor-help">
                                     <ChainlinkBadge size="sm" />
                                 </span>
@@ -374,7 +333,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         {floorPrice != null && (
                             <Tooltip content="Chainlink Data Feeds — real-time market floor for this vertical">
                                 <div className={`flex items-center gap-1 text-[11px] mt-0.5 cursor-help ${floorPrice > lead.reservePrice
-                                    ? 'text-amber-400' // Underpriced — floor above reserve
+                                    ? 'text-amber-400'
                                     : 'text-muted-foreground'
                                     }`}>
                                     <TrendingUp className="h-3 w-3" />
@@ -386,7 +345,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
 
                     {showBidButton && isLive && (
                         <div className="flex items-center gap-2">
-
                             <Button asChild size="sm" variant="outline">
                                 <Link to={`/lead/${lead.id}`}>
                                     <Eye className="h-3.5 w-3.5 mr-1" />
@@ -395,14 +353,19 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             </Button>
 
                             {isAuthenticated ? (
-                                <>
-
-                                    <Button asChild size="sm" variant="gradient">
-                                        <Link to={`/auction/${lead.id}`}>
-                                            Place Bid
-                                        </Link>
-                                    </Button>
-                                </>
+                                <Button
+                                    asChild={!bidDisabled}
+                                    size="sm"
+                                    variant="gradient"
+                                    disabled={bidDisabled}
+                                    aria-disabled={bidDisabled}
+                                >
+                                    {bidDisabled ? (
+                                        <span>{isSealed ? '🔒 Sealed' : 'Ended'}</span>
+                                    ) : (
+                                        <Link to={`/auction/${lead.id}`}>Place Bid</Link>
+                                    )}
+                                </Button>
                             ) : (
                                 <Button
                                     size="sm"
@@ -428,7 +391,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     )}
                 </div>
             </CardContent>
-        </Card >
+        </Card>
     );
 }
 

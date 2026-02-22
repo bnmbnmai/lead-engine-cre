@@ -39,6 +39,7 @@ import { AgentChatWidget } from '@/components/agent/AgentChatWidget';
 import { Toaster } from '@/components/ui/Toaster';
 import { ErrorDialog } from '@/components/ui/ErrorDialog';
 import useAuth from '@/hooks/useAuth';
+import { useSocketBridge } from '@/lib/socketBridge';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -152,6 +153,10 @@ export default App;
 /** Hide DemoPanel + AgentChatWidget on public hosted landers (/f/*) */
 function GlobalOverlays() {
     const { pathname } = useLocation();
+    // Mount the global socket bridge here so it lives for the app's full lifetime.
+    // All marketplace:lead:new, auction:updated, auction:closed, leads:updated events
+    // are dispatched to the Zustand auctionStore from this single subscription.
+    useSocketBridge();
     if (pathname.startsWith('/f/')) return null;
     return (
         <>

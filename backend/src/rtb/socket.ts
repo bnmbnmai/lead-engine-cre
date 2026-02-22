@@ -405,7 +405,7 @@ class RTBSocketServer {
                         this.io.emit('auction:updated', {
                             leadId: data.leadId,
                             remainingTime,
-                            serverTs: new Date().toISOString(),
+                            serverTs: Date.now(),   // ms epoch — frontend subtracts this for drift correction
                             bidCount: updatedBidCount,
                             highestBid: updatedHighestBid,
                             isSealed,

@@ -71,7 +71,7 @@ type AuctionEventHandler = {
     'auction:updated': (data: {
         leadId: string;
         remainingTime: number | null;
-        serverTs: string;
+        serverTs: number;          // ms epoch (Date.now()) — enables clock-drift correction
         bidCount: number;
         highestBid: number | null;
         isSealed?: boolean;   // true for the final 5 s sealed-bid window
@@ -83,12 +83,15 @@ type AuctionEventHandler = {
         status: 'SOLD' | 'UNSOLD';
         remainingTime: 0;
         isClosed: true;
-        serverTs: string;
+        serverTs: number;          // ms epoch
         winnerId?: string;
         winningAmount?: number;
         settleTxHash?: string;
         finalBids?: { buyerId: string; amount: number | null; status: string }[];
     }) => void;
+    // leads:updated — backend signals that new leads were injected / replenishment ran.
+    // socketBridge re-fetches active leads from REST API on receipt.
+    'leads:updated': (data: { activeCount?: number }) => void;
 };
 
 // All events forwarded from raw socket → this.listeners Map.
@@ -121,6 +124,7 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     // ── AUCTION-SYNC: must be here or setupEventForwarding() silently drops them ──
     'auction:updated',
     'auction:closed',
+    'leads:updated',
 ];
 
 // ============================================

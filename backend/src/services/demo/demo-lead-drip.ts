@@ -219,6 +219,14 @@ export async function injectOneLead(
         },
     });
 
+    // BUG-D fix: signal all tabs that a new lead is available so socketBridge
+    // triggers a bulk-refresh from the REST API, eliminating the "Active leads: 0"
+    // gap that appeared when the drip delay caused IN_AUCTION count to hit 0.
+    const activeCount = await prisma.lead.count({
+        where: { status: 'IN_AUCTION', auctionEndAt: { gt: new Date() } },
+    });
+    io.emit('leads:updated', { activeCount });
+
     // Kick off staggered buyer bids for this lead (non-blocking, fire-and-forget)
     _scheduleBuyerBids(io, lead.id, vertical, qualityScore ?? 0, reservePrice, lead.auctionEndAt!);
 }

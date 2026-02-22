@@ -766,21 +766,6 @@ export async function runFullDemo(
                 if (vrfTxHashForCycle) { vrfProofLinks.push(`https://sepolia.basescan.org/tx/${vrfTxHashForCycle}`); }
                 emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this cycle (5% fee: $${cyclePlatformFee.toFixed(2)} + ${lockIds.length} × $1 lock fees)`, cycle, totalCycles: cycles });
 
-                // AUCTION-SYNC: closed broadcast for SOLD path
-                if (demoLeadId) {
-                    io.emit('auction:closed', {
-                        leadId: demoLeadId,
-                        status: 'SOLD',
-                        winnerId: buyerWallet,
-                        winningAmount: bidAmount,
-                        settleTxHash: settleReceiptHash,
-                        remainingTime: 0,
-                        isClosed: true,
-                        serverTs: new Date().toISOString(),
-                    });
-                    console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} winner=${buyerWallet} amount=${bidAmount} tx=${settleReceiptHash}`);
-                }
-
                 // Refund losers
                 for (let r = 1; r < lockIds.length; r++) {
                     if (signal.aborted) throw new Error('Demo aborted');
@@ -798,6 +783,22 @@ export async function runFullDemo(
                     refundTxHashes.push(refundReceipt.hash);
 
                     await sleep(300);
+                }
+
+                // AUCTION-SYNC (BUG-C fix): auction:closed emitted AFTER refund loop —
+                // frontend receives final closed state only when all DB writes are complete.
+                if (demoLeadId) {
+                    io.emit('auction:closed', {
+                        leadId: demoLeadId,
+                        status: 'SOLD',
+                        winnerId: buyerWallet,
+                        winningAmount: bidAmount,
+                        settleTxHash: settleReceiptHash,
+                        remainingTime: 0,
+                        isClosed: true,
+                        serverTs: Date.now(),  // ms epoch
+                    });
+                    console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} winner=${buyerWallet} amount=${bidAmount} tx=${settleReceiptHash}`);
                 }
 
             } catch (vaultErr: any) {
@@ -861,7 +862,7 @@ export async function runFullDemo(
                         status: 'UNSOLD',
                         remainingTime: 0,
                         isClosed: true,
-                        serverTs: new Date().toISOString(),
+                        serverTs: Date.now(),  // ms epoch
                     });
                     console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (BuyItNow fallback)`);
                 }
