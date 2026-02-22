@@ -56,20 +56,20 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     // No per-card socket listeners needed — eliminates BUG-B (missed events off-screen).
     const storeSlice = useAuctionStore((s) => s.leads.get(lead.id));
 
-    // Authoritative closed flag: store wins over prop (store updated by socket)
-    // v6: also close from local clock if auctionEndAt already in the past — ensures
-    // the card goes grey immediately when time runs out, even if auction:closed
-    // hasn't arrived yet (network latency / on-chain tx delay).
+    // ── v7: Pure server-authoritative phase machine ─────────────────────────
+    // auctionPhase is driven exclusively by socket events — no local-clock guards.
+    // isClosed = phase === 'closed'  (set by closeLead action).
+    // isLive = phase === 'live' || phase === 'closing-soon'
+    const auctionPhase = storeSlice?.auctionPhase ?? (lead.status === 'IN_AUCTION' ? 'live' : 'closed');
+    const isClosed = auctionPhase === 'closed';
+    const isClosingSoon = auctionPhase === 'closing-soon';
+    const isLive = !isClosed;  // live || closing-soon both allow bidding
     const effectiveStatus = storeSlice?.status ?? lead.status;
-    const isClosed = (storeSlice?.isClosed ?? (lead.status !== 'IN_AUCTION')) ||
-        (!!lead.auctionEndAt && new Date(lead.auctionEndAt).getTime() <= Date.now());
     const isSealed = storeSlice?.isSealed ?? false;
     const liveBidCount = storeSlice?.liveBidCount ?? null;
-    // liveRemainingMs from store is clock-drift-corrected; fall back to local auctionEndAt calc
+    // liveRemainingMs from store is clock-drift-corrected via serverTs; visual-only
     const storeRemainingMs = storeSlice?.liveRemainingMs ?? null;
-
-    const isLive = !isClosed && effectiveStatus === 'IN_AUCTION';
-    const phaseLabel = getPhaseLabel(lead.status);
+    const phaseLabel = getPhaseLabel(effectiveStatus);
     const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
 
     // ── Local countdown (visual only — ticks every second) ─────────────────
@@ -139,8 +139,11 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
 
     return (
         <Card
-            data-auction-state={isLive ? 'live' : isClosed ? 'ended' : 'pending'}
-            className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
+            data-auction-state={auctionPhase}
+            className={`group transition-all duration-500
+                ${isClosingSoon ? 'border-amber-500/70 ring-1 ring-amber-500/30 animate-pulse' : isLive ? 'border-blue-500/50 glow-ready' : ''}
+                ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''}
+                active:scale-[0.98]`}>
             <CardContent className="p-6">
                 {/* Auction End Feedback Overlay (from Zustand store 8s timer) */}
                 {auctionEndFeedback && (

@@ -306,7 +306,11 @@ export default function LeadDetailPage() {
     // case we fall back to the API response (lead.status).
     const storeSlice = useAuctionStore((s) => (id ? s.leads.get(id) : undefined));
     const forceRefreshLead = useAuctionStore((s) => s.forceRefreshLead);
-    const storeIsClosed = storeSlice?.isClosed ?? false;
+    // v7: auctionPhase is the sole authoritative source — no local-clock fallback.
+    // If storeSlice is absent (direct /lead/:id navigation before store populated),
+    // fall back to API status. forceRefreshLead on mount populates the store within ~200 ms.
+    const auctionPhase = storeSlice?.auctionPhase ?? (lead?.status === 'IN_AUCTION' ? 'live' : 'closed');
+    const storeIsClosed = auctionPhase === 'closed';
     const storeStatus = storeSlice?.status;   // 'SOLD' | 'UNSOLD' | 'IN_AUCTION' | undefined
 
     // v5: On mount, force-fetch lead from API to reconcile store state.
@@ -322,23 +326,18 @@ export default function LeadDetailPage() {
         ? [lead.geo?.city, lead.geo?.state, lead.geo?.country].filter(Boolean).join(', ') || 'Nationwide'
         : '';
 
-    // isLive: auction active ONLY if API says IN_AUCTION AND store does NOT say closed
-    // AND auction end time hasn't passed on the local clock.
-    // v6: local clock guard eliminates BidPanel flash on direct /lead/:id navigation
-    // when storeSlice is absent but auctionEndAt is already in the past.
-    const pastEndTime = !!lead?.auctionEndAt &&
-        new Date(lead.auctionEndAt).getTime() <= Date.now();
-    const isLive = lead?.status === 'IN_AUCTION' && !storeIsClosed && !pastEndTime;
+    // v7: isLive driven by auctionPhase — no local clock used
+    // 'live' or 'closing-soon' both mean bidding is still open.
+    const isLive = auctionPhase !== 'closed' && lead?.status === 'IN_AUCTION';
     // For isSold / isUnsold: prefer store status, fall back to API
     const isSold = storeStatus === 'SOLD' || lead?.status === 'SOLD';
     const isUnsold = storeStatus === 'UNSOLD' || lead?.status === 'UNSOLD';
 
-    // v5: isAuctionEnded — lead loaded, not live, not in any buyer/escrow flow.
-    // Entire sidebar collapses to "Auction Ended" card, blocking all bid/buy actions.
-    const isAuctionEnded = !isLive && !isSold && !isUnsold && !!lead;
+    // isAuctionEnded: lead loaded, phase closed, not in buyer/escrow flow
+    const isAuctionEnded = storeIsClosed && !isSold && !isUnsold && !!lead;
 
-    // v5: Buy-Now only available when UNSOLD and the expiry window hasn't passed.
-    const isAuctionStillBuyable = isUnsold && (
+    // Buy-Now: UNSOLD + expiry window not passed + phase not 'closed'
+    const isAuctionStillBuyable = isUnsold && !storeIsClosed && (
         !lead?.expiresAt || new Date(lead.expiresAt).getTime() > Date.now()
     );
 

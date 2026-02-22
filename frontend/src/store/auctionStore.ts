@@ -1,32 +1,38 @@
 /**
  * auctionStore.ts — Zustand global auction state store
  *
- * Single source of truth for all live lead/auction UI state.
- * Populated by socketBridge.ts (one global subscription at App level).
- * LeadCard and HomePage read from here — zero per-card socket listeners.
+ * v7 GOLDEN STANDARD: Pure server-authoritative phase machine.
  *
- * Clock-drift correction:
+ * `auctionPhase` is the SOLE source of truth for card state.
+ * It is driven exclusively by server socket events — never by local clock.
+ *
+ *   'live'          → auction running, Place Bid enabled
+ *   'closing-soon'  → ≤10 s remaining (server-reported), pulsing countdown
+ *   'closed'        → auction ended (server confirmed), greyed card, no action
+ *
+ * isClosed = auctionPhase === 'closed'
+ *
+ * Removal of all local-clock guards (v6 regression) was intentional:
+ * they introduced inconsistency because Date.now() varies per-client.
+ * The server is the authoritative clock.
+ *
+ * Clock-drift correction (preserved from v5/v6):
  *   effectiveRemaining = serverRemainingMs − (Date.now() − serverTs)
- * This compensates for network latency so all clients converge on the
- * same countdown regardless of when the packet arrived.
+ * Used ONLY for the visual countdown; never for phase transitions.
  *
  * 45-second grace period:
- *   When `closeLead` is called, the lead stays in the store (isClosed=true)
- *   for 45 seconds before being evicted. This guarantees the card remains
- *   visible with a disabled "View Details" button across all tabs even if
- *   subsequent API refetches only return IN_AUCTION leads.
+ *   When `closeLead` fires, the lead stays in store (phase='closed')
+ *   for 45 seconds before eviction — keeps the "ended" card visible.
  *
- * Debug: window.__AUCTION_DEBUG__ = true  (or import.meta.env.DEV)
- * Every store action prints:
- *   [store:addLead]     <id>  auctionEndAt=…
- *   [store:updateBid]   <id>  remaining=…ms  bidCount=…  isSealed=…
- *   [store:closeLead]   <id>  status=SOLD|UNSOLD
- *   [store:removeLead]  <id>  (45s grace expired)
+ * Debug: window.__AUCTION_DEBUG__ = true
  */
 
 import { create } from 'zustand';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+
+/** v7: Server-authoritative phase. Drives isClosed and all button rendering. */
+export type AuctionPhase = 'live' | 'closing-soon' | 'closed';
 
 export interface LeadSlice {
     id: string;
@@ -52,12 +58,15 @@ export interface LeadSlice {
         reputationScore: number;
         isVerified: boolean;
     };
-    // Live auction state (updated by socket)
+    // ── Live auction state (updated by socket) ───────────────────────────────
+    /** v7: Server-authoritative phase — sole driver of isClosed / button rendering */
+    auctionPhase: AuctionPhase;
+    /** Derived convenience flag: true only when phase === 'closed' */
     isClosed: boolean;
     isSealed: boolean;
     liveBidCount: number | null;
     liveHighestBid: number | null;
-    /** Server-corrected remaining ms — updated on every auction:updated */
+    /** Server-corrected remaining ms — for visual countdown only, NOT for phase */
     liveRemainingMs: number | null;
     /** Timestamp when this lead was closed (ms epoch) — used for 45s grace */
     closedAt?: number;
@@ -76,53 +85,26 @@ interface AuctionStoreState {
     /** Insertion-order IDs for stable list rendering (includes recentlyClosed) */
     leadOrder: string[];
 
-    // ── Actions ─────────────────────────────────────────────────────────────
-    /**
-     * Add a new lead (from marketplace:lead:new or API bulk-load).
-     * Idempotent: if the lead already exists and is NOT closed, it is not overwritten.
-     * If it was closed (stale data from API), preserve the closed state.
-     */
-    addLead: (lead: Omit<LeadSlice, 'isClosed' | 'isSealed' | 'liveBidCount' | 'liveHighestBid' | 'liveRemainingMs'>) => void;
-    /**
-     * Bulk-load leads from an API response (used by HomePage on mount/refetch).
-     * Merges with existing store — does not wipe closed/sealed leads (45s grace).
-     */
+    // ── Actions ──────────────────────────────────────────────────────────────
+    addLead: (lead: Omit<LeadSlice, 'isClosed' | 'isSealed' | 'liveBidCount' | 'liveHighestBid' | 'liveRemainingMs' | 'auctionPhase'>) => void;
     bulkLoad: (leads: any[]) => void;
-    /**
-     * Update bid state for a lead from auction:updated or marketplace:bid:update.
-     * Applies clock-drift correction using serverTs (ms epoch from backend).
-     */
     updateBid: (data: {
         leadId: string;
         remainingTime?: number | null;
-        serverTs?: number;   // ms epoch — for drift correction
+        serverTs?: number;
         bidCount?: number;
         highestBid?: number | null;
         isSealed?: boolean;
     }) => void;
     /**
-     * Mark a lead as closed. Keeps it in the store for 45 seconds (grace period)
-     * so the card remains visible with a disabled button. Removes after grace.
+     * v7: Set phase to 'closing-soon' when server emits auction:closing-soon.
+     * No isClosed change — card stays fully interactive but shows urgency.
      */
+    setClosingSoon: (leadId: string) => void;
     closeLead: (leadId: string, status: AuctionEndFeedback) => void;
-    /** Remove a lead from the store entirely (called automatically after grace period) */
     removeLead: (leadId: string) => void;
-    /** Get ordered list of ALL leads (live + recently closed) for rendering */
     getOrderedLeads: () => LeadSlice[];
-    /**
-     * Force-fetch a single lead from the REST API and reconcile store state.
-     * Called: (a) on socketBridge reconnect for all known leads, (b) on auction:closed
-     * to guarantee the status/isClosed is correct even if the socket event was raced.
-     * Non-fatal: if the API call fails, the existing store state is preserved.
-     */
     forceRefreshLead: (leadId: string) => Promise<void>;
-    /**
-     * v6: Instantly mark a lead closed from local clock (zero latency), then confirm
-     * final status (SOLD/UNSOLD) via REST API in the background.
-     * Called by socketBridge when auction:updated.remainingTime <= 0 and on heartbeat
-     * stale-lead scan. Different from forceRefreshLead which only does the API call.
-     */
-    forceReconcileLead: (leadId: string) => Promise<void>;
 }
 
 // ─── Debug helper ────────────────────────────────────────────────────────────
@@ -137,6 +119,9 @@ function dbg(action: string, ...args: unknown[]) {
 // ─── Conversion helper ───────────────────────────────────────────────────────
 
 function apiLeadToSlice(lead: any): LeadSlice {
+    // v7: phase is always 'live' on API read — phase transitions come from socket only.
+    // The one exception: non-IN_AUCTION statuses start as 'closed'.
+    const phase: AuctionPhase = lead.status === 'IN_AUCTION' ? 'live' : 'closed';
     return {
         id: lead.id,
         vertical: lead.vertical,
@@ -156,10 +141,8 @@ function apiLeadToSlice(lead: any): LeadSlice {
         auctionRoom: lead.auctionRoom,
         parameters: lead.parameters,
         seller: lead.seller,
-        // v6: also close if auctionEndAt already in the past — catches IN_AUCTION leads
-        // whose timer expired before resolveExpiredAuctions ran on the backend.
-        isClosed: lead.status !== 'IN_AUCTION' ||
-            (!!lead.auctionEndAt && new Date(lead.auctionEndAt).getTime() <= Date.now()),
+        auctionPhase: phase,
+        isClosed: phase === 'closed',
         isSealed: false,
         liveBidCount: null,
         liveHighestBid: null,
@@ -180,17 +163,14 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         set((state) => {
             const existing = state.leads.get(lead.id);
             if (existing) {
-                // If already known — only overwrite if both are open (avoid resurrecting a closed lead)
                 if (!existing.isClosed) return state;
-                // If previously closed but API re-broadcast it as IN_AUCTION — treat as re-listed
                 if (lead.status !== 'IN_AUCTION') return state;
             }
             const isActuallyLive = lead.status === 'IN_AUCTION';
+            const phase: AuctionPhase = isActuallyLive ? 'live' : 'closed';
             const slice: LeadSlice = {
                 ...lead,
-                // v5 fix: respect status when setting isClosed on addLead.
-                // Previously always false, which let SOLD leads added via marketplace:lead:new
-                // show as live.
+                auctionPhase: phase,
                 isClosed: !isActuallyLive,
                 isSealed: false,
                 liveBidCount: null,
@@ -201,7 +181,7 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             };
             const leads = new Map(state.leads);
             leads.set(lead.id, slice);
-            dbg('addLead', lead.id, 'auctionEndAt=', lead.auctionEndAt, 'isClosed=', slice.isClosed);
+            dbg('addLead', lead.id, 'phase=', phase, 'auctionEndAt=', lead.auctionEndAt);
             return {
                 leads,
                 leadOrder: [lead.id, ...state.leadOrder.filter(id => id !== lead.id)],
@@ -219,13 +199,13 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 const existing = leads.get(al.id);
                 if (existing) {
                     if (existing.isClosed) {
-                        // Don't let an API refetch (returns IN_AUCTION only) resurrect a store-closed lead
-                        // — keep the closed state until 45s grace expires.
+                        // Don't resurrect a server-closed lead from an API refetch
                         continue;
                     }
-                    // Merge: update static fields but preserve live socket state
+                    // Merge: update static fields but preserve live socket-driven state
                     leads.set(al.id, {
                         ...apiLeadToSlice(al),
+                        auctionPhase: existing.auctionPhase,
                         isClosed: existing.isClosed,
                         isSealed: existing.isSealed,
                         liveBidCount: existing.liveBidCount,
@@ -246,18 +226,29 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
     updateBid({ leadId, remainingTime, serverTs, bidCount, highestBid, isSealed }) {
         set((state) => {
             const lead = state.leads.get(leadId);
-            if (!lead) return state; // unknown lead — ignore
-            if (lead.isClosed) return state; // already closed — never re-open
+            if (!lead) return state;
+            if (lead.isClosed) return state; // phase='closed' — never re-open
 
-            // Clock-drift correction: subtract network latency from announced remaining time
+            // Clock-drift correction for VISUAL countdown only — not for phase
             let liveRemainingMs = lead.liveRemainingMs;
+            let phase = lead.auctionPhase;
             if (remainingTime != null) {
                 const networkDelayMs = serverTs != null ? Math.max(0, Date.now() - serverTs) : 0;
                 liveRemainingMs = Math.max(0, remainingTime - networkDelayMs);
+                // v7: drive phase from server-reported remainingTime, not local clock
+                if (liveRemainingMs <= 0) {
+                    phase = 'closed';
+                } else if (liveRemainingMs <= 10_000) {
+                    phase = 'closing-soon';
+                } else {
+                    phase = 'live';
+                }
             }
 
             const updated: LeadSlice = {
                 ...lead,
+                auctionPhase: phase,
+                isClosed: phase === 'closed',
                 liveBidCount: bidCount ?? lead.liveBidCount,
                 liveHighestBid: highestBid ?? lead.liveHighestBid,
                 liveRemainingMs,
@@ -268,10 +259,30 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             leads.set(leadId, updated);
 
             dbg('updateBid', leadId,
+                `phase=${phase}`,
                 `remaining=${liveRemainingMs}ms`,
-                `bidCount=${updated.liveBidCount}`,
-                `isSealed=${updated.isSealed}`);
+                `bidCount=${updated.liveBidCount}`);
 
+            // If server says time is up, schedule the full close (status confirmation)
+            if (phase === 'closed') {
+                // Trigger closeLead via forceRefreshLead to get SOLD/UNSOLD status
+                setTimeout(() => void get().forceRefreshLead(leadId), 500);
+            }
+
+            return { leads };
+        });
+    },
+
+    setClosingSoon(leadId) {
+        set((state) => {
+            const lead = state.leads.get(leadId);
+            if (!lead || lead.isClosed) return state;
+            const leads = new Map(state.leads);
+            leads.set(leadId, {
+                ...lead,
+                auctionPhase: 'closing-soon',
+            });
+            dbg('setClosingSoon', leadId);
             return { leads };
         });
     },
@@ -280,13 +291,10 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         set((state) => {
             const lead = state.leads.get(leadId);
             if (!lead) return state;
-            // v6: allow SOLD to upgrade an existing UNSOLD close.
-            // This fixes the race where resolveExpiredAuctions emits UNSOLD first,
-            // then the demo orchestrator emits SOLD after on-chain settlement.
-            // We never demote SOLD → UNSOLD.
+            // v6 SOLD-upgrade preserved: allow SOLD to upgrade an existing UNSOLD close.
             if (lead.isClosed) {
                 if (lead.status === 'SOLD') return state; // already sold — never demote
-                if (status !== 'SOLD') return state;      // UNSOLD→UNSOLD is also a no-op
+                if (status !== 'SOLD') return state;      // UNSOLD→UNSOLD is a no-op
                 // Fall through: upgrading UNSOLD → SOLD
             }
 
@@ -294,6 +302,7 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             const leads = new Map(state.leads);
             leads.set(leadId, {
                 ...lead,
+                auctionPhase: 'closed',
                 isClosed: true,
                 isSealed: false,
                 liveRemainingMs: 0,
@@ -306,17 +315,14 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
 
             dbg('closeLead', leadId, 'status=', status);
 
-            // Show 8-second overlay banner, then clear feedback (card stays in store for 45s)
+            // Clear 8-second overlay then evict after 45s grace
             setTimeout(() => {
                 const { auctionEndFeedbackMap: m } = get();
                 const next = new Map(m);
                 next.delete(leadId);
-                // Only update the map — do NOT remove the lead yet
-                // eslint-disable-next-line @typescript-eslint/no-use-before-define
                 useAuctionStore.setState({ auctionEndFeedbackMap: next });
             }, 8_000);
 
-            // After 45-second grace period, evict card from store entirely
             setTimeout(() => {
                 get().removeLead(leadId);
             }, CLOSE_GRACE_MS);
@@ -351,13 +357,12 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
     },
 
     async forceRefreshLead(leadId: string) {
-        // Derive API base from env — mirrors the fetchAndBulkLoad pattern in socketBridge
         const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
         try {
             const res = await fetch(`${apiBase}/api/v1/leads/${leadId}`);
             if (!res.ok) return;
             const data = await res.json();
-            const lead = data?.lead ?? data; // endpoint may wrap or return directly
+            const lead = data?.lead ?? data;
             if (!lead?.id) return;
 
             const { closeLead, bulkLoad } = get();
@@ -366,43 +371,11 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             } else if (lead.status === 'UNSOLD') {
                 closeLead(lead.id, 'UNSOLD');
             } else if (lead.status === 'IN_AUCTION') {
-                // Lead is still live — merge into store to keep static fields fresh
                 bulkLoad([lead]);
             }
             dbg('forceRefreshLead', leadId, 'resolved status=', lead.status);
         } catch {
             dbg('forceRefreshLead', leadId, 'fetch failed (non-fatal)');
         }
-    },
-
-    async forceReconcileLead(leadId: string) {
-        // Step 1: instant local close if this lead's time has drained — zero latency.
-        // The card goes grey immediately; the API call below confirms SOLD vs UNSOLD.
-        const existing = get().leads.get(leadId);
-        if (existing && !existing.isClosed) {
-            const endMs = existing.auctionEndAt
-                ? new Date(existing.auctionEndAt).getTime()
-                : null;
-            const hasTimedOut = endMs != null && endMs <= Date.now();
-            if (hasTimedOut) {
-                // Close immediately with unknown status — will be overwritten by API below
-                set((state) => {
-                    const lead = state.leads.get(leadId);
-                    if (!lead || lead.isClosed) return state;
-                    const leads = new Map(state.leads);
-                    leads.set(leadId, {
-                        ...lead,
-                        isClosed: true,
-                        isSealed: false,
-                        liveRemainingMs: 0,
-                        closedAt: Date.now(),
-                    });
-                    dbg('forceReconcileLead', leadId, 'pre-closed from local clock');
-                    return { leads };
-                });
-            }
-        }
-        // Step 2: API confirm (sets definitive SOLD/UNSOLD status)
-        await get().forceRefreshLead(leadId);
     },
 }));

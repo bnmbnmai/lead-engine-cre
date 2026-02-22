@@ -410,6 +410,13 @@ class RTBSocketServer {
                             highestBid: updatedHighestBid,
                             isSealed,
                         });
+                        // v7: signal closing-soon when ≤10 s remain (before auction:closed)
+                        if (remainingTime != null && remainingTime <= 10_000 && remainingTime > 0) {
+                            this.io.emit('auction:closing-soon', {
+                                leadId: data.leadId,
+                                remainingTime,
+                            });
+                        }
                         console.log(`[SOCKET-EMIT] auction:updated leadId=${data.leadId} remaining=${remainingTime}ms bidCount=${updatedBidCount} isSealed=${isSealed}`);
                     }
 

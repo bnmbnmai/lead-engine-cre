@@ -1,18 +1,17 @@
 /**
  * socketBridge.ts — Single global socket subscription
  *
- * Mount `useSocketBridge()` ONCE in App.tsx. All marketplace socket events
- * are handled here and dispatched atomically to the Zustand auctionStore.
+ * Mount `useSocketBridge()` ONCE in App.tsx.
  *
- * v6 changes:
- *   - auction:updated: if remainingTime <= 0, call forceReconcileLead immediately
- *     (closes the "local clock drained but auction:closed not yet arrived" window).
- *   - Heartbeat 8 s → 5 s for faster stale detection.
- *   - Heartbeat also scans ALL known leads and calls forceReconcileLead for any
- *     where liveRemainingMs === 0 && !isClosed (stale-lead cleanup).
- *   - On reconnect: forceRefreshLead for all known leads (unchanged from v5).
- *   - After auction:closed and lead:status-changed: 1 s delayed forceRefreshLead
- *     for belt-and-suspenders reconcile (unchanged from v5).
+ * v7 GOLDEN STANDARD: Pure server-authoritative phase machine.
+ * All phase transitions flow exclusively from server socket events:
+ *
+ *   auction:closing-soon → store.setClosingSoon(leadId)
+ *   auction:updated      → store.updateBid() — drives phase from remainingTime
+ *   auction:closed       → store.closeLead()  — forces phase='closed'
+ *
+ * Local-clock guards removed entirely (v6 regression source).
+ * Heartbeat (5 s): ping + stale-lead reconciliation via forceRefreshLead.
  */
 
 import { useEffect } from 'react';
@@ -54,6 +53,7 @@ export function useSocketBridge(): void {
 
         const unsubAuctionUpdated = socketClient.on('auction:updated', (data) => {
             if (!data?.leadId) return;
+            // v7: updateBid drives auctionPhase from server remainingTime — no local clock
             store().updateBid({
                 leadId: data.leadId,
                 remainingTime: data.remainingTime ?? undefined,
@@ -62,19 +62,19 @@ export function useSocketBridge(): void {
                 highestBid: data.highestBid ?? undefined,
                 isSealed: data.isSealed,
             });
-            // v6: if server reports time drained, immediately reconcile
-            // (closes the window between local timer reaching 0 and auction:closed arriving)
-            const remaining = data.remainingTime ?? null;
-            if (remaining !== null && remaining <= 0) {
-                void store().forceReconcileLead(data.leadId);
-            }
+        });
+
+        // v7: New event — server signals ≤10 s remaining
+        const unsubClosingSoon = socketClient.on('auction:closing-soon', (data: any) => {
+            if (!data?.leadId) return;
+            store().setClosingSoon(data.leadId);
         });
 
         const unsubClosed = socketClient.on('auction:closed', (data) => {
             if (!data?.leadId) return;
+            // Force phase='closed' atomically — authoritative server confirmation
             store().closeLead(data.leadId, data.status === 'SOLD' ? 'SOLD' : 'UNSOLD');
-            // v5/v6: belt-and-suspenders — force API reconcile 1 s later in case socket
-            // arrived before DB write completed (race condition on fast auction ends)
+            // Belt-and-suspenders: API reconcile 1 s later (confirms SOLD/UNSOLD status)
             setTimeout(() => void store().forceRefreshLead(data.leadId), 1_000);
         });
 
@@ -90,54 +90,39 @@ export function useSocketBridge(): void {
             void fetchAndBulkLoad();
         });
 
-        // ── v6: 5-second heartbeat ──────────────────────────────────────────────
-        // Reduced from 8 s for faster stale detection.
-        // On each tick: scan for leads whose time drained but auction:closed hasn't
-        // arrived yet, and force-reconcile them.
-        // On disconnect: forceRefreshLead for ALL known leads.
+        // ── 5-second heartbeat ──────────────────────────────────────────────
+        // Ping server on every tick.
+        // On disconnect: reconnect + full refresh for all known leads.
+        // v7: no local-clock stale scan — phases are driven by server events only.
         const heartbeatInterval = setInterval(() => {
             const rawSocket = socketClient.getSocket();
             const storeState = store();
 
             if (rawSocket?.connected) {
                 rawSocket.emit('ping');
-
-                // v6: stale-lead scan — find leads with drained timer but still open
-                const now = Date.now();
-                for (const [leadId, slice] of storeState.leads.entries()) {
-                    if (!slice.isClosed) {
-                        const endMs = slice.auctionEndAt
-                            ? new Date(slice.auctionEndAt).getTime()
-                            : null;
-                        const timedOut = endMs != null && endMs <= now;
-                        const drainedLocally = slice.liveRemainingMs === 0;
-                        if (timedOut || drainedLocally) {
-                            void storeState.forceReconcileLead(leadId);
-                        }
-                    }
-                }
             } else if (rawSocket && !rawSocket.connected) {
                 if (import.meta.env.DEV) {
                     console.warn('[socketBridge] heartbeat: socket disconnected, reconnecting…');
                 }
                 socketClient.reconnect();
-                // Full refresh: bulkLoad for live leads + forceRefresh for every known lead
+                // Full refresh on reconnect — drives phase from API status
                 void fetchAndBulkLoad();
                 const knownLeadIds = Array.from(storeState.leads.keys());
                 for (const leadId of knownLeadIds) {
                     void storeState.forceRefreshLead(leadId);
                 }
             }
-        }, 5_000); // v6: 5 s (was 8 s)
+        }, 5_000);
 
         return () => {
             unsubNew();
             unsubBidUpdate();
             unsubAuctionUpdated();
+            unsubClosingSoon();
             unsubClosed();
             unsubStatusChanged();
             unsubLeadsUpdated();
             clearInterval(heartbeatInterval);
         };
-    }, []); // empty deps — mounts once for the lifetime of the app
+    }, []);
 }

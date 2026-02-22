@@ -76,6 +76,8 @@ type AuctionEventHandler = {
         highestBid: number | null;
         isSealed?: boolean;   // true for the final 5 s sealed-bid window
     }) => void;
+    // auction:closing-soon — server signals ≤10 s remaining (v7)
+    'auction:closing-soon': (data: { leadId: string; remainingTime: number }) => void;
     // auction:closed — single authoritative signal that the auction is fully resolved.
     // Emitted AFTER all DB writes so frontend can freeze UI synchronously.
     'auction:closed': (data: {
@@ -93,6 +95,7 @@ type AuctionEventHandler = {
     // socketBridge re-fetches active leads from REST API on receipt.
     'leads:updated': (data: { activeCount?: number }) => void;
 };
+
 
 // All events forwarded from raw socket → this.listeners Map.
 // Kept in sync with AuctionEventHandler above.
@@ -123,9 +126,11 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     'demo:metrics',
     // ── AUCTION-SYNC: must be here or setupEventForwarding() silently drops them ──
     'auction:updated',
+    'auction:closing-soon',
     'auction:closed',
     'leads:updated',
 ];
+
 
 // ============================================
 // Socket Singleton

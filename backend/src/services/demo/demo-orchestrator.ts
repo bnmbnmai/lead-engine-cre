@@ -737,6 +737,13 @@ export async function runFullDemo(
                                 bidCount: b + 1,
                                 highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
                             });
+                            // v7: signal closing-soon when ≤10 s remain
+                            if (remainingTime != null && remainingTime <= 10_000 && remainingTime > 0) {
+                                io.emit('auction:closing-soon', {
+                                    leadId: demoLeadId,
+                                    remainingTime,
+                                });
+                            }
                         }
                     }
 
