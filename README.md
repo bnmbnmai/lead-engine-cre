@@ -1,5 +1,7 @@
 ﻿# Lead Engine CRE
 
+[![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
+
 [![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)](https://chain.link/convergence)
 [![ACE Compliance](https://img.shields.io/badge/Compliance-ACE-blue)](https://chain.link/ace)
 [![Confidential HTTP](https://img.shields.io/badge/Privacy-CHTT-green)](https://chain.link/cre)
@@ -11,11 +13,11 @@
 
 ## Overview
 
-Lead Engine CRE is an on-chain marketplace for tokenized leads. Sellers mint high-quality leads as tradable LeadNFTs on Base Sepolia. Buyers participate in sealed-bid auctions with instant USDC settlement and verifiable provenance through Chainlink services.
+Lead Engine CRE is an on-chain marketplace for tokenized leads built on Base Sepolia. Sellers mint high-quality leads as tradable LeadNFTs. Buyers participate in sealed-bid auctions with instant USDC settlement and verifiable provenance through Chainlink services.
 
 Autonomous MCP agents, built with LangChain ReAct and 11 custom tools, continuously hunt and bid on leads according to buyer-defined rules for verticals, quality thresholds, budgets, and geo-targeting.
 
-The platform integrates production-grade Chainlink services to address long-standing issues in lead generation: fraud signals, delayed payouts, lack of provenance, and manual matching.
+The platform integrates production-grade Chainlink services across the full lead lifecycle to address fraud signals, delayed payouts, lack of provenance, and manual matching.
 
 ---
 
@@ -80,20 +82,34 @@ Six Chainlink services are integrated on-chain:
 
 ---
 
+## Tech Stack
+
+| Layer         | Technologies |
+|---------------|------------------------------------------------------------|
+| Frontend      | Vite + React + Tailwind + Zustand + Socket.IO |
+| Backend       | Express + Prisma + Socket.IO + LangChain |
+| Smart Contracts | Solidity + Hardhat (Base Sepolia) |
+| AI Agents     | MCP server with 11 custom tools |
+| Oracles       | Chainlink CRE, ACE, Automation, VRF v2.5, Functions (ZK), Data Feeds |
+| Database      | Render Postgres |
+
+---
+
 ## On-Chain Proofs
 
 All contracts are deployed on Base Sepolia with exact-match source code verified on Basescan as of 2026-02-22.
-Certified demo run ID: 05ad5f55-ae29-4569-9f00-8637f0e0746a (5/5 cycles, $239 settled, PoR passed).
 
-| Contract | Address | Status |
-|---|---|---|
-| PersonalEscrowVault | 0x56bB31bE214C54ebeCA55cd86d86512b94310F8C | Live activity (deposits, PoR, settlements in last hour) — source verification pending |
-| LeadNFTv2 | 0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155 | Verified, ACE policy attached, royalties set |
-| CREVerifier | 0xfec22A5159E077d7016AAb5fC3E91e0124393af8 | Verified, DON sources uploaded, subscription ID 3063 |
-| VRFTieBreaker | 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e | Verified |
-| ACELeadPolicy | 0x013f3219012030aC32cc293fB51a92eBf82a566F | Verified |
+Certified demo run ID: `05ad5f55-ae29-4569-9f00-8637f0e0746a` (5/5 cycles, $239 settled, PoR passed).
 
-Verification commands and remaining actions are in `onchain-activation-checklist.md`.
+| Contract             | Address                                      | Status |
+|----------------------|----------------------------------------------|--------|
+| PersonalEscrowVault  | 0x56bB31bE214C54ebeCA55cd86d86512b94310F8C   | Live activity (deposits, PoR, settlements in last hour) — source verification pending |
+| LeadNFTv2            | 0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155   | Verified, ACE policy attached, royalties set |
+| CREVerifier          | 0xfec22A5159E077d7016AAb5fC3E91e0124393af8   | Verified, DON sources uploaded, subscription ID 3063 |
+| VRFTieBreaker        | 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e   | Verified |
+| ACELeadPolicy        | 0x013f3219012030aC32cc293fB51a92eBf82a566F   | Verified |
+
+Verification commands and remaining actions are in [onchain-activation-checklist.md](./onchain-activation-checklist.md).
 
 ---
 
