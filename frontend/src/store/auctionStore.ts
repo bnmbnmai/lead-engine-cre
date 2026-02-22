@@ -10,12 +10,18 @@
  * This compensates for network latency so all clients converge on the
  * same countdown regardless of when the packet arrived.
  *
+ * 45-second grace period:
+ *   When `closeLead` is called, the lead stays in the store (isClosed=true)
+ *   for 45 seconds before being evicted. This guarantees the card remains
+ *   visible with a disabled "View Details" button across all tabs even if
+ *   subsequent API refetches only return IN_AUCTION leads.
+ *
  * Debug: window.__AUCTION_DEBUG__ = true  (or import.meta.env.DEV)
  * Every store action prints:
- *   [store:addLead]    <id>  auctionEndAt=…
- *   [store:updateBid]  <id>  remaining=…ms  bidCount=…  isSealed=…
- *   [store:closeLead]  <id>  status=SOLD|UNSOLD
- *   [store:removeLead] <id>  (8 s overlay expired)
+ *   [store:addLead]     <id>  auctionEndAt=…
+ *   [store:updateBid]   <id>  remaining=…ms  bidCount=…  isSealed=…
+ *   [store:closeLead]   <id>  status=SOLD|UNSOLD
+ *   [store:removeLead]  <id>  (45s grace expired)
  */
 
 import { create } from 'zustand';
@@ -53,28 +59,33 @@ export interface LeadSlice {
     liveHighestBid: number | null;
     /** Server-corrected remaining ms — updated on every auction:updated */
     liveRemainingMs: number | null;
+    /** Timestamp when this lead was closed (ms epoch) — used for 45s grace */
+    closedAt?: number;
 }
 
 type AuctionEndFeedback = 'SOLD' | 'UNSOLD';
+
+/** Grace period after close before removing from store (ms) */
+const CLOSE_GRACE_MS = 45_000;
 
 interface AuctionStoreState {
     /** All known leads, keyed by lead ID */
     leads: Map<string, LeadSlice>;
     /** 8-second "Auction Ended" overlay map, keyed by lead ID */
     auctionEndFeedbackMap: Map<string, AuctionEndFeedback>;
-    /** Insertion-order IDs for stable list rendering */
+    /** Insertion-order IDs for stable list rendering (includes recentlyClosed) */
     leadOrder: string[];
 
     // ── Actions ─────────────────────────────────────────────────────────────
     /**
      * Add a new lead (from marketplace:lead:new or API bulk-load).
-     * Idempotent: if the lead already exists it is NOT overwritten
-     * (use updateBid/closeLead for state changes on existing leads).
+     * Idempotent: if the lead already exists and is NOT closed, it is not overwritten.
+     * If it was closed (stale data from API), preserve the closed state.
      */
     addLead: (lead: Omit<LeadSlice, 'isClosed' | 'isSealed' | 'liveBidCount' | 'liveHighestBid' | 'liveRemainingMs'>) => void;
     /**
      * Bulk-load leads from an API response (used by HomePage on mount/refetch).
-     * Merges with existing store state — does not replace closed/sealed leads.
+     * Merges with existing store — does not wipe closed/sealed leads (45s grace).
      */
     bulkLoad: (leads: any[]) => void;
     /**
@@ -90,12 +101,13 @@ interface AuctionStoreState {
         isSealed?: boolean;
     }) => void;
     /**
-     * Mark a lead as closed. Schedules a 8-second overlay then removes from list.
+     * Mark a lead as closed. Keeps it in the store for 45 seconds (grace period)
+     * so the card remains visible with a disabled button. Removes after grace.
      */
     closeLead: (leadId: string, status: AuctionEndFeedback) => void;
-    /** Remove a lead from the store entirely (called after 8s overlay) */
+    /** Remove a lead from the store entirely (called automatically after grace period) */
     removeLead: (leadId: string) => void;
-    /** Get ordered list of leads for rendering, optionally including closed ones */
+    /** Get ordered list of ALL leads (live + recently closed) for rendering */
     getOrderedLeads: () => LeadSlice[];
 }
 
@@ -149,7 +161,13 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
 
     addLead(lead) {
         set((state) => {
-            if (state.leads.has(lead.id)) return state; // already known — skip
+            const existing = state.leads.get(lead.id);
+            if (existing) {
+                // If already known — only overwrite if both are open (avoid resurrecting a closed lead)
+                if (!existing.isClosed) return state;
+                // If previously closed but API re-broadcast it as IN_AUCTION — treat as re-listed
+                if (lead.status !== 'IN_AUCTION') return state;
+            }
             const slice: LeadSlice = {
                 ...lead,
                 isClosed: false,
@@ -179,6 +197,11 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 if (!al?.id) continue;
                 const existing = leads.get(al.id);
                 if (existing) {
+                    if (existing.isClosed) {
+                        // Don't let an API refetch (returns IN_AUCTION only) resurrect a store-closed lead
+                        // — keep the closed state until 45s grace expires.
+                        continue;
+                    }
                     // Merge: update static fields but preserve live socket state
                     leads.set(al.id, {
                         ...apiLeadToSlice(al),
@@ -238,18 +261,36 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             if (!lead) return state;
             if (lead.isClosed) return state; // idempotent
 
+            const now = Date.now();
             const leads = new Map(state.leads);
-            leads.set(leadId, { ...lead, isClosed: true, isSealed: false, liveRemainingMs: 0 });
+            leads.set(leadId, {
+                ...lead,
+                isClosed: true,
+                isSealed: false,
+                liveRemainingMs: 0,
+                status: status === 'SOLD' ? 'SOLD' : 'UNSOLD',
+                closedAt: now,
+            });
 
             const auctionEndFeedbackMap = new Map(state.auctionEndFeedbackMap);
             auctionEndFeedbackMap.set(leadId, status);
 
             dbg('closeLead', leadId, 'status=', status);
 
-            // Remove card from list after 8-second "Auction Ended" overlay
+            // Show 8-second overlay banner, then clear feedback (card stays in store for 45s)
+            setTimeout(() => {
+                const { auctionEndFeedbackMap: m } = get();
+                const next = new Map(m);
+                next.delete(leadId);
+                // Only update the map — do NOT remove the lead yet
+                // eslint-disable-next-line @typescript-eslint/no-use-before-define
+                useAuctionStore.setState({ auctionEndFeedbackMap: next });
+            }, 8_000);
+
+            // After 45-second grace period, evict card from store entirely
             setTimeout(() => {
                 get().removeLead(leadId);
-            }, 8_000);
+            }, CLOSE_GRACE_MS);
 
             return { leads, auctionEndFeedbackMap };
         });
@@ -261,7 +302,7 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             leads.delete(leadId);
             const auctionEndFeedbackMap = new Map(state.auctionEndFeedbackMap);
             auctionEndFeedbackMap.delete(leadId);
-            dbg('removeLead', leadId, '(8s overlay expired)');
+            dbg('removeLead', leadId, `(${CLOSE_GRACE_MS / 1000}s grace expired)`);
             return {
                 leads,
                 auctionEndFeedbackMap,

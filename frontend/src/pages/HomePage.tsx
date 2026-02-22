@@ -29,6 +29,7 @@ import { toast } from '@/hooks/useToast';
 import ConnectButton from '@/components/wallet/ConnectButton';
 import { useDemo } from '@/hooks/useDemo';
 import { useDemoStatus } from '@/hooks/useDemoStatus';
+import { useAuctionStore } from '@/store/auctionStore';
 
 const COUNTRIES = [
     { code: 'ALL', label: 'All Countries' },
@@ -100,6 +101,13 @@ export function HomePage() {
     const [suggestOpen, setSuggestOpen] = useState(false);
     // Global demo running state — used to gate polling and suppress noisy toasts
     const { isRunning: isGlobalRunning } = useDemoStatus();
+
+    // ── Zustand auction store: persistent grid source ──────────────────────────
+    // Subscriptions are mounted here (above other state), since these don't depend on anything.
+    // displayLeads and getCardFeedback are derived BELOW after shouldIncludeLead is defined.
+    const storeOrderedLeads = useAuctionStore((s) => s.getOrderedLeads());
+    const storeAuctionEndFeedbackMap = useAuctionStore((s) => s.auctionEndFeedbackMap);
+
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [sellerName, setSellerName] = useState('');
     const [sellerInput, setSellerInput] = useState('');
@@ -139,6 +147,17 @@ export function HomePage() {
         if (debouncedSearch && !JSON.stringify(lead).toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
         return true;
     }, [vertical, country, region, debouncedSearch]);
+
+    // displayLeads: ALWAYS from the Zustand store for live-leads view (view==='leads'),
+    // so the grid is never cleared by a stale API poll, empty-state-poll, or refetch.
+    // Client-side filters are applied on top for instant UX.
+    const displayLeads = view === 'leads'
+        ? storeOrderedLeads.filter(shouldIncludeLead)
+        : leads;
+
+    // auctionEndFeedback for a card: store overlay wins over local recentlyEndedMap
+    const getCardFeedback = (leadId: string): 'SOLD' | 'UNSOLD' | undefined =>
+        storeAuctionEndFeedbackMap.get(leadId) ?? recentlyEndedMap[leadId];
 
     const regionConfig = country !== 'ALL' ? getRegions(country) : null;
 
@@ -204,7 +223,14 @@ export function HomePage() {
                         const { data } = view === 'buyNow' ? await api.listBuyNowLeads(params) : await api.listLeads(params);
                         const resultLeads = (data?.leads || []).filter(shouldIncludeLead);
                         console.log('[setLeads:useEffect:basic] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
-                        view === 'buyNow' ? setBuyNowLeads(mergeBidCounts(resultLeads)) : setLeads(mergeBidCounts(resultLeads));
+                        if (view === 'leads') {
+                            // Bulk-load all IN_AUCTION leads into the Zustand store so it persists
+                            // across filter refetches and empty-state polls.
+                            useAuctionStore.getState().bulkLoad(resultLeads);
+                            setLeads(mergeBidCounts(resultLeads));
+                        } else {
+                            setBuyNowLeads(mergeBidCounts(resultLeads));
+                        }
                         setMatchCount(data?.pagination?.total || resultLeads.length);
                         // Track pagination
                         if (view === 'buyNow') {
@@ -242,7 +268,12 @@ export function HomePage() {
 
                         const resultLeads = (data?.leads || []).filter(shouldIncludeLead);
                         console.log('[setLeads:useEffect:advanced] setting', resultLeads.length, 'leads (filtered from', data?.leads?.length, ')');
-                        view === 'buyNow' ? setBuyNowLeads(mergeBidCounts(resultLeads)) : setLeads(mergeBidCounts(resultLeads));
+                        if (view === 'leads') {
+                            useAuctionStore.getState().bulkLoad(resultLeads);
+                            setLeads(mergeBidCounts(resultLeads));
+                        } else {
+                            setBuyNowLeads(mergeBidCounts(resultLeads));
+                        }
                         setMatchCount(data?.total ?? resultLeads.length);
                         // Advanced search returns all matches; no cursor-based pagination
                         if (view === 'buyNow') setBuyNowHasMore(false);
@@ -1198,7 +1229,7 @@ export function HomePage() {
                         ) : (
                             <>
                                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                                    {leads.length === 0 ? (
+                                    {displayLeads.length === 0 ? (
                                         isGlobalRunning ? (
                                             // Demo is live — leads are streaming in via socket; show a warm hint
                                             // instead of the "No active leads" empty state which confuses viewers.
@@ -1219,7 +1250,7 @@ export function HomePage() {
                                             />
                                         )
                                     ) : (
-                                        leads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} auctionEndFeedback={recentlyEndedMap[lead.id]} />)
+                                        displayLeads.map((lead) => <LeadCard key={lead.id} lead={lead} isAuthenticated={isAuthenticated} floorPrice={floorPrice} auctionEndFeedback={getCardFeedback(lead.id)} />)
                                     )}
                                 </div>
                                 {/* Infinite scroll sentinel */}

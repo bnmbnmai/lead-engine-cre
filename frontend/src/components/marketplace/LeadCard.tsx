@@ -56,18 +56,21 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     // No per-card socket listeners needed — eliminates BUG-B (missed events off-screen).
     const storeSlice = useAuctionStore((s) => s.leads.get(lead.id));
 
+    // Authoritative closed flag: store wins over prop (store updated by socket)
+    const effectiveStatus = storeSlice?.status ?? lead.status;
     const isClosed = storeSlice?.isClosed ?? (lead.status !== 'IN_AUCTION');
     const isSealed = storeSlice?.isSealed ?? false;
     const liveBidCount = storeSlice?.liveBidCount ?? null;
     // liveRemainingMs from store is clock-drift-corrected; fall back to local auctionEndAt calc
     const storeRemainingMs = storeSlice?.liveRemainingMs ?? null;
 
-    const isLive = !isClosed && lead.status === 'IN_AUCTION';
+    const isLive = !isClosed && effectiveStatus === 'IN_AUCTION';
     const phaseLabel = getPhaseLabel(lead.status);
     const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
 
-    // Bid button is disabled when auction is closed or in sealed phase
-    const bidDisabled = isClosed || isSealed;
+    // Bid button is disabled when auction is closed, sealed, or status is not IN_AUCTION.
+    // This triple-guards against: (a) auction:closed event, (b) sealed window, (c) stale API data.
+    const bidDisabled = isClosed || isSealed || effectiveStatus !== 'IN_AUCTION';
 
     // ── Local countdown (visual only — ticks every second) ─────────────────
     const [timeLeft, setTimeLeft] = useState<string | null>(
@@ -343,16 +346,18 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         )}
                     </div>
 
-                    {showBidButton && isLive && (
+                    {showBidButton && (
                         <div className="flex items-center gap-2">
-                            <Button asChild size="sm" variant="outline">
-                                <Link to={`/lead/${lead.id}`}>
-                                    <Eye className="h-3.5 w-3.5 mr-1" />
-                                    Details
-                                </Link>
-                            </Button>
+                            {isLive && (
+                                <Button asChild size="sm" variant="outline">
+                                    <Link to={`/lead/${lead.id}`}>
+                                        <Eye className="h-3.5 w-3.5 mr-1" />
+                                        Details
+                                    </Link>
+                                </Button>
+                            )}
 
-                            {isAuthenticated ? (
+                            {isLive && isAuthenticated && (
                                 <Button
                                     asChild={!bidDisabled}
                                     size="sm"
@@ -366,7 +371,10 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                         <Link to={`/auction/${lead.id}`}>Place Bid</Link>
                                     )}
                                 </Button>
-                            ) : (
+                            )}
+
+                            {/* Unauthenticated: only show Connect to Bid if auction is actually live */}
+                            {isLive && !isAuthenticated && !bidDisabled && (
                                 <Button
                                     size="sm"
                                     variant="glass"
@@ -378,16 +386,17 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                     Connect to Bid
                                 </Button>
                             )}
-                        </div>
-                    )}
 
-                    {showBidButton && !isLive && (
-                        <Button asChild size="sm" variant="outline">
-                            <Link to={`/lead/${lead.id}`}>
-                                <Eye className="h-3.5 w-3.5 mr-1" />
-                                View Details
-                            </Link>
-                        </Button>
+                            {/* Closed auction — always show View Details, never a bid button */}
+                            {!isLive && (
+                                <Button asChild size="sm" variant="outline">
+                                    <Link to={`/lead/${lead.id}`}>
+                                        <Eye className="h-3.5 w-3.5 mr-1" />
+                                        View Details
+                                    </Link>
+                                </Button>
+                            )}
+                        </div>
                     )}
                 </div>
             </CardContent>

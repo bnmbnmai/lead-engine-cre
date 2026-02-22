@@ -53,6 +53,7 @@ import {
     buildDemoParams,
     ensureDemoSeller,
     injectOneLead,
+    checkActiveLeadsAndTopUp,
 } from './demo-lead-drip';
 import {
     clearAllBidTimers,
@@ -561,12 +562,16 @@ export async function runFullDemo(
             message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
         });
 
-        // Replenishment watchdog
+        // Replenishment watchdog — runs every 15s independently of the drip loop.
+        // emits `leads:updated` so all tabs re-poll the API, and logs the gap.
+        // Active injection is performed by checkActiveLeadsAndTopUp inside startLeadDrip.
         replenishInterval = setInterval(async () => {
             try {
                 const activeCount = await prisma.lead.count({ where: { source: 'DEMO', status: 'IN_AUCTION' } });
                 if (activeCount < DEMO_MIN_ACTIVE_LEADS) {
                     emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Active leads: ${activeCount} (target ≥${DEMO_MIN_ACTIVE_LEADS}) — drip will replenish shortly` });
+                    // Signal all tabs to re-fetch so any recently-injected leads appear immediately
+                    io.emit('leads:updated', { activeCount, source: 'watchdog' });
                 }
             } catch { /* non-fatal */ }
         }, 15_000);
