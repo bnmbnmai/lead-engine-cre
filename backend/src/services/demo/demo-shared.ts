@@ -309,6 +309,28 @@ export async function sendTx(
         } catch (err: any) {
             const msg = err?.shortMessage || err?.message || String(err);
             const isNoisyRpcError = msg.includes('replacement fee too low') || msg.includes('nonce has already been used');
+
+            // [DEMO-REVERT] — decode full revert reason for Render log visibility
+            if (!isNoisyRpcError) {
+                const revertReason = err?.reason || err?.revert?.name || '';
+                const revertData = err?.data || err?.error?.data || '';
+                const errCode = err?.code || '';
+                // Attempt to decode via ethers if raw hex revert data is present
+                let decoded = revertReason;
+                if (!decoded && revertData && typeof revertData === 'string' && revertData.startsWith('0x')) {
+                    try {
+                        const iface = new ethers.Interface(['error Error(string)', 'error Panic(uint256)']);
+                        const parsed = iface.parseError(revertData);
+                        decoded = parsed ? `${parsed.name}(${parsed.args.join(', ')})` : revertData;
+                    } catch { decoded = revertData; }
+                }
+                console.error(
+                    `[DEMO-REVERT] ${label} attempt ${attempt}/${retries} | ` +
+                    `reason="${decoded || '(no revert data)'}" | ` +
+                    `code=${errCode} | raw="${msg.slice(0, 160)}"`
+                );
+            }
+
             emit(io, {
                 ts: new Date().toISOString(),
                 level: isNoisyRpcError ? 'info' : 'warn',

@@ -152,6 +152,9 @@ class NFTService {
                     uri,
                 }, null, 2));
 
+                // [CRE-DISPATCH] — log before on-chain mint so Render always shows this
+                console.log(`[CRE-DISPATCH] mintLeadNFT starting — leadId=${leadId} seller=${sellerAddress} contract=${LEAD_NFT_ADDRESS.slice(0, 10)}…`);
+
                 // Mint with explicit gas limit to bypass estimateGas issues
                 const tx = await this.contract.mintLead(
                     sellerAddress,
@@ -209,6 +212,7 @@ class NFTService {
                     },
                 });
 
+                console.log(`[CRE-DISPATCH] mintLeadNFT ✅ tokenId=${tokenId} txHash=${receipt?.hash}`);
                 console.log(`[NFT MINT] ✅ Success — tokenId=${tokenId}, txHash=${receipt?.hash}`);
                 return { success: true, tokenId, txHash: receipt?.hash };
             } catch (error: any) {
@@ -223,6 +227,14 @@ class NFTService {
                     revert: error.revert,
                     info: error.info,
                 };
+                // [DEMO-REVERT] — surface revert reason for Render log visibility
+                console.error(
+                    `[DEMO-REVERT] mintLeadNFT FAILED — ` +
+                    `reason="${error.reason || error.revert?.name || '(no reason)'}" ` +
+                    `data="${error.data || '(no data)'}" ` +
+                    `code=${error.code || ''} ` +
+                    `msg="${(error.message || '').slice(0, 160)}"`
+                );
                 console.error('[NFT MINT] Error details:', JSON.stringify(errorDetails, null, 2));
                 return { success: false, error: JSON.stringify(errorDetails) };
             }

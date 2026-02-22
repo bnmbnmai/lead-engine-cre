@@ -639,6 +639,13 @@ class CREService {
     ): Promise<{ submitted: boolean; requestId?: string; error?: string }> {
         const logPrefix = `[CRE On-Chain] Lead ${leadIdRef || leadId} tokenId=${tokenId}`;
 
+        // [CRE-DISPATCH] unconditional — always visible in Render logs
+        console.log(
+            `[CRE-DISPATCH] requestOnChainQualityScore called — ` +
+            `leadId=${leadId} tokenId=${tokenId} ` +
+            `USE_BATCHED=${USE_BATCHED_PRIVATE_SCORE} contractSet=${!!this.contract} signerSet=${!!this.signer}`
+        );
+
         if (!this.contract || !this.signer) {
             console.warn(`${logPrefix}: CRE contract not configured — skipping on-chain score request`);
             return { submitted: false, error: 'CRE contract not configured' };
@@ -653,14 +660,14 @@ class CREService {
 
         try {
             // Step 1: Dispatch requestQualityScore
-            console.log(`${logPrefix}: Dispatching requestQualityScore...`);
+            console.log(`[CRE-DISPATCH] ${logPrefix}: Dispatching requestQualityScore tx…`);
             const tx = await this.contract.requestQualityScore(tokenId, { gasLimit: 400_000 });
-            console.log(`${logPrefix}: Tx submitted — ${tx.hash}`);
+            console.log(`[CRE-DISPATCH] ${logPrefix}: Tx submitted — ${tx.hash}`);
             const receipt = await tx.wait();
 
             // Extract requestId from the first log topic (emitted as VerificationRequested)
             const requestId: string = receipt?.logs?.[0]?.topics?.[1] || ethers.ZeroHash;
-            console.log(`${logPrefix}: ✓ requestQualityScore confirmed — requestId=${requestId} block=${receipt?.blockNumber}`);
+            console.log(`[CRE-DISPATCH] ✅ requestQualityScore confirmed — requestId=${requestId} block=${receipt?.blockNumber}`);
 
             // Step 2: Background event listener — poll for VerificationFulfilled
             // We do not await this; it resolves asynchronously once the DON responds.
@@ -670,7 +677,7 @@ class CREService {
 
             return { submitted: true, requestId };
         } catch (error: any) {
-            console.error(`${logPrefix}: requestQualityScore failed: ${error.message}`);
+            console.error(`[CRE-DISPATCH] ❌ requestQualityScore FAILED — leadId=${leadId} tokenId=${tokenId}: ${error.message}`);
             return { submitted: false, error: error.message };
         }
     }

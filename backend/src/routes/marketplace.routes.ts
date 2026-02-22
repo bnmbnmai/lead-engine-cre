@@ -1938,21 +1938,20 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
                         }
                     }
 
-                    // Fix 4 (2026-02-21): Dispatch on-chain CRE quality score request.
-                    // Phase 1 path only — Phase 2 (USE_BATCHED_PRIVATE_SCORE) handles its own dispatch.
-                    // Non-blocking: errors logged but do not affect the escrow response already sent.
-                    if (!process.env.USE_BATCHED_PRIVATE_SCORE) {
-                        console.log(`[CONFIRM-ESCROW] Dispatching on-chain CRE quality score — tokenId=${mintResult.tokenId}, leadId=${leadId}`);
+                    // Fix (2026-02-22): Use !== 'true' so the string 'false' doesn't suppress dispatch.
+                    // Original: !process.env.USE_BATCHED_PRIVATE_SCORE  ← truthy even for 'false'
+                    if (process.env.USE_BATCHED_PRIVATE_SCORE !== 'true') {
+                        console.log(`[CRE-DISPATCH] confirm-escrow dispatching CRE — tokenId=${mintResult.tokenId} leadId=${leadId}`);
                         creService.requestOnChainQualityScore(leadId, Number(mintResult.tokenId), leadId)
                             .then((r) => {
                                 if (r.submitted) {
-                                    console.log(`[CONFIRM-ESCROW] ✓ CRE requestQualityScore submitted — requestId=${r.requestId}`);
+                                    console.log(`[CRE-DISPATCH] ✅ confirm-escrow CRE submitted — requestId=${r.requestId}`);
                                 } else {
-                                    console.warn(`[CONFIRM-ESCROW] CRE requestQualityScore skipped/failed: ${r.error}`);
+                                    console.warn(`[CRE-DISPATCH] ⚠️ confirm-escrow CRE skipped/failed: ${r.error}`);
                                 }
                             })
                             .catch((err) => {
-                                console.warn(`[CONFIRM-ESCROW] CRE requestOnChainQualityScore threw: ${err.message}`);
+                                console.warn(`[CRE-DISPATCH] ❌ confirm-escrow CRE threw: ${err.message}`);
                             });
                     }
 
