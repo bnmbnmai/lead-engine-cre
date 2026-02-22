@@ -64,7 +64,7 @@ Lead Engine integrates **six** Chainlink services on-chain:
 | Service | Role |
 |---------|------|
 | **CRE** | On-chain quality scoring for lead verification and parameter matching (Chainlink Functions) |
-| **ACE** | On-chain compliance engine (KYC, geo, reputation, blacklist) — no Chainlink oracle dependency |
+| **ACE** | Official Chainlink Automated Compliance Engine — LeadNFTv2 inherits `PolicyProtected` mixin and uses `ACELeadPolicy` for policy enforcement on `mintLead()` and `transferFrom()` |
 | **Automation** | Proof of Reserves every 24 hours and automatic refund of expired bid locks |
 | **VRF v2.5** | Verifiable random tiebreaker for equal bids |
 | **Functions (ZK)** | `requestZKProofVerification` dispatches Groth16/Plonk proof to DON; `fulfillRequest` stores fraud-signal result in `_zkFraudSignals[tokenId]` |
@@ -81,15 +81,16 @@ All contracts are deployed on Base Sepolia and have exact-match source code publ
 | Contract | Address | Primary Chainlink Services | Basescan |
 |----------|---------|---------------------------|----------|
 | PersonalEscrowVault | `0xf09cf1d4389A1Af11542F96280dc91739E866e74` | Automation (PoR + lock expiry), Data Feeds (USDC/ETH liveness guard) | [View →](https://sepolia.basescan.org/address/0xf09cf1d4389A1Af11542F96280dc91739E866e74) |
-| LeadNFTv2 | `0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4` | None (EIP-2981 royalties) | [View →](https://sepolia.basescan.org/address/0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4) |
+| LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | Official Chainlink ACE (PolicyProtected + ACELeadPolicy) | [View →](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) |
 | CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Chainlink Functions (quality scoring + live ZK fraud-signal) | [View →](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) |
 | VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | VRF v2.5 (tie resolution) | [View →](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) |
 | RTBEscrow | `0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2` | None | [View →](https://sepolia.basescan.org/address/0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2) |
-| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | None (on-chain KYC/geo/reputation registry) | [View →](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
+| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | Official Chainlink ACE policy registry | [View →](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
+| ACELeadPolicy | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | Official Chainlink ACE (policy enforcement via ACECompliance.isCompliant) | [View →](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) |
 
 **PersonalEscrowVault** implements `AutomationCompatibleInterface` — `checkUpkeep` verifies reserve balances and `performUpkeep` settles or refunds expired bid locks; `lockForBid` and `settleBid` both require a live Chainlink Data Feeds price from the USDC/ETH aggregator before moving funds.
 
-**LeadNFTv2** is an ERC-721 contract with EIP-2981 royalty support; royalty recipient and fee basis points are configurable by the contract owner.
+**LeadNFTv2** is an ERC-721 contract that inherits the official Chainlink ACE `PolicyProtected` mixin. `mintLead()` and `transferFrom()` are protected by the `runPolicy` modifier, which enforces compliance through `ACELeadPolicy` calling `ACECompliance.isCompliant()`.
 
 **CREVerifier** is a `FunctionsClient` that dispatches JavaScript source strings to the Chainlink Functions DON for both quality scoring (`requestQualityScore`) and ZK fraud-signal verification (`requestZKProofVerification`); the DON callback writes results to `_leadQualityScores` and `_zkFraudSignals` respectively.
 
