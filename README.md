@@ -13,6 +13,73 @@
 
 [Live Demo](https://lead-engine-cre-frontend.vercel.app) | [GitHub](https://github.com/bnmbnmai/lead-engine-cre)
 
+### Accurate Chainlink Integration Status (2026-02-21)
+- Automation + PoR (PersonalEscrowVault)
+- Functions / CRE quality scoring (CREVerifier)
+- **Functions / ZK fraud-signal — LIVE** (`requestZKProofVerification` → real DON dispatch; JS source registered; `fulfillRequest` stores `_zkFraudSignals`)
+- VRF v2.5 (VRFTieBreaker)
+- **Data Feeds — LIVE** (PersonalEscrowVault `usdcEthFeed`, USDC/ETH guard on `lockForBid` + `settleBid`)
+- **EIP-2981 Royalties — LIVE** (LeadNFTv2 `setRoyaltyInfo`)
+- CCIP on roadmap
+
+---
+
+## Overview
+
+Lead Engine CRE is an on-chain marketplace for tokenized leads. Sellers mint high-quality leads as tradable LeadNFTs. Buyers participate in real-time sealed-bid auctions with instant USDC settlement and verifiable provenance through Chainlink.
+
+Autonomous MCP agents, powered by LangChain ReAct and 11 integrated tools, continuously hunt and bid on leads according to buyer-defined rules for verticals, quality scores, budgets, and geo-targeting.
+
+Built for the **Chainlink Convergence Hackathon 2026** (CRE + ACE track), the platform demonstrates production-grade integration across the Chainlink ecosystem while addressing core inefficiencies in lead generation: fraud, delayed payouts, lack of provenance, and poor matching.
+
+---
+
+## How a Lead Moves Through the System
+
+```mermaid
+graph TD
+    A["Lead Submission<br>Lander / API / Demo"] --> B["CRE Verification + Quality Scoring"]
+    B --> C["Mint LeadNFT on Base Sepolia"]
+    C --> D["Marketplace Listing + Auction Starts"]
+    D --> E["Sealed Bids from Buyers or Autonomous Agents"]
+    E --> F["Auction Ends"]
+    F --> G["Winner Settlement via PersonalEscrowVault"]
+    G --> H["Losers Refunded"]
+    H --> I["Chainlink Automation PoR Check"]
+    I --> J["PII Reveal to Winner"]
+    J --> K["LeadNFT Ownership Transferred"]
+```
+
+---
+
+## Key Features
+
+- **One-click full on-chain demo** showcasing the complete lifecycle: lead creation, NFT minting, autonomous bidding, settlement, PoR verification, and results persistence
+- **LeadNFTs** for verifiable lead provenance and secondary market tradability
+- **Autonomous MCP agents** that operate 24/7 using buyer-configured preferences and LangChain ReAct reasoning
+- **Programmable buyer bounties** funded per vertical and executed via Chainlink Functions
+- **PersonalEscrowVault** with Chainlink Automation for Proof of Reserves and automatic lock expiry
+- **Sealed-bid auctions** with backend-managed bid privacy and Chainlink VRF for fair tie resolution between equal bids (VRFTieBreaker.sol)
+- **Dynamic verticals** with drag-and-drop form builder and field-level auto-bid rules
+- **Real-time analytics** with structured Socket.IO events and continuous vault reconciliation monitoring
+
+---
+
+## Chainlink Integration
+
+Lead Engine integrates **six** Chainlink services on-chain:
+
+| Service | Role |
+|---------|------|
+| **CRE** | On-chain quality scoring for lead verification and parameter matching (Chainlink Functions) |
+| **ACE** | On-chain compliance engine (KYC, geo, reputation, blacklist) — no Chainlink oracle dependency |
+| **Automation** | Proof of Reserves every 24 hours and automatic refund of expired bid locks |
+| **VRF v2.5** | Verifiable random tiebreaker for equal bids |
+| **Functions (ZK)** | `requestZKProofVerification` dispatches Groth16/Plonk proof to DON; `fulfillRequest` stores fraud-signal result in `_zkFraudSignals[tokenId]` |
+| **Data Feeds** | USDC/ETH price guard in PersonalEscrowVault — `lockForBid()` and `settleBid()` require a valid live price before moving funds |
+
+This integration enables trust-minimized, verifiable lead transactions at scale.
+
 ---
 
 ## On-Chain Proofs
@@ -80,75 +147,6 @@ npx hardhat verify --network baseSepolia 0xAea2590E1E95F0d8bb34D375923586Bf0744E
 ```
 
 > All contracts have exact-match source code published on Basescan as of 2026-02-21.
-
----
-
-### Accurate Chainlink Integration Status (2026-02-21)
-- Automation + PoR (PersonalEscrowVault)
-- Functions / CRE quality scoring (CREVerifier)
-- **Functions / ZK fraud-signal — LIVE** (`requestZKProofVerification` → real DON dispatch; JS source registered; `fulfillRequest` stores `_zkFraudSignals`)
-- VRF v2.5 (VRFTieBreaker)
-- **Data Feeds — LIVE** (PersonalEscrowVault `usdcEthFeed`, USDC/ETH guard on `lockForBid` + `settleBid`)
-- **EIP-2981 Royalties — LIVE** (LeadNFTv2 `setRoyaltyInfo`)
-- CCIP on roadmap
-
----
-
-## Overview
-
-Lead Engine CRE is an on-chain marketplace for tokenized leads. Sellers mint high-quality leads as tradable LeadNFTs. Buyers participate in real-time sealed-bid auctions with instant USDC settlement and verifiable provenance through Chainlink.
-
-Autonomous MCP agents, powered by LangChain ReAct and 11 integrated tools, continuously hunt and bid on leads according to buyer-defined rules for verticals, quality scores, budgets, and geo-targeting.
-
-Built for the **Chainlink Convergence Hackathon 2026** (CRE + ACE track), the platform demonstrates production-grade integration across the Chainlink ecosystem while addressing core inefficiencies in lead generation: fraud, delayed payouts, lack of provenance, and poor matching.
-
----
-
-## How a Lead Moves Through the System
-
-```mermaid
-graph TD
-    A["Lead Submission<br>Lander / API / Demo"] --> B["CRE Verification + Quality Scoring"]
-    B --> C["Mint LeadNFT on Base Sepolia"]
-    C --> D["Marketplace Listing + Auction Starts"]
-    D --> E["Sealed Bids from Buyers or Autonomous Agents"]
-    E --> F["Auction Ends"]
-    F --> G["Winner Settlement via PersonalEscrowVault"]
-    G --> H["Losers Refunded"]
-    H --> I["Chainlink Automation PoR Check"]
-    I --> J["PII Reveal to Winner"]
-    J --> K["LeadNFT Ownership Transferred"]
-```
-
----
-
-## Key Features
-
-- **One-click full on-chain demo** showcasing the complete lifecycle: lead creation, NFT minting, autonomous bidding, settlement, PoR verification, and results persistence
-- **LeadNFTs** for verifiable lead provenance and secondary market tradability
-- **Autonomous MCP agents** that operate 24/7 using buyer-configured preferences and LangChain ReAct reasoning
-- **Programmable buyer bounties** funded per vertical and executed via Chainlink Functions
-- **PersonalEscrowVault** with Chainlink Automation for Proof of Reserves and automatic lock expiry
-- **Sealed-bid auctions** with backend-managed bid privacy and Chainlink VRF for fair tie resolution between equal bids (VRFTieBreaker.sol)
-- **Dynamic verticals** with drag-and-drop form builder and field-level auto-bid rules
-- **Real-time analytics** with structured Socket.IO events and continuous vault reconciliation monitoring
-
----
-
-## Chainlink Integration
-
-Lead Engine integrates **six** Chainlink services on-chain:
-
-| Service | Role |
-|---------|------|
-| **CRE** | On-chain quality scoring for lead verification and parameter matching (Chainlink Functions) |
-| **ACE** | On-chain compliance engine (KYC, geo, reputation, blacklist) — no Chainlink oracle dependency |
-| **Automation** | Proof of Reserves every 24 hours and automatic refund of expired bid locks |
-| **VRF v2.5** | Verifiable random tiebreaker for equal bids |
-| **Functions (ZK)** | `requestZKProofVerification` dispatches Groth16/Plonk proof to DON; `fulfillRequest` stores fraud-signal result in `_zkFraudSignals[tokenId]` |
-| **Data Feeds** | USDC/ETH price guard in PersonalEscrowVault — `lockForBid()` and `settleBid()` require a valid live price before moving funds |
-
-This integration enables trust-minimized, verifiable lead transactions at scale.
 
 ---
 
