@@ -391,6 +391,54 @@ function buildTools() {
                 });
             },
         }),
+        new _DynamicStructuredTool({
+            name: 'batched_private_score_request',
+            description: 'Request a Phase 2 batched confidential quality score for a lead. Runs quality score + ZK fraud signal + ACE compliance inside a single DON enclave computation and returns an AES-GCM encrypted envelope. Returns composite score, fraud bonus, and ACE compliance result. No PII is returned.',
+            schema: z.object({
+                leadId: z.string().describe('The lead ID to score privately (UUID)'),
+            }),
+            func: async (params: Record<string, unknown>) => {
+                const { executeBatchedPrivateScore } = await import('../lib/chainlink/batched-private-score');
+                const leadId = params.leadId as string;
+                const lead = await prisma.lead.findUnique({
+                    where: { id: leadId },
+                    select: {
+                        id: true, tcpaConsentAt: true, geo: true, encryptedData: true,
+                        parameters: true, source: true, qualityScore: true,
+                    },
+                });
+                if (!lead) return JSON.stringify({ error: `Lead ${leadId} not found` });
+
+                const geo = lead.geo as any;
+                const lp = lead.parameters as any;
+                const paramCount = lp ? Object.keys(lp).filter((k) => !k.startsWith('_') && lp[k] != null).length : 0;
+                let encValid = false;
+                if (lead.encryptedData) {
+                    try { const p = JSON.parse(lead.encryptedData); encValid = !!(p.ciphertext && p.iv && p.tag); } catch { /* */ }
+                }
+                const scoringInput = {
+                    tcpaConsentAt: lead.tcpaConsentAt,
+                    geo: geo || null,
+                    hasEncryptedData: !!lead.encryptedData,
+                    encryptedDataValid: encValid,
+                    parameterCount: paramCount,
+                    source: (lead.source as string) || 'OTHER',
+                    zipMatchesState: false,
+                };
+
+                const out = await executeBatchedPrivateScore(leadId, scoringInput, false);
+                return JSON.stringify({
+                    leadId,
+                    score: out.result.score,
+                    fraudBonus: out.result.fraudBonus,
+                    aceCompliant: out.result.aceCompliant,
+                    encrypted: out.envelope.encrypted,
+                    latencyMs: out.latencyMs,
+                    phase: out.phase,
+                    isPhase2: true,
+                });
+            },
+        }),
     ];
 }
 

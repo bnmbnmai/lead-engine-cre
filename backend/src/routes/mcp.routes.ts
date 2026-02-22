@@ -169,6 +169,20 @@ const MCP_TOOLS = [
             },
         },
     },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'batched_private_score_request',
+            description: 'Request a Phase 2 batched confidential quality score for a lead. Runs quality score + ZK fraud signal + ACE compliance in a single DON enclave computation and stores an AES-GCM encrypted envelope in the lead record. Returns the composite score and ACE compliance result without any PII.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    leadId: { type: 'string', description: 'The lead ID to score privately' },
+                },
+                required: ['leadId'],
+            },
+        },
+    },
 ];
 
 // Use relative paths for lead links — the AgentChatModal renders these inside the SPA
@@ -177,7 +191,7 @@ const _FRONTEND_URL = '';
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
 You help buyers discover, evaluate, and bid on commercial real-estate leads on a blockchain-verified marketplace powered by Chainlink.
-You have access to 9 MCP tools. Use them to answer the user's questions.
+You have access to 10 MCP tools. Use them to answer the user's questions.
 
 ## STRICT PII RULES
 - NEVER reveal phone numbers, emails, full names, street addresses, or any personally identifiable information.
@@ -400,6 +414,55 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
     // place_bid gets a race-condition guard (P2-MCP)
     if (name === 'place_bid') {
         return mcpPlaceBid(params);
+    }
+
+    // batched_private_score_request — Phase 2 CHTT batched confidential score
+    if (name === 'batched_private_score_request') {
+        const { executeBatchedPrivateScore } = await import('../lib/chainlink/batched-private-score');
+        const { computeCREQualityScore } = await import('../lib/chainlink/cre-quality-score');
+        const leadId = params.leadId as string | undefined;
+        if (!leadId) return { error: 'batched_private_score_request: leadId is required' };
+
+        const lead = await prisma.lead.findUnique({
+            where: { id: leadId },
+            select: {
+                id: true, tcpaConsentAt: true, geo: true, encryptedData: true,
+                parameters: true, source: true, qualityScore: true, isVerified: true,
+            },
+        });
+        if (!lead) return { error: `batched_private_score_request: lead ${leadId} not found` };
+
+        const geo = lead.geo as any;
+        const params2 = lead.parameters as any;
+        const paramCount = params2 ? Object.keys(params2).filter((k) => !k.startsWith('_') && params2[k] != null).length : 0;
+        let encValid = false;
+        if (lead.encryptedData) { try { const p = JSON.parse(lead.encryptedData); encValid = !!(p.ciphertext && p.iv && p.tag); } catch { /* */ } }
+
+        const scoringInput = {
+            tcpaConsentAt: lead.tcpaConsentAt,
+            geo: geo || null,
+            hasEncryptedData: !!lead.encryptedData,
+            encryptedDataValid: encValid,
+            parameterCount: paramCount,
+            source: (lead.source as string) || 'OTHER',
+            zipMatchesState: false,
+        };
+
+        try {
+            const out = await executeBatchedPrivateScore(leadId, scoringInput, false);
+            return {
+                leadId,
+                score: out.result.score,
+                fraudBonus: out.result.fraudBonus,
+                aceCompliant: out.result.aceCompliant,
+                encrypted: out.envelope.encrypted,
+                latencyMs: out.latencyMs,
+                phase: out.phase,
+                isPhase2: true,
+            };
+        } catch (err: any) {
+            return { error: `batched_private_score_request failed: ${err.message}` };
+        }
     }
 
     const rpcResponse = await fetch(`${MCP_BASE}/rpc`, {

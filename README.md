@@ -91,6 +91,9 @@ All contracts are deployed on Base Sepolia and have exact-match source code publ
 **PersonalEscrowVault** implements `AutomationCompatibleInterface` — `checkUpkeep` verifies reserve balances and `performUpkeep` settles or refunds expired bid locks; `lockForBid` and `settleBid` both require a live Chainlink Data Feeds price from the USDC/ETH aggregator before moving funds.
 
 **LeadNFTv2** is an ERC-721 contract that inherits the official Chainlink ACE `PolicyProtected` mixin. `mintLead()` and `transferFrom()` are protected by the `runPolicy` modifier, which enforces compliance through `ACELeadPolicy` calling `ACECompliance.isCompliant()`.
+**CREVerifier** uses two Chainlink Functions source programs:
+- **Source 1** — standard quality score (fetches scoring-data via HTTP, runs DON-side)  
+- **Source 3** — **Phase 2 Batched Confidential Score** (`DON_BATCHED_PRIVATE_SCORE_SOURCE`): inline quality score + HMAC fraud signal + ACE compliance, all computed inside the DON enclave with zero outbound HTTP calls. Result AES-256-GCM encrypted with `secrets.enclaveKey` (Vault DON) before return. Backend decrypts with `CHTT_ENCLAVE_SECRET` and persists `{nonce, ciphertext, fraudBonus, aceCompliant}` in `lead.parameters._chtt`.
 
 **CREVerifier** is a `FunctionsClient` that dispatches JavaScript source strings to the Chainlink Functions DON for both quality scoring (`requestQualityScore`) and ZK fraud-signal verification (`requestZKProofVerification`); the DON callback writes results to `_leadQualityScores` and `_zkFraudSignals` respectively.
 

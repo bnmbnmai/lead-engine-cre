@@ -4,6 +4,7 @@ import { zkService } from './zk.service';
 import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } from '../lib/geo-registry';
 import { computeCREQualityScore, LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 import { executeQualityScoreWorkflow } from '../lib/chainlink/quality-score-workflow';
+import { executeBatchedPrivateScore } from '../lib/chainlink/batched-private-score';
 
 // ============================================
 // CRE Verification Service — Two-Stage Scoring
@@ -26,6 +27,8 @@ const CRE_CONTRACT_ADDRESS = process.env.CRE_CONTRACT_ADDRESS_BASE_SEPOLIA || pr
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
 const USE_CONFIDENTIAL_HTTP = process.env.USE_CONFIDENTIAL_HTTP === 'true';
+// Phase 2: batched confidential score (AES-GCM envelope, no HTTP from DON)
+const USE_BATCHED_PRIVATE_SCORE = process.env.USE_BATCHED_PRIVATE_SCORE === 'true';
 
 // ACECompliance contract (Chainlink ACE KYC/geo/reputation registry)
 const ACE_COMPLIANCE_ADDRESS = process.env.ACE_COMPLIANCE_ADDRESS || '0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6';
@@ -142,8 +145,8 @@ class CREService {
         // any Chainlink Functions calls are dispatched. Non-compliant wallets
         // are rejected here — the same check the on-chain PolicyEngine runs
         // on every mintLead() call via ACELeadPolicy.run().
-        if (lead.walletAddress) {
-            const aceResult = await this.checkACECompliance(lead.walletAddress);
+        if ((lead as any).walletAddress) {
+            const aceResult = await this.checkACECompliance((lead as any).walletAddress);
             if (!aceResult.compliant) {
                 console.warn(`[ACE PRE-GATE] Lead ${leadId}: REJECTED — ${aceResult.reason}`);
                 return { isValid: false, reason: aceResult.reason || 'ACE_POLICY_REJECTED' };
@@ -205,6 +208,74 @@ class CREService {
                     parameters: { ...existingParams, _chtt: chttMeta } as any,
                 },
             });
+        } else if (USE_BATCHED_PRIVATE_SCORE) {
+            // ── Phase 2: Batched Confidential Score ─────────────────────────
+            // Single DON computation: quality score + fraud bonus + ACE compliance
+            // all encrypted in one AES-256-GCM envelope. No HTTP calls from DON.
+            // Build LeadScoringInput inline (same logic as computeNumericPreScoreFromLead)
+            const _geo = lead.geo as any;
+            const _params = lead.parameters as any;
+            const _paramCount = _params ? Object.keys(_params).filter((k) => !k.startsWith('_') && _params[k] != null && _params[k] !== '').length : 0;
+            let _encryptedDataValid = false;
+            if (lead.encryptedData) {
+                try { const p = JSON.parse(lead.encryptedData); _encryptedDataValid = !!(p.ciphertext && p.iv && p.tag); } catch { /* */ }
+            }
+            let _zipMatchesState = false;
+            if (_geo?.zip && _geo?.state) {
+                const expectedState = getStateForZip(_geo.zip);
+                _zipMatchesState = !!expectedState && expectedState === _geo.state.toUpperCase();
+            }
+            const scoringInput: LeadScoringInput = {
+                tcpaConsentAt: lead.tcpaConsentAt,
+                geo: _geo || null,
+                hasEncryptedData: !!lead.encryptedData,
+                encryptedDataValid: _encryptedDataValid,
+                parameterCount: _paramCount,
+                source: lead.source || 'OTHER',
+                zipMatchesState: _zipMatchesState,
+            };
+
+            // Read ACE compliance for the seller wallet (best-effort; defaults to false)
+            let aceCompliantP2 = false;
+            try {
+                const _walletAddr = (lead as any).walletAddress || '';
+                if (_walletAddr) aceCompliantP2 = (await this.checkACECompliance(_walletAddr)).compliant;
+            } catch { /* non-blocking */ }
+
+            const p2Out = await executeBatchedPrivateScore(leadId, scoringInput, aceCompliantP2);
+            preScore = p2Out.result.score;
+            chttEnriched = true;
+            chttScore = p2Out.result.score;
+
+            // Persist AES-GCM envelope in parameters._chtt
+            const existingParamsP2 = (lead.parameters as any) || {};
+            const chttMetaP2: Record<string, any> = {
+                batchedPhase2: true,
+                enriched: true,
+                score: p2Out.result.score,
+                fraudBonus: p2Out.result.fraudBonus,
+                aceCompliant: p2Out.result.aceCompliant,
+                nonce: p2Out.envelope.nonce,
+                ciphertext: p2Out.envelope.ciphertext,
+                encrypted: p2Out.envelope.encrypted,
+                latencyMs: p2Out.latencyMs,
+                computedAt: p2Out.result.ts,
+            };
+
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    isVerified: true,
+                    qualityScore: preScore,
+                    parameters: { ...existingParamsP2, _chtt: chttMetaP2 } as any,
+                },
+            });
+
+            console.log(
+                `[CHTT P2] Lead ${leadId}: composite=${preScore}/10000 ` +
+                `bonus=${p2Out.result.fraudBonus} ace=${aceCompliantP2} ` +
+                `encrypted=${p2Out.envelope.encrypted} (${p2Out.latencyMs}ms)`,
+            );
         } else {
             preScore = this.computeNumericPreScoreFromLead(lead);
 
