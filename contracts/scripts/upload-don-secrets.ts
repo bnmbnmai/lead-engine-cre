@@ -23,6 +23,7 @@ dotenv.config({ path: "../backend/.env" });
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const CRE_API_KEY = process.env.CRE_API_KEY;
 const API_BASE_URL = process.env.API_BASE_URL || "https://lead-engine-cre-api.onrender.com";
+const CHTT_ENCLAVE_SECRET = process.env.CHTT_ENCLAVE_SECRET;
 
 // Base Sepolia — official Chainlink Functions addresses
 // https://docs.chain.link/chainlink-functions/supported-networks#base-sepolia-testnet
@@ -35,6 +36,7 @@ const EXPIRATION_MINUTES = 4320; // 72 hours
 async function main() {
     if (!PRIVATE_KEY) { console.error("❌ DEPLOYER_PRIVATE_KEY not set"); process.exit(1); }
     if (!CRE_API_KEY) { console.error("❌ CRE_API_KEY not set"); process.exit(1); }
+    if (!CHTT_ENCLAVE_SECRET) { console.error("❌ CHTT_ENCLAVE_SECRET not set in backend/.env"); process.exit(1); }
 
     console.log("═".repeat(50));
     console.log("📤 Chainlink Functions DON Secrets Upload");
@@ -58,7 +60,7 @@ async function main() {
     await secretsManager.initialize();
     console.log("✅ SecretsManager initialized\n");
 
-    const secrets = { apiBaseUrl: API_BASE_URL, creApiKey: CRE_API_KEY };
+    const secrets = { apiBaseUrl: API_BASE_URL, creApiKey: CRE_API_KEY, enclaveKey: CHTT_ENCLAVE_SECRET };
 
     console.log("🔐 Encrypting secrets...");
     const encrypted = await secretsManager.encryptSecrets(secrets);
@@ -81,7 +83,7 @@ async function main() {
     console.log("✅ DON SECRETS UPLOADED");
     console.log("═".repeat(50));
     console.log(`Slot: ${SLOT_ID}  Version: ${version}  Expires: ${EXPIRATION_MINUTES / 60}h`);
-    console.log(`Secrets: apiBaseUrl, creApiKey`);
+    console.log(`Secrets: apiBaseUrl, creApiKey, enclaveKey (CHTT Phase 2)`);
     console.log("═".repeat(50));
 }
 

@@ -168,20 +168,34 @@ const keyBytes = [];
 for (let i = 0; i < 64; i += 2) {
     keyBytes.push(parseInt(secrets.enclaveKey.slice(i, i + 2), 16));
 }
-// NOTE: Real Chainlink Functions environment provides SubtleCrypto via the
-// WebCrypto API. The implementation below uses the sync stub pattern used
-// in conf-http-demo. In production replace with:
-//   const keyBuf = await crypto.subtle.importKey('raw', new Uint8Array(keyBytes), 'AES-GCM', false, ['encrypt']);
-//   const nonceBuf = crypto.getRandomValues(new Uint8Array(12));
-//   const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonceBuf }, keyBuf, new TextEncoder().encode(payload));
-// For the purposes of this stub the output is base64-encoded with a nonce prefix.
+// FIX 2026-02-21: Replaced btoa() placeholder with real SubtleCrypto.encrypt (AES-256-GCM).
+// Chainlink Functions DON sandbox provides the WebCrypto API (crypto.subtle).
+// This is the production-ready implementation. secrets.enclaveKey must be registered
+// in the Chainlink Functions subscription secrets (Vault DON) before upload.
 
 const encoder = new TextEncoder();
-const nonceArr = crypto.getRandomValues(new Uint8Array(12));
-const nonceHex = Array.from(nonceArr).map(b => b.toString(16).padStart(2,'0')).join('');
-// Stub ciphertext: base64(payload) — replaced by real SubtleCrypto.encrypt in production
-const ciphertextHex = btoa(payload);
-const tagHex = nonceHex.slice(0, 32); // placeholder auth tag matching nonce length
+const keyBuf = await crypto.subtle.importKey(
+    'raw',
+    new Uint8Array(keyBytes),
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt']
+);
+const nonceBuf = crypto.getRandomValues(new Uint8Array(12));
+const encBuf = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonceBuf },
+    keyBuf,
+    encoder.encode(payload)
+);
+// encBuf = ciphertext (variable length) + 16-byte auth tag (GCM appends tag to output)
+const encArr = new Uint8Array(encBuf);
+const nonceHex = Array.from(nonceBuf).map(b => b.toString(16).padStart(2, '0')).join('');
+// Split: last 16 bytes = auth tag, rest = ciphertext
+const ctArr  = encArr.slice(0, encArr.length - 16);
+const tagArr = encArr.slice(encArr.length - 16);
+const toHex  = (arr) => Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+const ciphertextHex = toHex(ctArr);
+const tagHex = toHex(tagArr);
 
 return Functions.encodeString(nonceHex + ':' + ciphertextHex + ':' + tagHex);
 `;

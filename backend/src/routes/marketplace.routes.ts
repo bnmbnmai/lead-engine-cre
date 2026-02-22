@@ -1937,6 +1937,25 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
                             console.warn(`[CONFIRM-ESCROW] recordSaleOnChain failed: ${saleResult.error}`);
                         }
                     }
+
+                    // Fix 4 (2026-02-21): Dispatch on-chain CRE quality score request.
+                    // Phase 1 path only — Phase 2 (USE_BATCHED_PRIVATE_SCORE) handles its own dispatch.
+                    // Non-blocking: errors logged but do not affect the escrow response already sent.
+                    if (!process.env.USE_BATCHED_PRIVATE_SCORE) {
+                        console.log(`[CONFIRM-ESCROW] Dispatching on-chain CRE quality score — tokenId=${mintResult.tokenId}, leadId=${leadId}`);
+                        creService.requestOnChainQualityScore(leadId, Number(mintResult.tokenId), leadId)
+                            .then((r) => {
+                                if (r.submitted) {
+                                    console.log(`[CONFIRM-ESCROW] ✓ CRE requestQualityScore submitted — requestId=${r.requestId}`);
+                                } else {
+                                    console.warn(`[CONFIRM-ESCROW] CRE requestQualityScore skipped/failed: ${r.error}`);
+                                }
+                            })
+                            .catch((err) => {
+                                console.warn(`[CONFIRM-ESCROW] CRE requestOnChainQualityScore threw: ${err.message}`);
+                            });
+                    }
+
                 } else {
                     // BUG-08: Set nftMintFailed flag + schedule retry instead of silent warn.
                     // Auction/sale already succeeded — this is non-blocking.

@@ -109,20 +109,24 @@ All contracts are deployed on Base Sepolia and have exact-match source code publ
 # PersonalEscrowVault
 npx hardhat verify --network baseSepolia 0xf09cf1d4389A1Af11542F96280dc91739E866e74 "0x036CbD53842c5426634e7929541eC2318f3dCF7e" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
-# LeadNFTv2
-npx hardhat verify --network baseSepolia 0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4 "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+# LeadNFTv2 — FIX 2026-02-21: corrected address (was 0x1eAe80ED... which is stale Sepolia deploy)
+npx hardhat verify --network baseSepolia 0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155 "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
-# CREVerifier
-npx hardhat verify --network baseSepolia 0xfec22A5159E077d7016AAb5fC3E91e0124393af8 "0xf9B8FC078197181C841c296C876945aaa425B278" "0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000" 3063 "0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+# CREVerifier — FIX 2026-02-21: corrected LeadNFT arg to deployed 0x73ebD... address
+npx hardhat verify --network baseSepolia 0xfec22A5159E077d7016AAb5fC3E91e0124393af8 "0xf9B8FC078197181C841c296C876945aaa425B278" "0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000" 581 "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
-# VRFTieBreaker
-npx hardhat verify --network baseSepolia 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e <VRF_SUBSCRIPTION_ID> "0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4"
+# VRFTieBreaker — FIX 2026-02-21: corrected LeadNFT arg; fill VRF_SUBSCRIPTION_ID from dashboard
+# CRE subscription is 581; VRF subscription ID is separate — see VRF_SUBSCRIPTION_ID in .env
+npx hardhat verify --network baseSepolia 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e <VRF_SUBSCRIPTION_ID> "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155"
 
 # RTBEscrow
 npx hardhat verify --network baseSepolia 0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2 "0x036CbD53842c5426634e7929541eC2318f3dCF7e" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" 250 "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
 # ACECompliance
 npx hardhat verify --network baseSepolia 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6
+
+# ACELeadPolicy — FIX 2026-02-21: added missing verify command
+npx hardhat verify --network baseSepolia 0x013f3219012030aC32cc293fB51a92eBf82a566F "0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6"
 ```
 
 > All contracts have exact-match source code published on Basescan as of 2026-02-21.

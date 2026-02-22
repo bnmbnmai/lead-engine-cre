@@ -605,6 +605,130 @@ class CREService {
         return null; // No on-chain score available → "Pending CRE"
     }
 
+    // ============================================
+    // Fix 4 (2026-02-21): On-Chain CRE Functions Wiring
+    // ============================================
+
+    /**
+     * Submit a requestQualityScore transaction to CREVerifier after NFT mint.
+     *
+     * USE WHEN: USE_BATCHED_PRIVATE_SCORE=false (Phase 1 fallback) and a valid
+     * nftTokenId has just been written to the DB by nftService.mintLeadNFT().
+     *
+     * Flow:
+     *   1. Dispatch requestQualityScore(tokenId) → DON computes DON_QUALITY_SCORE_SOURCE
+     *   2. Poll for VerificationFulfilled event (max 90s, 6s intervals)
+     *   3. Decode the on-chain score from resultHash field (stored as uint16)
+     *   4. Write score to lead.qualityScore in Prisma
+     *
+     * Non-blocking: errors are logged but do not throw so the caller's user-
+     * facing flow is not interrupted. The lead will show "Pending CRE" badge
+     * in the UI until the score arrives.
+     *
+     * @param leadId    - Lead UUID (for Prisma update)
+     * @param tokenId   - NFT token ID (uint256) from mintLeadNFT result
+     * @param leadIdRef - Optional: lead ID string to include in log prefix
+     */
+    async requestOnChainQualityScore(
+        leadId: string,
+        tokenId: number,
+        leadIdRef?: string,
+    ): Promise<{ submitted: boolean; requestId?: string; error?: string }> {
+        const logPrefix = `[CRE On-Chain] Lead ${leadIdRef || leadId} tokenId=${tokenId}`;
+
+        if (!this.contract || !this.signer) {
+            console.warn(`${logPrefix}: CRE contract not configured — skipping on-chain score request`);
+            return { submitted: false, error: 'CRE contract not configured' };
+        }
+
+        // Phase 2 (batched) path handles its own on-chain dispatch via enclave.
+        // This method is only for Phase 1 (direct requestQualityScore).
+        if (USE_BATCHED_PRIVATE_SCORE) {
+            console.log(`${logPrefix}: USE_BATCHED_PRIVATE_SCORE=true — skipping Phase 1 on-chain request`);
+            return { submitted: false, error: 'USE_BATCHED_PRIVATE_SCORE=true; use Phase 2 path' };
+        }
+
+        try {
+            // Step 1: Dispatch requestQualityScore
+            console.log(`${logPrefix}: Dispatching requestQualityScore...`);
+            const tx = await this.contract.requestQualityScore(tokenId, { gasLimit: 400_000 });
+            console.log(`${logPrefix}: Tx submitted — ${tx.hash}`);
+            const receipt = await tx.wait();
+
+            // Extract requestId from the first log topic (emitted as VerificationRequested)
+            const requestId: string = receipt?.logs?.[0]?.topics?.[1] || ethers.ZeroHash;
+            console.log(`${logPrefix}: ✓ requestQualityScore confirmed — requestId=${requestId} block=${receipt?.blockNumber}`);
+
+            // Step 2: Background event listener — poll for VerificationFulfilled
+            // We do not await this; it resolves asynchronously once the DON responds.
+            this.listenForVerificationFulfilled(leadId, tokenId, requestId, logPrefix).catch((err) => {
+                console.error(`${logPrefix}: VerificationFulfilled listener error: ${err.message}`);
+            });
+
+            return { submitted: true, requestId };
+        } catch (error: any) {
+            console.error(`${logPrefix}: requestQualityScore failed: ${error.message}`);
+            return { submitted: false, error: error.message };
+        }
+    }
+
+    /**
+     * Background listener for VerificationFulfilled events.
+     * Polls CREVerifier every 6s for up to 90s (15 attempts).
+     * On receipt, decodes the score and writes to Prisma.
+     *
+     * VerificationFulfilled event signature (from CREVerifier.sol):
+     *   event VerificationFulfilled(bytes32 indexed requestId, uint256 indexed leadTokenId,
+     *       uint8 verificationType, uint16 score, bytes32 resultHash);
+     *
+     * 2026-02-21: Added as part of Fix 4 — on-chain CRE Functions wiring.
+     */
+    private async listenForVerificationFulfilled(
+        leadId: string,
+        tokenId: number,
+        requestId: string,
+        logPrefix: string,
+    ): Promise<void> {
+        const MAX_POLLS = 15;
+        const POLL_INTERVAL_MS = 6_000; // 6s between polls — DON typically responds in 30–60s
+
+        // VerificationResult struct read from getVerificationResult(requestId)
+        // Fields: requestId, verificationType, leadTokenId, requester, requestedAt,
+        //         fulfilledAt, status, resultHash
+        // We call getLeadQualityScore(tokenId) as the simplest fulfillment check.
+
+        for (let attempt = 1; attempt <= MAX_POLLS; attempt++) {
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+            try {
+                const onChainScore = await this.contract!.getLeadQualityScore(tokenId);
+                const score = Number(onChainScore);
+
+                if (score > 0) {
+                    // Fulfilled — write score to DB
+                    await prisma.lead.update({
+                        where: { id: leadId },
+                        data: { qualityScore: score },
+                    });
+                    console.log(
+                        `${logPrefix}: ✓ VerificationFulfilled — ` +
+                        `on-chain score=${score}/10000 written to DB (attempt ${attempt}/${MAX_POLLS})`,
+                    );
+                    return;
+                }
+
+                console.log(`${logPrefix}: Poll ${attempt}/${MAX_POLLS} — score not yet fulfilled (score=${score})`);
+            } catch (err: any) {
+                console.warn(`${logPrefix}: Poll ${attempt}/${MAX_POLLS} — error: ${err.message}`);
+            }
+        }
+
+        console.warn(
+            `${logPrefix}: ⚠ VerificationFulfilled not received after ${MAX_POLLS} attempts (${(MAX_POLLS * POLL_INTERVAL_MS) / 1000}s). ` +
+            'Lead will show "Pending CRE" badge until manual re-trigger.',
+        );
+    }
+
 
     // ============================================
     // Parameter Matching
