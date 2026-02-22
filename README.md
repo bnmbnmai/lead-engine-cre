@@ -13,11 +13,84 @@
 
 [Live Demo](https://lead-engine-cre-frontend.vercel.app) | [GitHub](https://github.com/bnmbnmai/lead-engine-cre)
 
+---
+
+## On-Chain Proofs
+
+All contracts are deployed on Base Sepolia and have exact-match source code published on Basescan as of 2026-02-21.
+
+| Contract | Address | Primary Chainlink Services | Basescan |
+|----------|---------|---------------------------|----------|
+| PersonalEscrowVault | `0xf09cf1d4389A1Af11542F96280dc91739E866e74` | Automation (PoR + lock expiry), Data Feeds (USDC/ETH liveness guard) | [↗](https://sepolia.basescan.org/address/0xf09cf1d4389A1Af11542F96280dc91739E866e74#code) |
+| LeadNFTv2 | `0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4` | — | [↗](https://sepolia.basescan.org/address/0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4#code) |
+| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Functions (quality scoring + ZK fraud-signal) | [↗](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8#code) |
+| VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | VRF v2.5 (tie resolution) | [↗](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e#code) |
+| RTBEscrow | `0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2` | — | [↗](https://sepolia.basescan.org/address/0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2#code) |
+| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | — | [↗](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6#code) |
+
+**PersonalEscrowVault** implements `AutomationCompatibleInterface` — `checkUpkeep` verifies reserve balances and `performUpkeep` settles or refunds expired bid locks; `lockForBid` and `settleBid` both require a live Chainlink Data Feeds price from the USDC/ETH aggregator before moving funds.
+
+**LeadNFTv2** is an ERC-721 contract with EIP-2981 royalty support; royalty recipient and fee basis points are configurable by the contract owner.
+
+**CREVerifier** is a `FunctionsClient` that dispatches JavaScript source strings to the Chainlink Functions DON for both quality scoring (`requestQualityScore`) and ZK fraud-signal verification (`requestZKProofVerification`); the DON callback writes results to `_leadQualityScores` and `_zkFraudSignals` respectively.
+
+**VRFTieBreaker** requests a single `uint256` random word from the VRF v2.5 coordinator; `fulfillRandomWords` selects the winner as `candidates[randomWord % candidates.length]`.
+
+**RTBEscrow** handles atomic USDC escrow for sealed-bid auction settlement — funds are locked at bid time and released or refunded at auction close.
+
+**ACECompliance** maintains an on-chain registry for KYC status, jurisdiction policy, and reputation scores; access is gated to authorized verifier addresses set by the contract owner.
+
+### Verification Commands
+
+```powershell
+# PersonalEscrowVault
+npx hardhat verify --network baseSepolia 0xf09cf1d4389A1Af11542F96280dc91739E866e74 `
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e" `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+
+# LeadNFTv2
+npx hardhat verify --network baseSepolia 0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4 `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+
+# CREVerifier
+npx hardhat verify --network baseSepolia 0xfec22A5159E077d7016AAb5fC3E91e0124393af8 `
+  "0xf9B8fc078197181C841c296C876945aaa425B278" `
+  "0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000" `
+  3063 `
+  "0x1eAe80ED100239dd4cb35008274eE62B1d5aC4e4" `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+
+# VRFTieBreaker
+npx hardhat verify --network baseSepolia 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e `
+  "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE" `
+  <VRF_SUBSCRIPTION_ID> `
+  "0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71"
+
+# RTBEscrow
+npx hardhat verify --network baseSepolia 0xf3fCB43f882b5aDC43c2E7ae92c3ec5005e4cBa2 `
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e" `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" `
+  250 `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+
+# ACECompliance
+npx hardhat verify --network baseSepolia 0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6 `
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+```
+
+> All contracts have exact-match source code published on Basescan as of 2026-02-21.
+
+---
+
 ### Accurate Chainlink Integration Status (2026-02-21)
 - Automation + PoR (PersonalEscrowVault)
-- Functions / CRE (CREVerifier)
+- Functions / CRE quality scoring (CREVerifier)
+- **Functions / ZK fraud-signal — LIVE** (`requestZKProofVerification` → real DON dispatch; JS source registered; `fulfillRequest` stores `_zkFraudSignals`)
 - VRF v2.5 (VRFTieBreaker)
-- Data Feeds, CCIP, and full ZK on roadmap (to be implemented next)
+- **Data Feeds — LIVE** (PersonalEscrowVault `usdcEthFeed`, USDC/ETH guard on `lockForBid` + `settleBid`)
+- **EIP-2981 Royalties — LIVE** (LeadNFTv2 `setRoyaltyInfo`)
+- CCIP on roadmap
 
 ---
 
@@ -64,7 +137,7 @@ graph TD
 
 ## Chainlink Integration
 
-Lead Engine integrates four Chainlink services on-chain:
+Lead Engine integrates **six** Chainlink services on-chain:
 
 | Service | Role |
 |---------|------|
@@ -72,10 +145,8 @@ Lead Engine integrates four Chainlink services on-chain:
 | **ACE** | On-chain compliance engine (KYC, geo, reputation, blacklist) — no Chainlink oracle dependency |
 | **Automation** | Proof of Reserves every 24 hours and automatic refund of expired bid locks |
 | **VRF v2.5** | Verifiable random tiebreaker for equal bids |
-| **Functions** | Dynamic bounty matching and payout execution |
-| **Data Feeds** | _Planned_ — no on-chain Data Feed consumer deployed |
-
-> Note: `requestZKProofVerification` in CREVerifier.sol is a stub — it logs the request locally but does not dispatch a Chainlink Functions job. Full ZK integration is on the roadmap.
+| **Functions (ZK)** | `requestZKProofVerification` dispatches Groth16/Plonk proof to DON; `fulfillRequest` stores fraud-signal result in `_zkFraudSignals[tokenId]` |
+| **Data Feeds** | USDC/ETH price guard in PersonalEscrowVault — `lockForBid()` and `settleBid()` require a valid live price before moving funds |
 
 This integration enables trust-minimized, verifiable lead transactions at scale.
 

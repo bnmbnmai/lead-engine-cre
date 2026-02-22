@@ -1,72 +1,72 @@
 [
   {
-    "runId": "7254c5e2-6e55-45b5-bd73-c41dfdd36ac7",
-    "startedAt": "2026-02-21T08:33:48.418Z",
-    "completedAt": "2026-02-21T08:33:48.418Z",
+    "runId": "abe203a3-e92f-4b6b-aaa4-80101c27c6c2",
+    "startedAt": "2026-02-21T22:36:31.108Z",
+    "completedAt": "2026-02-21T22:36:31.108Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   },
   {
-    "runId": "d48bdfaa-ccc8-44a8-9579-d5a66f7ff69b",
-    "startedAt": "2026-02-21T08:33:48.481Z",
-    "completedAt": "2026-02-21T08:33:48.481Z",
+    "runId": "d5b31f26-3163-45c1-8791-5e5e07489b6e",
+    "startedAt": "2026-02-21T22:36:31.167Z",
+    "completedAt": "2026-02-21T22:36:31.167Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   },
   {
-    "runId": "dedd1145-a6e8-4f18-9d25-f0b1b7b88b7e",
-    "startedAt": "2026-02-21T08:33:48.591Z",
-    "completedAt": "2026-02-21T08:33:48.591Z",
+    "runId": "fc26bcf7-2537-43d1-ba15-7684c2e07d78",
+    "startedAt": "2026-02-21T22:36:31.279Z",
+    "completedAt": "2026-02-21T22:36:31.279Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   },
   {
-    "runId": "9afd0ccf-1909-46aa-9890-ac861b23850c",
-    "startedAt": "2026-02-21T08:33:48.593Z",
-    "completedAt": "2026-02-21T08:33:48.593Z",
+    "runId": "91db4b52-ffe5-4f12-bf0c-90e6a7a6147f",
+    "startedAt": "2026-02-21T22:36:31.286Z",
+    "completedAt": "2026-02-21T22:36:31.286Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   },
   {
-    "runId": "54ea4075-5444-4378-9ca8-f07caef84805",
-    "startedAt": "2026-02-21T08:33:48.601Z",
-    "completedAt": "2026-02-21T08:33:48.601Z",
+    "runId": "9f1edf7d-28dd-4e82-861a-c2333a57ecdb",
+    "startedAt": "2026-02-21T22:36:31.296Z",
+    "completedAt": "2026-02-21T22:36:31.296Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   },
   {
-    "runId": "03e19fd3-5d6b-4b45-a2c5-6d665cf7fe3c",
-    "startedAt": "2026-02-21T08:33:48.602Z",
-    "completedAt": "2026-02-21T08:33:48.602Z",
+    "runId": "94a74da3-0aa9-4667-8d6b-75ee128308b4",
+    "startedAt": "2026-02-21T22:36:31.302Z",
+    "completedAt": "2026-02-21T22:36:31.302Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   },
   {
-    "runId": "7ee9be06-6915-4931-bf43-f827854a8aa5",
-    "startedAt": "2026-02-21T08:33:48.604Z",
-    "completedAt": "2026-02-21T08:33:48.604Z",
+    "runId": "daa3d72f-3bdd-4bfc-add8-d4fb46eec9fc",
+    "startedAt": "2026-02-21T22:36:31.310Z",
+    "completedAt": "2026-02-21T22:36:31.310Z",
     "cycles": [],
     "totalGas": "0",
     "totalSettled": 0,
     "status": "failed",
-    "error": "VAULT_ADDRESS_BASE_SEPOLIA environment variable not set. Add it to Render env vars before running the demo."
+    "error": "DEPLOYER_PRIVATE_KEY not set"
   }
 ]

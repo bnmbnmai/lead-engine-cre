@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /**
  * @title PersonalEscrowVault
@@ -95,6 +96,12 @@ contract PersonalEscrowVault is
     uint256 public lastPorCheck;
     bool    public lastPorSolvent;
 
+    // ── Chainlink Data Feed ──
+
+    /// @notice USDC/ETH Chainlink price feed (8 decimals)
+    ///         Base Sepolia: 0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF
+    AggregatorV3Interface public usdcEthFeed;
+
     // ============================================
     // Events
     // ============================================
@@ -108,6 +115,7 @@ contract PersonalEscrowVault is
     event ExpiredLocksRefunded(uint256 count, uint256 timestamp);
     event CallerAuthorized(address indexed caller, bool authorized);
     event PlatformWalletUpdated(address indexed oldWallet, address indexed newWallet);
+    event FeedUpdated(address indexed oldFeed, address indexed newFeed);
 
     // ============================================
     // Modifiers
@@ -134,6 +142,8 @@ contract PersonalEscrowVault is
         require(_platformWallet != address(0), "Zero platform wallet");
         paymentToken = IERC20(_paymentToken);
         platformWallet = _platformWallet;
+        // Base Sepolia USDC/ETH Chainlink Data Feed
+        usdcEthFeed = AggregatorV3Interface(0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF);
     }
 
     // ============================================
@@ -149,6 +159,13 @@ contract PersonalEscrowVault is
         require(_wallet != address(0), "Zero address");
         emit PlatformWalletUpdated(platformWallet, _wallet);
         platformWallet = _wallet;
+    }
+
+    /// @notice Update the USDC/ETH Chainlink price feed address (e.g., on mainnet migration)
+    function setUsdcEthFeed(address _feed) external onlyOwner {
+        require(_feed != address(0), "Zero feed");
+        emit FeedUpdated(address(usdcEthFeed), _feed);
+        usdcEthFeed = AggregatorV3Interface(_feed);
     }
 
     function pause() external onlyOwner { _pause(); }
@@ -213,6 +230,10 @@ contract PersonalEscrowVault is
         address user,
         uint256 bidAmount
     ) external onlyAuthorizedCaller nonReentrant whenNotPaused returns (uint256) {
+        // Chainlink Data Feed: require a valid, live USDC/ETH price before locking funds
+        (, int256 price,,,) = usdcEthFeed.latestRoundData();
+        require(price > 0, "Vault: Invalid USDC/ETH price");
+
         uint256 total = bidAmount + CONVENIENCE_FEE;
         require(balances[user] >= total, "Insufficient vault balance");
 
@@ -245,6 +266,10 @@ contract PersonalEscrowVault is
         uint256 lockId,
         address seller
     ) external onlyAuthorizedCaller nonReentrant whenNotPaused {
+        // Chainlink Data Feed: require a valid, live USDC/ETH price before settling
+        (, int256 price,,,) = usdcEthFeed.latestRoundData();
+        require(price > 0, "Vault: Invalid USDC/ETH price");
+
         BidLock storage lock = bidLocks[lockId];
         require(!lock.settled, "Already settled");
         require(lock.user != address(0), "Invalid lock");

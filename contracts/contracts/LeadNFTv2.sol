@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./interfaces/ILeadNFT.sol";
@@ -13,7 +14,14 @@ import "./interfaces/ILeadNFT.sol";
  * @dev Gas-optimized ERC-721 for lead tokenization with enhanced metadata
  * @notice Supports marketplace integration, ACE verification, and ZK proofs
  */
-contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, ReentrancyGuard, ILeadNFT {
+contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, ERC2981, Ownable, ReentrancyGuard, ILeadNFT {
+    // ============================================
+    // Constants
+    // ============================================
+
+    /// @notice Hard cap on royalty basis points (10%)
+    uint96 public constant MAX_ROYALTY_BPS = 1000;
+
     // ============================================
     // State Variables (Optimized Storage Layout)
     // ============================================
@@ -66,6 +74,7 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
     event MinterAuthorized(address indexed minter, bool authorized);
     event MarketplaceUpdated(address indexed oldMarketplace, address indexed newMarketplace);
     event LeadStatusUpdated(uint256 indexed tokenId, LeadStatus oldStatus, LeadStatus newStatus);
+    event RoyaltyInfoSet(address indexed receiver, uint96 feeNumerator);
 
     // ============================================
     // Constructor
@@ -109,6 +118,31 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
         address old = marketplace;
         marketplace = _marketplace;
         emit MarketplaceUpdated(old, _marketplace);
+    }
+
+    /**
+     * @notice Set EIP-2981 default royalty for all LeadNFT secondary sales.
+     * @param receiver  Address that receives royalties (e.g., platform treasury)
+     * @param feeNumerator  Basis points (e.g., 250 = 2.5%). Hard-capped at 10%.
+     */
+    function setRoyaltyInfo(address receiver, uint96 feeNumerator) external onlyOwner {
+        require(receiver != address(0), "LeadNFTv2: Zero royalty receiver");
+        require(feeNumerator <= MAX_ROYALTY_BPS, "LeadNFTv2: Royalty exceeds 10%");
+        _setDefaultRoyalty(receiver, feeNumerator);
+        emit RoyaltyInfoSet(receiver, feeNumerator);
+    }
+
+    /**
+     * @notice Returns EIP-2981 royalty info for a given token and sale price.
+     * @dev Delegates to ERC2981._defaultRoyaltyInfo (set via setRoyaltyInfo).
+     */
+    function royaltyInfo(uint256 tokenId, uint256 salePrice)
+        public
+        view
+        override
+        returns (address receiver, uint256 royaltyAmount)
+    {
+        return super.royaltyInfo(tokenId, salePrice);
     }
 
     // ============================================
@@ -285,7 +319,7 @@ contract LeadNFTv2 is ERC721, ERC721URIStorage, ERC721Burnable, Ownable, Reentra
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721, ERC721URIStorage)
+        override(ERC721, ERC721URIStorage, ERC2981)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);

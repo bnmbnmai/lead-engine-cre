@@ -34,6 +34,11 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
     string private _parameterMatchSource;
     string private _geoValidationSource;
     string private _qualityScoreSource;
+    string private _zkProofSource;
+
+    // ZK fraud-signal results: 0=not run, 1=verified, 2=rejected
+    // Live ZK fraud-signal verification via Chainlink Functions DON — 2026-02-21
+    mapping(uint256 => uint8) private _zkFraudSignals;
     
     // ============================================
     // Events (additional to interface)
@@ -41,6 +46,8 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
     
     event SourceCodeUpdated(VerificationType verificationType);
     event ConfigUpdated(bytes32 donId, uint64 subscriptionId, uint32 gasLimit);
+    /// @notice Emitted when a ZK proof is dispatched to the Chainlink Functions DON for fraud-signal scoring
+    event ZKVerificationRequested(uint256 indexed tokenId, bytes32 indexed requestId);
 
     // ============================================
     // Constructor
@@ -95,6 +102,8 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
             _geoValidationSource = sourceCode;
         } else if (verificationType == VerificationType.QUALITY_SCORE) {
             _qualityScoreSource = sourceCode;
+        } else if (verificationType == VerificationType.ZK_PROOF) {
+            _zkProofSource = sourceCode;
         }
         emit SourceCodeUpdated(verificationType);
     }
@@ -235,19 +244,44 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
         return requestId;
     }
 
+    /**
+     * @notice Dispatch a ZK fraud-signal verification to the Chainlink Functions DON.
+     * @dev Live ZK fraud-signal verification via Chainlink Functions DON — 2026-02-21
+     *      Mirrors requestQualityScore exactly: same donId, subscriptionId, gasLimit.
+     *      The source code (set via setSourceCode(ZK_PROOF, ...)) should implement a
+     *      Groth16/Plonk ZK verifier that accepts (tokenId, proofHex, publicInputsHex)
+     *      and returns uint8: 1=verified, 2=rejected.
+     * @param leadTokenId   Token ID of the lead to fraud-score
+     * @param proof         ABI-encoded ZK proof bytes (passed as hex arg to DON)
+     * @param publicInputs  Public inputs for the proof (passed as hex arg to DON)
+     * @return requestId    Chainlink Functions request ID (emitted in ZKVerificationRequested)
+     */
     function requestZKProofVerification(
         uint256 leadTokenId,
         bytes calldata proof,
         bytes32[] calldata publicInputs
     ) external returns (bytes32 requestId) {
-        // For ZK proofs, we generate a deterministic request ID
-        requestId = keccak256(abi.encodePacked(
-            leadTokenId,
-            proof,
-            publicInputs,
-            block.timestamp
-        ));
-        
+        require(bytes(_zkProofSource).length > 0, "CRE: ZK source not set");
+
+        // Build the Functions request — identical pipeline to requestQualityScore
+        FunctionsRequest.Request memory req;
+        req.initializeRequestForInlineJavaScript(_zkProofSource);
+
+        // Args: [tokenId (decimal), proof (hex), publicInputs (hex-encoded concatenation)]
+        string[] memory args = new string[](3);
+        args[0] = _uint256ToString(leadTokenId);
+        args[1] = _bytesToHexString(proof);
+        args[2] = _publicInputsToHexString(publicInputs);
+        req.setArgs(args);
+
+        // Dispatch to DON — requestId is the canonical Chainlink Functions request ID
+        requestId = _sendRequest(
+            req.encodeCBOR(),
+            subscriptionId,
+            gasLimit,
+            donId
+        );
+
         _requests[requestId] = VerificationRequest({
             requestId: requestId,
             verificationType: VerificationType.ZK_PROOF,
@@ -258,16 +292,15 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
             status: RequestStatus.PENDING,
             resultHash: bytes32(0)
         });
-        
+
         emit VerificationRequested(
             requestId,
             leadTokenId,
             VerificationType.ZK_PROOF,
             msg.sender
         );
-        
-        // ZK verification would be handled off-chain and fulfilled via oracle
-        
+        emit ZKVerificationRequested(leadTokenId, requestId);
+
         return requestId;
     }
 
@@ -296,9 +329,13 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
         
         // Process based on verification type
         if (request.verificationType == VerificationType.QUALITY_SCORE) {
-            // Decode quality score from response
+            // Decode quality score from response (uint16, 0-10000)
             uint16 score = abi.decode(response, (uint16));
             _leadQualityScores[request.leadTokenId] = score;
+        } else if (request.verificationType == VerificationType.ZK_PROOF) {
+            // Decode ZK fraud-signal result: 1=verified (proof valid), 2=rejected (fraud signal)
+            uint8 signal = abi.decode(response, (uint8));
+            _zkFraudSignals[request.leadTokenId] = signal;
         }
         
         emit VerificationFulfilled(requestId, true, request.resultHash);
@@ -339,6 +376,14 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
 
     function getLeadQualityScore(uint256 leadTokenId) external view returns (uint16) {
         return _leadQualityScores[leadTokenId];
+    }
+
+    /**
+     * @notice Returns the ZK fraud-signal result for a lead token.
+     * @return 0=not yet verified, 1=ZK proof verified (clean), 2=ZK proof rejected (fraud signal)
+     */
+    function getZKFraudSignal(uint256 leadTokenId) external view returns (uint8) {
+        return _zkFraudSignals[leadTokenId];
     }
 
     /**
@@ -411,6 +456,35 @@ contract CREVerifier is ICREVerifier, FunctionsClient, Ownable {
     // ============================================
     // Helper Functions
     // ============================================
+
+    /// @dev Encodes raw bytes to a 0x-prefixed hex string for Chainlink Functions args
+    function _bytesToHexString(bytes calldata data) internal pure returns (string memory) {
+        bytes memory hexChars = "0123456789abcdef";
+        bytes memory result = new bytes(2 + data.length * 2);
+        result[0] = '0';
+        result[1] = 'x';
+        for (uint256 i = 0; i < data.length; i++) {
+            result[2 + i * 2]     = hexChars[uint8(data[i] >> 4)];
+            result[2 + i * 2 + 1] = hexChars[uint8(data[i] & 0x0f)];
+        }
+        return string(result);
+    }
+
+    /// @dev Encodes bytes32[] public inputs to a concatenated 0x-prefixed hex string
+    function _publicInputsToHexString(bytes32[] calldata inputs) internal pure returns (string memory) {
+        bytes memory hexChars = "0123456789abcdef";
+        bytes memory result = new bytes(2 + inputs.length * 64);
+        result[0] = '0';
+        result[1] = 'x';
+        for (uint256 i = 0; i < inputs.length; i++) {
+            for (uint256 j = 0; j < 32; j++) {
+                uint8 b = uint8(inputs[i][j]);
+                result[2 + i * 64 + j * 2]     = hexChars[b >> 4];
+                result[2 + i * 64 + j * 2 + 1] = hexChars[b & 0x0f];
+            }
+        }
+        return string(result);
+    }
 
     function _bytes32ToString(bytes32 data) internal pure returns (string memory) {
         bytes memory result = new bytes(64);
