@@ -12,7 +12,7 @@
 | **Date** | 2026-02-22 |
 | **Cycles** | 5 / 5 completed |
 | **Total USDC Settled** | $239.00 |
-| **Platform Revenue** | $32.95 |
+| **Platform Revenue** | $32.95 (5%) |
 | **VRF Tiebreaker** | Cycle 3 — confirmed on-chain |
 | **Proof of Reserves** | Passed all 5 cycles |
 | **Vault** | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` (demoMode=true) |
@@ -28,8 +28,8 @@
 | **Chainlink Automation + PoR** | `PersonalEscrowVault` `0x56bB31bE…` | ✅ Live |
 | **Chainlink Functions (CRE quality score)** | `CREVerifier` `0xfec22A51…` | ✅ Live |
 | **Chainlink VRF v2.5 (tiebreaker)** | `VRFTieBreaker` `0x86c8f348…` | ✅ Live |
-| **Chainlink ACE (PolicyProtected mintLead)** | `LeadNFTv2` `0x73ebD921…` | ✅ Live |
-| **CHTT Phase 2 (batched private score)** | `CREVerifier` + enclave key | ✅ Live |
+| **Chainlink ACE (PolicyProtected mintLead)** | `LeadNFTv2` + `ACECompliance` `0xAea2590E…` | ✅ Live |
+| **CHTT Phase 2 (batched private score)** | `CREVerifier` + DON Vault enclave key | ✅ Live |
 | **Data Feeds (USDC/ETH price reference)** | `PersonalEscrowVault` (demoMode bypass) | ✅ Integrated |
 
 ---
@@ -41,10 +41,11 @@
 | Vault `demoMode=true` bypass for stale price feed | ✅ vault txs succeed |
 | Deployer added to vault `authorizedCallers` | ✅ backend can transact |
 | BuyItNow per-cycle fallback in orchestrator | ✅ CRE dispatch guaranteed |
-| Correct `LEAD_NFT_CONTRACT_ADDRESS_BASE_SEPOLIA` | ✅ `0x73ebD921…` (real contract) |
+| Correct `LEAD_NFT_CONTRACT_ADDRESS_BASE_SEPOLIA` | ✅ `0x73ebD921…` (real 22KB contract) |
 | `setAuthorizedMinter(deployer, true)` on LeadNFTv2 | ✅ mint succeeds |
 | Startup self-heal: auto `setAuthorizedMinter` if needed | ✅ future-proof |
-| USDC sweep from old vault v2 + wallet consolidation | ✅ $4,346 at deployer |
+| USDC sweep from old vault + wallet consolidation | ✅ $4,346 at deployer |
+| ACE address corrected to `0xAea2590E…` (verified ACECompliance) | ✅ accurate |
 
 ---
 
@@ -52,4 +53,4 @@
 
 None. The system is demo-ready and submission-ready.
 
-> Last updated: 2026-02-22T07:35:00Z
+> Last updated: 2026-02-22T08:11:00Z

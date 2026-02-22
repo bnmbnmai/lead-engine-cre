@@ -7,7 +7,7 @@
 
 ## Project Summary
 
-**Lead Engine CRE** is a fully on-chain commercial real estate lead marketplace combining RTB (real-time bidding) auction mechanics, Chainlink Automation-enforced escrow, VRF-based tiebreaking, Chainlink Functions (CRE) quality scoring, ACE policy-gated NFT minting, and CHTT Phase 2 confidential scoring — all independently verifiable on Base Sepolia.
+**Lead Engine CRE** is a fully on-chain lead marketplace combining RTB (real-time bidding) auction mechanics, Chainlink Automation-enforced escrow, VRF-based tiebreaking, Chainlink Functions (CRE) quality scoring, ACE policy-gated NFT minting, and CHTT Phase 2 confidential scoring — all independently verifiable on Base Sepolia.
 
 ---
 
@@ -33,10 +33,9 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 |----------|---------|----------|
 | **PersonalEscrowVault** (Automation + PoR + Data Feeds) | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | [View](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) |
 | **LeadNFTv2** (ERC-721 + ACE + ERC-2981) | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | [View](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) |
-| **CREVerifier** (Functions CRE + ZK fraud signal) | `0xfec22A5159E077d7016AA84A79eFD5719D3A9F70` | [View](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AA84A79eFD5719D3A9F70) |
+| **CREVerifier** (Functions CRE + ZK fraud signal) | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | [View](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) |
 | **VRFTieBreaker** (VRF v2.5 auction tiebreaker) | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) |
-| **ACECompliance** (KYC/geo policy registry) | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
-| **ACE Policy Engine** | `0x746245858A5A5bCccfd0bdAa228b1489908b9546` | [View](https://sepolia.basescan.org/address/0x746245858A5A5bCccfd0bdAa228b1489908b9546) |
+| **ACECompliance** (KYC/geo/reputation policy registry) | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
 
 ---
 
@@ -81,12 +80,6 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 ```
 
 ---
-
-## Ready for Chainlink Convergence Hackathon 2026 Submission
-
-All six Chainlink services are live on Base Sepolia with independently verifiable on-chain transactions. The demo runs autonomously in one click with guaranteed CRE dispatch, VRF tiebreaking, and Automation-enforced Proof of Reserves. Privacy, TCPA compliance, and ACE policy enforcement are active at the contract level.
-
-**Submitted by:** Lead Engine CRE Team
 **Date:** 2026-02-22
 **Network:** Base Sepolia (chain ID 84532)
 **Repository:** [github.com/bnmbnmai/lead-engine-cre](https://github.com/bnmbnmai/lead-engine-cre)
