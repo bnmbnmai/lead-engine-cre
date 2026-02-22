@@ -74,6 +74,24 @@ export function formatTimeRemaining(endTime: string | Date): string {
 }
 
 /**
+ * v8: Format a raw millisecond duration as a countdown string.
+ * Unlike formatTimeRemaining, this does NOT call Date.now() — it formats
+ * the ms value directly, keeping the display purely server-clock-driven.
+ */
+export function formatMsRemaining(ms: number): string {
+  if (ms <= 0) return 'Ended';
+  const hours = Math.floor(ms / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1_000);
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
  * Shorten an Ethereum address for display.
  * e.g. "0x1234567890abcdef..." → "0x1234…cdef"
  */

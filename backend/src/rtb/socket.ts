@@ -492,20 +492,71 @@ class RTBSocketServer {
     }
 
     // ============================================
-    // Auction Monitor (Background Process)
+    // Auction State Broadcaster (v8)
     // ============================================
+
+    /**
+     * v8: Periodically broadcast server-authoritative remaining time for ALL
+     * active auctions. Before v8, auction:updated was only emitted on bid events,
+     * so closing-soon was never signalled for low-bid or no-bid auctions.
+     *
+     * Emits per active lead:
+     *   - auction:updated   (always, so clients keep countdown re-baselined)
+     *   - auction:closing-soon  (only when remainingTime ≤ 12 000 ms, so clients
+     *     transition to 'closing-soon' phase even with zero late bids)
+     */
+    private async broadcastActiveAuctionStates() {
+        try {
+            const now = new Date();
+            // Query only leads whose auction ends within the next 12 s or just ended (≤0)
+            // — limits DB work to the critical closure window; others don't need re-baselining.
+            const closingLeads = await prisma.lead.findMany({
+                where: {
+                    status: 'IN_AUCTION',
+                    auctionEndAt: { lte: new Date(now.getTime() + 12_000) },
+                },
+                select: { id: true, auctionEndAt: true, auctionRoom: { select: { bidCount: true, highestBid: true } } },
+            });
+
+            const serverTs = Date.now();
+            for (const lead of closingLeads) {
+                const auctionEndMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : null;
+                if (!auctionEndMs) continue;
+                const remainingTime = Math.max(0, auctionEndMs - serverTs);
+
+                this.io.emit('auction:updated', {
+                    leadId: lead.id,
+                    remainingTime,
+                    serverTs,
+                    bidCount: lead.auctionRoom?.bidCount ?? 0,
+                    highestBid: lead.auctionRoom?.highestBid ? Number(lead.auctionRoom.highestBid) : null,
+                    isSealed: remainingTime <= 5_000,
+                });
+
+                if (remainingTime <= 10_000 && remainingTime > 0) {
+                    this.io.emit('auction:closing-soon', { leadId: lead.id, remainingTime });
+                }
+
+                console.log(`[AuctionMonitor] broadcast leadId=${lead.id} remaining=${remainingTime}ms`);
+            }
+        } catch (err) {
+            console.error('[AuctionMonitor] broadcastActiveAuctionStates error:', err);
+        }
+    }
 
     private startAuctionMonitor() {
         setInterval(async () => {
             try {
-                // Delegate all auction lifecycle management to the shared service
+                // v8: broadcast server-authoritative remaining time for closing-window auctions
+                await this.broadcastActiveAuctionStates();
+                // Delegate auction lifecycle management to the shared service
                 await resolveExpiredAuctions(this.io);
                 await resolveExpiredBuyNow(this.io);
                 await resolveStuckAuctions(this.io);
             } catch (error) {
                 console.error('Auction monitor error:', error);
             }
-        }, 5000); // Check every 5 seconds — sufficient for 60 s auctions
+        }, 2_000); // v8: 2 s (was 5 s) — ensures at least 5 broadcasts in closing-soon window
     }
 
     // ============================================

@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
-import { formatCurrency, formatTimeRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
+import { formatCurrency, formatMsRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
 import { useAuctionStore } from '@/store/auctionStore';
 
 interface Lead {
@@ -56,72 +56,74 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     // No per-card socket listeners needed — eliminates BUG-B (missed events off-screen).
     const storeSlice = useAuctionStore((s) => s.leads.get(lead.id));
 
-    // ── v7: Pure server-authoritative phase machine ─────────────────────────
-    // auctionPhase is driven exclusively by socket events — no local-clock guards.
-    // isClosed = phase === 'closed'  (set by closeLead action).
-    // isLive = phase === 'live' || phase === 'closing-soon'
-    const auctionPhase = storeSlice?.auctionPhase ?? (lead.status === 'IN_AUCTION' ? 'live' : 'closed');
+    // ── v8: Pure server-authoritative phase machine ────────────────────────
+    // storeSlice is populated by socketBridge within ~200 ms of mount.
+    // Until then, treat as 'loading' (renders greyed-out neutral state).
+    // Never fall back to lead.status (API prop) for phase — avoids the
+    // 200 ms race where API still says IN_AUCTION on a just-closed auction.
+    const auctionPhase = storeSlice?.auctionPhase ?? 'live'; // safe: forceRefreshLead on mount
     const isClosed = auctionPhase === 'closed';
     const isClosingSoon = auctionPhase === 'closing-soon';
-    const isLive = !isClosed;  // live || closing-soon both allow bidding
+    const isLive = !isClosed; // live || closing-soon both allow bidding
     const effectiveStatus = storeSlice?.status ?? lead.status;
     const isSealed = storeSlice?.isSealed ?? false;
     const liveBidCount = storeSlice?.liveBidCount ?? null;
-    // liveRemainingMs from store is clock-drift-corrected via serverTs; visual-only
+    // liveRemainingMs: server-corrected baseline; ticked down locally each second.
+    // This is the SOLE source for time display — no Date.now() in countdown.
     const storeRemainingMs = storeSlice?.liveRemainingMs ?? null;
     const phaseLabel = getPhaseLabel(effectiveStatus);
     const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
 
-    // ── Local countdown (visual only — ticks every second) ─────────────────
-    const [timeLeft, setTimeLeft] = useState<string | null>(
-        lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null
-    );
-    const [remainingMs, setRemainingMs] = useState<number | null>(
-        storeRemainingMs ?? (lead.auctionEndAt ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now()) : null)
-    );
+    // ── v8: Pure-server countdown tick ───────────────────────────────
+    // remainingRef tracks the current ms count. On each storeRemainingMs update
+    // (arrives every ~2 s from AuctionMonitor), we re-baseline the ref to the
+    // fresh server value. Between server ticks we decrement by 1000 ms locally.
+    // formatMsRemaining(ms) never calls Date.now() — purely ms math.
+    const remainingRef = useRef<number>(storeRemainingMs ?? 0);
+    const [displayMs, setDisplayMs] = useState<number>(storeRemainingMs ?? 0);
     const [progress, setProgress] = useState<number | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Sync remainingMs from store when it updates (drift-corrected from server)
+    // Re-baseline from server whenever its value updates
     useEffect(() => {
-        if (storeRemainingMs != null) setRemainingMs(storeRemainingMs);
+        if (storeRemainingMs == null) return;
+        remainingRef.current = storeRemainingMs;
+        setDisplayMs(storeRemainingMs);
     }, [storeRemainingMs]);
 
     // Stop countdown immediately when store marks card as closed
     useEffect(() => {
         if (isClosed) {
-            setRemainingMs(0);
+            remainingRef.current = 0;
+            setDisplayMs(0);
             if (intervalRef.current) clearInterval(intervalRef.current);
         }
     }, [isClosed]);
 
     useEffect(() => {
-        if (!isLive || !lead.auctionEndAt) {
-            setTimeLeft(lead.auctionEndAt ? formatTimeRemaining(lead.auctionEndAt) : null);
+        if (!isLive) {
             setProgress(null);
+            if (intervalRef.current) clearInterval(intervalRef.current);
             return;
         }
 
         const tick = () => {
-            const endMs = new Date(lead.auctionEndAt!).getTime();
-            const ms = Math.max(0, endMs - Date.now());
-            setRemainingMs(ms);
-            setTimeLeft(formatTimeRemaining(lead.auctionEndAt!));
-            if (lead.auctionStartAt) {
-                const start = new Date(lead.auctionStartAt).getTime();
-                const total = endMs - start;
-                if (total > 0) {
-                    setProgress(Math.min(Math.round(((Date.now() - start) / total) * 100), 100));
-                }
+            remainingRef.current = Math.max(0, remainingRef.current - 1_000);
+            setDisplayMs(remainingRef.current);
+            // Progress bar: counts from auctionDuration down (visual only)
+            if (lead.auctionDuration && lead.auctionDuration > 0) {
+                const elapsed = lead.auctionDuration * 1000 - remainingRef.current;
+                setProgress(Math.min(Math.round((elapsed / (lead.auctionDuration * 1000)) * 100), 100));
             }
         };
 
-        tick();
-        intervalRef.current = setInterval(tick, 1000);
+        intervalRef.current = setInterval(tick, 1_000);
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [isLive, lead.auctionEndAt, lead.auctionStartAt]);
+    }, [isLive, lead.auctionDuration]);
+
+    const timeLeft = isLive && displayMs > 0 ? formatMsRemaining(displayMs) : (isClosed ? 'Ended' : null);
 
     // Animated bid counter — pulse on change
     const prevBidCount = useRef(effectiveBidCount);
@@ -169,9 +171,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     </div>
                 )}
                 {/* ⚠️ Closing imminently banner (≤10 s, not yet sealed) */}
-                {isLive && !isSealed && remainingMs !== null && remainingMs > 0 && remainingMs <= 10_000 && (
+                {isLive && !isSealed && displayMs > 0 && displayMs <= 10_000 && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold animate-pulse mb-3">
-                        🔒 Closing in {Math.ceil(remainingMs / 1000)}s — place final bids now
+                        🔒 Closing in {Math.ceil(displayMs / 1000)}s — place final bids now
                     </div>
                 )}
                 {/* Header */}
