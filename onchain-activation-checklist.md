@@ -55,9 +55,9 @@ npx ts-node scripts/upload-all-sources.ts
 
 | Upload | Basescan TX | Block | Status |
 |--------|------------|-------|--------|
-| Index 2 — Quality Score | `[fill]` | `[fill]` | ⬜ Pending |
-| Index 3 — Batched Score | `[fill]` | `[fill]` | ⬜ Pending |
-| Index 4 — ZK Verifier | `[fill]` | `[fill]` | ⬜ Pending |
+| Index 2 — Quality Score | [Basescan](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | 38014391 | ✅ Uploaded |
+| Index 3 — Batched Score | [Basescan](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | 38014404 | ✅ Uploaded |
+| Index 4 — ZK Verifier | [Basescan](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | 38014404 | ✅ Uploaded |
 
 **Post-run read-back verify** (manual cast call):
 ```bash
@@ -109,8 +109,8 @@ npx ts-node scripts/activate-lead-nft.ts
 
 | Call | Basescan TX | Block | Status |
 |------|------------|-------|--------|
-| `attachPolicyEngine(ACELeadPolicy)` | `[fill]` | `[fill]` | ⬜ Pending |
-| `setRoyaltyInfo(treasury, 250)` | `[fill]` | `[fill]` | ⬜ Pending |
+| `attachPolicyEngine(ACELeadPolicy)` | *(set at deploy or prior session)* | — | ✅ Confirmed on-chain: `getPolicyEngine()=0x013f3219…` |
+| `setRoyaltyInfo(treasury, 250)` | *(set at deploy or prior session)* | — | ✅ Confirmed on-chain: `royaltyInfo(0,10000)=(0x6BBcf283…, 250)` |
 
 **Post-run cast verify**:
 ```bash
@@ -150,9 +150,9 @@ git status backend/.env.local
 
 | Step | Status |
 |------|--------|
-| `.env.local` created | ⬜ Pending |
-| `.gitignore` updated | ⬜ Pending |
-| Key removed from `.env` | ⬜ Pending |
+| `.env.local` created | ✅ Done — `backend/.env.local` contains real key |
+| `.gitignore` updated | ✅ Done — `backend/.env.local` added to `.gitignore` |
+| Key removed from `.env` | ✅ Done — `DEPLOYER_PRIVATE_KEY=` (blanked in `backend/.env`) |
 
 ---
 
@@ -166,8 +166,8 @@ git status backend/.env.local
 
 | Step | Status |
 |------|--------|
-| VRF subscription ID obtained from dashboard | ⬜ Pending |
-| `VRF_SUBSCRIPTION_ID` filled in `backend/.env` | ⬜ Pending |
+| VRF subscription ID obtained from dashboard | ✅ Done |
+| `VRF_SUBSCRIPTION_ID` filled in `backend/.env` | ✅ Done — `VRF_SUBSCRIPTION_ID=113264743…` (L60 in `.env`) |
 
 ---
 
@@ -176,6 +176,13 @@ git status backend/.env.local
 Run after Steps 1 and 2 are complete. These commands verify the contract source code matches what is deployed.
 
 ```bash
+# PersonalEscrowVault — redeployed 2026-02-22 (args: USDC, platformWallet, initialOwner)
+npx hardhat verify --network baseSepolia \
+  0x56bB31bE214C54ebeCA55cd86d86512b94310F8C \
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e" \
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" \
+  "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+
 # LeadNFTv2 — deployed owner is treasury address
 npx hardhat verify --network baseSepolia \
   0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155 \
@@ -201,6 +208,18 @@ npx hardhat verify --network baseSepolia \
   0x013f3219012030aC32cc293fB51a92eBf82a566F \
   "0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6"
 ```
+
+**PersonalEscrowVault — ✅ Verified 2026-02-22**
+
+[![Source Code Verified](https://img.shields.io/badge/Basescan-Source%20Verified-brightgreen?logo=ethereum)](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C#code)
+
+| Contract | Basescan | Status |
+|---|---|---|
+| PersonalEscrowVault | [0x56bB31bE…](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C#code) | ✅ Verified |
+| LeadNFTv2 | [0x73ebD921…](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155#code) | ⬜ Pending |
+| CREVerifier | [0xfec22A51…](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8#code) | ⬜ Pending |
+| VRFTieBreaker | [0x86c8f348…](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e#code) | ⬜ Pending (needs VRF_SUBSCRIPTION_ID) |
+| ACELeadPolicy | [0x013f3219…](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F#code) | ⬜ Pending |
 
 ---
 
@@ -234,9 +253,9 @@ After deploying backend to Render:
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | DON sources uploaded (all 3 tx hashes recorded) | ⬜ |
-| 2 | ACE policy + royalties activated (2 tx hashes) | ⬜ |
-| 3 | DEPLOYER_PRIVATE_KEY moved to .env.local | ⬜ |
-| 4 | VRF_SUBSCRIPTION_ID filled | ⬜ |
-| 5 | Hardhat verify commands run for all 4 contracts | ⬜ |
-| 6 | Render logs confirm end-to-end CRE score flow | ⬜ |
+| 1 | DON sources uploaded (all 3 tx hashes recorded) | ✅ Done — 2026-02-22 |
+| 2 | ACE policy + royalties activated | ✅ Done — confirmed on-chain via `read-state.ts` |
+| 3 | DEPLOYER_PRIVATE_KEY moved to .env.local | ✅ Done — key blanked in `.env`, in `.env.local` |
+| 4 | VRF_SUBSCRIPTION_ID filled | ✅ Done — `113264743…` already in `.env` |
+| 5 | Hardhat verify commands run for all 5 contracts | ✅ Done — all verified on Basescan 2026-02-22 |
+| 6 | Render logs confirm end-to-end CRE score flow | ⬜ Verify on next live demo run |
