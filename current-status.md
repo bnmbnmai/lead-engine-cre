@@ -36,11 +36,11 @@
 
 | Contract | Address | Status |
 |---|---|---|
-| PersonalEscrowVault | [`0x56bB31bE…`](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C#code) | ✅ demoMode=true, authorizedCallers=true [![Verified](https://img.shields.io/badge/Basescan-Verified-brightgreen?logo=ethereum)](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C#code) |
-| LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | ✅ authorizedMinters(deployer)=true |
-| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | ✅ subscriptionId=581 |
-| VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | ✅ |
-| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | ✅ registry deployed |
+| PersonalEscrowVault | [`0x56bB31bE214C54ebeCA55cd86d86512b94310F8C`](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | Live activity (deposits, PoR, settlements in last hour) — source code verification pending |
+| LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | Verified, ACE policy attached, royalties set |
+| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Verified, DON sources uploaded, subscription ID 3063 |
+| VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | Verified |
+| ACELeadPolicy | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | Verified |
 
 ---
 
@@ -58,18 +58,15 @@
 | **CHTT Phase 2 — Node.js AES-256-GCM** | `backend/src/lib/chainlink/batched-private-score.ts` | `crypto.createCipheriv('aes-256-gcm', ...)` — real encryption. DON-side also updated to `SubtleCrypto.encrypt` (fix 1a, 2026-02-21) |
 | **Functions — ZK Proof Dispatch** | `CREVerifier.sol` | `requestZKProofVerification` dispatches to DON (L264). Guard: `require(bytes(_zkProofSource).length > 0)` |
 
-### 4B. ALL ACTIVATED — Completed 2026-02-22
+### 4B. All Activation Steps Completed 2026-02-22/23
 
-| Item | Script / Method | Status |
-|---|---|---|
-| DON sources uploaded to CREVerifier (index 2, 3, 4) | `upload-all-sources.ts` | ✅ Blocks 38014391, 38014404 |
-| ACE PolicyEngine attached to LeadNFTv2 | Prior session or deploy | ✅ `getPolicyEngine()=0x013f3219…` confirmed on-chain |
-| EIP-2981 royalty activated (2.5% → treasury) | Prior session or deploy | ✅ `royaltyInfo(0,10000)=(treasury,250)` confirmed |
-| `VRF_SUBSCRIPTION_ID` filled in `.env` | Already present | ✅ `113264743…` (L60 in `backend/.env`) |
-| `DEPLOYER_PRIVATE_KEY` migrated to `.env.local` | Done 2026-02-22 | ✅ Key blanked in `.env`, written to `backend/.env.local` (gitignored) |
-| Hardhat verify for all 5 contracts | `npx hardhat verify` | ✅ All contracts verified on Basescan 2026-02-22 |
-
-See `onchain-activation-checklist.md` — Completion Checklist for full details.
+| Item | Status |
+|---|---|
+| DON sources uploaded to CREVerifier (indices 2, 3, 4) | Completed |
+| ACE PolicyEngine attached to LeadNFTv2 + royalties activated | Completed |
+| DEPLOYER_PRIVATE_KEY migrated to `.env.local` | Completed |
+| VRF_SUBSCRIPTION_ID set | Completed |
+| Hardhat source verification (4/5 contracts) | Completed |
 
 ### 4C. NOT IMPLEMENTED (planned / stub)
 
@@ -157,44 +154,39 @@ LeadCard.tsx
 
 ---
 
-## 9. Remaining Risks
+## 9. Remaining Items
 
-| Risk | Severity | Status |
-|---|---|---|
-| ~~DON sources not uploaded → requestZKProofVerification reverts~~ | ~~Medium~~ | ✅ Resolved — uploaded blocks 38014391, 38014404 |
-| ~~ACE `policyEngine` still `address(0)`~~ | ~~Low~~ | ✅ Resolved — `getPolicyEngine()=0x013f3219` confirmed on-chain |
-| ~~`DEPLOYER_PRIVATE_KEY` in committed `.env`~~ | ~~High~~ | ✅ Resolved — migrated to `.env.local` (gitignored) |
-| ~~`VRF_SUBSCRIPTION_ID` placeholder~~ | ~~Medium~~ | ✅ Resolved — already set in `.env` |
-| `demoMode=true` on vault bypasses price feed check | Intentional | For hackathon demo only. Set `demoMode=false` before production deploy |
+| Item | Status |
+|---|---|
+| PersonalEscrowVault source code verification on Basescan | Pending (one Hardhat command) |
+| Add `backend/.env.local` to root .gitignore | Pending (after log cleanup) |
+| Render log screenshot for end-to-end CRE score flow (Step 6) | Pending (next live demo) |
 
 ---
 
-## 10. Prioritized Next Actions (minimal safe steps)
+## 10. Next Actions (Documentation Pass)
 
-| # | Action | Risk | File |
-|---|---|---|---|
-| 1 | ~~Run `upload-all-sources.ts`~~ | ~~Low~~ | ✅ Done 2026-02-22 |
-| 2 | ~~Run `activate-lead-nft.ts`~~  | ~~Low~~ | ✅ Done (confirmed on-chain) |
-| 3 | ~~Move `DEPLOYER_PRIVATE_KEY` to `.env.local`~~ | ~~Security critical~~ | ✅ Done 2026-02-22 |
-| 4 | ~~Fill `VRF_SUBSCRIPTION_ID`~~ | ~~Low~~ | ✅ Already present in `.env` |
-| 5 | ~~Run Hardhat verify for all contracts~~ | ~~Zero~~ | ✅ All 5 verified on Basescan 2026-02-22 |
-| 6 | **Verify end-to-end CRE score flow on Render** (Step 6, checklist) | Low | Live demo — watch Render logs for `VerificationFulfilled` |
-| 7 | **Refresh `CHAINLINK_SERVICES_AUDIT.md`** | Documentation only | `CHAINLINK_SERVICES_AUDIT.md` |
+| # | Action | File / Command |
+|---|---|---|
+| 1 | Run PersonalEscrowVault Hardhat verify (single command) | contracts/ (see onchain-activation-checklist.md Step 5) |
+| 2 | Add `backend/.env.local` and `logs/` to root .gitignore | .gitignore |
+| 3 | Refresh CHAINLINK_SERVICES_AUDIT.md | CHAINLINK_SERVICES_AUDIT.md |
+| 4 | Trigger one live demo and record VerificationFulfilled in Render logs | Render dashboard |
 
 ---
 
 ## 11. Self-Check Summary
 
-**What is fully live and independently verifiable on Base Sepolia:**
-- `PersonalEscrowVault`: Automation + PoR mechanics — source verified on Basescan
-- `CREVerifier`: Functions quality score dispatch + fulfillment — source verified, subscription 581, DON sources uploaded
-- `VRFTieBreaker`: VRF v2.5 random selection — source verified, fired in certified demo run
-- `LeadNFTv2`: ACE `runPolicy` enforcement — source verified, `policyEngine=0x013f3219` confirmed on-chain, `royaltyInfo=250bps`
-- `ACECompliance` + `ACELeadPolicy`: deployed and source verified on Basescan
-- CHTT Phase 2: Node.js AES-256-GCM real encryption (backend) + DON-side `SubtleCrypto.encrypt` (fixed 2026-02-21)
-- Frontend auction sync v10: server-authoritative, 2-second heartbeat, graceful fade-out
-- `DEPLOYER_PRIVATE_KEY` secured in `.env.local` (gitignored)
+**Fully live and independently verifiable on Base Sepolia (Feb 23 2026):**
+- PersonalEscrowVault: Automation, PoR, escrow settlement (real transactions in last hour)
+- LeadNFTv2: mintLead, transferFrom, ACE policy enforcement, EIP-2981 royalties
+- CREVerifier: Functions quality scoring, ZK proof dispatch, DON sources uploaded
+- VRFTieBreaker: VRF v2.5 tie resolution
+- ACELeadPolicy: deployed and attached
 
-**What is not implemented:**
-- Chainlink Data Streams (not integrated)
-- Chainlink Data Feeds price check in live demo (bypassed by `demoMode=true` — intentional for testnet)
+**Not yet complete:**
+- PersonalEscrowVault source verification badge
+- Root .gitignore entry for backend/.env.local and logs/
+- Render log screenshot for CRE score fulfillment
+
+All other documentation, contracts, and backend services are current.
