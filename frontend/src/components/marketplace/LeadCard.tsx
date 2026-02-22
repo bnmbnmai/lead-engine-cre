@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Clock, Shield, Zap, Users, Wallet, Star, Eye, Gift, TrendingUp, ArrowRight } from 'lucide-react';
+import { MapPin, Shield, Zap, Users, Wallet, Star, Eye, Gift, TrendingUp, ArrowRight } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,6 +73,8 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     const storeRemainingMs = storeSlice?.liveRemainingMs ?? null;
     const phaseLabel = getPhaseLabel(effectiveStatus);
     const effectiveBidCount = liveBidCount ?? (lead._count?.bids || lead.auctionRoom?.bidCount || 0);
+    // v9: isFadingOut — useState so React re-renders when setTimeout fires
+    const [isFadingOut, setIsFadingOut] = useState(false);
 
     // ── v8: Pure-server countdown tick ───────────────────────────────
     // remainingRef tracks the current ms count. On each storeRemainingMs update
@@ -99,6 +101,15 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
             if (intervalRef.current) clearInterval(intervalRef.current);
         }
     }, [isClosed]);
+
+    // v9: schedule opacity fade 100ms after store sets fadeOutAt
+    useEffect(() => {
+        const fadeOutAt = storeSlice?.fadeOutAt;
+        if (!fadeOutAt) return;
+        const delay = Math.max(0, fadeOutAt - Date.now());
+        const timer = setTimeout(() => setIsFadingOut(true), delay);
+        return () => clearTimeout(timer);
+    }, [storeSlice?.fadeOutAt]);
 
     useEffect(() => {
         if (!isLive) {
@@ -142,38 +153,37 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     return (
         <Card
             data-auction-state={auctionPhase}
-            className={`group transition-all duration-500
-                ${isClosingSoon ? 'border-amber-500/70 ring-1 ring-amber-500/30 animate-pulse' : isLive ? 'border-blue-500/50 glow-ready' : ''}
-                ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''}
-                active:scale-[0.98]`}>
+            className={`group transition-all duration-300
+                ${!isClosed && isClosingSoon ? 'border-amber-400/60 ring-2 ring-amber-400/20' : ''}
+                ${!isClosed && isLive && !isClosingSoon ? 'border-blue-500/50 glow-ready' : ''}
+                ${isClosed ? 'border-border grayscale' : ''}
+                ${auctionEndFeedback ? 'pointer-events-none' : ''}
+                active:scale-[0.98]`}
+            style={isClosed ? {
+                opacity: isFadingOut ? 0 : 0.6,
+                transition: isFadingOut
+                    ? 'opacity 2500ms ease-out, filter 2500ms ease-out, transform 300ms'
+                    : 'opacity 0.3s, filter 0.3s, transform 300ms',
+                pointerEvents: isFadingOut ? 'none' : undefined,
+            } : undefined}
+        >
             <CardContent className="p-6">
-                {/* Auction End Feedback Overlay (from Zustand store 8s timer) */}
+                {/* Auction End Feedback tag — quiet, no flash */}
                 {auctionEndFeedback && (
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 animate-pulse ${auctionEndFeedback === 'SOLD'
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 ${auctionEndFeedback === 'SOLD'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                         }`}>
                         <ArrowRight className="h-3.5 w-3.5" />
                         {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
                     </div>
                 )}
-                {/* isClosed overlay — shown the instant server emits auction:closed */}
-                {isClosed && !auctionEndFeedback && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 bg-gray-500/15 text-gray-400 border border-gray-500/30">
-                        <Clock className="h-3.5 w-3.5" />
-                        Auction Ended
-                    </div>
-                )}
-                {/* 🔒 SEALED banner — server accepted last bid, resolving winner */}
+                {/* v9: closing-soon does NOT show a banner; card border signals urgency subtly. */}
+                {/* v9: closure is handled by card greying (className above) — no extra overlay. */}
+                {/* 🔒 SEALED banner — only shown while still live (resolving) */}
                 {isLive && isSealed && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-bold animate-pulse mb-3">
-                        🔒 Sealed — bids locked, resolving winner…
-                    </div>
-                )}
-                {/* ⚠️ Closing imminently banner (≤10 s, not yet sealed) */}
-                {isLive && !isSealed && displayMs > 0 && displayMs <= 10_000 && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 border border-red-500/30 text-xs font-bold animate-pulse mb-3">
-                        🔒 Closing in {Math.ceil(displayMs / 1000)}s — place final bids now
+                        🔒 Sealed — resolving winner…
                     </div>
                 )}
                 {/* Header */}
@@ -308,12 +318,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         <Users className="h-4 w-4" />
                         <span className="font-medium">{effectiveBidCount}</span> bids
                     </div>
-                    {!isLive && timeLeft && (
-                        <div className="flex items-center gap-1 text-blue-500">
-                            <Clock className="h-4 w-4" />
-                            {timeLeft}
-                        </div>
-                    )}
                 </div>
 
                 {/* Auction Progress Bar */}

@@ -68,14 +68,18 @@ export interface LeadSlice {
     liveHighestBid: number | null;
     /** Server-corrected remaining ms — for visual countdown only, NOT for phase */
     liveRemainingMs: number | null;
-    /** Timestamp when this lead was closed (ms epoch) — used for 45s grace */
+    /** Timestamp when this lead was closed (ms epoch) */
     closedAt?: number;
+    /** v9: Timestamp when the card should BEGIN fading out (closedAt + 2500ms).
+     *  The card's CSS transition drives opacity 1→ 0 over 2.5s then the
+     *  removeLead setTimeout eliminates it from the DOM after CLOSE_GRACE_MS. */
+    fadeOutAt?: number;
 }
 
 type AuctionEndFeedback = 'SOLD' | 'UNSOLD';
 
-/** Grace period after close before removing from store (ms) */
-const CLOSE_GRACE_MS = 45_000;
+/** v9 Grace period: 15 s (was 45 s). Card fades out at 2.5 s then DOM removes at 15 s. */
+const CLOSE_GRACE_MS = 15_000;
 
 interface AuctionStoreState {
     /** All known leads, keyed by lead ID */
@@ -308,6 +312,8 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 liveRemainingMs: 0,
                 status: status === 'SOLD' ? 'SOLD' : 'UNSOLD',
                 closedAt: now,
+                // v9: card starts fading 100ms after closure (near-instant grey, then 2.5s opacity fade)
+                fadeOutAt: now + 100,
             });
 
             const auctionEndFeedbackMap = new Map(state.auctionEndFeedbackMap);
