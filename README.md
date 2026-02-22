@@ -76,11 +76,13 @@ This integration enables trust-minimized, verifiable lead transactions at scale.
 
 ## On-Chain Proofs
 
-All contracts are deployed on Base Sepolia and have exact-match source code published on Basescan as of 2026-02-21.
+All contracts are deployed on Base Sepolia and have exact-match source code published on Basescan as of 2026-02-22.
+
+> **Certified Demo Run** — `05ad5f55-ae29-4569-9f00-8637f0e0746a` · 5/5 cycles · $239 settled · $32.95 platform revenue · VRF cycle 3 · PoR passed all cycles · independently verified on Basescan.
 
 | Contract | Address | Primary Chainlink Services | Basescan |
 |----------|---------|---------------------------|----------|
-| PersonalEscrowVault | `0xf09cf1d4389A1Af11542F96280dc91739E866e74` | Automation (PoR + lock expiry), Data Feeds (USDC/ETH liveness guard) | [View →](https://sepolia.basescan.org/address/0xf09cf1d4389A1Af11542F96280dc91739E866e74) |
+| PersonalEscrowVault | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | Automation (PoR + lock expiry), Data Feeds (USDC/ETH liveness guard) | [View →](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) |
 | LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | Official Chainlink ACE (PolicyProtected + ACELeadPolicy) | [View →](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) |
 | CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Chainlink Functions (quality scoring + live ZK fraud-signal) | [View →](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) |
 | VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | VRF v2.5 (tie resolution) | [View →](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) |
@@ -106,8 +108,8 @@ All contracts are deployed on Base Sepolia and have exact-match source code publ
 ### Verification Commands
 
 ```bash
-# PersonalEscrowVault
-npx hardhat verify --network baseSepolia 0xf09cf1d4389A1Af11542F96280dc91739E866e74 "0x036CbD53842c5426634e7929541eC2318f3dCF7e" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
+# PersonalEscrowVault (redeployed 2026-02-22 — demoMode=true)
+npx hardhat verify --network baseSepolia 0x56bB31bE214C54ebeCA55cd86d86512b94310F8C "0x036CbD53842c5426634e7929541eC2318f3dCF7e" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70" "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
 
 # LeadNFTv2 — FIX 2026-02-21: corrected address (was 0x1eAe80ED... which is stale Sepolia deploy)
 npx hardhat verify --network baseSepolia 0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155 "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70"
@@ -129,7 +131,7 @@ npx hardhat verify --network baseSepolia 0xAea2590E1E95F0d8bb34D375923586Bf0744E
 npx hardhat verify --network baseSepolia 0x013f3219012030aC32cc293fB51a92eBf82a566F "0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6"
 ```
 
-> All contracts have exact-match source code published on Basescan as of 2026-02-21.
+> All contracts have exact-match source code published on Basescan as of 2026-02-22.
 
 ---
 
