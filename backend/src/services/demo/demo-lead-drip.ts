@@ -202,6 +202,10 @@ export async function injectOneLead(
         },
     });
 
+    const auctionEndMs = lead.auctionEndAt!.getTime();
+    const serverTs = Date.now();
+    const remainingTime = Math.max(0, auctionEndMs - serverTs);
+
     io.emit('marketplace:lead:new', {
         lead: {
             id: lead.id,
@@ -219,9 +223,21 @@ export async function injectOneLead(
         },
     });
 
+    // v10: Immediately broadcast auction:updated so the store gets a server-
+    // authoritative liveRemainingMs baseline right away — not waiting for the
+    // AuctionMonitor 12 s closing-window query (which would leave seeded leads
+    // stuck with only a Date.now() estimate for their full 60 s lifetime).
+    io.emit('auction:updated', {
+        leadId: lead.id,
+        remainingTime,
+        serverTs,
+        bidCount: 0,
+        highestBid: null,
+        isSealed: false,
+    });
+
     // BUG-D fix: signal all tabs that a new lead is available so socketBridge
-    // triggers a bulk-refresh from the REST API, eliminating the "Active leads: 0"
-    // gap that appeared when the drip delay caused IN_AUCTION count to hit 0.
+    // triggers a bulk-refresh from the REST API.
     const activeCount = await prisma.lead.count({
         where: { status: 'IN_AUCTION', auctionEndAt: { gt: new Date() } },
     });

@@ -508,36 +508,48 @@ class RTBSocketServer {
     private async broadcastActiveAuctionStates() {
         try {
             const now = new Date();
-            // Query only leads whose auction ends within the next 12 s or just ended (≤0)
-            // — limits DB work to the critical closure window; others don't need re-baselining.
-            const closingLeads = await prisma.lead.findMany({
+            // v10: broadcast to ALL active auctions (not just closing window) so every
+            // lead gets a server-authoritative remainingTime re-baseline every 2 s.
+            // The 12 s filter was leaving freshly seeded leads without any auction:updated
+            // events for their entire lifetime until the last 12 s.
+            const activeLeads = await prisma.lead.findMany({
                 where: {
                     status: 'IN_AUCTION',
-                    auctionEndAt: { lte: new Date(now.getTime() + 12_000) },
+                    auctionEndAt: { gt: new Date(now.getTime() - 5_000) }, // include just-ended
                 },
-                select: { id: true, auctionEndAt: true, auctionRoom: { select: { bidCount: true, highestBid: true } } },
+                select: {
+                    id: true,
+                    auctionEndAt: true,
+                    // v10: _count.bids is the authoritative aggregated count;
+                    // auctionRoom.bidCount lags and causes 1→0 flicker.
+                    _count: { select: { bids: true } },
+                    auctionRoom: { select: { highestBid: true } },
+                },
             });
 
             const serverTs = Date.now();
-            for (const lead of closingLeads) {
+            for (const lead of activeLeads) {
                 const auctionEndMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : null;
                 if (!auctionEndMs) continue;
                 const remainingTime = Math.max(0, auctionEndMs - serverTs);
+                const bidCount = lead._count?.bids ?? 0;
 
                 this.io.emit('auction:updated', {
                     leadId: lead.id,
                     remainingTime,
                     serverTs,
-                    bidCount: lead.auctionRoom?.bidCount ?? 0,
+                    bidCount,
                     highestBid: lead.auctionRoom?.highestBid ? Number(lead.auctionRoom.highestBid) : null,
-                    isSealed: remainingTime <= 5_000,
+                    isSealed: remainingTime <= 5_000 && remainingTime > 0,
                 });
 
                 if (remainingTime <= 10_000 && remainingTime > 0) {
                     this.io.emit('auction:closing-soon', { leadId: lead.id, remainingTime });
                 }
 
-                console.log(`[AuctionMonitor] broadcast leadId=${lead.id} remaining=${remainingTime}ms`);
+                if (process.env.NODE_ENV === 'development') {
+                    console.log(`[AuctionMonitor] broadcast leadId=${lead.id} remaining=${remainingTime}ms bids=${bidCount}`);
+                }
             }
         } catch (err) {
             console.error('[AuctionMonitor] broadcastActiveAuctionStates error:', err);

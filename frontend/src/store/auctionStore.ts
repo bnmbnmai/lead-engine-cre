@@ -126,6 +126,9 @@ function apiLeadToSlice(lead: any): LeadSlice {
     // v7: phase is always 'live' on API read — phase transitions come from socket only.
     // The one exception: non-IN_AUCTION statuses start as 'closed'.
     const phase: AuctionPhase = lead.status === 'IN_AUCTION' ? 'live' : 'closed';
+    // v10: seed liveBidCount from API _count.bids so bulkLoad never shows 0
+    // when real bids have already been recorded in the DB.
+    const seedBidCount: number | null = lead._count?.bids ?? null;
     return {
         id: lead.id,
         vertical: lead.vertical,
@@ -148,7 +151,7 @@ function apiLeadToSlice(lead: any): LeadSlice {
         auctionPhase: phase,
         isClosed: phase === 'closed',
         isSealed: false,
-        liveBidCount: null,
+        liveBidCount: seedBidCount,
         liveHighestBid: null,
         liveRemainingMs: lead.auctionEndAt
             ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now())
@@ -206,13 +209,19 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                         // Don't resurrect a server-closed lead from an API refetch
                         continue;
                     }
-                    // Merge: update static fields but preserve live socket-driven state
+                    // Merge: update static fields but preserve live socket-driven state.
+                    // v10: liveBidCount = max(socket-driven, api _count.bids) — bids are
+                    // monotonic; the higher of the two is always more accurate.
+                    const apiCount = al._count?.bids ?? null;
+                    const mergedBidCount = (existing.liveBidCount != null && apiCount != null)
+                        ? Math.max(existing.liveBidCount, apiCount)
+                        : (existing.liveBidCount ?? apiCount);
                     leads.set(al.id, {
                         ...apiLeadToSlice(al),
                         auctionPhase: existing.auctionPhase,
                         isClosed: existing.isClosed,
                         isSealed: existing.isSealed,
-                        liveBidCount: existing.liveBidCount,
+                        liveBidCount: mergedBidCount,
                         liveHighestBid: existing.liveHighestBid,
                         liveRemainingMs: existing.liveRemainingMs,
                     });
@@ -253,7 +262,12 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 ...lead,
                 auctionPhase: phase,
                 isClosed: phase === 'closed',
-                liveBidCount: bidCount ?? lead.liveBidCount,
+                // v10: liveBidCount is strictly monotonic — never decrement during an active
+                // auction. auctionRoom.bidCount can lag behind real bids (updated lazily);
+                // use the incoming count only if it is greater than what we already have.
+                liveBidCount: bidCount != null
+                    ? Math.max(bidCount, lead.liveBidCount ?? 0)
+                    : lead.liveBidCount,
                 liveHighestBid: highestBid ?? lead.liveHighestBid,
                 liveRemainingMs,
                 isSealed: isSealed ?? lead.isSealed,
