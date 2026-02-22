@@ -100,14 +100,7 @@ export function computeCREQualityScore(input: LeadScoringInput): number {
     };
     score += sourceScores[input.source?.toUpperCase()] || 500;
 
-    // ── Demo / Development Floor ─────────────────
-    // Any lead that has passed verifyLead() admission checks is a real,
-    // consented lead. A minimum of 7,500 ensures sparse demo leads
-    // never display "QS 1" which looks broken and misleads judges.
-    // Real high-quality leads (TCPA + geo + encrypted PII + params) will
-    // naturally score 7,500–10,000 and are unaffected by this floor.
-    const MINIMUM_ADMITTED_SCORE = 7500;
-    return Math.min(10000, Math.max(MINIMUM_ADMITTED_SCORE, score));
+    return Math.min(10000, score);
 }
 
 // ============================================

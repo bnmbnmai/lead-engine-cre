@@ -281,7 +281,7 @@ export async function recordCacheWithdraw(userId: string, amount: number, txHash
         onChain: !!txHash,
     });
 
-    return { success: true, balance: Number(updatedVault.balance), withdrawn: withdrawAmount };
+    return { success: true, balance: Number(updatedVault.balance), withdrawn: withdrawAmount, dbOnly: !txHash };
 }
 
 /**

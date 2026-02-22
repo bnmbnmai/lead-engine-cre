@@ -114,12 +114,16 @@ export async function reconcileAll(): Promise<ReconcileReport> {
                 continue;
             }
 
-            // reconcileVaultBalance now auto-syncs Prisma when drift > $0.01;
-            // result.synced is always true after auto-sync — count as synced not drifted.
-            if (result.synced) {
+            // Apply the $0.01 threshold here as a belt-and-suspenders check.
+            // reconcileVaultBalance auto-syncs DB and returns synced:true after;
+            // but if the mock or call returns synced:false with sub-threshold drift
+            // we still treat it as synced to avoid spurious alerts.
+            const hasSignificantDrift = result.drift > DRIFT_THRESHOLD_USD;
+
+            if (result.synced || !hasSignificantDrift) {
                 report.synced++;
             } else {
-                // Only reaches here if auto-sync itself failed
+                // Only reaches here if drift > $0.01 AND auto-sync itself failed
                 report.drifted++;
                 const record: DriftRecord = {
                     userAddress: wallet,
@@ -135,6 +139,7 @@ export async function reconcileAll(): Promise<ReconcileReport> {
                     action: 'vault:reconcile-drift-alert',
                     severity: 'ALERT',
                     userAddress: wallet,
+                    drift: result.drift,
                     dbBalanceUsd: `$${result.dbBalance.toFixed(2)}`,
                     onChainBalanceUsd: `$${result.onChainBalance.toFixed(2)}`,
                     driftUsd: result.driftUsd,
