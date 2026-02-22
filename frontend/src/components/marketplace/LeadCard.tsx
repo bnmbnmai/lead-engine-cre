@@ -57,8 +57,12 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     const storeSlice = useAuctionStore((s) => s.leads.get(lead.id));
 
     // Authoritative closed flag: store wins over prop (store updated by socket)
+    // v6: also close from local clock if auctionEndAt already in the past — ensures
+    // the card goes grey immediately when time runs out, even if auction:closed
+    // hasn't arrived yet (network latency / on-chain tx delay).
     const effectiveStatus = storeSlice?.status ?? lead.status;
-    const isClosed = storeSlice?.isClosed ?? (lead.status !== 'IN_AUCTION');
+    const isClosed = (storeSlice?.isClosed ?? (lead.status !== 'IN_AUCTION')) ||
+        (!!lead.auctionEndAt && new Date(lead.auctionEndAt).getTime() <= Date.now());
     const isSealed = storeSlice?.isSealed ?? false;
     const liveBidCount = storeSlice?.liveBidCount ?? null;
     // liveRemainingMs from store is clock-drift-corrected; fall back to local auctionEndAt calc
@@ -134,7 +138,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     }, [effectiveBidCount]);
 
     return (
-        <Card className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
+        <Card
+            data-auction-state={isLive ? 'live' : isClosed ? 'ended' : 'pending'}
+            className={`group transition-all duration-500 ${isLive ? 'border-blue-500/50 glow-ready' : ''} ${auctionEndFeedback ? 'opacity-50 grayscale pointer-events-none' : ''} active:scale-[0.98]`}>
             <CardContent className="p-6">
                 {/* Auction End Feedback Overlay (from Zustand store 8s timer) */}
                 {auctionEndFeedback && (

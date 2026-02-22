@@ -322,10 +322,13 @@ export default function LeadDetailPage() {
         ? [lead.geo?.city, lead.geo?.state, lead.geo?.country].filter(Boolean).join(', ') || 'Nationwide'
         : '';
 
-    // isLive: auction is active ONLY if API says IN_AUCTION AND store does NOT say closed.
-    // storeIsClosed is set by socketBridge on auction:closed — so this gates the BidPanel
-    // and Buy-Now button off the moment the socket event fires, before the API refetch.
-    const isLive = lead?.status === 'IN_AUCTION' && !storeIsClosed;
+    // isLive: auction active ONLY if API says IN_AUCTION AND store does NOT say closed
+    // AND auction end time hasn't passed on the local clock.
+    // v6: local clock guard eliminates BidPanel flash on direct /lead/:id navigation
+    // when storeSlice is absent but auctionEndAt is already in the past.
+    const pastEndTime = !!lead?.auctionEndAt &&
+        new Date(lead.auctionEndAt).getTime() <= Date.now();
+    const isLive = lead?.status === 'IN_AUCTION' && !storeIsClosed && !pastEndTime;
     // For isSold / isUnsold: prefer store status, fall back to API
     const isSold = storeStatus === 'SOLD' || lead?.status === 'SOLD';
     const isUnsold = storeStatus === 'UNSOLD' || lead?.status === 'UNSOLD';

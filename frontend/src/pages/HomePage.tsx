@@ -150,9 +150,16 @@ export function HomePage() {
 
     // displayLeads: ALWAYS from the Zustand store for live-leads view (view==='leads'),
     // so the grid is never cleared by a stale API poll, empty-state-poll, or refetch.
-    // Client-side filters are applied on top for instant UX.
+    // v6: sorted by auctionEndAt ascending so soonest-closing leads always appear first —
+    // guarantees visual closure order matches real auction expiry regardless of socket order.
     const displayLeads = view === 'leads'
-        ? storeOrderedLeads.filter(shouldIncludeLead)
+        ? [...storeOrderedLeads]
+            .sort((a, b) => {
+                const aEnd = a.auctionEndAt ? new Date(a.auctionEndAt).getTime() : Infinity;
+                const bEnd = b.auctionEndAt ? new Date(b.auctionEndAt).getTime() : Infinity;
+                return aEnd - bEnd;
+            })
+            .filter(shouldIncludeLead)
         : leads;
 
     // auctionEndFeedback for a card: store overlay wins over local recentlyEndedMap

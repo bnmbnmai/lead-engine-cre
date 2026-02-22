@@ -116,6 +116,13 @@ interface AuctionStoreState {
      * Non-fatal: if the API call fails, the existing store state is preserved.
      */
     forceRefreshLead: (leadId: string) => Promise<void>;
+    /**
+     * v6: Instantly mark a lead closed from local clock (zero latency), then confirm
+     * final status (SOLD/UNSOLD) via REST API in the background.
+     * Called by socketBridge when auction:updated.remainingTime <= 0 and on heartbeat
+     * stale-lead scan. Different from forceRefreshLead which only does the API call.
+     */
+    forceReconcileLead: (leadId: string) => Promise<void>;
 }
 
 // ─── Debug helper ────────────────────────────────────────────────────────────
@@ -149,7 +156,10 @@ function apiLeadToSlice(lead: any): LeadSlice {
         auctionRoom: lead.auctionRoom,
         parameters: lead.parameters,
         seller: lead.seller,
-        isClosed: lead.status !== 'IN_AUCTION',
+        // v6: also close if auctionEndAt already in the past — catches IN_AUCTION leads
+        // whose timer expired before resolveExpiredAuctions ran on the backend.
+        isClosed: lead.status !== 'IN_AUCTION' ||
+            (!!lead.auctionEndAt && new Date(lead.auctionEndAt).getTime() <= Date.now()),
         isSealed: false,
         liveBidCount: null,
         liveHighestBid: null,
@@ -270,7 +280,15 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         set((state) => {
             const lead = state.leads.get(leadId);
             if (!lead) return state;
-            if (lead.isClosed) return state; // idempotent
+            // v6: allow SOLD to upgrade an existing UNSOLD close.
+            // This fixes the race where resolveExpiredAuctions emits UNSOLD first,
+            // then the demo orchestrator emits SOLD after on-chain settlement.
+            // We never demote SOLD → UNSOLD.
+            if (lead.isClosed) {
+                if (lead.status === 'SOLD') return state; // already sold — never demote
+                if (status !== 'SOLD') return state;      // UNSOLD→UNSOLD is also a no-op
+                // Fall through: upgrading UNSOLD → SOLD
+            }
 
             const now = Date.now();
             const leads = new Map(state.leads);
@@ -355,5 +373,36 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         } catch {
             dbg('forceRefreshLead', leadId, 'fetch failed (non-fatal)');
         }
+    },
+
+    async forceReconcileLead(leadId: string) {
+        // Step 1: instant local close if this lead's time has drained — zero latency.
+        // The card goes grey immediately; the API call below confirms SOLD vs UNSOLD.
+        const existing = get().leads.get(leadId);
+        if (existing && !existing.isClosed) {
+            const endMs = existing.auctionEndAt
+                ? new Date(existing.auctionEndAt).getTime()
+                : null;
+            const hasTimedOut = endMs != null && endMs <= Date.now();
+            if (hasTimedOut) {
+                // Close immediately with unknown status — will be overwritten by API below
+                set((state) => {
+                    const lead = state.leads.get(leadId);
+                    if (!lead || lead.isClosed) return state;
+                    const leads = new Map(state.leads);
+                    leads.set(leadId, {
+                        ...lead,
+                        isClosed: true,
+                        isSealed: false,
+                        liveRemainingMs: 0,
+                        closedAt: Date.now(),
+                    });
+                    dbg('forceReconcileLead', leadId, 'pre-closed from local clock');
+                    return { leads };
+                });
+            }
+        }
+        // Step 2: API confirm (sets definitive SOLD/UNSOLD status)
+        await get().forceRefreshLead(leadId);
     },
 }));
