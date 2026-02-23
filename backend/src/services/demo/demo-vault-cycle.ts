@@ -14,6 +14,7 @@ import { Server as SocketServer } from 'socket.io';
 import { ethers } from 'ethers';
 import {
     DEMO_BUYER_WALLETS,
+    DEMO_BUYER_KEYS,
     DEMO_SELLER_WALLET,
     DEMO_SELLER_KEY,
     VAULT_ADDRESS,
@@ -365,18 +366,13 @@ export async function recycleTokens(
         });
         if (_moduleIo) emitStatus(_moduleIo, { running: false, recycling: true, phase: 'resetting', currentCycle: 0, totalCycles: 0, percent: 0 });
 
-        const REPLENISH_BUYER_KEYS: Record<string, string> = {
-            '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439',
-            '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618',
-            '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e',
-            '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7',
-            '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7',
-            '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510',
-            '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd',
-            '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c',
-            '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382',
-            '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75',
-        };
+        // Build wallet→key lookup from the env-loaded DEMO_BUYER_KEYS (same source as demo-shared).
+        // This eliminates the former REPLENISH_BUYER_KEYS copy-paste (BUG-BK from findings.md).
+        const REPLENISH_BUYER_KEYS: Record<string, string> = {};
+        DEMO_BUYER_WALLETS.forEach((addr, idx) => {
+            const k = DEMO_BUYER_KEYS[idx];
+            if (k) REPLENISH_BUYER_KEYS[addr] = k;
+        });
 
         for (const buyerAddr of DEMO_BUYER_WALLETS) {
             if (recycleSignal.aborted || signal.aborted) break;

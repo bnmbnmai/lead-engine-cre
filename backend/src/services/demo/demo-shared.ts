@@ -28,19 +28,16 @@ export const _VAULT_ADDRESS_RAW = process.env.VAULT_ADDRESS_BASE_SEPOLIA || '';
 export const VAULT_ADDRESS = _VAULT_ADDRESS_RAW;
 export const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
-export const MAX_CYCLES = 12;
-export const DEMO_DEPLOYER_USDC_MIN_REQUIRED = 2000; // $2,000 (10 × $200)
+export const DEMO_DEPLOYER_USDC_MIN_REQUIRED = 2500; // $2,500 — covers 10 buyers × $200 replenish target + $500 run buffer
 export const BASESCAN_BASE = 'https://sepolia.basescan.org/tx/';
 
+// Single canonical verticals list — do not duplicate
 export const FALLBACK_VERTICALS = [
     'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
     'hvac', 'legal', 'financial_services',
 ];
-
-export const DEMO_VERTICALS = [
-    'mortgage', 'solar', 'insurance', 'real_estate', 'roofing',
-    'hvac', 'legal', 'financial_services',
-];
+/** @deprecated use FALLBACK_VERTICALS */
+export const DEMO_VERTICALS = FALLBACK_VERTICALS;
 
 export const GEOS: Array<{ country: string; state: string; city: string }> = [
     { country: 'US', state: 'CA', city: 'Los Angeles' },
@@ -68,11 +65,13 @@ export const DEMO_BUYER_WALLETS = [
     '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad', // Wallet 10
 ];
 
-// Demo seller wallet (Wallet 11 — dedicated, never overlaps with any buyer)
+// Demo seller wallet (Wallet 11 — dedicated, never overlaps with any buyer).
 export const DEMO_SELLER_WALLET = '0x9Bb15F98982715E33a2113a35662036528eE0A36';
 export const DEMO_SELLER_KEY = '0x618bee99ca60f5511dad533a998344f3a0a7b2339db5726ae33d56fd543294ce';
 
-// ── Module-level BUYER_KEYS (mirrors DEMO_BUYER_WALLETS, Wallets 1–10) ──────
+// ── Buyer private keys (Wallets 1–10, mirror of DEMO_BUYER_WALLETS order) ─────
+// Source of truth: faucet-wallets.txt (gitignored, never committed).
+// Deployer key is separate — loaded exclusively from process.env.DEPLOYER_PRIVATE_KEY.
 export const DEMO_BUYER_KEYS: string[] = [
     '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439', // Wallet 1
     '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618', // Wallet 2

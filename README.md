@@ -150,3 +150,6 @@ See `ROADMAP.md` for secondary marketplace, enterprise integrations, and product
 - On-chain activation: `onchain-activation-checklist.md`
 - Chainlink services audit: `CHAINLINK_SERVICES_AUDIT.md`
 - Audit logs: `logs/audits/`
+- Demo deployment guide: `demo-polish-next-steps.md`
+
+> **Demo Control Panel in production:** set Vercel env var `VITE_DEMO_MODE=true` to enable the floating panel on production/staging builds.
