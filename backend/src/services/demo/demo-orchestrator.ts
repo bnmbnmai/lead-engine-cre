@@ -475,10 +475,10 @@ export async function runFullDemo(
                         await gasTx.wait();
                     }
 
+                    // vault.balanceOf() returns balances[user] = FREE (unlocked) balance only.
+                    // lockedBalances is a separate mapping — never subtract it from balanceOf.
                     const vaultBal = await vault.balanceOf(buyerAddr);
-                    const lockedBal = await vault.lockedBalances(buyerAddr);
-                    const available = (vaultBal > lockedBal ? vaultBal - lockedBal : 0n);
-                    const availableUsd = Number(available) / 1e6;
+                    const availableUsd = Number(vaultBal) / 1e6;
 
                     if (availableUsd >= PRE_FUND_THRESHOLD) {
                         emit(io, { ts: new Date().toISOString(), level: 'info', message: `✅ ${buyerAddr.slice(0, 10)}… vault $${availableUsd.toFixed(0)} — no top-up needed` });
@@ -589,9 +589,9 @@ export async function runFullDemo(
                 try {
                     const bKey = BUYER_KEYS[buyerAddr];
                     if (!bKey) continue;
+                    // vault.balanceOf() = free balance; lockedBalances is separate — do not subtract.
                     const vaultBal = await vault.balanceOf(buyerAddr);
-                    const locked = await vault.lockedBalances(buyerAddr);
-                    const free = Number(vaultBal - (locked > vaultBal ? vaultBal : locked)) / 1e6;
+                    const free = Number(vaultBal) / 1e6;
                     if (free >= TOPUP_LOW) continue;
                     const topUpAmt = Math.round((TOPUP_TO - free) * 1e6);
                     if (topUpAmt <= 0) continue;
@@ -725,9 +725,9 @@ export async function runFullDemo(
                 const bidAmount = Math.max(10, numericBaseBid + (bi === 0 ? 0 : rand(-variance, variance)));
                 const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
                 try {
+                    // vault.balanceOf() = free balance; lockedBalances is separate — do not subtract.
                     const bVaultBal = await vault.balanceOf(bAddr);
-                    const bLockedBal = await vault.lockedBalances(bAddr);
-                    const available = Math.max(0, (Number(bVaultBal) - Number(bLockedBal)) / 1e6);
+                    const available = Number(bVaultBal) / 1e6;
                     if (available < bidAmount) {
                         emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — skipping this bidder`, cycle: settlementCycle, totalCycles: 0 });
                         continue;

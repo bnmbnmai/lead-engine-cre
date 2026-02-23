@@ -198,8 +198,8 @@ export function scheduleBuyerBids(
 
                 const buyerAddr = DEMO_BUYER_WALLETS[buyerIdx];
                 const vaultBal = await vault.balanceOf(buyerAddr);
-                const locked = await vault.lockedBalances(buyerAddr);
-                const freeBalance = Number(vaultBal - locked) / 1e6;
+                // vault.balanceOf() = free (unlocked) balance — do not subtract lockedBalances
+                const freeBalance = Number(vaultBal) / 1e6;
 
                 if (freeBalance < bidAmount) {
                     emit(io, {
@@ -332,8 +332,8 @@ export function scheduleBuyerBids(
 
                     const buyerAddr = DEMO_BUYER_WALLETS[bidIdx];
                     const vaultBal = await (getVault(getSigner()) as any).balanceOf(buyerAddr).catch(() => 0n);
-                    const locked = await (getVault(getSigner()) as any).lockedBalances(buyerAddr).catch(() => 0n);
-                    const freeBalance = Number(vaultBal - locked) / 1e6;
+                    // vault.balanceOf() = free (unlocked) balance — do not subtract lockedBalances
+                    const freeBalance = Number(vaultBal) / 1e6;
                     if (freeBalance < fallbackBid) return;
 
                     const nonce = await getNextNonce();
