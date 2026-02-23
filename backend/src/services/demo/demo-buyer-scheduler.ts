@@ -213,13 +213,36 @@ export function scheduleBuyerBids(
                 const tx = await vault.lockForBid(buyerAddr, bidAmountUnits, { nonce });
                 const receipt = await tx.wait();
 
+                // BUG-2 fix: query real cumulative bid count so the frontend counter increments correctly.
+                // Previously hardcoded as 1, which caused the Zustand max() guard to keep it at 1 forever.
+                const actualBidCount = await prisma.bid.count({
+                    where: { leadId, status: { not: 'EXPIRED' } },
+                }).catch(() => 1);
+
                 io.emit('marketplace:bid:update', {
                     leadId,
-                    bidCount: 1,
+                    bidCount: actualBidCount,
                     highestBid: bidAmount,
                     timestamp: new Date().toISOString(),
                     buyerName: profile.name,
                 });
+
+                // BUG-2 fix: also emit auction:updated so the countdown timer re-baselines on every drip bid.
+                const leadRecord = await prisma.lead.findUnique({
+                    where: { id: leadId },
+                    select: { auctionEndAt: true },
+                }).catch(() => null);
+                if (leadRecord?.auctionEndAt) {
+                    const remainingTime = Math.max(0, new Date(leadRecord.auctionEndAt).getTime() - Date.now());
+                    io.emit('auction:updated', {
+                        leadId,
+                        remainingTime,
+                        serverTs: Date.now(),  // epoch ms — BUG-1 already fixed in orchestrator; consistent here too
+                        bidCount: actualBidCount,
+                        highestBid: bidAmount,
+                        isSealed: false,
+                    });
+                }
 
                 emit(io, {
                     ts: new Date().toISOString(), level: 'success',

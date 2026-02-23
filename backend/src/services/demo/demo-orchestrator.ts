@@ -733,7 +733,7 @@ export async function runFullDemo(
                             io.emit('auction:updated', {
                                 leadId: demoLeadId,
                                 remainingTime,
-                                serverTs: new Date().toISOString(),
+                                serverTs: Date.now(),  // epoch ms — store expects number, not ISO string
                                 bidCount: b + 1,
                                 highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
                             });

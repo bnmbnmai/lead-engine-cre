@@ -50,8 +50,9 @@ export async function resolveExpiredAuctions(io?: Server): Promise<number> {
         // auctionEndAt is set to (startTime + 60 s), so this guard fires at ~60 s.
         const expiredAtMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : 0;
         const ageMs = Date.now() - expiredAtMs;
-        if (ageMs < 58_000) {
-            // Not yet 58 s since auctionEndAt — skip this tick, resolve on the next.
+        if (ageMs < 5_000) {
+            // Not yet 5 s since auctionEndAt — skip this tick, resolve on the next.
+            // (was 58 s, reduced to 5 s — BUG-4 fix; AuctionMonitor polls every 2 s so 5 s is ample for clock drift)
             continue;
         }
 
@@ -93,7 +94,7 @@ export async function resolveStuckAuctions(io?: Server): Promise<number> {
         await convertToUnsold(lead.id, lead, io);
         if (io) {
             io.emit('auction:resolved', { leadId: lead.id, outcome: 'NO_WINNER' });
-            io.emit('lead:status-change', { leadId: lead.id, newStatus: 'UNSOLD' });
+            io.emit('lead:status-changed', { leadId: lead.id, oldStatus: 'IN_AUCTION', newStatus: 'UNSOLD' });  // BUG-3 fix: was 'lead:status-change' (missing -d)
         }
     }
 
@@ -616,7 +617,7 @@ async function resolveAuction(leadId: string, io?: Server) {
                 })),
                 remainingTime: 0,
                 isClosed: true,
-                serverTs: new Date().toISOString(),
+                serverTs: Date.now(),  // BUG-1 fix: epoch ms, not ISO string
             });
             console.log(`[AUCTION-CLOSED] leadId=${leadId} winner=${winningBid.buyerId} amount=${Number(winningBid.amount)} tx=${settleTxHash ?? '—'}`);
         }
@@ -716,7 +717,7 @@ async function convertToUnsold(leadId: string, lead: any, io?: Server) {
             status: 'UNSOLD',
             remainingTime: 0,
             isClosed: true,
-            serverTs: new Date().toISOString(),
+            serverTs: Date.now(),  // BUG-1 fix: epoch ms, not ISO string
         });
         console.log(`[AUCTION-CLOSED] leadId=${leadId} status=UNSOLD buyNowPrice=${binPrice ?? '—'}`);
     }

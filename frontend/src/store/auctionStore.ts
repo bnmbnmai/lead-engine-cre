@@ -180,7 +180,7 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 auctionPhase: phase,
                 isClosed: !isActuallyLive,
                 isSealed: false,
-                liveBidCount: null,
+                liveBidCount: lead._count?.bids ?? null,  // BUG-5 fix: seed from API data; was always null causing 0-bid display
                 liveHighestBid: null,
                 liveRemainingMs: isActuallyLive && lead.auctionEndAt
                     ? Math.max(0, new Date(lead.auctionEndAt).getTime() - Date.now())
