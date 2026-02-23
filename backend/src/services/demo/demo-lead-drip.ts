@@ -174,6 +174,10 @@ export async function injectOneLead(
     };
     const qualityScore = computeCREQualityScore(scoreInput);
     const auctionDurationSecs = LEAD_AUCTION_DURATION_SECS;
+    // Fix 1: runtime assertion — every demo lead MUST have a full 60s auction.
+    if (auctionDurationSecs < 60) {
+        throw new Error(`[DRIP] auctionDurationSecs=${auctionDurationSecs} < 60 — check LEAD_AUCTION_DURATION_SECS env var`);
+    }
 
     const lead = await prisma.lead.create({
         data: {

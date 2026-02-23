@@ -248,14 +248,15 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             if (remainingTime != null) {
                 const networkDelayMs = serverTs != null ? Math.max(0, Date.now() - serverTs) : 0;
                 liveRemainingMs = Math.max(0, remainingTime - networkDelayMs);
-                // v7: drive phase from server-reported remainingTime, not local clock
-                if (liveRemainingMs <= 0) {
-                    phase = 'closed';
-                } else if (liveRemainingMs <= 10_000) {
+                // v8: Only advance phase toward closing-soon from server remainingTime;
+                // closing phase='closed' ONLY via auction:closed event, not from a stale
+                // remainingTime=0 that could arrive before the server confirms closure.
+                if (liveRemainingMs <= 10_000 && liveRemainingMs > 0) {
                     phase = 'closing-soon';
-                } else {
+                } else if (liveRemainingMs > 10_000) {
                     phase = 'live';
                 }
+                // liveRemainingMs===0 → leave phase unchanged (auction:closed is authoritative)
             }
 
             const updated: LeadSlice = {
@@ -281,11 +282,8 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 `remaining=${liveRemainingMs}ms`,
                 `bidCount=${updated.liveBidCount}`);
 
-            // If server says time is up, schedule the full close (status confirmation)
-            if (phase === 'closed') {
-                // Trigger closeLead via forceRefreshLead to get SOLD/UNSOLD status
-                setTimeout(() => void get().forceRefreshLead(leadId), 500);
-            }
+            // v8: phase='closed' is only set by auction:closed event — not from remainingTime=0.
+            // Remove the forceRefreshLead trigger here to prevent premature close/reappear.
 
             return { leads };
         });
@@ -314,6 +312,16 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 if (lead.status === 'SOLD') return state; // already sold — never demote
                 if (status !== 'SOLD') return state;      // UNSOLD→UNSOLD is a no-op
                 // Fall through: upgrading UNSOLD → SOLD
+            }
+
+            // v8: Premature-close guard. If server is reporting the lead still has
+            // >3 s remaining, this auction:closed event is likely a stale duplicate
+            // from the auction-closure service racing with the demo orchestrator.
+            // Let the authoritative auction:closed with remainingTime=0 close it.
+            if (!lead.isClosed && (lead.liveRemainingMs ?? 0) > 3_000) {
+                dbg('closeLead IGNORED (premature)', leadId,
+                    `liveRemainingMs=${lead.liveRemainingMs}ms > 3000ms guard`);
+                return state;
             }
 
             const now = Date.now();

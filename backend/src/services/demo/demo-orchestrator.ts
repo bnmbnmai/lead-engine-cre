@@ -590,8 +590,23 @@ export async function runFullDemo(
             } catch { /* non-fatal */ }
         }, 10_000);
 
-        // Give the drip a few seconds to inject the first batch before cycles begin
-        await sleep(1500);
+        // Wait up to 25 s for at least 5 live leads before cycles start.
+        // The staggered drip takes ~10-18s for 12 leads at 800-1500ms per lead.
+        // Without this wait, early cycles find no leads and get skipped, compressing the demo.
+        {
+            const WAIT_LEADS = 5;
+            const WAIT_DEADLINE = Date.now() + 25_000;
+            let liveCount = 0;
+            while (Date.now() < WAIT_DEADLINE && !signal.aborted) {
+                liveCount = await prisma.lead.count({
+                    where: { source: 'DEMO', status: 'IN_AUCTION', auctionEndAt: { gt: new Date() } },
+                }).catch(() => 0);
+                if (liveCount >= WAIT_LEADS) break;
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⏳ Waiting for leads… ${liveCount}/${WAIT_LEADS} live (drip in progress)` });
+                await sleep(2000);
+            }
+            emit(io, { ts: new Date().toISOString(), level: 'step', message: `✅ ${liveCount} live leads ready — starting ${cycles} vault cycles` });
+        }
 
         // ── Auction Cycles — each picks the oldest unprocessed active lead from DB ──
         const processedLeadIds = new Set<string>();
@@ -772,6 +787,9 @@ export async function runFullDemo(
                     if (demoLeadId) {
                         await prisma.lead.update({ where: { id: demoLeadId }, data: { status: 'UNSOLD' } }).catch(() => { /* non-fatal */ });
                         io.emit('auction:closed', { leadId: demoLeadId, status: 'UNSOLD', remainingTime: 0, isClosed: true, serverTs: Date.now() });
+                        // Fix 4: emit leads:updated with final closed state so frontend
+                        // never re-fetches a stale IN_AUCTION snapshot for this lead.
+                        io.emit('leads:updated', { leadId: demoLeadId, status: 'UNSOLD', isClosed: true, source: 'auction-closed' });
                         console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (zero locks)`);
                     }
                     // Skip settle / VRF / refund — jump directly to cycleResults
@@ -837,6 +855,9 @@ export async function runFullDemo(
                         isClosed: true,
                         serverTs: Date.now(),  // ms epoch
                     });
+                    // Fix 4: emit leads:updated with final closed state so frontend
+                    // never re-fetches a stale IN_AUCTION snapshot for this lead.
+                    io.emit('leads:updated', { leadId: demoLeadId, status: 'SOLD', isClosed: true, source: 'auction-closed' });
                     console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} winner=${buyerWallet} amount=${bidAmount} tx=${settleReceiptHash}`);
                 }
 
