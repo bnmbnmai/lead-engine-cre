@@ -99,16 +99,16 @@ export const NFT_FEATURES_ENABLED = process.env.NFT_FEATURES_ENABLED !== 'false'
 // ── Demo Tuning Knobs ──────────────────────────────────
 
 /** Average interval between dripped demo leads (ms). Randomized ±50% around this value. */
-export const DEMO_LEAD_DRIP_INTERVAL_MS = parseInt(process.env.DEMO_LEAD_DRIP_INTERVAL_MS || '4500', 10);
+export const DEMO_LEAD_DRIP_INTERVAL_MS = parseInt(process.env.DEMO_LEAD_DRIP_INTERVAL_MS || '12000', 10);
 
 /** Number of demo buyer wallets to use per run */
 export const DEMO_NUM_BUYERS = parseInt(process.env.DEMO_NUM_BUYERS || '10', 10);
 
 /** Minimum active (IN_AUCTION) demo leads before replenishment warning fires */
-export const DEMO_MIN_ACTIVE_LEADS = parseInt(process.env.DEMO_MIN_ACTIVE_LEADS || '8', 10);
+export const DEMO_MIN_ACTIVE_LEADS = parseInt(process.env.DEMO_MIN_ACTIVE_LEADS || '3', 10);
 
 /** Number of leads seeded immediately at demo start */
-export const DEMO_INITIAL_LEADS = parseInt(process.env.DEMO_INITIAL_LEADS || '12', 10);
+export const DEMO_INITIAL_LEADS = parseInt(process.env.DEMO_INITIAL_LEADS || '5', 10);
 
 // ── Aggregate export ──────────────────────────────
 

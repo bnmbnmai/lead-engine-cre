@@ -21,6 +21,7 @@ import { computeCREQualityScore, type LeadScoringInput } from '../../lib/chainli
 import {
     DEMO_SELLER_WALLET,
     DEMO_BUYER_WALLETS,
+    DEMO_BUYER_KEYS,
     DEMO_VERTICALS,
     GEOS,
     USDC_ADDRESS,
@@ -28,7 +29,6 @@ import {
     VAULT_ADDRESS,
     VAULT_ABI,
     BASE_SEPOLIA_CHAIN_ID,
-    MAX_CYCLES,
     DEMO_DEPLOYER_USDC_MIN_REQUIRED,
     LEAD_AUCTION_DURATION_SECS,
     DEMO_MIN_ACTIVE_LEADS,
@@ -298,7 +298,7 @@ export async function runFullDemo(
         return {} as DemoResult;
     }
 
-    cycles = Math.max(1, Math.min(cycles, MAX_CYCLES));
+    cycles = Math.max(1, Math.min(cycles, 20)); // cap at 20 (MAX_CYCLES removed — natural settlement model)
 
     await checkDeployerUSDCReserve(io);
     if (!isRunning) return {} as DemoResult;
@@ -312,18 +312,13 @@ export async function runFullDemo(
     let totalTiebreakers = 0;
     const vrfProofLinks: string[] = [];
 
-    const BUYER_KEYS: Record<string, string> = {
-        '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9': '0x19216c3bfe31894b4e665dcf027d5c6981bdf653ad804cf4a9cfaeae8c0e5439',
-        '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC': '0x386ada6171840866e14a842b7343140c0a7d5f22d09199203cacc0d1f03f6618',
-        '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58': '0xd4c33251ccbdfb62e5aa960f09ffb795ce828ead9ffdfeb5a96d0e74a04eb33e',
-        '0x424CaC929939377f221348af52d4cb1247fE4379': '0x0dde9bf7cda4f0a0075ed0cf481572cdebe6e1a7b8cf0d83d6b31c5dcf6d4ca7',
-        '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d': '0xf683cedd280564b34242d5e234916f388e08ae83e4254e03367292ddf2adcea7',
-        '0x089B6Bdb4824628c5535acF60aBF80683452e862': '0x17455af639c289b4d9347efabb3c0162db3f89e270f62813db7cf6802a988a75',
-        '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE': '0xe5342ff07832870aecb195cd10fd3f5e34d26a3e16a9f125182adf4f93b3d510',
-        '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C': '0x0a1a294a4b5ad500d87fc19a97fa8eb55fea675d72fe64f8081179af014cc7fd',
-        '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf': '0x8b760a87e83e10e1a173990c6cd6b4aab700dd303ddf17d3701ab00e4b09750c',
-        '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad': '0x2014642678f5d0670148d8cddb76260857bb24bca6482d8f5174c962c6626382',
-    };
+    // Build wallet→key lookup from env-loaded DEMO_BUYER_KEYS (single source of truth).
+    // This eliminates the former BUYER_KEYS copy-paste (third instance — BUG-BK from findings.md).
+    const BUYER_KEYS: Record<string, string> = {};
+    DEMO_BUYER_WALLETS.forEach((addr, idx) => {
+        const k = DEMO_BUYER_KEYS[idx];
+        if (k) BUYER_KEYS[addr] = k;
+    });
 
     isRunning = true;
     currentAbort = new AbortController();
@@ -451,9 +446,9 @@ export async function runFullDemo(
         });
 
 
-        // Step 1: Pre-fund ALL buyer vaults to $300 (11 buyers × $300 = $3,300 — within deployer limit)
-        const PRE_FUND_TARGET = 300;
-        const PRE_FUND_THRESHOLD = 240;
+        // Step 1: Pre-fund ALL buyer vaults to $200 (10 buyers × $200 = $2,000 — within deployer limit)
+        const PRE_FUND_TARGET = 200;
+        const PRE_FUND_THRESHOLD = 160;
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_TARGET), 6);
 
         emit(io, {
@@ -527,7 +522,8 @@ export async function runFullDemo(
                         emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ approve failed for ${buyerAddr.slice(0, 10)}…: ${(aErr.shortMessage ?? aErr.message ?? '').slice(0, 80)} — deposit may fail` });
                     }
 
-                    const bNonce1 = bNonce0 + 1;
+                    // Re-fetch nonce after approve confirms — prevents stale nonce race on congested testnet.
+                    const bNonce1 = await provider.getTransactionCount(buyerAddr, 'pending');
                     try {
                         const dTx = await bVault.deposit(topUp, { nonce: bNonce1 });
                         await dTx.wait();
@@ -615,7 +611,9 @@ export async function runFullDemo(
                     const bVault2 = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
                     const bNonce0 = await provider.getTransactionCount(buyerAddr, 'pending');
                     await (await bUsdc2.approve(VAULT_ADDRESS, ethers.MaxUint256, { nonce: bNonce0 })).wait();
-                    await (await bVault2.deposit(topUpUnits, { nonce: bNonce0 + 1 })).wait();
+                    // Re-fetch nonce after approve confirms — prevents stale nonce race.
+                    const bNonce1mid = await provider.getTransactionCount(buyerAddr, 'pending');
+                    await (await bVault2.deposit(topUpUnits, { nonce: bNonce1mid })).wait();
                     emit(io, { ts: new Date().toISOString(), level: 'info', message: `💧 Mid-demo top-up: ${buyerAddr.slice(0, 10)}… +$${(topUpAmt / 1e6).toFixed(0)} → vault ≥$${TOPUP_TO}` });
                 } catch { /* non-fatal — best-effort */ }
             }
@@ -646,8 +644,9 @@ export async function runFullDemo(
         // Step 2: Start continuous lead drip (runs in background, parallel to vault cycles)
         // Marketplace starts completely empty — leads appear naturally one-by-one.
         if (signal.aborted) throw new Error('Demo aborted');
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — ${DEMO_INITIAL_LEADS} leads seeding now, then 1 every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s…` });
-        leadDrip = startLeadDrip(io, signal, 0, 30);
+        const maxDripLeads = cycles * 5; // hard cap: 5 leads per cycle keeps grid tidy
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — ${DEMO_INITIAL_LEADS} leads seeding now, then 1 every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s (max ${maxDripLeads} total)…` });
+        leadDrip = startLeadDrip(io, signal, maxDripLeads, 30);
 
         // Active-lead observability — emits live count to DevLog every 10s
         activeLeadInterval = setInterval(async () => {
@@ -657,11 +656,11 @@ export async function runFullDemo(
             } catch { /* non-fatal */ }
         }, 10_000);
 
-        // Wait up to 60 s for at least 8 live leads before settlement monitor starts.
-        // The staggered drip takes ~50-70s for 12 leads at 3500-7000ms per lead.
+        // Wait up to 45 s for at least 4 live leads before settlement monitor starts.
+        // With DEMO_INITIAL_LEADS=5 and ~800ms per seed, 5 leads are ready within ~10s.
         {
-            const WAIT_LEADS = 8;
-            const WAIT_DEADLINE = Date.now() + 60_000;
+            const WAIT_LEADS = 4;
+            const WAIT_DEADLINE = Date.now() + 45_000;
             let liveCount = 0;
             while (Date.now() < WAIT_DEADLINE && !signal.aborted) {
                 liveCount = await prisma.lead.count({
