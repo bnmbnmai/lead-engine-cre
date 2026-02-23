@@ -29,6 +29,8 @@ export const VAULT_ADDRESS = _VAULT_ADDRESS_RAW;
 export const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
 export const DEMO_DEPLOYER_USDC_MIN_REQUIRED = 2500; // $2,500 — covers 10 buyers × $200 replenish target + $500 run buffer
+export const MAX_CYCLES = 20; // hard upper-bound enforced in runFullDemo
+
 export const BASESCAN_BASE = 'https://sepolia.basescan.org/tx/';
 
 // Single canonical verticals list — do not duplicate
