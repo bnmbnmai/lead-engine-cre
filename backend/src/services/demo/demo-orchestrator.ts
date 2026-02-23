@@ -574,7 +574,7 @@ export async function runFullDemo(
         }, 15_000);
 
         sweepInterval = setInterval(() => { void sweepBuyerUSDC(io); }, 10 * 60_000);
-        metricsInterval = setInterval(() => { void emitLiveMetrics(io, runId); }, 30_000);
+        metricsInterval = setInterval(() => { void emitLiveMetrics(io, runId); }, 5_000); // R-02: 5s cadence for live metrics
 
         // Mid-demo vault top-up: every 75s, replenish any buyer below $80 to $200
         // Keeps bidding active throughout the full 5-min demo window.

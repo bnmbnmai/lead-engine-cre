@@ -73,8 +73,12 @@ export function useSocketBridge(): void {
 
         const unsubClosed = socketClient.on('auction:closed', (data) => {
             if (!data?.leadId) return;
-            // Force phase='closed' atomically — authoritative server confirmation
-            store().closeLead(data.leadId, data.status === 'SOLD' ? 'SOLD' : 'UNSOLD');
+            // R-04 micro-fix: pass winningAmount so closeLead can write the authoritative price.
+            store().closeLead(
+                data.leadId,
+                data.status === 'SOLD' ? 'SOLD' : 'UNSOLD',
+                typeof data.winningAmount === 'number' ? data.winningAmount : null,
+            );
             // Belt-and-suspenders: API reconcile 1 s later (confirms SOLD/UNSOLD status)
             setTimeout(() => void store().forceRefreshLead(data.leadId), 1_000);
         });
@@ -85,6 +89,14 @@ export function useSocketBridge(): void {
                 store().closeLead(data.leadId, data.newStatus);
                 setTimeout(() => void store().forceRefreshLead(data.leadId), 1_000);
             }
+        });
+
+        // R-01 micro-fix: consume auction:bid:pending emitted by the scheduler immediately
+        // on bid commitment — routes the incoming bid amount into the store so LeadCard
+        // shows a real-time price signal before the vault lock confirms on-chain.
+        const unsubBidPending = socketClient.on('auction:bid:pending', (data: any) => {
+            if (!data?.leadId) return;
+            store().updateBid({ leadId: data.leadId, highestBid: data.amount });
         });
 
         const unsubLeadsUpdated = socketClient.on('leads:updated', (_data: any) => {
@@ -123,6 +135,7 @@ export function useSocketBridge(): void {
             unsubClosed();
             unsubStatusChanged();
             unsubLeadsUpdated();
+            unsubBidPending();
             clearInterval(heartbeatInterval);
         };
     }, []);

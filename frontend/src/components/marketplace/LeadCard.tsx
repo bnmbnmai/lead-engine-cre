@@ -68,6 +68,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     const effectiveStatus = storeSlice?.status ?? lead.status;
     const isSealed = storeSlice?.isSealed ?? false;
     const liveBidCount = storeSlice?.liveBidCount ?? null;
+    const liveHighestBid = storeSlice?.liveHighestBid ?? null;
     // liveRemainingMs: server-corrected baseline; ticked down locally each second.
     // This is the SOLE source for time display — no Date.now() in countdown.
     const storeRemainingMs = storeSlice?.liveRemainingMs ?? null;
@@ -185,7 +186,19 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                         }`}>
                         <ArrowRight className="h-3.5 w-3.5" />
-                        {auctionEndFeedback === 'SOLD' ? 'Auction ended → Sold' : 'Auction ended → Buy It Now'}
+                        {auctionEndFeedback === 'SOLD' ? (
+                            <>
+                                Auction ended → Sold
+                                {liveHighestBid != null && (
+                                    // R-04: Show final winning price in emerald chip
+                                    <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">
+                                        ${liveHighestBid.toFixed(2)}
+                                    </span>
+                                )}
+                            </>
+                        ) : (
+                            <>Auction ended → Buy It Now</>
+                        )}
                     </div>
                 )}
                 {/* v9: closing-soon does NOT show a banner; card border signals urgency subtly. */}

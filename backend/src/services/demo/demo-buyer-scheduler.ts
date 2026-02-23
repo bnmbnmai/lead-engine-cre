@@ -7,7 +7,7 @@
  *   - scheduleBuyerBids: assigns staggered setTimeout bids to newly-injected leads
  *   - activeBidTimers / clearAllBidTimers: registry for abort-safe cleanup
  *   - sweepBuyerUSDC: mid-run on-chain USDC reclaim from buyer wallets
- *   - emitLiveMetrics: 30-second pulse to DevLog with live auction health
+ *   - emitLiveMetrics: 5-second pulse to DevLog with live auction health
  */
 
 import { Server as SocketServer } from 'socket.io';
@@ -159,6 +159,15 @@ export function scheduleBuyerBids(
         const delaySec = Math.max(3, Math.min(55, profile.timingBias + jitter)); // 3–55 s
         const delayMs = Math.round(delaySec * 1000);
 
+        // R-01: Emit bid:pending immediately — real scheduler event, before vault lock fires.
+        // Frontend can display 'Bid incoming' state while the chain confirms.
+        io.emit('auction:bid:pending', {
+            leadId,
+            buyerName: profile.name,
+            amount: bidAmount,
+            timestamp: new Date().toISOString(),
+        });
+
         const buyerIdx = profile.index;
         const timer = setTimeout(async () => {
             try {
@@ -292,11 +301,28 @@ export function scheduleBuyerBids(
         eligible.sort(() => Math.random() - 0.5);
         const extras = eligible.slice(0, 3);
 
+        // R-03: Track which fallback slot we're filling so we can bias 2 of the 4
+        // guaranteed bids toward the final 15 s window (45–58 s of a 60 s auction).
+        // This creates a realistic late-rush sniper effect without any fake bids.
+        let fallbackSlot = 0;
         for (const prof of [fallback, ...extras].filter(Boolean) as typeof BUYER_PROFILES) {
             if (!prof || reservePrice > prof.maxPrice) continue;
             const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), prof.maxPrice);
-            const fallbackDelay = Math.round((3 + Math.random() * 52) * 1000); // 3–55 s window
+            // Slots 2 and 3 (0-indexed) are the "late sniper" buyers: bid in final 15 s.
+            const isLateSniper = fallbackSlot >= 2;
+            const fallbackDelay = isLateSniper
+                ? Math.round((45 + Math.random() * 13) * 1000) // 45–58 s — late window
+                : Math.round((3 + Math.random() * 40) * 1000); // 3–43 s — normal window
             const bidIdx = prof.index;
+
+            fallbackSlot++;
+            // R-01: Emit bid:pending for fallback buyers too
+            io.emit('auction:bid:pending', {
+                leadId,
+                buyerName: prof.name,
+                amount: fallbackBid,
+                timestamp: new Date().toISOString(),
+            });
 
             const fallbackTimer = setTimeout(async () => {
                 try {

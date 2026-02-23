@@ -62,7 +62,7 @@ type AuctionEventHandler = {
     'demo:reset-complete': (data: { ts: string; success: boolean; message?: string; error?: string }) => void;
     // Global demo state broadcast (for all viewers, including Guests)
     'demo:status': (data: { running: boolean; recycling: boolean; currentCycle: number; totalCycles: number; percent: number; phase: string; runId?: string; ts: string }) => void;
-    // Live marketplace metrics (emitted every 30 s while demo runs)
+    // Live marketplace metrics (R-02: emitted every 5 s while demo runs, was 30 s)
     'demo:metrics': (data: { activeCount: number; leadsThisMinute: number; dailyRevenue: number }) => void;
     // ── AUCTION-SYNC events (added 2026-02-22) ──────────────────────────────────
     // auction:updated — server re-baselines remaining time on every bid so
@@ -94,6 +94,11 @@ type AuctionEventHandler = {
     // leads:updated — backend signals that new leads were injected / replenishment ran.
     // socketBridge re-fetches active leads from REST API on receipt.
     'leads:updated': (data: { activeCount?: number }) => void;
+    // R-01: real scheduler event — emitted the moment a buyer bid is committed,
+    // before the vault lockForBid timeout fires on-chain.
+    'auction:bid:pending': (data: { leadId: string; buyerName: string; amount: number; timestamp: string }) => void;
+    // R-07: emitted by demo-lead-drip after initial seed loop completes
+    'demo:pre-populated': (data: { leadCount: number; ts: string }) => void;
 };
 
 
@@ -129,6 +134,10 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     'auction:closing-soon',
     'auction:closed',
     'leads:updated',
+    // R-01: buyer bid commitment signal — emitted before vault lock fires
+    'auction:bid:pending',
+    // R-07: marketplace pre-populated signal
+    'demo:pre-populated',
 ];
 
 

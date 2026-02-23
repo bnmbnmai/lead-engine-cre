@@ -348,31 +348,36 @@ export function startLeadDrip(
         emit(io, {
             ts: new Date().toISOString(),
             level: 'step',
-            message: `📦 Starting lead drip — ${DEMO_INITIAL_LEADS} leads staggered naturally over ~55 s, then 1 every ${dripMinSec}–${dripMaxSec}s`,
+            // R-07: Initial seeds now stagger at 400–800 ms each, so the marketplace is
+            // pre-populated with 6–8 live leads within ~5 s of demo start.
+            message: `📦 Starting lead drip — ${DEMO_INITIAL_LEADS} leads seeding rapidly (~5 s), then 1 every ${dripMinSec}–${dripMaxSec}s`,
         });
 
-        // Staggered initial seeding — one lead every 1200–2500ms for a natural 20–30s one-by-one appearance
+        // R-07: Staggered initial seeding — rapid 400–800ms gaps so the grid fills fast.
+        // Judges see a fully populated marketplace within seconds of demo start.
         for (let i = 0; i < DEMO_INITIAL_LEADS && !stopped && !signal.aborted; i++) {
             let auctionEndAtIso = 'N/A';
             try {
                 await injectOneLead(io, sellerId, created);
                 created++;
-                // Compute auctionEndAt from what injectOneLead just stored in DB
                 auctionEndAtIso = new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString();
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `📋 Lead #${i + 1} dripped — auction ends at ${auctionEndAtIso}`,
+                    message: `📋 Lead #${i + 1} seeded — auction ends at ${auctionEndAtIso}`,
                 });
             } catch { /* non-fatal */ }
-            // Random 3500–7000ms between initial leads for dramatic one-by-one reveal (~55 s total)
-            await sleep(3500 + Math.floor(Math.random() * 3500));
+            // 400–800 ms between seeds (fast, visually exciting trickle-in)
+            await sleep(400 + Math.floor(Math.random() * 400));
         }
+
+        // R-07: Emit pre-populated event so DemoPanel and frontend know the grid is ready
+        io.emit('demo:pre-populated', { leadCount: created, ts: new Date().toISOString() });
 
         emit(io, {
             ts: new Date().toISOString(),
             level: 'info',
-            message: `⚡ Initial drip complete — ${created} leads live in marketplace`,
+            message: `⚡ Initial seed complete — ${created} leads live in marketplace (pre-populated)`,
         });
 
         const _createdRef = { value: created };

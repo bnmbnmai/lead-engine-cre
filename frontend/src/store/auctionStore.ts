@@ -110,7 +110,7 @@ interface AuctionStoreState {
      * No isClosed change — card stays fully interactive but shows urgency.
      */
     setClosingSoon: (leadId: string) => void;
-    closeLead: (leadId: string, status: AuctionEndFeedback) => void;
+    closeLead: (leadId: string, status: AuctionEndFeedback, winningAmount?: number | null) => void;
     removeLead: (leadId: string) => void;
     getOrderedLeads: () => LeadSlice[];
     forceRefreshLead: (leadId: string) => Promise<void>;
@@ -313,7 +313,7 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         });
     },
 
-    closeLead(leadId, status) {
+    closeLead(leadId, status, winningAmount) {
         set((state) => {
             const lead = state.leads.get(leadId);
             if (!lead) return state;
@@ -342,6 +342,10 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 isClosed: true,
                 isSealed: false,
                 liveRemainingMs: 0,
+                // R-04 micro-fix: write the authoritative settled price at close.
+                // If winningAmount is provided (from auction:closed payload), use it;
+                // otherwise fall back to the last liveHighestBid seen during bidding.
+                liveHighestBid: (winningAmount != null) ? winningAmount : lead.liveHighestBid,
                 status: status === 'SOLD' ? 'SOLD' : 'UNSOLD',
                 closedAt: now,
                 // v9: card starts fading 100ms after closure (near-instant grey, then 2.5s opacity fade)
