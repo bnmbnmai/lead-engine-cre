@@ -348,7 +348,7 @@ export function startLeadDrip(
         emit(io, {
             ts: new Date().toISOString(),
             level: 'step',
-            message: `📦 Starting lead drip — ${DEMO_INITIAL_LEADS} leads staggered naturally over ~35 s, then 1 every ${dripMinSec}–${dripMaxSec}s`,
+            message: `📦 Starting lead drip — ${DEMO_INITIAL_LEADS} leads staggered naturally over ~55 s, then 1 every ${dripMinSec}–${dripMaxSec}s`,
         });
 
         // Staggered initial seeding — one lead every 1200–2500ms for a natural 20–30s one-by-one appearance
@@ -365,8 +365,8 @@ export function startLeadDrip(
                     message: `📋 Lead #${i + 1} dripped — auction ends at ${auctionEndAtIso}`,
                 });
             } catch { /* non-fatal */ }
-            // Random 2000–4000ms between initial leads for slow, visible one-by-one reveal (~35 s total)
-            await sleep(2000 + Math.floor(Math.random() * 2000));
+            // Random 3500–7000ms between initial leads for dramatic one-by-one reveal (~55 s total)
+            await sleep(3500 + Math.floor(Math.random() * 3500));
         }
 
         emit(io, {

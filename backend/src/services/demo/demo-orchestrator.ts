@@ -451,14 +451,14 @@ export async function runFullDemo(
         });
 
 
-        // Step 1: Pre-fund ALL buyer vaults to $200
-        const PRE_FUND_TARGET = 200;
-        const PRE_FUND_THRESHOLD = 160;
+        // Step 1: Pre-fund ALL buyer vaults to $350
+        const PRE_FUND_TARGET = 350;
+        const PRE_FUND_THRESHOLD = 280;
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_TARGET), 6);
 
         emit(io, {
             ts: new Date().toISOString(), level: 'step',
-            message: `💰 Pre-funding ${DEMO_BUYER_WALLETS.length} buyer vaults to $${PRE_FUND_TARGET} each — cycles start immediately after...`,
+            message: `💰 Pre-funding ${DEMO_BUYER_WALLETS.length} buyer vaults to $${PRE_FUND_TARGET} each — natural auction flow starts after drip…`,
         });
 
         let preFundedCount = 0;
@@ -557,7 +557,7 @@ export async function runFullDemo(
         emit(io, {
             ts: new Date().toISOString(),
             level: preFundedCount > 0 ? 'success' : 'warn',
-            message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — launching cycles now!`,
+            message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — natural auction flow starting!`,
         });
 
         // Replenishment watchdog — runs every 15s independently of the drip loop.
@@ -576,6 +576,43 @@ export async function runFullDemo(
         sweepInterval = setInterval(() => { void sweepBuyerUSDC(io); }, 10 * 60_000);
         metricsInterval = setInterval(() => { void emitLiveMetrics(io, runId); }, 30_000);
 
+        // Mid-demo vault top-up: every 90s, replenish any buyer below $80 to $150
+        // Keeps bidding active throughout the full 5-min demo window.
+        const TOPUP_LOW = 80;   // $ threshold to trigger replenishment
+        const TOPUP_TO = 150;  // $ target after replenishment
+        const vaultTopupInterval = setInterval(async () => {
+            for (const buyerAddr of DEMO_BUYER_WALLETS) {
+                try {
+                    const bKey = BUYER_KEYS[buyerAddr];
+                    if (!bKey) continue;
+                    const vaultBal = await vault.balanceOf(buyerAddr);
+                    const locked = await vault.lockedBalances(buyerAddr);
+                    const free = Number(vaultBal - (locked > vaultBal ? vaultBal : locked)) / 1e6;
+                    if (free >= TOPUP_LOW) continue;
+                    const topUpAmt = Math.round((TOPUP_TO - free) * 1e6);
+                    if (topUpAmt <= 0) continue;
+                    const topUpUnits = BigInt(topUpAmt);
+                    const deployerBal2 = await usdc.balanceOf(signer.address);
+                    if (deployerBal2 < topUpUnits) continue; // deployer dry
+                    const nonce = await getNextNonce();
+                    const tTx = await sendWithGasEscalation(
+                        signer,
+                        { to: USDC_ADDRESS, data: usdc.interface.encodeFunctionData('transfer', [buyerAddr, topUpUnits]), nonce },
+                        `topup USDC ${buyerAddr.slice(0, 10)}`,
+                        (msg) => emit(io, { ts: new Date().toISOString(), level: 'info', message: msg }),
+                    );
+                    await tTx.wait();
+                    const bSigner = new ethers.Wallet(bKey, provider);
+                    const bUsdc2 = new ethers.Contract(USDC_ADDRESS, USDC_ABI, bSigner);
+                    const bVault2 = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, bSigner);
+                    const bNonce0 = await provider.getTransactionCount(buyerAddr, 'pending');
+                    await (await bUsdc2.approve(VAULT_ADDRESS, ethers.MaxUint256, { nonce: bNonce0 })).wait();
+                    await (await bVault2.deposit(topUpUnits, { nonce: bNonce0 + 1 })).wait();
+                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `💧 Mid-demo top-up: ${buyerAddr.slice(0, 10)}… +$${(topUpAmt / 1e6).toFixed(0)} → vault ≥$${TOPUP_TO}` });
+                } catch { /* non-fatal — best-effort */ }
+            }
+        }, 90_000);
+
         // Step 2: Start continuous lead drip (runs in background, parallel to vault cycles)
         // Marketplace starts completely empty — leads appear naturally one-by-one.
         if (signal.aborted) throw new Error('Demo aborted');
@@ -590,12 +627,11 @@ export async function runFullDemo(
             } catch { /* non-fatal */ }
         }, 10_000);
 
-        // Wait up to 45 s for at least 6 live leads before cycles start.
-        // The staggered drip takes ~30-45s for 12 leads at 2000-4000ms per lead.
-        // Without this wait, early cycles find no leads and get skipped, compressing the demo.
+        // Wait up to 60 s for at least 8 live leads before settlement monitor starts.
+        // The staggered drip takes ~50-70s for 12 leads at 3500-7000ms per lead.
         {
-            const WAIT_LEADS = 6;
-            const WAIT_DEADLINE = Date.now() + 45_000;
+            const WAIT_LEADS = 8;
+            const WAIT_DEADLINE = Date.now() + 60_000;
             let liveCount = 0;
             while (Date.now() < WAIT_DEADLINE && !signal.aborted) {
                 liveCount = await prisma.lead.count({
@@ -605,41 +641,39 @@ export async function runFullDemo(
                 emit(io, { ts: new Date().toISOString(), level: 'info', message: `⏳ Waiting for leads… ${liveCount}/${WAIT_LEADS} live (drip in progress)` });
                 await sleep(2000);
             }
-            emit(io, { ts: new Date().toISOString(), level: 'step', message: `✅ ${liveCount} live leads ready — starting ${cycles} vault cycles` });
+            emit(io, { ts: new Date().toISOString(), level: 'step', message: `✅ ${liveCount} live leads ready — natural settlement monitor starting` });
         }
 
-        // ── Auction Cycles — each picks the oldest unprocessed active lead from DB ──
+        // ── Natural Auction Settlement Monitor ──────────────────────────────────────
+        // Replaces fixed cycle count: runs for DEMO_DURATION_MS and settles each
+        // auction as it naturally expires, giving a continuous, fluid demo flow.
+        const DEMO_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+        const DEMO_END_TIME = Date.now() + DEMO_DURATION_MS;
         const processedLeadIds = new Set<string>();
-
-        // ── Auction Cycles ──
         let buyerRoundRobinOffset = 0;
-        for (let cycle = 1; cycle <= cycles; cycle++) {
-            if (signal.aborted) throw new Error('Demo aborted');
+        let settlementCycle = 0;
 
-            // Pick the oldest active lead not yet processed by a vault cycle
-            let nextLead = await prisma.lead.findFirst({
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🏁 Natural settlement monitor started — auctions settle as they expire over ${DEMO_DURATION_MS / 60000} min` });
+        emitStatus(io, { running: true, phase: 'on-chain', runId, percent: 0 });
+
+        while (!signal.aborted && Date.now() < DEMO_END_TIME) {
+            // Poll every 5 s for an auction that has expired but not yet been settled
+            await sleep(5000);
+            if (signal.aborted) break;
+
+            const nextLead = await prisma.lead.findFirst({
                 where: {
                     source: 'DEMO',
                     status: 'IN_AUCTION',
-                    auctionEndAt: { gt: new Date() },
+                    auctionEndAt: { lte: new Date() },        // expired
                     id: { notIn: Array.from(processedLeadIds) },
                 },
-                orderBy: { createdAt: 'asc' },
+                orderBy: { auctionEndAt: 'asc' },
             }).catch(() => null);
 
-            if (!nextLead) {
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⏳ Cycle ${cycle}/${cycles} — no available lead yet, waiting 3s for drip…` });
-                await sleep(3000);
-                nextLead = await prisma.lead.findFirst({
-                    where: { source: 'DEMO', status: 'IN_AUCTION', auctionEndAt: { gt: new Date() }, id: { notIn: Array.from(processedLeadIds) } },
-                    orderBy: { createdAt: 'asc' },
-                }).catch(() => null);
-                if (!nextLead) {
-                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Cycle ${cycle}/${cycles} — still no lead after retry, skipping` });
-                    continue;
-                }
-            }
+            if (!nextLead) continue; // no expired lead yet — keep polling
 
+            settlementCycle++;
             processedLeadIds.add(nextLead.id);
             const vertical = nextLead.vertical;
             const baseBid = nextLead.reservePrice;
@@ -666,7 +700,7 @@ export async function runFullDemo(
                     const bLockedBal = await vault.lockedBalances(bAddr);
                     const available = Math.max(0, (Number(bVaultBal) - Number(bLockedBal)) / 1e6);
                     if (available < bidAmount) {
-                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — skipping this bidder`, cycle, totalCycles: cycles });
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — skipping this bidder`, cycle: settlementCycle, totalCycles: 0 });
                         continue;
                     }
                     buyerBids.push({ addr: bAddr, amount: bidAmount, amountUnits: bidAmountUnits });
@@ -675,7 +709,7 @@ export async function runFullDemo(
             }
 
             if (readyBuyers === 0) {
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ All ${numBuyers} selected buyers vault-depleted — skipping cycle ${cycle}. Wait for recycle phase to replenish.`, cycle, totalCycles: cycles });
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ All ${numBuyers} selected buyers vault-depleted — skipping settlement ${settlementCycle}. Wait for top-up.`, cycle: settlementCycle, totalCycles: 0 });
                 continue;
             }
 
@@ -688,16 +722,16 @@ export async function runFullDemo(
                 buyerBids[1].amount = maxBid;
                 buyerBids[1].amountUnits = ethers.parseUnits(String(maxBid), 6);
                 hadTiebreaker = true;
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${buyerBids[0].addr.slice(0, 10)}… and ${buyerBids[1].addr.slice(0, 10)}… both bid $${maxBid} — VRF picks winner`, cycle, totalCycles: cycles });
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${buyerBids[0].addr.slice(0, 10)}… and ${buyerBids[1].addr.slice(0, 10)}… both bid $${maxBid} — VRF picks winner`, cycle: settlementCycle, totalCycles: 0 });
             }
 
             emit(io, {
                 ts: new Date().toISOString(), level: 'step',
-                message: `\n${'─'.repeat(56)}\n🔄 Cycle ${cycle}/${cycles} — ${vertical.toUpperCase()} | ${readyBuyers} bids incoming | $${buyerBids.map(b => b.amount).join('/$')}\n   Bidders: ${cycleBuyers.slice(0, readyBuyers).map(a => a.slice(0, 10) + '…').join(', ')}\n${'─'.repeat(56)}`,
-                cycle, totalCycles: cycles,
+                message: `\n${'─'.repeat(56)}\n🔄 Settlement #${settlementCycle} — ${vertical.toUpperCase()} | ${readyBuyers} bids incoming | $${buyerBids.map(b => b.amount).join('/$')}\n   Bidders: ${cycleBuyers.slice(0, readyBuyers).map(a => a.slice(0, 10) + '…').join(', ')}\n${'─'.repeat(56)}`,
+                cycle: settlementCycle, totalCycles: 0,
             });
 
-            emitStatus(io, { running: true, currentCycle: cycle, totalCycles: cycles, percent: Math.round(((cycle - 1) / cycles) * 100), phase: 'on-chain', runId });
+            emitStatus(io, { running: true, currentCycle: settlementCycle, totalCycles: 0, percent: Math.round((Date.now() - (DEMO_END_TIME - DEMO_DURATION_MS)) / DEMO_DURATION_MS * 100), phase: 'on-chain', runId });
 
             // ── On-chain Lock / Settle (wrapped for BuyItNow fallback) ──────────
             // If the vault reverts (stale price feed, unauthorized caller, etc.)
@@ -721,14 +755,14 @@ export async function runFullDemo(
                     emit(io, {
                         ts: new Date().toISOString(), level: 'info',
                         message: `🔒 Bidder ${b + 1}/${readyBuyers} — $${bAmount} USDC from ${bAddr.slice(0, 10)}… (competing against ${readyBuyers - 1} other bidder${readyBuyers - 1 !== 1 ? 's' : ''})`,
-                        cycle, totalCycles: cycles,
+                        cycle: settlementCycle, totalCycles: 0,
                     });
 
                     const { receipt, gasUsed } = await sendTx(
                         io,
                         `Lock bid #${b + 1} — ${bAddr.slice(0, 10)}… bids $${bAmount}`,
                         () => vault.lockForBid(bAddr, bAmountUnits),
-                        cycle, cycles,
+                        settlementCycle, 0,
                     );
                     cycleGas += gasUsed;
 
@@ -776,13 +810,11 @@ export async function runFullDemo(
                     await sleep(500);
                 }
 
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📋 Lock IDs: [${lockIds.join(', ')}]`, cycle, totalCycles: cycles, data: { lockIds } });
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📋 Lock IDs: [${lockIds.join(', ')}]`, cycle: settlementCycle, totalCycles: 0, data: { lockIds } });
 
                 // ── Zero-bid / no-winner guard ──
-                // If no lockForBid calls succeeded (vault depleted, or no bids placed),
-                // immediately mark this lead UNSOLD — no VRF, no fee, no settle call.
                 if (lockIds.length === 0) {
-                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Cycle ${cycle}/${cycles} — no successful locks (zero bids) → marking lead UNSOLD`, cycle, totalCycles: cycles });
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Settlement #${settlementCycle} — no successful locks (zero bids) → marking lead UNSOLD`, cycle: settlementCycle, totalCycles: 0 });
                     cyclePlatformIncome = 0;
                     if (demoLeadId) {
                         await prisma.lead.update({ where: { id: demoLeadId }, data: { status: 'UNSOLD' } }).catch(() => { /* non-fatal */ });
@@ -800,13 +832,13 @@ export async function runFullDemo(
                 if (signal.aborted) throw new Error('Demo aborted');
 
                 const winnerLockId = lockIds[0];
-                emit(io, { ts: new Date().toISOString(), level: 'step', message: `💰 Settling winner — lock #${winnerLockId} → seller ${DEMO_SELLER_WALLET.slice(0, 10)}…`, cycle, totalCycles: cycles });
+                emit(io, { ts: new Date().toISOString(), level: 'step', message: `💰 Settling winner — lock #${winnerLockId} → seller ${DEMO_SELLER_WALLET.slice(0, 10)}…`, cycle: settlementCycle, totalCycles: 0 });
 
                 const { receipt: settleReceipt, gasUsed: settleGas } = await sendTx(
                     io,
                     `Settle winner (lock #${winnerLockId} → seller)`,
                     () => vault.settleBid(winnerLockId, DEMO_SELLER_WALLET),
-                    cycle, cycles,
+                    settlementCycle, 0,
                 );
                 cycleGas += settleGas;
                 pendingLockIds.delete(winnerLockId); // BUG-04
@@ -821,19 +853,19 @@ export async function runFullDemo(
                 vrfTxHashForCycle = hadTiebreaker ? settleReceipt.hash : undefined;
                 if (hadTiebreaker) { totalTiebreakers++; }
                 if (vrfTxHashForCycle) { vrfProofLinks.push(`https://sepolia.basescan.org/tx/${vrfTxHashForCycle}`); }
-                emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this cycle (5% of $${bidAmount} = $${cyclePlatformFee.toFixed(2)} + $1 winner fee)`, cycle, totalCycles: cycles });
+                emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this settlement (5% of $${bidAmount} = $${cyclePlatformFee.toFixed(2)} + $1 winner fee)`, cycle: settlementCycle, totalCycles: 0 });
 
                 // Refund losers
                 for (let r = 1; r < lockIds.length; r++) {
                     if (signal.aborted) throw new Error('Demo aborted');
 
-                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `🔓 Refunding loser — lock #${lockIds[r]}`, cycle, totalCycles: cycles });
+                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `🔓 Refunding loser — lock #${lockIds[r]}`, cycle: settlementCycle, totalCycles: 0 });
 
                     const { receipt: refundReceipt, gasUsed: refundGas } = await sendTx(
                         io,
                         `Refund loser (lock #${lockIds[r]})`,
                         () => vault.refundBid(lockIds[r]),
-                        cycle, cycles,
+                        settlementCycle, 0,
                     );
                     cycleGas += refundGas;
                     pendingLockIds.delete(lockIds[r]); // BUG-04
@@ -872,22 +904,22 @@ export async function runFullDemo(
 
 
                     const vaultMsg = vaultErr?.reason || vaultErr?.shortMessage || vaultErr?.message || String(vaultErr);
-                    console.error(`[DEMO-BUYNOW] cycle ${cycle} — vault tx failed (${vaultMsg.slice(0, 120)}), switching to BuyItNow path`);
+                    console.error(`[DEMO-BUYNOW] settlement ${settlementCycle} — vault tx failed (${vaultMsg.slice(0, 120)}), switching to BuyItNow path`);
                     emit(io, {
                         ts: new Date().toISOString(), level: 'warn',
-                        message: `⚡ [DEMO-BUYNOW] Vault tx failed (${vaultMsg.slice(0, 120)}) — switching to BuyItNow path for cycle ${cycle}`,
-                        cycle, totalCycles: cycles,
+                        message: `⚡ [DEMO-BUYNOW] Vault tx failed (${vaultMsg.slice(0, 120)}) — switching to BuyItNow path for settlement ${settlementCycle}`,
+                        cycle: settlementCycle, totalCycles: 0,
                     });
 
                     // BuyItNow path: mint NFT + CRE dispatch to guarantee [CRE-DISPATCH] fires
                     cycleUsedBuyItNow = true;
                     if (demoLeadId) {
                         try {
-                            console.log(`[CRE-DISPATCH] cycle ${cycle} BuyItNow — minting NFT for leadId=${demoLeadId}`);
+                            console.log(`[CRE-DISPATCH] settlement ${settlementCycle} BuyItNow — minting NFT for leadId=${demoLeadId}`);
                             emit(io, {
                                 ts: new Date().toISOString(), level: 'info',
                                 message: `[CRE-DISPATCH] BuyItNow mint — leadId=${demoLeadId} seller=${DEMO_SELLER_WALLET.slice(0, 10)}…`,
-                                cycle, totalCycles: cycles,
+                                cycle: settlementCycle, totalCycles: 0,
                             });
                             const mintResult = await nftService.mintLeadNFT(demoLeadId);
                             if (mintResult?.tokenId) {
@@ -895,31 +927,31 @@ export async function runFullDemo(
                                 emit(io, {
                                     ts: new Date().toISOString(), level: 'success',
                                     message: `[CRE-DISPATCH] BuyItNow mint ✅ — tokenId=${mintResult.tokenId} tx=${mintResult.txHash?.slice(0, 22) ?? '—'}`,
-                                    cycle, totalCycles: cycles,
+                                    cycle: settlementCycle, totalCycles: 0,
                                 });
                                 // Fire CRE score request
                                 try {
-                                    console.log(`[CRE-DISPATCH] cycle ${cycle} BuyItNow — requestOnChainQualityScore leadId=${demoLeadId} tokenId=${mintResult.tokenId}`);
+                                    console.log(`[CRE-DISPATCH] settlement ${settlementCycle} BuyItNow — requestOnChainQualityScore leadId=${demoLeadId} tokenId=${mintResult.tokenId}`);
                                     const creResult = await creService.requestOnChainQualityScore(demoLeadId, Number(mintResult.tokenId));
                                     console.log(`[CRE-DISPATCH] BuyItNow CRE dispatch confirmed — requestId=${creResult ?? '—'}`);
                                     emit(io, {
                                         ts: new Date().toISOString(), level: 'success',
                                         message: `[CRE-DISPATCH] BuyItNow CRE ✅ — requestId=${String(creResult ?? '—').slice(0, 22)}`,
-                                        cycle, totalCycles: cycles,
+                                        cycle: settlementCycle, totalCycles: 0,
                                     });
                                 } catch (creErr: any) {
                                     console.error(`[CRE-DISPATCH] BuyItNow CRE failed: ${creErr?.message?.slice(0, 100)}`);
-                                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[CRE-DISPATCH] BuyItNow CRE error: ${creErr?.message?.slice(0, 80)}`, cycle, totalCycles: cycles });
+                                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[CRE-DISPATCH] BuyItNow CRE error: ${creErr?.message?.slice(0, 80)}`, cycle: settlementCycle, totalCycles: 0 });
                                 }
                             } else {
                                 console.error(`[CRE-DISPATCH] BuyItNow mint returned no tokenId — skipping CRE`);
                             }
                         } catch (mintErr: any) {
                             console.error(`[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 120)}`);
-                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 80)}`, cycle, totalCycles: cycles });
+                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 80)}`, cycle: settlementCycle, totalCycles: 0 });
                         }
                     } else {
-                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-BUYNOW] No demoLeadId available for cycle ${cycle} — CRE dispatch skipped`, cycle, totalCycles: cycles });
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-BUYNOW] No demoLeadId available for settlement ${settlementCycle} — CRE dispatch skipped`, cycle: settlementCycle, totalCycles: 0 });
                     }
 
                     // AUCTION-SYNC: closed broadcast for BuyItNow (unsold) path
@@ -944,7 +976,7 @@ export async function runFullDemo(
             totalGas += cycleGas;
 
             cycleResults.push({
-                cycle, vertical,
+                cycle: settlementCycle, vertical,
                 buyerWallet, buyerWallets: cycleBuyers,
                 bidAmount,
                 lockIds: cycleUsedBuyItNow ? [] : lockIds,
@@ -958,11 +990,12 @@ export async function runFullDemo(
                 vrfTxHash: vrfTxHashForCycle,
             });
 
-            if (cycle < cycles) await sleep(1000);
-        } // end for cycle
+            await sleep(1000);
+        } // end while (natural expiry monitor)
 
         // Batched verifyReserves
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🏦 Running batched Proof of Reserves check (1 tx for all ${cycles} cycles)...` });
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🏦 Running batched Proof of Reserves check (1 tx for all ${settlementCycle} settlements)...` });
+        clearInterval(vaultTopupInterval);
 
         let porSolventFinal = true;
         let porTxHashFinal = '';

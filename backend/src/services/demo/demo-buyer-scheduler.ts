@@ -265,21 +265,22 @@ export function scheduleBuyerBids(
         if (scheduledCount === 1 && Math.random() < 0.10) break;
     }
 
-    // Guaranteed-bid fallback: if no buyer was scheduled (score/price/skip filters),
-    // schedule GeneralistA + one additional random eligible profile within 8–55 s
-    // to ensure every lead gets at least 2 bids and looks lively.
-    if (scheduledCount === 0 && qualityScore >= 1500 && VAULT_ADDRESS) {
+    // Always-on fallback: ensure every lead gets 2–3 bidders, even if profile filters matched some.
+    // This keeps the marketplace lively throughout the 5-min demo window.
+    if (qualityScore >= 1200 && VAULT_ADDRESS) {
         const fallback = BUYER_PROFILES.find(p => p.name === 'GeneralistA');
-        // Pick a second random profile that can afford the reserve (skip GeneralistA)
+        // Pick up to 2 additional random eligible profiles (skip GeneralistA)
         const eligible = BUYER_PROFILES.filter(
             p => p.name !== 'GeneralistA' && p.maxPrice >= reservePrice && (p.verticals.includes('*') || p.verticals.includes(vertical))
         );
-        const second = eligible.length > 0 ? eligible[Math.floor(Math.random() * eligible.length)] : null;
+        // Shuffle to vary which buyers appear
+        eligible.sort(() => Math.random() - 0.5);
+        const extras = eligible.slice(0, 2);
 
-        for (const prof of [fallback, second].filter(Boolean) as typeof BUYER_PROFILES) {
+        for (const prof of [fallback, ...extras].filter(Boolean) as typeof BUYER_PROFILES) {
             if (!prof || reservePrice > prof.maxPrice) continue;
             const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), prof.maxPrice);
-            const fallbackDelay = Math.round((8 + Math.random() * 47) * 1000); // 8–55 s window
+            const fallbackDelay = Math.round((5 + Math.random() * 60) * 1000); // 5–65 s window
             const bidIdx = prof.index;
 
             const fallbackTimer = setTimeout(async () => {
