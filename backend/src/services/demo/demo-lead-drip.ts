@@ -28,21 +28,9 @@ import {
     sleep,
 } from './demo-shared';
 
-// scheduleBuyerBids is declared in demo-buyer-scheduler; injectOneLead calls it after lead creation.
-// We import it lazily via a setter to resolve the circular dep at module initialisation time.
-let _scheduleBuyerBids: (
-    io: SocketServer,
-    leadId: string,
-    vertical: string,
-    qualityScore: number,
-    reservePrice: number,
-    auctionEndAt: Date,
-) => void = () => { /* no-op until wired */ };
-
-/** Called by demo-buyer-scheduler during module initialisation to inject its function here. */
-export function wireScheduleBuyerBids(fn: typeof _scheduleBuyerBids): void {
-    _scheduleBuyerBids = fn;
-}
+// NOTE: Per-lead bid scheduling has been moved exclusively to the settlement monitor
+// (demo-orchestrator.ts). The drip path only injects leads — it does NOT schedule bids.
+// This prevents dual-lock accumulation across concurrent leads that drained buyer vaults.
 
 // ── Lead Helpers ──────────────────────────────────
 
@@ -247,8 +235,8 @@ export async function injectOneLead(
     });
     io.emit('leads:updated', { activeCount });
 
-    // Kick off staggered buyer bids for this lead (non-blocking, fire-and-forget)
-    _scheduleBuyerBids(io, lead.id, vertical, qualityScore ?? 0, reservePrice, lead.auctionEndAt!);
+    // Bids are handled exclusively by the settlement monitor in demo-orchestrator.ts.
+    // Do NOT call scheduleBuyerBids here — it caused dual-lock vault exhaustion.
 }
 
 // ── Active Lead Minimum Top-Up (BUG-10) ──────────────

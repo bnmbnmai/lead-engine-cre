@@ -644,8 +644,8 @@ export async function runFullDemo(
         // Step 2: Start continuous lead drip (runs in background, parallel to vault cycles)
         // Marketplace starts completely empty — leads appear naturally one-by-one.
         if (signal.aborted) throw new Error('Demo aborted');
-        const maxDripLeads = cycles * 5; // hard cap: 5 leads per cycle keeps grid tidy
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — ${DEMO_INITIAL_LEADS} leads seeding now, then 1 every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s (max ${maxDripLeads} total)…` });
+        const maxDripLeads = 15; // hard cap: 15 total leads in a 5-min demo at 20s avg drip
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — 1 lead every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s (max ${maxDripLeads} total)…` });
         leadDrip = startLeadDrip(io, signal, maxDripLeads, 30);
 
         // Active-lead observability — emits live count to DevLog every 10s

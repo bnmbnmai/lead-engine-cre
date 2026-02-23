@@ -75,7 +75,7 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 // ── Auction Durations ──────────────────────────────
 
 /** Lead auction duration (seconds) — single 60s sealed-bid auction */
-export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '60', 10);
+export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '90', 10);
 
 /** Default vertical NFT auction duration (seconds) — 60s for hackathon */
 export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '60', 10);
@@ -99,7 +99,7 @@ export const NFT_FEATURES_ENABLED = process.env.NFT_FEATURES_ENABLED !== 'false'
 // ── Demo Tuning Knobs ──────────────────────────────────
 
 /** Average interval between dripped demo leads (ms). Randomized ±50% around this value. */
-export const DEMO_LEAD_DRIP_INTERVAL_MS = parseInt(process.env.DEMO_LEAD_DRIP_INTERVAL_MS || '7500', 10);
+export const DEMO_LEAD_DRIP_INTERVAL_MS = parseInt(process.env.DEMO_LEAD_DRIP_INTERVAL_MS || '20000', 10);
 
 /** Number of demo buyer wallets to use per run */
 export const DEMO_NUM_BUYERS = parseInt(process.env.DEMO_NUM_BUYERS || '10', 10);

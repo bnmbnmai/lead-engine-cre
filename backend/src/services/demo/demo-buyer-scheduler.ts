@@ -25,7 +25,7 @@ import {
     getSharedProvider,
     getNextNonce,
 } from './demo-shared';
-import { wireScheduleBuyerBids } from './demo-lead-drip';
+// wireScheduleBuyerBids removed — drip path no longer schedules bids (prevents dual-lock)
 
 // ── Buyer Profiles ─────────────────────────────────
 
@@ -377,8 +377,7 @@ export function scheduleBuyerBids(
     }
 }
 
-// Wire scheduleBuyerBids into demo-lead-drip at module init (breaks circular dep)
-wireScheduleBuyerBids(scheduleBuyerBids);
+// scheduleBuyerBids is called directly by demo-orchestrator settlement monitor only.
 
 // ── Lightweight Mid-Run USDC Sweep ─────────────────
 
