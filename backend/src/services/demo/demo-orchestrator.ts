@@ -54,7 +54,12 @@ import {
     ensureDemoSeller,
     injectOneLead,
     checkActiveLeadsAndTopUp,
+    startLeadDrip,
 } from './demo-lead-drip';
+import {
+    DEMO_INITIAL_LEADS,
+    DEMO_LEAD_DRIP_INTERVAL_MS,
+} from '../../config/perks.env';
 import {
     clearAllBidTimers,
     emitLiveMetrics,
@@ -339,6 +344,7 @@ export async function runFullDemo(
     let replenishInterval: ReturnType<typeof setInterval> | null = null;
     let sweepInterval: ReturnType<typeof setInterval> | null = null;
     let metricsInterval: ReturnType<typeof setInterval> | null = null;
+    let leadDrip: { stop: () => void; promise: Promise<void> } | null = null;
 
     setDemoRunStartTime(Date.now());
 
@@ -443,15 +449,6 @@ export async function runFullDemo(
             data: { vaultBalance: deployerUsdc, ethBalance: ethers.formatEther(ethBal) },
         });
 
-        // Step 0b: Seed 3 leads immediately
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Seeding 3 initial leads into marketplace — visible immediately while we fund buyer wallets...` });
-        {
-            const seedSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
-            for (let si = 0; si < 3 && !signal.aborted; si++) {
-                try { await injectOneLead(io, seedSellerId, si); } catch { /* non-fatal */ }
-                await sleep(200);
-            }
-        }
 
         // Step 1: Pre-fund ALL buyer vaults to $200
         const PRE_FUND_TARGET = 200;
@@ -570,7 +567,6 @@ export async function runFullDemo(
                 const activeCount = await prisma.lead.count({ where: { source: 'DEMO', status: 'IN_AUCTION' } });
                 if (activeCount < DEMO_MIN_ACTIVE_LEADS) {
                     emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Active leads: ${activeCount} (target ≥${DEMO_MIN_ACTIVE_LEADS}) — drip will replenish shortly` });
-                    // Signal all tabs to re-fetch so any recently-injected leads appear immediately
                     io.emit('leads:updated', { activeCount, source: 'watchdog' });
                 }
             } catch { /* non-fatal */ }
@@ -579,43 +575,51 @@ export async function runFullDemo(
         sweepInterval = setInterval(() => { void sweepBuyerUSDC(io); }, 10 * 60_000);
         metricsInterval = setInterval(() => { void emitLiveMetrics(io, runId); }, 30_000);
 
-        // Step 2: Lead drip (parallel to cycles)
+        // Step 2: Start continuous lead drip (runs in background, parallel to vault cycles)
+        // Marketplace starts completely empty — leads appear naturally one-by-one.
         if (signal.aborted) throw new Error('Demo aborted');
-        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Lead 1/${cycles} live now — remaining leads drip every 10–15s, bidding follows immediately…` });
-        const cycleSellerId = await ensureDemoSeller(DEMO_SELLER_WALLET);
-        interface DrippedLead { leadId: string; vertical: string; baseBid: number; }
-        const drippedLeads: DrippedLead[] = [];
-        for (let pi = 0; pi < cycles && !signal.aborted; pi++) {
-            const piVertical = DEMO_VERTICALS[pi % DEMO_VERTICALS.length];
-            const piBid = rand(25, 65);
-            try {
-                const geo = pick(GEOS);
-                const params = buildDemoParams(piVertical);
-                const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
-                const scoreInput: LeadScoringInput = { tcpaConsentAt: new Date(), geo: { country: geo.country, state: geo.state, zip: `${rand(10000, 99999)}` }, hasEncryptedData: false, encryptedDataValid: false, parameterCount: paramCount, source: 'PLATFORM', zipMatchesState: false };
-                const qs = computeCREQualityScore(scoreInput);
-                const auctionEnd = new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000);
-                const newLead = await prisma.lead.create({ data: { sellerId: cycleSellerId, vertical: piVertical, geo: { country: geo.country, state: geo.state, city: geo.city } as any, source: 'DEMO', status: 'IN_AUCTION', reservePrice: piBid, isVerified: true, qualityScore: qs, tcpaConsentAt: new Date(), auctionStartAt: new Date(), auctionEndAt: auctionEnd, parameters: params as any } });
-                io.emit('marketplace:lead:new', { lead: { id: newLead.id, vertical: piVertical, status: 'IN_AUCTION', reservePrice: piBid, geo: { country: geo.country, state: geo.state }, isVerified: true, sellerId: cycleSellerId, auctionStartAt: newLead.auctionStartAt?.toISOString(), auctionEndAt: auctionEnd.toISOString(), parameters: params, qualityScore: qs != null ? Math.floor(qs / 100) : null, _count: { bids: 0 } } });
-                prisma.auctionRoom.create({ data: { leadId: newLead.id, roomId: `auction_${newLead.id}`, phase: 'BIDDING', biddingEndsAt: auctionEnd, revealEndsAt: auctionEnd } }).catch(() => { /* non-fatal */ });
-                drippedLeads.push({ leadId: newLead.id, vertical: piVertical, baseBid: piBid });
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 Lead ${pi + 1}/${cycles} → ${newLead.id.slice(0, 8)}… (${piVertical}, $${piBid})` });
-            } catch (piErr: any) {
-                drippedLeads.push({ leadId: '', vertical: piVertical, baseBid: piBid });
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Lead ${pi + 1} inject failed: ${piErr.message?.slice(0, 80)}` });
-            }
-            if (pi < cycles - 1) await sleep(rand(10000, 15000));
-        }
-        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ All ${drippedLeads.length} leads dripped — bidding phase starting now!` });
+        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — ${DEMO_INITIAL_LEADS} leads seeding now, then 1 every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s…` });
+        leadDrip = startLeadDrip(io, signal, 0, 30);
+
+        // Give the drip a few seconds to inject the first batch before cycles begin
+        await sleep(1500);
+
+        // ── Auction Cycles — each picks the oldest unprocessed active lead from DB ──
+        const processedLeadIds = new Set<string>();
 
         // ── Auction Cycles ──
         let buyerRoundRobinOffset = 0;
         for (let cycle = 1; cycle <= cycles; cycle++) {
             if (signal.aborted) throw new Error('Demo aborted');
 
-            const vertical = drippedLeads[cycle - 1]?.vertical ?? DEMO_VERTICALS[(cycle - 1) % DEMO_VERTICALS.length];
-            const baseBid = drippedLeads[cycle - 1]?.baseBid ?? rand(25, 65);
-            const demoLeadId = drippedLeads[cycle - 1]?.leadId || '';
+            // Pick the oldest active lead not yet processed by a vault cycle
+            let nextLead = await prisma.lead.findFirst({
+                where: {
+                    source: 'DEMO',
+                    status: 'IN_AUCTION',
+                    auctionEndAt: { gt: new Date() },
+                    id: { notIn: Array.from(processedLeadIds) },
+                },
+                orderBy: { createdAt: 'asc' },
+            }).catch(() => null);
+
+            if (!nextLead) {
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⏳ Cycle ${cycle}/${cycles} — no available lead yet, waiting 3s for drip…` });
+                await sleep(3000);
+                nextLead = await prisma.lead.findFirst({
+                    where: { source: 'DEMO', status: 'IN_AUCTION', auctionEndAt: { gt: new Date() }, id: { notIn: Array.from(processedLeadIds) } },
+                    orderBy: { createdAt: 'asc' },
+                }).catch(() => null);
+                if (!nextLead) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Cycle ${cycle}/${cycles} — still no lead after retry, skipping` });
+                    continue;
+                }
+            }
+
+            processedLeadIds.add(nextLead.id);
+            const vertical = nextLead.vertical;
+            const baseBid = nextLead.reservePrice;
+            const demoLeadId = nextLead.id;
 
             const numBuyers = rand(3, 6);
             const cycleBuyers = Array.from({ length: numBuyers }, (_, i) =>
@@ -629,8 +633,9 @@ export async function runFullDemo(
 
             for (let bi = 0; bi < cycleBuyers.length; bi++) {
                 const bAddr = cycleBuyers[bi];
-                const variance = Math.round(baseBid * 0.20);
-                const bidAmount = Math.max(10, baseBid + (bi === 0 ? 0 : rand(-variance, variance)));
+                const numericBaseBid = Number(baseBid ?? 35);
+                const variance = Math.round(numericBaseBid * 0.20);
+                const bidAmount = Math.max(10, numericBaseBid + (bi === 0 ? 0 : rand(-variance, variance)));
                 const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
                 try {
                     const bVaultBal = await vault.balanceOf(bAddr);
@@ -725,25 +730,22 @@ export async function runFullDemo(
                         });
 
                         // AUCTION-SYNC: emit server remaining time so frontend timers re-baseline
-                        const demoLead = drippedLeads[cycle - 1];
-                        if (demoLead?.leadId) {
-                            const leadRecord = await prisma.lead.findUnique({ where: { id: demoLead.leadId }, select: { auctionEndAt: true } }).catch(() => null);
-                            const auctionEndMs = leadRecord?.auctionEndAt ? new Date(leadRecord.auctionEndAt).getTime() : null;
-                            const remainingTime = auctionEndMs ? Math.max(0, auctionEndMs - Date.now()) : null;
-                            io.emit('auction:updated', {
+                        const leadRecord = await prisma.lead.findUnique({ where: { id: demoLeadId }, select: { auctionEndAt: true } }).catch(() => null);
+                        const auctionEndMs = leadRecord?.auctionEndAt ? new Date(leadRecord.auctionEndAt).getTime() : null;
+                        const remainingTime = auctionEndMs ? Math.max(0, auctionEndMs - Date.now()) : null;
+                        io.emit('auction:updated', {
+                            leadId: demoLeadId,
+                            remainingTime,
+                            serverTs: Date.now(),  // epoch ms — store expects number, not ISO string
+                            bidCount: b + 1,
+                            highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
+                        });
+                        // v7: signal closing-soon when ≤10 s remain
+                        if (remainingTime != null && remainingTime <= 10_000 && remainingTime > 0) {
+                            io.emit('auction:closing-soon', {
                                 leadId: demoLeadId,
                                 remainingTime,
-                                serverTs: Date.now(),  // epoch ms — store expects number, not ISO string
-                                bidCount: b + 1,
-                                highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
                             });
-                            // v7: signal closing-soon when ≤10 s remain
-                            if (remainingTime != null && remainingTime <= 10_000 && remainingTime > 0) {
-                                io.emit('auction:closing-soon', {
-                                    leadId: demoLeadId,
-                                    remainingTime,
-                                });
-                            }
                         }
                     }
 
@@ -1063,6 +1065,7 @@ export async function runFullDemo(
 
     } finally {
         clearAllBidTimers();
+        if (leadDrip) leadDrip.stop();
 
         if (replenishInterval) { clearInterval(replenishInterval); replenishInterval = null; }
         if (sweepInterval) { clearInterval(sweepInterval); sweepInterval = null; }

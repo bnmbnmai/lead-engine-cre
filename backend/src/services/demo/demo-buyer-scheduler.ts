@@ -45,8 +45,8 @@ export const BUYER_PROFILES: BuyerProfile[] = [
     { index: 1, name: 'SolarSpecialist', tag: 'solar-only', verticals: ['solar'], minScore: 7000, maxPrice: 75, aggression: 0.60, timingBias: 38 },
     { index: 2, name: 'RoofingPro', tag: 'home-services', verticals: ['roofing', 'hvac', 'solar'], minScore: 4000, maxPrice: 55, aggression: 0.25, timingBias: 18 },
     { index: 3, name: 'InsuranceAce', tag: 'insurance', verticals: ['insurance'], minScore: 5000, maxPrice: 60, aggression: 0.50, timingBias: 30 },
-    { index: 4, name: 'LegalEagle', tag: 'legal-premium', verticals: ['legal'], minScore: 8000, maxPrice: 120, aggression: 0.90, timingBias: 52 },
-    { index: 5, name: 'FinancePilot', tag: 'fin-services', verticals: ['financial_services', 'insurance'], minScore: 7500, maxPrice: 100, aggression: 0.70, timingBias: 42 },
+    { index: 4, name: 'LegalEagle', tag: 'legal-premium', verticals: ['legal'], minScore: 4000, maxPrice: 120, aggression: 0.90, timingBias: 52 },  // was 8000
+    { index: 5, name: 'FinancePilot', tag: 'fin-services', verticals: ['financial_services', 'insurance'], minScore: 4000, maxPrice: 100, aggression: 0.70, timingBias: 42 },  // was 7500
     { index: 6, name: 'GeneralistA', tag: 'bargain-hunter', verticals: ['*'], minScore: 3000, maxPrice: 45, aggression: 0.15, timingBias: 12 },
     { index: 7, name: 'GeneralistB', tag: 'mid-market', verticals: ['*'], minScore: 5000, maxPrice: 65, aggression: 0.50, timingBias: 28 },
     { index: 8, name: 'HomeServices', tag: 'hvac-solar-roof', verticals: ['roofing', 'hvac', 'solar', 'real_estate'], minScore: 4500, maxPrice: 70, aggression: 0.35, timingBias: 22 },
@@ -117,8 +117,8 @@ export function scheduleBuyerBids(
 ): void {
     if (!VAULT_ADDRESS) return; // Off-chain mode — no bidding
 
-    // ~15% of leads get 0 bids (realistic cold auctions)
-    if (Math.random() < 0.15) {
+    // ~5% of leads get 0 bids (realistic cold auctions — was 15%, reduced to keep demo lively)
+    if (Math.random() < 0.05) {
         emit(io, {
             ts: new Date().toISOString(), level: 'info',
             message: `🔇 Lead ${leadId.slice(0, 8)}… — no buyers interested this round (simulating cold auction)`,
@@ -263,6 +263,50 @@ export function scheduleBuyerBids(
 
         // ~10% chance of single bid only
         if (scheduledCount === 1 && Math.random() < 0.10) break;
+    }
+
+    // Guaranteed-bid fallback: if no buyer was scheduled (due to score/price/skip filters)
+    // and the quality score is acceptable, force GeneralistA to bid within 10–25s.
+    // Prevents any lead from showing 0 bids for its full 60s lifetime.
+    if (scheduledCount === 0 && qualityScore >= 3000 && VAULT_ADDRESS) {
+        const fallback = BUYER_PROFILES.find(p => p.name === 'GeneralistA');
+        if (fallback && reservePrice <= fallback.maxPrice) {
+            const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), fallback.maxPrice);
+            const fallbackDelay = Math.round((10 + Math.random() * 15) * 1000);
+            const buyerIdx = fallback.index;
+
+            const fallbackTimer = setTimeout(async () => {
+                try {
+                    if (Date.now() >= auctionEndAt.getTime()) return;
+                    const currentLead = await prisma.lead.findUnique({ where: { id: leadId }, select: { status: true } });
+                    if (currentLead?.status !== 'IN_AUCTION') return;
+
+                    const buyerAddr = DEMO_BUYER_WALLETS[buyerIdx];
+                    const vaultBal = await (getVault(getSigner()) as any).balanceOf(buyerAddr).catch(() => 0n);
+                    const locked = await (getVault(getSigner()) as any).lockedBalances(buyerAddr).catch(() => 0n);
+                    const freeBalance = Number(vaultBal - locked) / 1e6;
+                    if (freeBalance < fallbackBid) return;
+
+                    const nonce = await getNextNonce();
+                    const bidAmountUnits = ethers.parseUnits(String(fallbackBid), 6);
+                    const tx = await (getVault(getSigner()) as any).lockForBid(buyerAddr, bidAmountUnits, { nonce });
+                    await tx.wait();
+
+                    const actualBidCount = await prisma.bid.count({ where: { leadId, status: { not: 'EXPIRED' } } }).catch(() => 1);
+                    io.emit('marketplace:bid:update', { leadId, bidCount: actualBidCount, highestBid: fallbackBid, timestamp: new Date().toISOString(), buyerName: fallback.name });
+
+                    const leadRecord = await prisma.lead.findUnique({ where: { id: leadId }, select: { auctionEndAt: true } }).catch(() => null);
+                    if (leadRecord?.auctionEndAt) {
+                        const remainingTime = Math.max(0, new Date(leadRecord.auctionEndAt).getTime() - Date.now());
+                        io.emit('auction:updated', { leadId, remainingTime, serverTs: Date.now(), bidCount: actualBidCount, highestBid: fallbackBid, isSealed: false });
+                    }
+
+                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `🎯 Guaranteed bid: ${fallback.name} bid $${fallbackBid} on ${leadId.slice(0, 8)}… (fallback)` });
+                } catch { /* non-fatal — guaranteed bid best-effort only */ }
+            }, fallbackDelay);
+
+            timers.push(fallbackTimer);
+        }
     }
 
     if (timers.length > 0) {
