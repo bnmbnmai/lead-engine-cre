@@ -763,6 +763,21 @@ export async function runFullDemo(
 
                 emit(io, { ts: new Date().toISOString(), level: 'info', message: `📋 Lock IDs: [${lockIds.join(', ')}]`, cycle, totalCycles: cycles, data: { lockIds } });
 
+                // ── Zero-bid / no-winner guard ──
+                // If no lockForBid calls succeeded (vault depleted, or no bids placed),
+                // immediately mark this lead UNSOLD — no VRF, no fee, no settle call.
+                if (lockIds.length === 0) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Cycle ${cycle}/${cycles} — no successful locks (zero bids) → marking lead UNSOLD`, cycle, totalCycles: cycles });
+                    cyclePlatformIncome = 0;
+                    if (demoLeadId) {
+                        await prisma.lead.update({ where: { id: demoLeadId }, data: { status: 'UNSOLD' } }).catch(() => { /* non-fatal */ });
+                        io.emit('auction:closed', { leadId: demoLeadId, status: 'UNSOLD', remainingTime: 0, isClosed: true, serverTs: Date.now() });
+                        console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (zero locks)`);
+                    }
+                    // Skip settle / VRF / refund — jump directly to cycleResults
+                    throw Object.assign(new Error('__ZERO_BIDS__'), { isZeroBids: true });
+                }
+
                 // Settle winner
                 if (signal.aborted) throw new Error('Demo aborted');
 
@@ -780,14 +795,15 @@ export async function runFullDemo(
                 totalSettled += bidAmount;
                 settleReceiptHash = settleReceipt.hash;
 
+                // Winner-only fee model: 5% of winning bid + $1 convenience fee.
+                // Losers get 100% refund — NO fee charged to losers.
                 const cyclePlatformFee = parseFloat((bidAmount * 0.05).toFixed(2));
-                const cycleLockFees = lockIds.length * 1;
-                cyclePlatformIncome = parseFloat((cyclePlatformFee + cycleLockFees).toFixed(2));
+                cyclePlatformIncome = parseFloat((cyclePlatformFee + 1).toFixed(2));
                 totalPlatformIncome = parseFloat((totalPlatformIncome + cyclePlatformIncome).toFixed(2));
                 vrfTxHashForCycle = hadTiebreaker ? settleReceipt.hash : undefined;
                 if (hadTiebreaker) { totalTiebreakers++; }
                 if (vrfTxHashForCycle) { vrfProofLinks.push(`https://sepolia.basescan.org/tx/${vrfTxHashForCycle}`); }
-                emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this cycle (5% fee: $${cyclePlatformFee.toFixed(2)} + ${lockIds.length} × $1 lock fees)`, cycle, totalCycles: cycles });
+                emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this cycle (5% of $${bidAmount} = $${cyclePlatformFee.toFixed(2)} + $1 winner fee)`, cycle, totalCycles: cycles });
 
                 // Refund losers
                 for (let r = 1; r < lockIds.length; r++) {
@@ -827,70 +843,80 @@ export async function runFullDemo(
             } catch (vaultErr: any) {
                 if (signal.aborted) throw vaultErr; // propagate abort
 
-                const vaultMsg = vaultErr?.reason || vaultErr?.shortMessage || vaultErr?.message || String(vaultErr);
-                console.error(`[DEMO-BUYNOW] cycle ${cycle} — vault tx failed (${vaultMsg.slice(0, 120)}), switching to BuyItNow path`);
-                emit(io, {
-                    ts: new Date().toISOString(), level: 'warn',
-                    message: `⚡ [DEMO-BUYNOW] Vault tx failed (${vaultMsg.slice(0, 120)}) — switching to BuyItNow path for cycle ${cycle}`,
-                    cycle, totalCycles: cycles,
-                });
+                // Zero-bid path: UNSOLD already emitted in guard above — skip BuyItNow.
+                if ((vaultErr as any).isZeroBids) {
+                    cycleUsedBuyItNow = false; // treat as normal cycle for cycleResults shape
+                    /* fall through to totalGas / cycleResults.push below */
+                } else {
 
-                // BuyItNow path: mint NFT + CRE dispatch to guarantee [CRE-DISPATCH] fires
-                cycleUsedBuyItNow = true;
-                if (demoLeadId) {
-                    try {
-                        console.log(`[CRE-DISPATCH] cycle ${cycle} BuyItNow — minting NFT for leadId=${demoLeadId}`);
-                        emit(io, {
-                            ts: new Date().toISOString(), level: 'info',
-                            message: `[CRE-DISPATCH] BuyItNow mint — leadId=${demoLeadId} seller=${DEMO_SELLER_WALLET.slice(0, 10)}…`,
-                            cycle, totalCycles: cycles,
-                        });
-                        const mintResult = await nftService.mintLeadNFT(demoLeadId);
-                        if (mintResult?.tokenId) {
-                            console.log(`[CRE-DISPATCH] BuyItNow mint successful — tokenId=${mintResult.tokenId} txHash=${mintResult.txHash ?? '—'}`);
+
+                    const vaultMsg = vaultErr?.reason || vaultErr?.shortMessage || vaultErr?.message || String(vaultErr);
+                    console.error(`[DEMO-BUYNOW] cycle ${cycle} — vault tx failed (${vaultMsg.slice(0, 120)}), switching to BuyItNow path`);
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'warn',
+                        message: `⚡ [DEMO-BUYNOW] Vault tx failed (${vaultMsg.slice(0, 120)}) — switching to BuyItNow path for cycle ${cycle}`,
+                        cycle, totalCycles: cycles,
+                    });
+
+                    // BuyItNow path: mint NFT + CRE dispatch to guarantee [CRE-DISPATCH] fires
+                    cycleUsedBuyItNow = true;
+                    if (demoLeadId) {
+                        try {
+                            console.log(`[CRE-DISPATCH] cycle ${cycle} BuyItNow — minting NFT for leadId=${demoLeadId}`);
                             emit(io, {
-                                ts: new Date().toISOString(), level: 'success',
-                                message: `[CRE-DISPATCH] BuyItNow mint ✅ — tokenId=${mintResult.tokenId} tx=${mintResult.txHash?.slice(0, 22) ?? '—'}`,
+                                ts: new Date().toISOString(), level: 'info',
+                                message: `[CRE-DISPATCH] BuyItNow mint — leadId=${demoLeadId} seller=${DEMO_SELLER_WALLET.slice(0, 10)}…`,
                                 cycle, totalCycles: cycles,
                             });
-                            // Fire CRE score request
-                            try {
-                                console.log(`[CRE-DISPATCH] cycle ${cycle} BuyItNow — requestOnChainQualityScore leadId=${demoLeadId} tokenId=${mintResult.tokenId}`);
-                                const creResult = await creService.requestOnChainQualityScore(demoLeadId, Number(mintResult.tokenId));
-                                console.log(`[CRE-DISPATCH] BuyItNow CRE dispatch confirmed — requestId=${creResult ?? '—'}`);
+                            const mintResult = await nftService.mintLeadNFT(demoLeadId);
+                            if (mintResult?.tokenId) {
+                                console.log(`[CRE-DISPATCH] BuyItNow mint successful — tokenId=${mintResult.tokenId} txHash=${mintResult.txHash ?? '—'}`);
                                 emit(io, {
                                     ts: new Date().toISOString(), level: 'success',
-                                    message: `[CRE-DISPATCH] BuyItNow CRE ✅ — requestId=${String(creResult ?? '—').slice(0, 22)}`,
+                                    message: `[CRE-DISPATCH] BuyItNow mint ✅ — tokenId=${mintResult.tokenId} tx=${mintResult.txHash?.slice(0, 22) ?? '—'}`,
                                     cycle, totalCycles: cycles,
                                 });
-                            } catch (creErr: any) {
-                                console.error(`[CRE-DISPATCH] BuyItNow CRE failed: ${creErr?.message?.slice(0, 100)}`);
-                                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[CRE-DISPATCH] BuyItNow CRE error: ${creErr?.message?.slice(0, 80)}`, cycle, totalCycles: cycles });
+                                // Fire CRE score request
+                                try {
+                                    console.log(`[CRE-DISPATCH] cycle ${cycle} BuyItNow — requestOnChainQualityScore leadId=${demoLeadId} tokenId=${mintResult.tokenId}`);
+                                    const creResult = await creService.requestOnChainQualityScore(demoLeadId, Number(mintResult.tokenId));
+                                    console.log(`[CRE-DISPATCH] BuyItNow CRE dispatch confirmed — requestId=${creResult ?? '—'}`);
+                                    emit(io, {
+                                        ts: new Date().toISOString(), level: 'success',
+                                        message: `[CRE-DISPATCH] BuyItNow CRE ✅ — requestId=${String(creResult ?? '—').slice(0, 22)}`,
+                                        cycle, totalCycles: cycles,
+                                    });
+                                } catch (creErr: any) {
+                                    console.error(`[CRE-DISPATCH] BuyItNow CRE failed: ${creErr?.message?.slice(0, 100)}`);
+                                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[CRE-DISPATCH] BuyItNow CRE error: ${creErr?.message?.slice(0, 80)}`, cycle, totalCycles: cycles });
+                                }
+                            } else {
+                                console.error(`[CRE-DISPATCH] BuyItNow mint returned no tokenId — skipping CRE`);
                             }
-                        } else {
-                            console.error(`[CRE-DISPATCH] BuyItNow mint returned no tokenId — skipping CRE`);
+                        } catch (mintErr: any) {
+                            console.error(`[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 120)}`);
+                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 80)}`, cycle, totalCycles: cycles });
                         }
-                    } catch (mintErr: any) {
-                        console.error(`[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 120)}`);
-                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-REVERT] BuyItNow mint failed: ${mintErr?.message?.slice(0, 80)}`, cycle, totalCycles: cycles });
+                    } else {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-BUYNOW] No demoLeadId available for cycle ${cycle} — CRE dispatch skipped`, cycle, totalCycles: cycles });
                     }
-                } else {
-                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `[DEMO-BUYNOW] No demoLeadId available for cycle ${cycle} — CRE dispatch skipped`, cycle, totalCycles: cycles });
+
+                    // AUCTION-SYNC: closed broadcast for BuyItNow (unsold) path
+                    if (demoLeadId) {
+                        io.emit('auction:closed', {
+                            leadId: demoLeadId,
+                            status: 'UNSOLD',
+                            remainingTime: 0,
+                            isClosed: true,
+                            serverTs: Date.now(),  // ms epoch
+                        });
+                        console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (BuyItNow fallback)`);
+                    }
                 }
 
-                // AUCTION-SYNC: closed broadcast for BuyItNow (unsold) path
-                if (demoLeadId) {
-                    io.emit('auction:closed', {
-                        leadId: demoLeadId,
-                        status: 'UNSOLD',
-                        remainingTime: 0,
-                        isClosed: true,
-                        serverTs: Date.now(),  // ms epoch
-                    });
-                    console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (BuyItNow fallback)`);
-                }
-            }
+            } // end catch (vaultErr)
 
+            // Accumulate results — runs after both success and caught-error paths
             totalGas += cycleGas;
 
             cycleResults.push({
@@ -909,7 +935,7 @@ export async function runFullDemo(
             });
 
             if (cycle < cycles) await sleep(1000);
-        }
+        } // end for cycle
 
         // Batched verifyReserves
         emit(io, { ts: new Date().toISOString(), level: 'step', message: `🏦 Running batched Proof of Reserves check (1 tx for all ${cycles} cycles)...` });

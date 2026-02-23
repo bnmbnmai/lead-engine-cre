@@ -138,7 +138,7 @@ export interface CycleResult {
     porSolvent: boolean;
     porTxHash: string;
     gasUsed: string;         // stored as string — BigInt not JSON-serialisable
-    platformIncome?: number;   // locks * $1 + winnerBid * 0.05
+    platformIncome?: number;   // (winningBid * 0.05) + $1 winner-only convenience fee
     hadTiebreaker?: boolean;   // true if 2+ buyers tied on highest bid
     vrfTxHash?: string;        // settle tx hash used as VRF-equivalent proof link
 }
