@@ -77,8 +77,6 @@ function getRegions(country: string) {
 // Marketplace View (public + authenticated)
 // ============================================
 
-// R-05: Rolling activity ticker event type
-type TickerEvent = { id: string; label: string; ts: number; kind: 'bid' | 'lead' };
 
 export function HomePage() {
     const [view, setView] = useState<'asks' | 'leads' | 'buyNow' | 'metrics' | 'nfts' | 'sellers'>('leads');
@@ -101,13 +99,7 @@ export function HomePage() {
     // Track leads that just ended their auction for 8s overlay feedback
     const [recentlyEndedMap, setRecentlyEndedMap] = useState<Record<string, 'UNSOLD' | 'SOLD'>>({})
 
-    // ── R-05: Global activity ticker ────────────────────────────────────────────
-    // Maintains a rolling buffer of the last 8 real-time bid/lead events.
-    // Exclusively consumed from existing socket events — no new backend code.
-    const [tickerEvents, setTickerEvents] = useState<TickerEvent[]>([]);
-    const addTicker = useCallback((ev: TickerEvent) => {
-        setTickerEvents(prev => [ev, ...prev].slice(0, 8));
-    }, []);
+
     const { isAuthenticated } = useAuth();
     const [suggestOpen, setSuggestOpen] = useState(false);
     // Global demo running state — used to gate polling and suppress noisy toasts
@@ -450,10 +442,6 @@ export function HomePage() {
     useSocketEvents(
         {
             'marketplace:lead:new': (data: any) => {
-                // R-05: push to activity ticker (regardless of current view)
-                if (data?.lead?.vertical) {
-                    addTicker({ id: `l-${Date.now()}`, label: `New ${data.lead.vertical.split('.').pop()} lead entered marketplace`, ts: Date.now(), kind: 'lead' });
-                }
                 if (view === 'leads' && data?.lead) {
                     const lead = data.lead;
 
@@ -477,21 +465,15 @@ export function HomePage() {
                         return [data.lead, ...prev];
                     });
 
-                    // Suppress noisy per-lead toasts while demo is running — Dev Log covers it
-                    if (!isGlobalRunning) {
-                        toast({
-                            type: 'info',
-                            title: 'New Lead',
-                            description: `${data.lead.vertical} lead just appeared`,
-                        });
-                    }
+                    // Toast for every new lead — side toast is preferred over banner ticker
+                    toast({
+                        type: 'info',
+                        title: 'New Lead',
+                        description: `${data.lead.vertical} lead just appeared`,
+                    });
                 }
             },
             'marketplace:bid:update': (data: any) => {
-                // R-05: push to activity ticker
-                if (data?.leadId && data.buyerName) {
-                    addTicker({ id: `b-${Date.now()}`, label: `${data.buyerName} bid $${Number(data.highestBid ?? 0).toFixed(0)} on ${data.leadId.slice(0, 6)}…`, ts: Date.now(), kind: 'bid' });
-                }
                 if (data?.leadId && data.bidCount != null) {
                     // Update the floor so future refetches can't regress this count
                     const prev = bidFloor.current.get(data.leadId) ?? 0;
@@ -608,19 +590,7 @@ export function HomePage() {
     return (
         <DashboardLayout>
             <div className="space-y-8">
-                {/* R-05: Global Activity Ticker — appears once activity arrives from socket events */}
-                {view === 'leads' && tickerEvents.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/70 border border-border/50 overflow-hidden text-[11px] text-muted-foreground">
-                        <Zap className="h-3 w-3 text-emerald-400 shrink-0 animate-pulse" />
-                        <div className="flex items-center gap-3 overflow-x-auto scrollbar-none whitespace-nowrap">
-                            {tickerEvents.map((ev) => (
-                                <span key={ev.id} className={`shrink-0 ${ev.kind === 'bid' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                                    {ev.kind === 'bid' ? '💰' : '📋'} {ev.label}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                )}
+
                 {/* Hero Section — polished lander for unauthenticated visitors */}
                 {!isAuthenticated && (
                     <section className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#375BD2]/10 via-transparent to-violet-600/5">

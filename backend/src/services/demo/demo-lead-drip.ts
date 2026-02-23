@@ -270,7 +270,7 @@ export async function countActiveLeads(): Promise<number> {
 /**
  * After each drip cycle (and after the initial burst), check the count of
  * currently active (IN_AUCTION, non-expired) leads. If below DEMO_MIN_ACTIVE_LEADS,
- * call injectOneLead() repeatedly until the minimum is restored or deadline passed.
+ * call injectOneLead() repeatedly until the minimum is restored or deadline/maxLeads reached.
  * @internal — exported for unit testing
  */
 export async function checkActiveLeadsAndTopUp(
@@ -279,8 +279,11 @@ export async function checkActiveLeadsAndTopUp(
     createdRef: { value: number },
     signal: AbortSignal,
     deadline: number,
+    maxLeads: number = 0, // 0 = unlimited
 ): Promise<void> {
     if (signal.aborted || Date.now() >= deadline) return;
+    // Hard cap: don't inject top-up leads beyond maxLeads total
+    if (maxLeads > 0 && createdRef.value >= maxLeads) return;
 
     let active: number;
     try {
@@ -299,6 +302,8 @@ export async function checkActiveLeadsAndTopUp(
     });
 
     for (let i = 0; i < needed && !signal.aborted && Date.now() < deadline; i++) {
+        // Respect the hard cap during top-up injection
+        if (maxLeads > 0 && createdRef.value >= maxLeads) break;
         try {
             await injectOneLead(io, sellerId, createdRef.value);
             createdRef.value++;
@@ -381,7 +386,7 @@ export function startLeadDrip(
         });
 
         const _createdRef = { value: created };
-        await checkActiveLeadsAndTopUp(io, sellerId, _createdRef, signal, deadline);
+        await checkActiveLeadsAndTopUp(io, sellerId, _createdRef, signal, deadline, maxLeads);
         created = _createdRef.value;
 
         // Continuous drip
@@ -415,7 +420,7 @@ export function startLeadDrip(
             }
 
             const _ref = { value: created };
-            await checkActiveLeadsAndTopUp(io, sellerId, _ref, signal, deadline);
+            await checkActiveLeadsAndTopUp(io, sellerId, _ref, signal, deadline, maxLeads);
             created = _ref.value;
         }
 
