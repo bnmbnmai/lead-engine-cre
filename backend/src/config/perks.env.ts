@@ -75,7 +75,7 @@ export const PII_AUDIT_ENABLED = process.env.PII_AUDIT_ENABLED !== 'false';
 // ── Auction Durations ──────────────────────────────
 
 /** Lead auction duration (seconds) — single 60s sealed-bid auction */
-export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '90', 10);
+export const LEAD_AUCTION_DURATION_SECS = parseInt(process.env.LEAD_AUCTION_DURATION_SECS || '60', 10);
 
 /** Default vertical NFT auction duration (seconds) — 60s for hackathon */
 export const NFT_AUCTION_DURATION_SECS = parseInt(process.env.NFT_AUCTION_DURATION_SECS || '60', 10);

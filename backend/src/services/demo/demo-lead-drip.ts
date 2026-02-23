@@ -145,7 +145,7 @@ export async function injectOneLead(
     io: SocketServer,
     sellerId: string,
     index: number,
-): Promise<void> {
+): Promise<{ leadId: string; reservePrice: number; auctionEndMs: number }> {
     const vertical = DEMO_VERTICALS[index % DEMO_VERTICALS.length];
     const geo = GEOS[index % GEOS.length];
     const reservePrice = rand(12, 45);
@@ -235,8 +235,9 @@ export async function injectOneLead(
     });
     io.emit('leads:updated', { activeCount });
 
-    // Bids are handled exclusively by the settlement monitor in demo-orchestrator.ts.
-    // Do NOT call scheduleBuyerBids here — it caused dual-lock vault exhaustion.
+    // Bids are handled by scheduleBidsForLead() in demo-orchestrator.ts, called via
+    // the onLeadInjected callback from startLeadDrip. Do NOT call lockForBid here.
+    return { leadId: lead.id, reservePrice, auctionEndMs };
 }
 
 // ── Active Lead Minimum Top-Up (BUG-10) ──────────────
@@ -268,6 +269,7 @@ export async function checkActiveLeadsAndTopUp(
     signal: AbortSignal,
     deadline: number,
     maxLeads: number = 0, // 0 = unlimited
+    onLeadInjected?: (leadId: string, reservePrice: number, auctionEndMs: number) => void,
 ): Promise<void> {
     if (signal.aborted || Date.now() >= deadline) return;
     // Hard cap: don't inject top-up leads beyond maxLeads total
@@ -293,8 +295,9 @@ export async function checkActiveLeadsAndTopUp(
         // Respect the hard cap during top-up injection
         if (maxLeads > 0 && createdRef.value >= maxLeads) break;
         try {
-            await injectOneLead(io, sellerId, createdRef.value);
+            const { leadId, reservePrice: rp, auctionEndMs } = await injectOneLead(io, sellerId, createdRef.value);
             createdRef.value++;
+            onLeadInjected?.(leadId, rp, auctionEndMs);
             emit(io, {
                 ts: new Date().toISOString(),
                 level: 'info',
@@ -311,6 +314,7 @@ export async function checkActiveLeadsAndTopUp(
     }
 }
 
+
 // ── Staggered Lead Drip (Background) ──────────────
 
 /**
@@ -323,6 +327,7 @@ export function startLeadDrip(
     signal: AbortSignal,
     maxLeads: number = 0,
     maxMinutes: number = 30,
+    onLeadInjected?: (leadId: string, reservePrice: number, auctionEndMs: number) => void,
 ): { stop: () => void; promise: Promise<void> } {
     let stopped = false;
     const stop = () => { stopped = true; };
@@ -349,15 +354,14 @@ export function startLeadDrip(
         // R-07: Staggered initial seeding — rapid 400–800ms gaps so the grid fills fast.
         // Judges see a fully populated marketplace within seconds of demo start.
         for (let i = 0; i < DEMO_INITIAL_LEADS && !stopped && !signal.aborted; i++) {
-            let auctionEndAtIso = 'N/A';
             try {
-                await injectOneLead(io, sellerId, created);
+                const { leadId, reservePrice: rp, auctionEndMs } = await injectOneLead(io, sellerId, created);
                 created++;
-                auctionEndAtIso = new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000).toISOString();
+                onLeadInjected?.(leadId, rp, auctionEndMs);
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
-                    message: `📋 Lead #${i + 1} seeded — auction ends at ${auctionEndAtIso}`,
+                    message: `📋 Lead #${i + 1} seeded — auction ends at ${new Date(auctionEndMs).toISOString()}`,
                 });
             } catch { /* non-fatal */ }
             // 400–800 ms between seeds (fast, visually exciting trickle-in)
@@ -374,7 +378,7 @@ export function startLeadDrip(
         });
 
         const _createdRef = { value: created };
-        await checkActiveLeadsAndTopUp(io, sellerId, _createdRef, signal, deadline, maxLeads);
+        await checkActiveLeadsAndTopUp(io, sellerId, _createdRef, signal, deadline, maxLeads, onLeadInjected);
         created = _createdRef.value;
 
         // Continuous drip
@@ -392,8 +396,9 @@ export function startLeadDrip(
             if (stopped || signal.aborted) break;
 
             try {
-                await injectOneLead(io, sellerId, created);
+                const { leadId, reservePrice: rp, auctionEndMs } = await injectOneLead(io, sellerId, created);
                 created++;
+                onLeadInjected?.(leadId, rp, auctionEndMs);
                 emit(io, {
                     ts: new Date().toISOString(),
                     level: 'info',
@@ -408,7 +413,7 @@ export function startLeadDrip(
             }
 
             const _ref = { value: created };
-            await checkActiveLeadsAndTopUp(io, sellerId, _ref, signal, deadline, maxLeads);
+            await checkActiveLeadsAndTopUp(io, sellerId, _ref, signal, deadline, maxLeads, onLeadInjected);
             created = _ref.value;
         }
 

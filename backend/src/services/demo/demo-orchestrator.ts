@@ -88,6 +88,162 @@ export type { DemoLogEntry, CycleResult, DemoResult };
 let isRunning = false;
 let currentAbort: AbortController | null = null;
 
+// ── Per-Lead Lock Registry ─────────────────────────
+// Maps leadId → array of confirmed on-chain lockIds from scheduled buyer bids.
+// The settlement monitor reads this at expiry to settle winner + refund losers.
+// Manual "Place Bid" from the frontend also writes here via the bid API.
+export const leadLockRegistry = new Map<string, { lockId: number; addr: string; amount: number }[]>();
+
+/**
+ * Schedule N automated buyer bids to fire at random times WITHIN the auction's
+ * 60-second live window. Each bid:
+ *   1. Calls vault.lockForBid(buyerAddr, amount) — real on-chain tx
+ *   2. Parses the BidLocked event to get the lockId
+ *   3. Pushes { lockId, addr, amount } into leadLockRegistry[leadId]
+ *   4. Emits marketplace:bid:update so all clients see the live bid count
+ *
+ * The settlement monitor at expiry reads leadLockRegistry[leadId] and only
+ * calls settleBid + refundBid — it never calls lockForBid itself.
+ *
+ * Manual frontend bidders also participate: their lockForBid (via bid API)
+ * should call registerManualBid(leadId, lockId, addr, amount) to be included.
+ */
+export function scheduleBidsForLead(
+    io: SocketServer,
+    leadId: string,
+    reservePrice: number,
+    auctionEndMs: number,
+    signal: AbortSignal,
+): void {
+    if (!VAULT_ADDRESS) return;
+
+    const now = Date.now();
+    const windowMs = auctionEndMs - now;
+    if (windowMs < 10_000) return; // too close to expiry to schedule anything
+
+    // Pick 3–5 buyers for this lead
+    const vault = getVault(getSigner());
+    const iface = new ethers.Interface(VAULT_ABI);
+
+
+    const numBuyers = rand(3, 5);
+    // Round-robin from a fresh random starting offset each lead
+    const startOffset = Math.floor(Math.random() * DEMO_BUYER_WALLETS.length);
+    const buyers = Array.from({ length: numBuyers }, (_, i) =>
+        DEMO_BUYER_WALLETS[(startOffset + i) % DEMO_BUYER_WALLETS.length]
+    );
+
+    // Initialize registry for this lead (manual bids from UI can also push here)
+    if (!leadLockRegistry.has(leadId)) {
+        leadLockRegistry.set(leadId, []);
+    }
+
+    emit(io, {
+        ts: new Date().toISOString(), level: 'info',
+        message: `🎯 Scheduling ${numBuyers} bids for lead ${leadId.slice(0, 8)}… over ${Math.round(windowMs / 1000)}s window`,
+    });
+
+    buyers.forEach((buyerAddr, idx) => {
+        const variance = Math.round(reservePrice * 0.20);
+        const bidAmount = Math.max(10, reservePrice + (idx === 0 ? 0 : rand(-variance, variance)));
+        const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
+
+        // Stagger: spread bids from 8s after drip to 15s before expiry
+        const earliest = 8_000;
+        const latest = Math.max(8_000, windowMs - 15_000);
+        const delayMs = rand(earliest, latest);
+
+        setTimeout(async () => {
+            if (signal.aborted) return;
+
+            // Re-check auction is still live
+            const nowMs = Date.now();
+            if (nowMs >= auctionEndMs) return;
+
+            try {
+                // Check vault balance
+                const bVaultBal: bigint = await vault.balanceOf(buyerAddr).catch(() => 0n);
+                const available = Number(bVaultBal) / 1e6;
+                if (available < bidAmount) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Scheduled bid skipped — buyer ${buyerAddr.slice(0, 10)}… vault $${available.toFixed(0)} < $${bidAmount}` });
+                    return;
+                }
+
+                const nonce = await getNextNonce();
+                const tx = await vault.lockForBid(buyerAddr, bidAmountUnits, { nonce });
+                const receipt = await tx.wait();
+
+                // Parse lockId from BidLocked event
+                let lockId: number | null = null;
+                for (const log of receipt.logs) {
+                    try {
+                        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+                        if (parsed?.name === 'BidLocked') {
+                            lockId = Number(parsed.args[0]);
+                        }
+                    } catch { /* skip */ }
+                }
+
+                if (lockId == null) return;
+
+                // Register this lock
+                const reg = leadLockRegistry.get(leadId) ?? [];
+                reg.push({ lockId, addr: buyerAddr, amount: bidAmount });
+                leadLockRegistry.set(leadId, reg);
+                pendingLockIds.add(lockId); // BUG-04 orphan tracking
+
+                const totalBids = reg.length;
+                const highestBid = Math.max(...reg.map(r => r.amount));
+
+                emit(io, {
+                    ts: new Date().toISOString(), level: 'success',
+                    message: `✅ Live bid — ${buyerAddr.slice(0, 10)}… bid $${bidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`,
+                    txHash: receipt.hash,
+                    basescanLink: `https://sepolia.basescan.org/tx/${receipt.hash}`,
+                });
+
+                // Emit live bid to all connected clients — card updates in real time
+                io.emit('marketplace:bid:update', {
+                    leadId,
+                    bidCount: totalBids,
+                    highestBid,
+                    timestamp: new Date().toISOString(),
+                    buyerName: `Buyer ${idx + 1}`,
+                });
+
+                const remainingMs = Math.max(0, auctionEndMs - Date.now());
+                io.emit('auction:updated', {
+                    leadId,
+                    remainingTime: remainingMs,
+                    serverTs: Date.now(),
+                    bidCount: totalBids,
+                    highestBid,
+                    isSealed: false,
+                });
+
+                if (remainingMs <= 10_000 && remainingMs > 0) {
+                    io.emit('auction:closing-soon', { leadId, remainingTime: remainingMs });
+                }
+
+            } catch (err: any) {
+                const msg = err?.shortMessage || err?.message?.slice(0, 80) || 'unknown';
+                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Scheduled bid failed for ${leadId.slice(0, 8)}…: ${msg}` });
+            }
+        }, delayMs);
+    });
+}
+
+/** Register a manual bid (from Place Bid UI) into the lead's lock registry. */
+export function registerManualBid(leadId: string, lockId: number, addr: string, amount: number): void {
+    const reg = leadLockRegistry.get(leadId) ?? [];
+    if (reg.some(r => r.lockId === lockId)) return; // already registered
+    reg.push({ lockId, addr, amount });
+    leadLockRegistry.set(leadId, reg);
+    pendingLockIds.add(lockId);
+}
+
+
+
 // ── Results Store ──────────────────────────────────
 const resultsStore = new Map<string, DemoResult>();
 
@@ -646,7 +802,13 @@ export async function runFullDemo(
         if (signal.aborted) throw new Error('Demo aborted');
         const maxDripLeads = 15; // hard cap: 15 total leads in a 5-min demo at 20s avg drip
         emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — 1 lead every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s (max ${maxDripLeads} total)…` });
-        leadDrip = startLeadDrip(io, signal, maxDripLeads, 30);
+        leadDrip = startLeadDrip(io, signal, maxDripLeads, 30, (leadId, reservePrice, auctionEndMs) => {
+            // Each new lead gets automated buyer bids scheduled during its live window.
+            // scheduleBidsForLead fires real lockForBid txs at random offsets within 60s,
+            // pushing lockIds into leadLockRegistry so the settlement monitor can settle.
+            scheduleBidsForLead(io, leadId, reservePrice, auctionEndMs, signal);
+        });
+
 
         // Active-lead observability — emits live count to DevLog every 10s
         activeLeadInterval = setInterval(async () => {
@@ -708,67 +870,40 @@ export async function runFullDemo(
             const baseBid = nextLead.reservePrice;
             const demoLeadId = nextLead.id;
 
-            const numBuyers = rand(3, 6);
-            const cycleBuyers = Array.from({ length: numBuyers }, (_, i) =>
-                DEMO_BUYER_WALLETS[(buyerRoundRobinOffset + i) % DEMO_BUYER_WALLETS.length]
-            );
-            buyerRoundRobinOffset = (buyerRoundRobinOffset + numBuyers) % DEMO_BUYER_WALLETS.length;
-            const buyerWallet = cycleBuyers[0];
+            // ── Read bids from the pre-populated registry ──────────────────────
+            // scheduleBidsForLead() fired lockForBid during the live window and pushed
+            // each confirmed lock into leadLockRegistry. Manual UI bids are also here
+            // via registerManualBid(). We just settle and refund — no new locks needed.
+            const registryBids = leadLockRegistry.get(demoLeadId) ?? [];
+            leadLockRegistry.delete(demoLeadId); // clean up after reading
 
-            let readyBuyers = 0;
-            const buyerBids: { addr: string; amount: number; amountUnits: bigint }[] = [];
+            // Determine winner — highest amount wins; ties broken by first-lock-wins
+            // (consistent with VRF tie-break which already ran during lockForBid)
+            const sortedBids = [...registryBids].sort((a, b) => b.amount - a.amount);
+            const winnerEntry = sortedBids[0];
+            const loserEntries = sortedBids.slice(1);
 
-            for (let bi = 0; bi < cycleBuyers.length; bi++) {
-                const bAddr = cycleBuyers[bi];
-                const numericBaseBid = Number(baseBid ?? 35);
-                const variance = Math.round(numericBaseBid * 0.20);
-                const bidAmount = Math.max(10, numericBaseBid + (bi === 0 ? 0 : rand(-variance, variance)));
-                const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
-                try {
-                    // vault.balanceOf() = free balance; lockedBalances is separate — do not subtract.
-                    const bVaultBal = await vault.balanceOf(bAddr);
-                    const available = Number(bVaultBal) / 1e6;
-                    if (available < bidAmount) {
-                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Buyer ${bAddr.slice(0, 10)}… vault low ($${available.toFixed(2)} / need $${bidAmount}) — skipping this bidder`, cycle: settlementCycle, totalCycles: 0 });
-                        continue;
-                    }
-                    buyerBids.push({ addr: bAddr, amount: bidAmount, amountUnits: bidAmountUnits });
-                    readyBuyers++;
-                } catch { /* skip */ }
-            }
+            const buyerWallet = winnerEntry?.addr ?? DEMO_BUYER_WALLETS[0];
+            const bidAmount = winnerEntry?.amount ?? Number(baseBid ?? 35);
+            const lockIds: number[] = registryBids.map(r => r.lockId);
+            const readyBuyers = registryBids.length;
 
-            if (readyBuyers === 0) {
-                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ All ${numBuyers} selected buyers vault-depleted — skipping settlement ${settlementCycle}. Wait for top-up.`, cycle: settlementCycle, totalCycles: 0 });
-                continue;
-            }
-
-            const bidAmount = buyerBids[0]?.amount ?? baseBid;
-            const _bidAmountUnits = buyerBids[0]?.amountUnits ?? ethers.parseUnits(String(bidAmount), 6);
-
-            let hadTiebreaker = false;
-            if (buyerBids.length >= 2 && Math.random() < 0.20) {
-                const maxBid = Math.max(...buyerBids.map(b => b.amount));
-                buyerBids[1].amount = maxBid;
-                buyerBids[1].amountUnits = ethers.parseUnits(String(maxBid), 6);
-                hadTiebreaker = true;
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${buyerBids[0].addr.slice(0, 10)}… and ${buyerBids[1].addr.slice(0, 10)}… both bid $${maxBid} — VRF picks winner`, cycle: settlementCycle, totalCycles: 0 });
+            // Detect tiebreaker (two bids at the same max amount)
+            const hadTiebreaker = sortedBids.length >= 2 && sortedBids[0].amount === sortedBids[1].amount;
+            if (hadTiebreaker) {
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${sortedBids[0].addr.slice(0, 10)}… and ${sortedBids[1].addr.slice(0, 10)}… both bid $${sortedBids[0].amount} — winner: first lock wins`, cycle: settlementCycle, totalCycles: 0 });
             }
 
             emit(io, {
                 ts: new Date().toISOString(), level: 'step',
-                message: `\n${'─'.repeat(56)}\n🔄 Settlement #${settlementCycle} — ${vertical.toUpperCase()} | ${readyBuyers} bids incoming | $${buyerBids.map(b => b.amount).join('/$')}\n   Bidders: ${cycleBuyers.slice(0, readyBuyers).map(a => a.slice(0, 10) + '…').join(', ')}\n${'─'.repeat(56)}`,
+                message: `\n${'─'.repeat(56)}\n🔄 Settlement #${settlementCycle} — ${vertical.toUpperCase()} | ${readyBuyers} pre-placed bid(s) | winner: $${bidAmount}${registryBids.length > 0 ? ` from ${buyerWallet.slice(0, 10)}…` : ' (no bids — BuyItNow fallback)'}\n${'─'.repeat(56)}`,
                 cycle: settlementCycle, totalCycles: 0,
             });
 
             emitStatus(io, { running: true, currentCycle: settlementCycle, totalCycles: 0, percent: Math.round((Date.now() - (DEMO_END_TIME - DEMO_DURATION_MS)) / DEMO_DURATION_MS * 100), phase: 'on-chain', runId });
 
-            // ── On-chain Lock / Settle (wrapped for BuyItNow fallback) ──────────
-            // If the vault reverts (stale price feed, unauthorized caller, etc.)
-            // we fall through to BuyItNow: mint NFT + fire CRE dispatch directly.
-            // This guarantees [CRE-DISPATCH] appears in Render logs every run.
+            // ── Settle / Refund (wrapped for BuyItNow fallback) ────────────────
             let cycleUsedBuyItNow = false;
-            const lockIds: number[] = [];
-            const lockBuyerMap: { lockId: number; addr: string; amount: number }[] = [];
             let cycleGas = 0n;
             let settleReceiptHash = '';
             const refundTxHashes: string[] = [];
@@ -776,73 +911,11 @@ export async function runFullDemo(
             let vrfTxHashForCycle: string | undefined;
 
             try {
-                for (let b = 0; b < buyerBids.length; b++) {
-                    if (signal.aborted) throw new Error('Demo aborted');
-
-                    const { addr: bAddr, amount: bAmount, amountUnits: bAmountUnits } = buyerBids[b];
-
-                    emit(io, {
-                        ts: new Date().toISOString(), level: 'info',
-                        message: `🔒 Bidder ${b + 1}/${readyBuyers} — $${bAmount} USDC from ${bAddr.slice(0, 10)}… (competing against ${readyBuyers - 1} other bidder${readyBuyers - 1 !== 1 ? 's' : ''})`,
-                        cycle: settlementCycle, totalCycles: 0,
-                    });
-
-                    const { receipt, gasUsed } = await sendTx(
-                        io,
-                        `Lock bid #${b + 1} — ${bAddr.slice(0, 10)}… bids $${bAmount}`,
-                        () => vault.lockForBid(bAddr, bAmountUnits),
-                        settlementCycle, 0,
-                    );
-                    cycleGas += gasUsed;
-
-                    const iface = new ethers.Interface(VAULT_ABI);
-                    for (const log of receipt.logs) {
-                        try {
-                            const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
-                            if (parsed?.name === 'BidLocked') {
-                                const lockId = Number(parsed.args[0]);
-                                lockIds.push(lockId);
-                                lockBuyerMap.push({ lockId, addr: bAddr, amount: bAmount });
-                                pendingLockIds.add(lockId); // BUG-04
-                            }
-                        } catch { /* skip */ }
-                    }
-
-                    if (demoLeadId) {
-                        io.emit('marketplace:bid:update', {
-                            leadId: demoLeadId,
-                            bidCount: b + 1,
-                            highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
-                            timestamp: new Date().toISOString(),
-                        });
-
-                        // AUCTION-SYNC: emit server remaining time so frontend timers re-baseline
-                        const leadRecord = await prisma.lead.findUnique({ where: { id: demoLeadId }, select: { auctionEndAt: true } }).catch(() => null);
-                        const auctionEndMs = leadRecord?.auctionEndAt ? new Date(leadRecord.auctionEndAt).getTime() : null;
-                        const remainingTime = auctionEndMs ? Math.max(0, auctionEndMs - Date.now()) : null;
-                        io.emit('auction:updated', {
-                            leadId: demoLeadId,
-                            remainingTime,
-                            serverTs: Date.now(),  // epoch ms — store expects number, not ISO string
-                            bidCount: b + 1,
-                            highestBid: Math.max(...buyerBids.slice(0, b + 1).map(x => x.amount)),
-                        });
-                        // v7: signal closing-soon when ≤10 s remain
-                        if (remainingTime != null && remainingTime <= 10_000 && remainingTime > 0) {
-                            io.emit('auction:closing-soon', {
-                                leadId: demoLeadId,
-                                remainingTime,
-                            });
-                        }
-                    }
-
-                    await sleep(500);
-                }
-
                 emit(io, { ts: new Date().toISOString(), level: 'info', message: `📋 Lock IDs: [${lockIds.join(', ')}]`, cycle: settlementCycle, totalCycles: 0, data: { lockIds } });
 
                 // ── Zero-bid / no-winner guard ──
-                if (lockIds.length === 0) {
+                if (registryBids.length === 0) {
+
                     emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Settlement #${settlementCycle} — no successful locks (zero bids) → marking lead UNSOLD`, cycle: settlementCycle, totalCycles: 0 });
                     cyclePlatformIncome = 0;
                     if (demoLeadId) {
@@ -1006,10 +1079,10 @@ export async function runFullDemo(
 
             cycleResults.push({
                 cycle: settlementCycle, vertical,
-                buyerWallet, buyerWallets: cycleBuyers,
+                buyerWallet, buyerWallets: registryBids.map(r => r.addr),
                 bidAmount,
                 lockIds: cycleUsedBuyItNow ? [] : lockIds,
-                winnerLockId: cycleUsedBuyItNow ? 0 : (lockIds[0] ?? 0),
+                winnerLockId: cycleUsedBuyItNow ? 0 : (winnerEntry?.lockId ?? lockIds[0] ?? 0),
                 settleTxHash: settleReceiptHash,
                 refundTxHashes,
                 porSolvent: true, porTxHash: '',
