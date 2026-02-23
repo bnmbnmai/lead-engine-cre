@@ -590,12 +590,12 @@ export async function runFullDemo(
             } catch { /* non-fatal */ }
         }, 10_000);
 
-        // Wait up to 30 s for at least 5 live leads before cycles start.
-        // The staggered drip takes ~20-30s for 12 leads at 1200-2500ms per lead.
+        // Wait up to 45 s for at least 6 live leads before cycles start.
+        // The staggered drip takes ~30-45s for 12 leads at 2000-4000ms per lead.
         // Without this wait, early cycles find no leads and get skipped, compressing the demo.
         {
-            const WAIT_LEADS = 5;
-            const WAIT_DEADLINE = Date.now() + 30_000;
+            const WAIT_LEADS = 6;
+            const WAIT_DEADLINE = Date.now() + 45_000;
             let liveCount = 0;
             while (Date.now() < WAIT_DEADLINE && !signal.aborted) {
                 liveCount = await prisma.lead.count({

@@ -155,20 +155,38 @@ class NFTService {
                 // [CRE-DISPATCH] — log before on-chain mint so Render always shows this
                 console.log(`[CRE-DISPATCH] mintLeadNFT starting — leadId=${leadId} seller=${sellerAddress} contract=${LEAD_NFT_ADDRESS.slice(0, 10)}…`);
 
-                // Mint with explicit gas limit to bypass estimateGas issues
-                const tx = await this.contract.mintLead(
-                    sellerAddress,
-                    platformLeadId,
-                    verticalHash,
-                    geoHash,
-                    piiHash,
-                    reservePrice,
-                    expiresAt,
-                    sourceEnum,
-                    tcpaConsent,
-                    uri,
-                    { gasLimit: 500_000, maxFeePerGas: ethers.parseUnits('3', 'gwei') }
-                );
+                // Mint with dynamic gas + up to 2 retries (+2 gwei each) to avoid
+                // "replacement fee too low" on Base Sepolia during consecutive runs.
+                let tx: any;
+                let lastMintErr: any;
+                const feeData = await this.provider.getFeeData().catch(() => null);
+                const baseMaxFee = feeData?.maxFeePerGas ?? ethers.parseUnits('8', 'gwei');
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    const maxFeePerGas = baseMaxFee + ethers.parseUnits(String(attempt * 2), 'gwei');
+                    try {
+                        tx = await this.contract!.mintLead(
+                            sellerAddress,
+                            platformLeadId,
+                            verticalHash,
+                            geoHash,
+                            piiHash,
+                            reservePrice,
+                            expiresAt,
+                            sourceEnum,
+                            tcpaConsent,
+                            uri,
+                            { gasLimit: 500_000, maxFeePerGas }
+                        );
+                        break; // success
+                    } catch (retryErr: any) {
+                        lastMintErr = retryErr;
+                        const isReplacement = retryErr?.message?.includes('replacement fee too low') ||
+                            retryErr?.code === 'REPLACEMENT_UNDERPRICED';
+                        if (!isReplacement || attempt >= 1) throw retryErr;
+                        console.warn(`[NFT MINT] Attempt ${attempt + 1} replacement fee too low — retrying with +2 gwei`);
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                }
                 console.log('[NFT MINT] Tx sent:', tx.hash);
                 const receipt = await tx.wait();
                 console.log('[NFT MINT] Tx confirmed, block:', receipt?.blockNumber);

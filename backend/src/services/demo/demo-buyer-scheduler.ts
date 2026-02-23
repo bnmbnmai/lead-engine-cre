@@ -266,13 +266,21 @@ export function scheduleBuyerBids(
     }
 
     // Guaranteed-bid fallback: if no buyer was scheduled (score/price/skip filters),
-    // GeneralistA bids within 10–45s — prevents any lead ending with 0 bids.
-    if (scheduledCount === 0 && qualityScore >= 2000 && VAULT_ADDRESS) {
+    // schedule GeneralistA + one additional random eligible profile within 8–55 s
+    // to ensure every lead gets at least 2 bids and looks lively.
+    if (scheduledCount === 0 && qualityScore >= 1500 && VAULT_ADDRESS) {
         const fallback = BUYER_PROFILES.find(p => p.name === 'GeneralistA');
-        if (fallback && reservePrice <= fallback.maxPrice) {
-            const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), fallback.maxPrice);
-            const fallbackDelay = Math.round((10 + Math.random() * 35) * 1000); // 10–45s window
-            const buyerIdx = fallback.index;
+        // Pick a second random profile that can afford the reserve (skip GeneralistA)
+        const eligible = BUYER_PROFILES.filter(
+            p => p.name !== 'GeneralistA' && p.maxPrice >= reservePrice && (p.verticals.includes('*') || p.verticals.includes(vertical))
+        );
+        const second = eligible.length > 0 ? eligible[Math.floor(Math.random() * eligible.length)] : null;
+
+        for (const prof of [fallback, second].filter(Boolean) as typeof BUYER_PROFILES) {
+            if (!prof || reservePrice > prof.maxPrice) continue;
+            const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), prof.maxPrice);
+            const fallbackDelay = Math.round((8 + Math.random() * 47) * 1000); // 8–55 s window
+            const bidIdx = prof.index;
 
             const fallbackTimer = setTimeout(async () => {
                 try {
@@ -280,7 +288,7 @@ export function scheduleBuyerBids(
                     const currentLead = await prisma.lead.findUnique({ where: { id: leadId }, select: { status: true } });
                     if (currentLead?.status !== 'IN_AUCTION') return;
 
-                    const buyerAddr = DEMO_BUYER_WALLETS[buyerIdx];
+                    const buyerAddr = DEMO_BUYER_WALLETS[bidIdx];
                     const vaultBal = await (getVault(getSigner()) as any).balanceOf(buyerAddr).catch(() => 0n);
                     const locked = await (getVault(getSigner()) as any).lockedBalances(buyerAddr).catch(() => 0n);
                     const freeBalance = Number(vaultBal - locked) / 1e6;
@@ -292,7 +300,7 @@ export function scheduleBuyerBids(
                     await tx.wait();
 
                     const actualBidCount = await prisma.bid.count({ where: { leadId, status: { not: 'EXPIRED' } } }).catch(() => 1);
-                    io.emit('marketplace:bid:update', { leadId, bidCount: actualBidCount, highestBid: fallbackBid, timestamp: new Date().toISOString(), buyerName: fallback.name });
+                    io.emit('marketplace:bid:update', { leadId, bidCount: actualBidCount, highestBid: fallbackBid, timestamp: new Date().toISOString(), buyerName: prof.name });
 
                     const leadRecord = await prisma.lead.findUnique({ where: { id: leadId }, select: { auctionEndAt: true } }).catch(() => null);
                     if (leadRecord?.auctionEndAt) {
@@ -300,8 +308,8 @@ export function scheduleBuyerBids(
                         io.emit('auction:updated', { leadId, remainingTime, serverTs: Date.now(), bidCount: actualBidCount, highestBid: fallbackBid, isSealed: false });
                     }
 
-                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `🎯 Guaranteed bid: ${fallback.name} bid $${fallbackBid} on ${leadId.slice(0, 8)}… (fallback)` });
-                } catch { /* non-fatal — guaranteed bid best-effort only */ }
+                    emit(io, { ts: new Date().toISOString(), level: 'info', message: `🎯 Fallback bid: ${prof.name} bid $${fallbackBid} on ${leadId.slice(0, 8)}… (guaranteed liveness)` });
+                } catch { /* non-fatal */ }
             }, fallbackDelay);
 
             timers.push(fallbackTimer);
