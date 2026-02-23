@@ -656,11 +656,11 @@ export async function runFullDemo(
             } catch { /* non-fatal */ }
         }, 10_000);
 
-        // Wait up to 45 s for at least 4 live leads before settlement monitor starts.
-        // With DEMO_INITIAL_LEADS=5 and ~800ms per seed, 5 leads are ready within ~10s.
+        // Wait up to 30 s for at least 1 live lead before settlement monitor starts.
+        // No initial burst — drip produces the first lead within 5–15 s.
         {
-            const WAIT_LEADS = 4;
-            const WAIT_DEADLINE = Date.now() + 45_000;
+            const WAIT_LEADS = 1;
+            const WAIT_DEADLINE = Date.now() + 30_000;
             let liveCount = 0;
             while (Date.now() < WAIT_DEADLINE && !signal.aborted) {
                 liveCount = await prisma.lead.count({
