@@ -167,7 +167,7 @@ class NFTService {
                     sourceEnum,
                     tcpaConsent,
                     uri,
-                    { gasLimit: 500_000 }
+                    { gasLimit: 500_000, maxFeePerGas: ethers.parseUnits('3', 'gwei') }
                 );
                 console.log('[NFT MINT] Tx sent:', tx.hash);
                 const receipt = await tx.wait();

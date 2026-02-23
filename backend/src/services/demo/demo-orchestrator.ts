@@ -590,12 +590,12 @@ export async function runFullDemo(
             } catch { /* non-fatal */ }
         }, 10_000);
 
-        // Wait up to 25 s for at least 5 live leads before cycles start.
-        // The staggered drip takes ~10-18s for 12 leads at 800-1500ms per lead.
+        // Wait up to 30 s for at least 5 live leads before cycles start.
+        // The staggered drip takes ~20-30s for 12 leads at 1200-2500ms per lead.
         // Without this wait, early cycles find no leads and get skipped, compressing the demo.
         {
             const WAIT_LEADS = 5;
-            const WAIT_DEADLINE = Date.now() + 25_000;
+            const WAIT_DEADLINE = Date.now() + 30_000;
             let liveCount = 0;
             while (Date.now() < WAIT_DEADLINE && !signal.aborted) {
                 liveCount = await prisma.lead.count({
@@ -931,6 +931,9 @@ export async function runFullDemo(
                             isClosed: true,
                             serverTs: Date.now(),  // ms epoch
                         });
+                        // Fix 4: emit leads:updated with final closed state so frontend
+                        // never re-fetches a stale IN_AUCTION snapshot for this lead.
+                        io.emit('leads:updated', { leadId: demoLeadId, status: 'UNSOLD', isClosed: true, source: 'auction-closed-buynow' });
                         console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (BuyItNow fallback)`);
                     }
                 }

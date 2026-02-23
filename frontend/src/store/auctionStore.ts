@@ -315,12 +315,12 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
             }
 
             // v8: Premature-close guard. If server is reporting the lead still has
-            // >3 s remaining, this auction:closed event is likely a stale duplicate
+            // >5 s remaining, this auction:closed event is likely a stale duplicate
             // from the auction-closure service racing with the demo orchestrator.
             // Let the authoritative auction:closed with remainingTime=0 close it.
-            if (!lead.isClosed && (lead.liveRemainingMs ?? 0) > 3_000) {
+            if (!lead.isClosed && (lead.liveRemainingMs ?? 0) > 5_000) {
                 dbg('closeLead IGNORED (premature)', leadId,
-                    `liveRemainingMs=${lead.liveRemainingMs}ms > 3000ms guard`);
+                    `liveRemainingMs=${lead.liveRemainingMs}ms > 5000ms guard`);
                 return state;
             }
 
