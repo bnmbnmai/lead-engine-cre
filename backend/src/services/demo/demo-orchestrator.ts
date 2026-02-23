@@ -344,6 +344,7 @@ export async function runFullDemo(
     let replenishInterval: ReturnType<typeof setInterval> | null = null;
     let sweepInterval: ReturnType<typeof setInterval> | null = null;
     let metricsInterval: ReturnType<typeof setInterval> | null = null;
+    let activeLeadInterval: ReturnType<typeof setInterval> | null = null;
     let leadDrip: { stop: () => void; promise: Promise<void> } | null = null;
 
     setDemoRunStartTime(Date.now());
@@ -580,6 +581,14 @@ export async function runFullDemo(
         if (signal.aborted) throw new Error('Demo aborted');
         emit(io, { ts: new Date().toISOString(), level: 'step', message: `🌱 Starting marketplace drip — ${DEMO_INITIAL_LEADS} leads seeding now, then 1 every ~${Math.round(DEMO_LEAD_DRIP_INTERVAL_MS / 1000)}s…` });
         leadDrip = startLeadDrip(io, signal, 0, 30);
+
+        // Active-lead observability — emits live count to DevLog every 10s
+        activeLeadInterval = setInterval(async () => {
+            try {
+                const n = await prisma.lead.count({ where: { source: 'DEMO', status: 'IN_AUCTION' } });
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `📊 Active leads: ${n}/${DEMO_MIN_ACTIVE_LEADS} target` });
+            } catch { /* non-fatal */ }
+        }, 10_000);
 
         // Give the drip a few seconds to inject the first batch before cycles begin
         await sleep(1500);
@@ -1070,6 +1079,7 @@ export async function runFullDemo(
         if (replenishInterval) { clearInterval(replenishInterval); replenishInterval = null; }
         if (sweepInterval) { clearInterval(sweepInterval); sweepInterval = null; }
         if (metricsInterval) { clearInterval(metricsInterval); metricsInterval = null; }
+        if (activeLeadInterval) { clearInterval(activeLeadInterval); activeLeadInterval = null; }
 
         setDemoRunStartTime(null);
         isRunning = false;

@@ -265,14 +265,13 @@ export function scheduleBuyerBids(
         if (scheduledCount === 1 && Math.random() < 0.10) break;
     }
 
-    // Guaranteed-bid fallback: if no buyer was scheduled (due to score/price/skip filters)
-    // and the quality score is acceptable, force GeneralistA to bid within 10–25s.
-    // Prevents any lead from showing 0 bids for its full 60s lifetime.
-    if (scheduledCount === 0 && qualityScore >= 3000 && VAULT_ADDRESS) {
+    // Guaranteed-bid fallback: if no buyer was scheduled (score/price/skip filters),
+    // GeneralistA bids within 10–45s — prevents any lead ending with 0 bids.
+    if (scheduledCount === 0 && qualityScore >= 2000 && VAULT_ADDRESS) {
         const fallback = BUYER_PROFILES.find(p => p.name === 'GeneralistA');
         if (fallback && reservePrice <= fallback.maxPrice) {
             const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), fallback.maxPrice);
-            const fallbackDelay = Math.round((10 + Math.random() * 15) * 1000);
+            const fallbackDelay = Math.round((10 + Math.random() * 35) * 1000); // 10–45s window
             const buyerIdx = fallback.index;
 
             const fallbackTimer = setTimeout(async () => {

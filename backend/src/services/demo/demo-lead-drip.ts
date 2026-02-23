@@ -344,22 +344,23 @@ export function startLeadDrip(
         emit(io, {
             ts: new Date().toISOString(),
             level: 'step',
-            message: `📦 Starting continuous lead drip — 1 new lead every ${dripMinSec}–${dripMaxSec} s | Initial burst: ${DEMO_INITIAL_LEADS} leads`,
+            message: `📦 Starting lead drip — ${DEMO_INITIAL_LEADS} leads staggered over ~${Math.round(DEMO_INITIAL_LEADS * 1.15)}s, then 1 every ${dripMinSec}–${dripMaxSec}s`,
         });
 
-        // Initial burst
+        // Staggered initial seeding — one lead every 800–1500ms for a natural one-by-one appearance
         for (let i = 0; i < DEMO_INITIAL_LEADS && !stopped && !signal.aborted; i++) {
             try {
                 await injectOneLead(io, sellerId, created);
                 created++;
             } catch { /* non-fatal */ }
-            await sleep(300);
+            // Random 800–1500ms between each initial lead for true staggered drip
+            await sleep(800 + Math.floor(Math.random() * 700));
         }
 
         emit(io, {
             ts: new Date().toISOString(),
             level: 'info',
-            message: `⚡ Initial burst complete — ${created} leads live in marketplace`,
+            message: `⚡ Initial drip complete — ${created} leads live in marketplace`,
         });
 
         const _createdRef = { value: created };

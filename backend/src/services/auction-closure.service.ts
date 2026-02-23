@@ -46,13 +46,12 @@ export async function resolveExpiredAuctions(io?: Server): Promise<number> {
 
     let resolved = 0;
     for (const lead of expiredAuctions) {
-        // Safety gate: only close if the auction expired at least 58 s ago relative to now.
-        // auctionEndAt is set to (startTime + 60 s), so this guard fires at ~60 s.
+        // Safety gate: skip if auction expired < 2s ago (tight window matches AuctionMonitor's 2s poll).
         const expiredAtMs = lead.auctionEndAt ? new Date(lead.auctionEndAt).getTime() : 0;
         const ageMs = Date.now() - expiredAtMs;
-        if (ageMs < 5_000) {
-            // Not yet 5 s since auctionEndAt — skip this tick, resolve on the next.
-            // (was 58 s, reduced to 5 s — BUG-4 fix; AuctionMonitor polls every 2 s so 5 s is ample for clock drift)
+        if (ageMs < 2_000) {
+            // Not yet 2s since auctionEndAt — skip this tick, resolve on the next.
+            // (AuctionMonitor polls every 2s so 2s gate ensures exactly 1 extra poll before close)
             continue;
         }
 
