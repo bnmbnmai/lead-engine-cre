@@ -451,9 +451,9 @@ export async function runFullDemo(
         });
 
 
-        // Step 1: Pre-fund ALL buyer vaults to $350
-        const PRE_FUND_TARGET = 350;
-        const PRE_FUND_THRESHOLD = 280;
+        // Step 1: Pre-fund ALL buyer vaults to $300 (11 buyers × $300 = $3,300 — within deployer limit)
+        const PRE_FUND_TARGET = 300;
+        const PRE_FUND_THRESHOLD = 240;
         const preFundUnits = ethers.parseUnits(String(PRE_FUND_TARGET), 6);
 
         emit(io, {
@@ -576,11 +576,19 @@ export async function runFullDemo(
         sweepInterval = setInterval(() => { void sweepBuyerUSDC(io); }, 10 * 60_000);
         metricsInterval = setInterval(() => { void emitLiveMetrics(io, runId); }, 30_000);
 
-        // Mid-demo vault top-up: every 90s, replenish any buyer below $80 to $150
+        // Mid-demo vault top-up: every 75s, replenish any buyer below $80 to $200
         // Keeps bidding active throughout the full 5-min demo window.
         const TOPUP_LOW = 80;   // $ threshold to trigger replenishment
-        const TOPUP_TO = 150;  // $ target after replenishment
+        const TOPUP_TO = 200;  // $ target after replenishment
         const vaultTopupInterval = setInterval(async () => {
+            // Deployer balance warning — alert if running low
+            try {
+                const deployerUsdc2 = Number(await usdc.balanceOf(signer.address)) / 1e6;
+                if (deployerUsdc2 < 500) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Deployer USDC low: $${deployerUsdc2.toFixed(2)} — top-ups may fail soon` });
+                }
+            } catch { /* non-fatal */ }
+
             for (const buyerAddr of DEMO_BUYER_WALLETS) {
                 try {
                     const bKey = BUYER_KEYS[buyerAddr];
@@ -611,7 +619,29 @@ export async function runFullDemo(
                     emit(io, { ts: new Date().toISOString(), level: 'info', message: `💧 Mid-demo top-up: ${buyerAddr.slice(0, 10)}… +$${(topUpAmt / 1e6).toFixed(0)} → vault ≥$${TOPUP_TO}` });
                 } catch { /* non-fatal — best-effort */ }
             }
-        }, 90_000);
+        }, 75_000);
+
+        // Stranded-lock recycle: every 20s, check all buyer wallets for stale locks.
+        // If a buyer has locked funds but no active IN_AUCTION leads, the lock is stranded
+        // and should be freed to keep bidding healthy between top-up cycles.
+        const strandedLockInterval = setInterval(async () => {
+            try {
+                const hasActiveLead = await prisma.lead.count({
+                    where: { source: 'DEMO', status: 'IN_AUCTION' },
+                }) > 0;
+                if (hasActiveLead) return; // locks may still be needed — skip
+                for (const buyerAddr of DEMO_BUYER_WALLETS) {
+                    try {
+                        const locked = await vault.lockedBalances(buyerAddr);
+                        if (locked <= 0n) continue;
+                        const nonce = await getNextNonce();
+                        await vault.unlockBid(buyerAddr, locked, { nonce });
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `🔓 Stranded lock recycled: ${buyerAddr.slice(0, 10)}… +$${(Number(locked) / 1e6).toFixed(2)} freed` });
+                    } catch { /* non-fatal per-buyer */ }
+                }
+            } catch { /* non-fatal outer */ }
+        }, 20_000);
+
 
         // Step 2: Start continuous lead drip (runs in background, parallel to vault cycles)
         // Marketplace starts completely empty — leads appear naturally one-by-one.

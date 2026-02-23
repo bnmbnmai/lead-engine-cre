@@ -73,6 +73,9 @@ export function DemoPanel() {
     const [recyclePercent, setRecyclePercent] = useState<number | null>(null);
     const [demoMetrics, setDemoMetrics] = useState<{ activeCount: number; leadsThisMinute: number; dailyRevenue: number } | null>(null);
     const [demoRunning, setDemoRunning] = useState(false);
+    const [elapsedSec, setElapsedSec] = useState(0);
+    const demoStartRef = useRef<number | null>(null);
+    const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -103,7 +106,20 @@ export function DemoPanel() {
         });
         // Track running state via demo:status events
         const unsubStatus = socketClient.on('demo:status', (data: any) => {
-            setDemoRunning(data?.running ?? false);
+            const running = data?.running ?? false;
+            setDemoRunning(running);
+            if (running) {
+                if (!demoStartRef.current) demoStartRef.current = Date.now();
+                if (!elapsedIntervalRef.current) {
+                    elapsedIntervalRef.current = setInterval(() => {
+                        setElapsedSec(Math.floor((Date.now() - (demoStartRef.current ?? Date.now())) / 1000));
+                    }, 1000);
+                }
+            } else {
+                if (elapsedIntervalRef.current) { clearInterval(elapsedIntervalRef.current); elapsedIntervalRef.current = null; }
+                demoStartRef.current = null;
+                setElapsedSec(0);
+            }
         });
         return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); };
     }, []);
@@ -557,9 +573,8 @@ export function DemoPanel() {
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
                                     </span>
                                     <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">LIVE DEMO</span>
-                                    <span className="text-[10px] text-muted-foreground">10 buyers</span>
-                                    <span className="text-[10px] text-muted-foreground">{demoMetrics.leadsThisMinute}/min</span>
-                                    <span className="text-[10px] text-muted-foreground ml-auto">Active: {demoMetrics.activeCount}</span>
+                                    <span className="text-[10px] text-muted-foreground">Active: {demoMetrics.activeCount}</span>
+                                    <span className="text-[10px] text-muted-foreground">Elapsed: {Math.floor(elapsedSec / 60)}m {elapsedSec % 60}s</span>
                                 </div>
                                 <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                                     Platform rev today: ~${demoMetrics.dailyRevenue.toLocaleString()}

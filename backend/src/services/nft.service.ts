@@ -155,14 +155,14 @@ class NFTService {
                 // [CRE-DISPATCH] — log before on-chain mint so Render always shows this
                 console.log(`[CRE-DISPATCH] mintLeadNFT starting — leadId=${leadId} seller=${sellerAddress} contract=${LEAD_NFT_ADDRESS.slice(0, 10)}…`);
 
-                // Mint with dynamic gas + up to 3 retries (+3 gwei each) to avoid
+                // Mint with dynamic gas + up to 4 retries (+4 gwei each) to avoid
                 // "replacement fee too low" on Base Sepolia during consecutive runs.
                 let tx: any;
                 let lastMintErr: any;
                 const feeData = await this.provider.getFeeData().catch(() => null);
-                const baseMaxFee = feeData?.maxFeePerGas ?? ethers.parseUnits('12', 'gwei');
-                for (let attempt = 0; attempt < 3; attempt++) {
-                    const maxFeePerGas = baseMaxFee + ethers.parseUnits(String(attempt * 3), 'gwei');
+                const baseMaxFee = feeData?.maxFeePerGas ?? ethers.parseUnits('15', 'gwei');
+                for (let attempt = 0; attempt < 4; attempt++) {
+                    const maxFeePerGas = baseMaxFee + ethers.parseUnits(String(attempt * 4), 'gwei');
                     try {
                         tx = await this.contract!.mintLead(
                             sellerAddress,
@@ -182,8 +182,8 @@ class NFTService {
                         lastMintErr = retryErr;
                         const isReplacement = retryErr?.message?.includes('replacement fee too low') ||
                             retryErr?.code === 'REPLACEMENT_UNDERPRICED';
-                        if (!isReplacement || attempt >= 2) throw retryErr;
-                        console.warn(`[NFT MINT] Attempt ${attempt + 1} replacement fee too low — retrying with +3 gwei`);
+                        if (!isReplacement || attempt >= 3) throw retryErr;
+                        console.warn(`[NFT MINT] Attempt ${attempt + 1} replacement fee too low — retrying with +4 gwei`);
                         await new Promise(r => setTimeout(r, 500));
                     }
                 }

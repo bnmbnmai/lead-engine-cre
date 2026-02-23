@@ -48,6 +48,7 @@ export function useSocketBridge(): void {
                 leadId: data.leadId,
                 bidCount: data.bidCount,
                 highestBid: data.highestBid,
+                recentBids: data.recentBids,
             });
         });
 

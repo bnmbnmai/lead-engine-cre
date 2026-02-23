@@ -117,8 +117,8 @@ export function scheduleBuyerBids(
 ): void {
     if (!VAULT_ADDRESS) return; // Off-chain mode — no bidding
 
-    // ~5% of leads get 0 bids (realistic cold auctions — was 15%, reduced to keep demo lively)
-    if (Math.random() < 0.05) {
+    // ~2% of leads get 0 bids (realistic cold auctions — was 5%)
+    if (Math.random() < 0.02) {
         emit(io, {
             ts: new Date().toISOString(), level: 'info',
             message: `🔇 Lead ${leadId.slice(0, 8)}… — no buyers interested this round (simulating cold auction)`,
@@ -149,14 +149,14 @@ export function scheduleBuyerBids(
             continue;
         }
 
-        // ~10% independent skip per eligible buyer
-        if (Math.random() < 0.10) continue;
+        // ~5% independent skip per eligible buyer (was 10%)
+        if (Math.random() < 0.05) continue;
 
         const premium = Math.round(reservePrice * (Math.random() * 0.20));
         const bidAmount = Math.min(reservePrice + premium, profile.maxPrice);
 
         const jitter = (Math.random() * 24) - 12;
-        const delaySec = Math.max(10, Math.min(55, profile.timingBias + jitter));
+        const delaySec = Math.max(3, Math.min(55, profile.timingBias + jitter)); // 3–55 s
         const delayMs = Math.round(delaySec * 1000);
 
         const buyerIdx = profile.index;
@@ -219,12 +219,26 @@ export function scheduleBuyerBids(
                     where: { leadId, status: { not: 'EXPIRED' } },
                 }).catch(() => 1);
 
+                // Build recentBids snippet for frontend animation
+                const recentBidsRaw = await prisma.bid.findMany({
+                    where: { leadId, status: { not: 'EXPIRED' } },
+                    orderBy: { createdAt: 'desc' },
+                    take: 3,
+                    select: { amount: true, createdAt: true },
+                }).catch(() => []);
+                const recentBids = recentBidsRaw.map((b: { amount: any; createdAt: Date }) => ({
+                    buyer: profile.name,
+                    amount: Number(b.amount),
+                    ts: b.createdAt.toISOString(),
+                }));
+
                 io.emit('marketplace:bid:update', {
                     leadId,
                     bidCount: actualBidCount,
                     highestBid: bidAmount,
                     timestamp: new Date().toISOString(),
                     buyerName: profile.name,
+                    recentBids,
                 });
 
                 // BUG-2 fix: also emit auction:updated so the countdown timer re-baselines on every drip bid.
@@ -265,22 +279,23 @@ export function scheduleBuyerBids(
         if (scheduledCount === 1 && Math.random() < 0.10) break;
     }
 
-    // Always-on fallback: ensure every lead gets 2–3 bidders, even if profile filters matched some.
-    // This keeps the marketplace lively throughout the 5-min demo window.
-    if (qualityScore >= 1200 && VAULT_ADDRESS) {
+    // Always-on fallback: ensure every lead gets 4 bidders (GeneralistA + 3 extras), even if
+    // profile filters matched few buyers. qualityScore ≥ 1000 catches nearly all DEMO leads.
+    // This keeps the marketplace high-energy throughout the 5-min demo window.
+    if (qualityScore >= 1000 && VAULT_ADDRESS) {
         const fallback = BUYER_PROFILES.find(p => p.name === 'GeneralistA');
-        // Pick up to 2 additional random eligible profiles (skip GeneralistA)
+        // Pick up to 3 additional random eligible profiles (skip GeneralistA)
         const eligible = BUYER_PROFILES.filter(
             p => p.name !== 'GeneralistA' && p.maxPrice >= reservePrice && (p.verticals.includes('*') || p.verticals.includes(vertical))
         );
         // Shuffle to vary which buyers appear
         eligible.sort(() => Math.random() - 0.5);
-        const extras = eligible.slice(0, 2);
+        const extras = eligible.slice(0, 3);
 
         for (const prof of [fallback, ...extras].filter(Boolean) as typeof BUYER_PROFILES) {
             if (!prof || reservePrice > prof.maxPrice) continue;
             const fallbackBid = Math.min(reservePrice + 1 + Math.floor(Math.random() * 5), prof.maxPrice);
-            const fallbackDelay = Math.round((5 + Math.random() * 60) * 1000); // 5–65 s window
+            const fallbackDelay = Math.round((3 + Math.random() * 52) * 1000); // 3–55 s window
             const bidIdx = prof.index;
 
             const fallbackTimer = setTimeout(async () => {
@@ -301,7 +316,21 @@ export function scheduleBuyerBids(
                     await tx.wait();
 
                     const actualBidCount = await prisma.bid.count({ where: { leadId, status: { not: 'EXPIRED' } } }).catch(() => 1);
-                    io.emit('marketplace:bid:update', { leadId, bidCount: actualBidCount, highestBid: fallbackBid, timestamp: new Date().toISOString(), buyerName: prof.name });
+
+                    // recentBids for frontend card animation
+                    const recentBidsRaw2 = await prisma.bid.findMany({
+                        where: { leadId, status: { not: 'EXPIRED' } },
+                        orderBy: { createdAt: 'desc' },
+                        take: 3,
+                        select: { amount: true, createdAt: true },
+                    }).catch(() => []);
+                    const recentBids2 = recentBidsRaw2.map((b: { amount: any; createdAt: Date }) => ({
+                        buyer: prof.name,
+                        amount: Number(b.amount),
+                        ts: b.createdAt.toISOString(),
+                    }));
+
+                    io.emit('marketplace:bid:update', { leadId, bidCount: actualBidCount, highestBid: fallbackBid, timestamp: new Date().toISOString(), buyerName: prof.name, recentBids: recentBids2 });
 
                     const leadRecord = await prisma.lead.findUnique({ where: { id: leadId }, select: { auctionEndAt: true } }).catch(() => null);
                     if (leadRecord?.auctionEndAt) {

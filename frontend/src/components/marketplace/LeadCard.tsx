@@ -139,23 +139,33 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
     // Animated bid counter — pulse on change
     const prevBidCount = useRef(effectiveBidCount);
     const [bidPulse, setBidPulse] = useState(false);
+    const [showNewBidFlash, setShowNewBidFlash] = useState(false);
+    const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (effectiveBidCount > prevBidCount.current) {
             setBidPulse(true);
-            const timer = setTimeout(() => setBidPulse(false), 600);
+            setShowNewBidFlash(true);
+            if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+            flashTimerRef.current = setTimeout(() => {
+                setBidPulse(false);
+                setShowNewBidFlash(false);
+            }, 800);
             prevBidCount.current = effectiveBidCount;
-            return () => clearTimeout(timer);
+            return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
         }
         prevBidCount.current = effectiveBidCount;
     }, [effectiveBidCount]);
+
+    const recentBids = storeSlice?.recentBids ?? [];
 
     return (
         <Card
             data-auction-state={auctionPhase}
             className={`group transition-all duration-300
                 ${!isClosed && isClosingSoon ? 'border-amber-400/60 ring-2 ring-amber-400/20' : ''}
-                ${!isClosed && isLive && !isClosingSoon ? 'border-blue-500/50 glow-ready' : ''}
+                ${!isClosed && isLive && !isClosingSoon && !showNewBidFlash ? 'border-blue-500/50 glow-ready' : ''}
+                ${!isClosed && showNewBidFlash ? 'border-emerald-400/70 ring-2 ring-emerald-400/30' : ''}
                 ${isClosed ? 'border-border grayscale' : ''}
                 ${auctionEndFeedback ? 'pointer-events-none' : ''}
                 active:scale-[0.98]`}
@@ -311,13 +321,25 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             </span>
                         </div>
                     )}
-                    <div
-                        className={`flex items-center gap-1 transition-all duration-300 ${bidPulse ? 'text-blue-400 scale-110' : ''
-                            }`}
-                    >
-                        <Users className="h-4 w-4" />
-                        <span className="font-medium">{effectiveBidCount}</span> bids
-                    </div>
+                    {/* 💸 New Bid! flash badge */}
+                    {showNewBidFlash && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                            ⬆️ New Bid!
+                        </span>
+                    )}
+                    {/* Bid count with hover tooltip showing last 3 bids */}
+                    <Tooltip content={
+                        recentBids.length > 0
+                            ? recentBids.map((b) => `${b.buyer}: $${b.amount.toFixed(2)}`).join(' • ')
+                            : `${effectiveBidCount} bid${effectiveBidCount !== 1 ? 's' : ''} placed`
+                    }>
+                        <div
+                            className={`flex items-center gap-1 cursor-help transition-all duration-300 ${bidPulse ? 'text-emerald-400 scale-110' : ''}`}
+                        >
+                            <Users className="h-4 w-4" />
+                            <span className="font-medium">{effectiveBidCount}</span> bids
+                        </div>
+                    </Tooltip>
                 </div>
 
                 {/* Auction Progress Bar */}
