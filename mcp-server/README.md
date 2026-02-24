@@ -1,10 +1,10 @@
 # MCP Agent Server — Lead Engine CRE
 
 ![Chainlink](https://img.shields.io/badge/Chainlink-CRE-brightgreen)
-![Tools](https://img.shields.io/badge/Tools-12-blue)
+![Tools](https://img.shields.io/badge/Tools-13-blue)
 ![Protocol](https://img.shields.io/badge/Protocol-JSON--RPC%202.0-orange)
 
-The Lead Engine CRE MCP (Model Context Protocol) server exposes **12 tools** over JSON-RPC 2.0, enabling AI agents — including the Kimi/LangChain buyer agent — to search leads, place sealed bids, manage auto-bid rules, configure CRM webhooks, query granular bounties, and suggest vertical classifications.
+The Lead Engine CRE MCP (Model Context Protocol) server exposes **13 tools** over JSON-RPC 2.0, enabling AI agents — including the Kimi/LangChain buyer agent — to search leads, subscribe to live live-streams, place sealed bids, manage auto-bid rules, configure CRM webhooks, query granular bounties, and suggest vertical classifications.
 
 ---
 
@@ -17,7 +17,7 @@ The Lead Engine CRE MCP (Model Context Protocol) server exposes **12 tools** ove
 | Transport | HTTP POST (`/`) |
 | Auth | Bearer token (same JWT as REST API) |
 | Source | `mcp-server/tools.ts`, `mcp-server/server.ts` |
-| Tool Count | **12** |
+| Tool Count | **13** |
 
 The MCP server is a thin proxy: each tool maps to a backend REST call (`/api/v1/*`). Authentication, rate limiting, and business logic all live in the backend.
 
@@ -84,6 +84,7 @@ https://lead-engine-api.onrender.com
 | 10 | `ping_lead` | GET | `/api/v1/leads` | `leadId` | Get full lead details and auction state |
 | 11 | `suggest_vertical` | POST | `/api/v1/verticals/suggest` | `description` | AI-classify a lead description into a vertical |
 | 12 | `query_open_granular_bounties` | GET | `/api/v1/bounties/available` | — | Query active USDC bounty pools (Chainlink Functions) |
+| 13 | `subscribe_to_live_leads` | POST | `/api/v1/mcp/subscribe` | — | Subscribe to real-time events via Socket.io streams for instant agent reactivity |
 
 ---
 
@@ -200,6 +201,33 @@ Query USDC bounty pools before placing a bid — factor the bonus revenue into y
 totalBounty = query_open_granular_bounties(vertical, state).totalAvailableUSDC
 effectiveCeiling = maxBid + totalBounty
 → Bid up to effectiveCeiling if bounty criteria are met
+```
+
+### 13. `subscribe_to_live_leads`
+
+Establish a Socket.IO connection to wait for the next real-time event representing a new lead, an auction update, or a dev log. Essential for instant reactivity, mitigating the need for agents to constantly poll `search_leads`. The tool blocks until an event is received (or a 15-second timeout occurs), returning the event data and immediately unsubscribing.
+
+```json
+{
+  "name": "subscribe_to_live_leads",
+  "arguments": {
+    "verticals": ["solar", "mortgage"]
+  }
+}
+```
+
+**Example response:**
+```json
+{
+  "event": "marketplace:lead:new",
+  "data": {
+    "lead": {
+      "id": "cuid_abc",
+      "vertical": "solar",
+      "reservePrice": 150
+    }
+  }
+}
 ```
 
 ---

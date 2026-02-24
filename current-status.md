@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-**Overall Health Score: 9.6 / 10** *(up from 9.5 after service naming cleanup: `datastreams.service.ts` → `data-feeds.service.ts`, all 5 imports updated; frontend index blurbs updated for current vault + granular bounties terminology)*
+**Overall Health Score: 9.7 / 10** *(up from 9.6 after adding MCP tool #13 `subscribe_to_live_leads` for real-time agent reactivity via Socket.IO)*
 
 Lead Engine CRE is the most technically sophisticated lead-marketplace project in the hackathon field. The on-chain foundation is real, verifiable, and multi-service. The frontend quality is institutional-grade. The demo orchestrator is battle-tested with a certified 7-cycle run producing 16 real Basescan transactions. The queue-based auction sync is a clean, well-reasoned architecture.
 
@@ -21,7 +21,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 - 5 deployed + verified contracts on Base Sepolia, independently verifiable
 - Demo run `db4763d9` — 7 real cycles, $189 USDC settled, $16.45 income, all tx hashes checkable on Basescan
 - Queue-based Socket.IO auction sync with server-authoritative countdowns (v10 arch)
-- Kimi agent integration with 🤖 log labeling and visible auto-bid rules
+- Kimi/LangChain agent integration with 13 MCP tools including real-time `subscribe_to_live_leads` streaming
 - AES-256-GCM PII encryption with CHTT Phase 2 enclave pattern
 - 223-line CI workflow covering lint, Jest, Hardhat, and Artillery (advisory)
 
@@ -60,7 +60,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 | **Auction closure UX** | Instant grayscale → 2.5s fade-out → DOM removal, amber closing-ring (no intrusive banners), sealed 🔒 overlay | `frontend/src/components/LeadCard.tsx` |
 | **README** | Clean, current, accurate mermaid diagrams, correct contract addresses, 7 Chainlink services table, all links verified | `README.md` |
 | **CI** | 4-job matrix: Lint, Jest, Hardhat, Artillery (advisory). Concurrency cancel-in-progress. Secrets safe. | `.github/workflows/test.yml` |
-| **MCP server** | **12 tools** for agent workflows (search, bid, `set_auto_bid_rules`, `query_open_granular_bounties`, etc.), LangChain integration — full reference in `mcp-server/README.md` | `mcp-server/tools.ts` |
+| **MCP server** | **13 tools** for agent workflows (search, bid, `subscribe_to_live_leads`, `query_open_granular_bounties`, etc.), LangChain integration — full reference in `mcp-server/README.md` | `mcp-server/tools.ts` |
 | **Data Feeds service** | Renamed `datastreams.service.ts` → `data-feeds.service.ts` (Feb 2026); header comment added; all 5 import sites updated; zero live references to old name | `backend/src/services/data-feeds.service.ts` |
 | **Swagger docs** | 24 KB full API documentation accessible at `/api/swagger` | `backend/swagger.yaml` |
 

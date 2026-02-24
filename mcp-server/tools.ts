@@ -222,6 +222,22 @@ export const TOOLS: ToolDefinition[] = [
         handler: '/api/v1/bounties/available',
         method: 'GET',
     },
+    {
+        name: 'subscribe_to_live_leads',
+        description: 'Subscribe to real-time events for new leads and auction updates via Socket.IO. Essential for instant reactivity in agent workflows.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                verticals: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Filter live events by vertical (e.g., solar, mortgage). Omit to receive all verticals.',
+                },
+            },
+        },
+        handler: '/api/v1/mcp/subscribe',
+        method: 'POST',
+    },
 ];
 
 // Build a lookup map
