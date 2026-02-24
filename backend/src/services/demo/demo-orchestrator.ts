@@ -854,7 +854,7 @@ export async function runFullDemo(
         const DEMO_DURATION_MS = 5 * 60 * 1000; // 5 minutes
         const DEMO_END_TIME = Date.now() + DEMO_DURATION_MS;
         const processedLeadIds = new Set<string>();
-        let buyerRoundRobinOffset = 0;
+        const buyerRoundRobinOffset = 0;
         let settlementCycle = 0;
 
         emit(io, { ts: new Date().toISOString(), level: 'step', message: `🏁 Natural settlement monitor started — auctions settle as they expire over ${DEMO_DURATION_MS / 60000} min` });

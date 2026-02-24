@@ -56,6 +56,12 @@ jest.mock('../../src/lib/chainlink/cre-quality-score', () => ({
     computeCREQualityScore: jest.fn().mockReturnValue(7000),
 }));
 
+// Mock demo-agent-rules so ensureKimiAgentRules is a no-op in tests
+jest.mock('../../src/services/demo/demo-agent-rules', () => ({
+    ensureKimiAgentRules: jest.fn().mockResolvedValue({ created: 0, updated: 0, skipped: 0 }),
+    KIMI_AGENT_WALLET: '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad',
+}));
+
 // ── Ethers mock ────────────────────────────────────────────────────
 
 // Track usdc.transfer call count to verify it's skipped when vault is funded
