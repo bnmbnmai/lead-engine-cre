@@ -1,38 +1,30 @@
 ﻿# Lead Engine CRE
 
 [![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-
 [![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)](https://chain.link/convergence)
 [![ACE Compliance](https://img.shields.io/badge/Compliance-ACE-blue)](https://chain.link/ace)
 [![Confidential HTTP](https://img.shields.io/badge/Privacy-CHTT-green)](https://chain.link/cre)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-vercel.app-brightgreen)](https://lead-engine-cre-frontend.vercel.app)
 
-[Live Demo](https://lead-engine-cre-frontend.vercel.app)
+[Live Demo](https://lead-engine-cre-frontend.vercel.app) | [X Profile](https://x.com/qasrn_exe) | Last Updated: February 23, 2026
 
 ---
 
 ## Overview
 
-Lead Engine CRE is an on-chain marketplace for tokenized leads built on Base Sepolia. Sellers mint high-quality leads as tradable LeadNFTs. Buyers participate in sealed-bid auctions with instant USDC settlement and verifiable provenance through Chainlink services.
+Lead Engine CRE is an on-chain marketplace for tokenized leads on Base Sepolia, transforming the $200B+ lead generation industry. Sellers submit leads, which are quality-scored via Chainlink CRE, minted as ACE-compliant LeadNFTs, and auctioned in sealed-bid formats. Buyers—manual or AI agents—compete with atomic USDC settlements via PersonalEscrowVault, ensuring fraud resistance, instant payouts, and verifiable provenance.
 
-Autonomous MCP agents, built with LangChain ReAct and 11 custom tools, continuously hunt and bid on leads according to buyer-defined rules for verticals, quality thresholds, budgets, and geo-targeting.
+Key innovations include autonomous AI agents (e.g., Kimi-powered) using auto-bid rules for 24/7 participation, queue-based auction synchronization for real-time frontend updates, and privacy-preserving mechanics like commit-reveal bids. This "LeadFi" protocol addresses industry pain points: 30–50% fraud, delayed net terms, and manual matching.
 
-The platform integrates production-grade Chainlink services across the full lead lifecycle to address fraud signals, delayed payouts, lack of provenance, and manual matching.
+Built for Chainlink Convergence 2026, it orchestrates six Chainlink services for a cohesive, real-world utility demo.
 
 ---
 
 ## Privacy & Confidential Computing
 
-All sensitive lead data is protected with AES-256-GCM encryption (`backend/src/lib/privacy.service.ts`).
+Sensitive PII is AES-256-GCM encrypted. CREVerifier uses Confidential HTTP (CHTT) Phase 2 for enclave-based scoring and fraud enrichment. Results are attested and decrypted backend-side. See `PRIVACY_INTEGRATION_AUDIT.md` for details.
 
-CREVerifier implements Confidential HTTP (CHTT) Phase 2:
-
-- Batched private score source executes inside the DON enclave
-- Inline quality scoring and HMAC fraud-signal enrichment
-- Results returned AES-256-GCM encrypted with enclave key
-- Backend decrypts and records provenance fields
-
-Full technical details are in `PRIVACY_INTEGRATION_AUDIT.md` and `chttaudit.md`.
+Implications: GDPR/CCPA compliance scaffolding, with edge cases like reveal-only-to-winner minimizing exposure.
 
 ---
 
@@ -40,116 +32,173 @@ Full technical details are in `PRIVACY_INTEGRATION_AUDIT.md` and `chttaudit.md`.
 
 ```mermaid
 graph TD
-    A["Lead Submission<br>Lander / API / Demo"] --> B["CRE Verification + Quality Scoring"]
-    B --> C["Mint LeadNFT on Base Sepolia"]
+    A["Lead Submission (Lander/API/Demo)"] --> B["CRE Verification + Quality Scoring"]
+    B --> C["Mint LeadNFTv2 (ACE-Protected)"]
     C --> D["Marketplace Listing + Auction Starts"]
-    D --> E["Sealed Bids from Buyers or Autonomous Agents"]
-    E --> F["Auction Ends"]
-    F --> G["Winner Settlement via PersonalEscrowVault"]
-    G --> H["Losers Refunded"]
+    D --> E["Sealed Bids (Manual/Agents via Queue Registry)"]
+    E --> F["Auction Ends (VRF Tiebreaker if Needed)"]
+    F --> G["Settlement via PersonalEscrowVault"]
+    G --> H["Refunds + PII Reveal to Winner"]
     H --> I["Chainlink Automation PoR Check"]
-    I --> J["PII Reveal to Winner"]
-    J --> K["LeadNFT Ownership Transferred"]
-```
+    I --> J["NFT Transfer + Provenance Update"]
 
----
+    Nuances: Queue-based bidding ensures real-time desync-free updates; AI agents trigger via auto-rules post-injection.
 
-## Key Features
+Key Features
 
-- One-click full on-chain demo covering the complete lifecycle
-- LeadNFTs providing verifiable provenance and future secondary market tradability
-- Autonomous MCP agents operating 24/7 based on buyer-configured preferences
-- Programmable buyer bounties funded per vertical and executed via Chainlink Functions
-- PersonalEscrowVault with Chainlink Automation for Proof of Reserves and automatic lock expiry
-- Sealed-bid auctions with backend-managed bid privacy and Chainlink VRF tie resolution
-- Dynamic verticals with drag-and-drop form builder
-- Real-time analytics via Socket.IO events and vault reconciliation
+One-Click Demo: End-to-end lifecycle with real on-chain events (e.g., 7-cycle run: $189 settled, $16.45 income—see demo-results-db4763d9.json).
+LeadNFTs: Tokenized leads with secondary tradability and royalties.
+AI Agents: Kimi-powered agent assigned to buyer wallet (e.g., 0x7be5ce8824d5c1890bC09042837cEAc57a55fdad) uses set_auto_bid_rules for autonomous bidding; visible via 🤖 logs.
+Sealed-Bid Auctions: Commit-reveal privacy, queue registry for sync, VRF ties.
+Escrow & Automation: Atomic settlements, daily PoR, auto-refunds.
+MCP Tools: 11 custom tools for agent workflows (search, bid, preferences).
+Real-Time UX: Socket.IO updates, optimistic pending states, agent badges.
 
----
+Edge Cases: Handles ties, low-escrow aborts, nonce contention via gas escalation.
 
-## Chainlink Integration
+Chainlink Integration
+Six services across the lifecycle:
 
-Six Chainlink services are integrated on-chain:
 
-| Service | Role |
-|---|---|
-| CRE | On-chain quality scoring and parameter matching via Chainlink Functions |
-| ACE | Official Automated Compliance Engine — LeadNFTv2 inherits PolicyProtected mixin and uses ACELeadPolicy for mintLead() and transferFrom() enforcement |
-| Automation | Proof of Reserves every 24 hours and automatic refund of expired bid locks |
-| VRF v2.5 | Verifiable random tiebreaker for equal bids |
-| Functions (ZK) | requestZKProofVerification dispatches Groth16/Plonk proof to DON |
-| Data Feeds | USDC/ETH price guard in PersonalEscrowVault |
 
----
 
-## Tech Stack
 
-| Layer         | Technologies |
-|---------------|------------------------------------------------------------|
-| Frontend      | Vite + React + Tailwind + Zustand + Socket.IO |
-| Backend       | Express + Prisma + Socket.IO + LangChain |
-| Smart Contracts | Solidity + Hardhat (Base Sepolia) |
-| AI Agents     | MCP server with 11 custom tools |
-| Oracles       | Chainlink CRE, ACE, Automation, VRF v2.5, Functions (ZK), Data Feeds |
-| Database      | Render Postgres |
 
----
 
-## On-Chain Proofs
 
-All contracts are deployed on Base Sepolia with exact-match source code verified on Basescan as of 2026-02-22.
 
-Certified demo run ID: `05ad5f55-ae29-4569-9f00-8637f0e0746a` (5/5 cycles, $239 settled, PoR passed).
 
-| Contract             | Address                                      | Status |
-|----------------------|----------------------------------------------|--------|
-| PersonalEscrowVault  | 0x56bB31bE214C54ebeCA55cd86d86512b94310F8C   | Live activity (deposits, PoR, settlements in last hour) — source verification pending |
-| LeadNFTv2            | 0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155   | Verified, ACE policy attached, royalties set |
-| CREVerifier          | 0xfec22A5159E077d7016AAb5fC3E91e0124393af8   | Verified, DON sources uploaded, subscription ID 3063 |
-| VRFTieBreaker        | 0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e   | Verified |
-| ACELeadPolicy        | 0x013f3219012030aC32cc293fB51a92eBf82a566F   | Verified |
 
-Verification commands and remaining actions are in [onchain-activation-checklist.md](./onchain-activation-checklist.md).
 
----
 
-## Architecture
 
-```mermaid
-graph TD
-    Frontend["Frontend<br>Vite / React / Tailwind"]
-    Backend["Backend<br>Express + Socket.IO + Prisma"]
-    MCP["MCP Agent Server<br>LangChain ReAct + 11 Tools"]
-    Contracts["Smart Contracts<br>Base Sepolia"]
-    Chainlink["Chainlink Services"]
 
-    Frontend --> Backend
-    Backend --> MCP
-    Backend --> Contracts
-    Contracts --> Chainlink
-```
 
----
 
-## Market Opportunity
 
-The global lead generation market exceeds $200 billion annually. Primary verticals include solar, roofing, HVAC, mortgage, and insurance.
 
----
 
-## Post-Hackathon Roadmap
 
-See `ROADMAP.md` for secondary marketplace, enterprise integrations, and production deployment steps.
 
----
 
-## Documentation
 
-- Current status: `current-status.md`
-- Privacy integration audit: `PRIVACY_INTEGRATION_AUDIT.md`
-- On-chain activation: `onchain-activation-checklist.md`
-- Chainlink services audit: `CHAINLINK_SERVICES_AUDIT.md`
-- Audit logs: `logs/audits/`
-- Demo deployment guide: `demo-polish-next-steps.md`
 
-> **Demo Control Panel in production:** set Vercel env var `VITE_DEMO_MODE=true` to enable the floating panel on production/staging builds.
+
+
+
+
+
+
+
+
+ServiceRoleCREQuality scoring + CHTT enrichment.ACEPolicy-protected mint/transfer.AutomationPoR checks + lock refunds.VRF v2.5Fair tiebreakers.Functions (ZK)ZK-proof verification.Data FeedsPrice guards in escrow.
+See CHAINLINK_SERVICES_AUDIT.md for audits.
+
+Tech Stack
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LayerTechnologiesFrontendVite + React + Tailwind + Zustand + Socket.IOBackendExpress + Prisma + Socket.IO + LangChainSmart ContractsSolidity + Hardhat (Base Sepolia)AI AgentsMCP server with 11 tools; Kimi model integrationOraclesChainlink stackDatabaseRender Postgres
+
+On-Chain Proofs
+Contracts verified on Basescan (as of 2026-02-24):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ContractAddressStatusPersonalEscrowVault0x56bB31bE214C54ebeCA55cd86d86512b94310F8CVerified, live activityLeadNFTv20x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155Verified, ACE attachedCREVerifier0xfec22A5159E077d7016AAb5fC3E91e0124393af8Verified, subscription 3063VRFTieBreaker0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930eVerifiedACELeadPolicy0x013f3219012030aC32cc293fB51a92eBf82a566FVerified
+Certified run: db4763d9 (7 cycles, PoR passed). See onchain-activation-checklist.md.
+
+Architecture
+mermaidgraph TD
+    Frontend["Frontend (React/Vite)"] --> Backend["Backend (Express/Prisma)"]
+    Backend --> MCP["MCP Agent Server (LangChain + Tools)"]
+    Backend --> Contracts["Contracts (Base Sepolia)"]
+    Contracts --> Chainlink["Chainlink Services"]
+    MCP --> Backend
+Nuances: Queue registry for bid sync; fire-and-forget auto-bid evaluations.
+
+Market Opportunity
+$200B+ global lead-gen market (solar, roofing, etc.). Solves fraud (CRE), delays (atomic escrow), provenance (NFTs), matching (agents).
+Implications: Potential for "lead derivatives"; regulatory edges via ACE.
+
+Quick Start & Demo Guide
+
+Clone repo: git clone https://github.com/bnmbnmai/lead-engine-cre
+Setup env: Copy .env.example, add keys (e.g., DEPLOYER_PRIVATE_KEY).
+Install: npm i (frontend/backend).
+Run: npm run dev (local); deploy to Vercel/Render.
+Demo: Use floating panel (enable via VITE_DEMO_MODE=true). See demo-polish-next-steps.md for curl triggers.
+
+Edge Cases: Testnet faucets for USDC; monitor nonce errors.
+
+Post-Hackathon Roadmap
+
+Immediate: Full demo video, submission polish.
+Short-Term: Third-party audit, mainnet migration (Base/Arbitrum via CCIP).
+Scaling: Redis for leadLockRegistry (10k+ leads/day); BullMQ for bid queues; event-driven settlement.
+Features: Multi-agent marketplace; lead derivatives; enterprise SDKs.
+Long-Term: Generalized data exchange (health/KYC); agent-owned portfolios.
+
+See ROADMAP.md for details.
