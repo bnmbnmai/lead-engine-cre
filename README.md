@@ -14,7 +14,7 @@
 
 Lead Engine CRE establishes an on-chain marketplace for tokenized, privacy-preserving leads on Base Sepolia. Sellers submit high-value leads that undergo verifiable quality scoring and fraud-signal enrichment via Chainlink Confidential Compute and Confidential HTTP. Leads are minted as ACE-compliant LeadNFTs and offered through sealed-bid auctions with atomic USDC settlement via PersonalEscrowVault.
 
-Autonomous MCP agents, powered by LangChain ReAct and 11 custom tools, execute continuous bidding according to buyer-configured rules for verticals, geography, quality thresholds, and budgets. The architecture integrates six Chainlink services across the full lead lifecycle, delivering fraud resistance, instant payouts, verifiable provenance, and compliance enforcement.
+Autonomous MCP agents, powered by LangChain ReAct and 11 custom tools, execute continuous bidding according to buyer-configured rules for verticals, geography, quality thresholds, and budgets. The architecture integrates six Chainlink services across the full lead lifecycle, delivering fraud resistance, instant payouts, verifiable provenance, and compliance enforcement through CRE orchestration and Confidential HTTP.
 
 Built for Chainlink Convergence 2026, the platform positions sensitive lead data as institutional-grade private data RWAs and is eligible for the Privacy Track, CRE & AI Track, DeFi & Tokenization Track, and Autonomous Agents Track on Moltbook.
 
@@ -24,7 +24,7 @@ Built for Chainlink Convergence 2026, the platform positions sensitive lead data
 
 All personal identifiable information is protected with client-side AES-256-GCM encryption. The CREVerifier contract leverages Chainlink Confidential HTTP (CHTT) Phase 2 for enclave-based quality scoring and HMAC fraud-signal enrichment. Results are returned with enclave attestations and decrypted only by authorized backend processes.
 
-Winner-only decryption of lead PII is handled via Confidential Compute (early access through CRE). Full technical details and compliance scaffolding for GDPR/CCPA are documented in `PRIVACY_INTEGRATION_AUDIT.md`.
+Winner-only decryption of lead PII via Confidential Compute (early access through CRE) and deeper CRE workflow orchestration are targeted for completion by the March 8 submission deadline. Full technical details and compliance scaffolding for GDPR/CCPA are documented in `PRIVACY_INTEGRATION_AUDIT.md`.
 
 ---
 
@@ -51,7 +51,7 @@ graph TD
 - **Sealed-bid auctions** with commit-reveal privacy, VRF v2.5 fairness for tie resolution, and PersonalEscrowVault atomic USDC settlement.
 - **PersonalEscrowVault** with Chainlink Automation-driven daily Proof-of-Reserves checks and automatic refund of expired bid locks.
 - **Granular Vertical Field Bounty Hunting** — buyers post field-specific bounties (for example, “mortgage leads from ZIP code 90210 with good or excellent credit score”). The system automatically matches each submitted lead’s field values at ingestion, attaches matching bounty rewards to the auction, and settles the additional USDC payouts on close — creating direct, hyper-targeted demand signals.
-- **CRE Workflow Orchestration** — production CRE workflow (`EvaluateBuyerRulesAndMatch`) runs buyer vertical/geo/budget rules inside Confidential HTTP enclaves, delivering verifiable matching with 60–80 % gas savings and institutional-grade auditability.
+- **CRE Workflow Orchestration** — production CRE workflow (`EvaluateBuyerRulesAndMatch`) runs buyer vertical/geo/budget rules inside Confidential HTTP enclaves, delivering verifiable matching with significant gas savings and institutional-grade auditability. Expanded Confidential Compute integration (winner-only decryption) is planned for the March 8 submission.
 - **Production-Grade Scaling Infrastructure** — horizontal scaling via BullMQ/Redis (distributed bid scheduling, persistent lock registry, event-driven settlement) and WebSocket sharding, already implemented and proven ready for 10,000+ leads per day.
 
 All major edge cases (ties, low-escrow aborts, nonce escalation, concurrent bidding) are handled in production code. Real-time frontend updates via Socket.IO with optimistic states and agent activity badges.
