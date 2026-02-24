@@ -155,9 +155,11 @@ export function DevLogPanel() {
     const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
     const [copiedAll, setCopiedAll] = useState(false);
     const [demoComplete, setDemoComplete] = useState(false);
-    const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
-    // Judge View — ON by default: hides noisy recycling/nonce/fee internals
-    const [judgeView, setJudgeView] = useState(true);
+    // Initialize status from actual socket state — avoids yellow 'Connecting' flash when
+    // the socket is already connected (e.g. page reload, HMR, or demo still running).
+    const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
+        () => socketClient.isConnected() ? 'connected' : 'connecting'
+    );
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -295,34 +297,47 @@ export function DevLogPanel() {
         setTimeout(() => setCopiedAll(false), 1500);
     }, [entries]);
 
-    // Judge View filter — keeps only signal, hides operator noise
-    const JUDGE_ALLOW = [
-        'autobidding', 'buyer #', 'bid placed', 'highest bid',
-        'settled', 'settlement', 'won auction', 'auction won',
+    // On-chain Log filter — always active, keeps only signal, hides operator noise.
+    // Shows: bids, settlements, Chainlink service calls, agent bids, key errors.
+    // Hides: internal retry noise, gas management, recycling, nonce errors.
+    const ONCHAIN_ALLOW = [
+        // Auction & bid activity
+        'live bid', 'bid $', 'bid placed', 'highest bid', 'lock #',
+        'won auction', 'auction won', 'settled', 'settlement',
+        // Chainlink services
         'vrf', 'tiebreak', 'kyc', 'ace', 'cre', 'chainlink',
-        'por', 'proof of reserve', 'data feed',
-        'lead injected', 'auction started', 'cycle', 'cycles',
-        'demo complete', '✅', '🎉', '❌', '⚠️',
-        'demo:success', 'demo:error', 'demo:warn',
-        'escrow', 'funding', 'funded', 'refund',
-        // AI agent bidding
-        'agent', '🤖', 'auto-bid', 'auto_bid',
+        'por', 'proof of reserve', 'data feed', 'data feeds',
+        // AI agent
+        'agent', '🤖', 'auto-bid',
+        // Demo lifecycle
+        'demo started', 'demo complete', 'kimi ai agent', 'pre-funding',
+        'pre-funded', '10/10 buyers', 'authorized minter',
+        // Key outcomes
+        '✅', '❌',
+        // Errors worth surfacing
+        'demo:error', 'agent:bid:placed',
     ];
     const NOISE_DENY = [
-        'nonce', 'replacement fee', 'fee-retry', 'replenish',
-        'recycle', 'recycling', 'vault', 'withdraw',
+        'nonce has already', 'replacement fee', 'fee-retry', 'replenish',
+        'recycle', 'recycling',
         'topup', 'top-up', 'top up', 'faucet',
         'usdc balance', 'gas price', 'underpriced',
         'wallet lock', 'lock released', 'retry in',
+        'stranded', 'eth_getlogs', 'pre-run cleanup',
+        'no top-up needed', 'deployer vault', 'active auctions:',
+        'active leads:', 'leads this minute', 'drip in progress',
+        'top-up lead', 'injected (active=', 'waiting for leads',
+        'starting lead drip', 'initial seed complete',
+        'pre-populated', 'platform revenue', 'settlement monitor',
     ];
-    function isJudgeRelevant(entry: DevLogEntry): boolean {
-        // Always show ace:dev-log events (Chainlink service calls)
+    function isOnchainRelevant(entry: DevLogEntry): boolean {
+        // Always show direct Chainlink service events (ace:dev-log, agent:bid:placed)
         if (!entry.action.startsWith('demo:')) return true;
         const text = (String(entry[' '] ?? entry.action)).toLowerCase();
-        if (NOISE_DENY.some(kw => text.includes(kw))) return false;
-        return JUDGE_ALLOW.some(kw => text.includes(kw.toLowerCase()));
+        if (NOISE_DENY.some(kw => text.includes(kw.toLowerCase()))) return false;
+        return ONCHAIN_ALLOW.some(kw => text.includes(kw.toLowerCase()));
     }
-    const filteredEntries = judgeView ? entries.filter(isJudgeRelevant) : entries;
+    const filteredEntries = entries.filter(isOnchainRelevant);
 
     // Toggle shortcut
     useEffect(() => {
@@ -365,7 +380,7 @@ export function DevLogPanel() {
                     justifyContent: 'center',
                     boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
                 }}
-                title="Open Chainlink Services Dev Log (Ctrl+Shift+L)"
+                title="Open On-chain Log (Ctrl+Shift+L)"
             >
                 <Terminal size={18} />
             </button>
@@ -405,27 +420,8 @@ export function DevLogPanel() {
             >
                 <Terminal size={14} style={{ color: '#8b5cf6' }} />
                 <span style={{ color: '#c4b5fd', fontWeight: 700, fontSize: '13px', flex: 1 }}>
-                    Chainlink Services Dev Log
+                    On-chain Log
                 </span>
-                {/* Judge View toggle */}
-                <button
-                    onClick={() => setJudgeView(v => !v)}
-                    title={judgeView ? 'Judge View ON — showing only key events. Click to see full log.' : 'Full Log — showing all events. Click to filter for judges.'}
-                    style={{
-                        background: judgeView ? 'rgba(139,92,246,0.15)' : 'none',
-                        border: `1px solid ${judgeView ? '#8b5cf6' : '#2d2a3e'}`,
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        color: judgeView ? '#c4b5fd' : '#4a4560',
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        padding: '2px 6px',
-                        letterSpacing: '0.05em',
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    {judgeView ? '👁 Judge' : 'Full'}
-                </button>
                 {/* Socket connection status dot + text */}
                 <span
                     style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}
@@ -449,7 +445,7 @@ export function DevLogPanel() {
                     padding: '2px 6px',
                     borderRadius: '4px',
                 }}>
-                    {filteredEntries.length}{judgeView && filteredEntries.length !== entries.length ? `/${entries.length}` : ''}
+                    {filteredEntries.length}
                 </span>
                 <button
                     onClick={copyAll}
@@ -511,9 +507,9 @@ export function DevLogPanel() {
             >
                 {filteredEntries.length === 0 && (
                     <div style={{ color: '#2d2a3e', textAlign: 'center', padding: '40px 16px', fontSize: '12px' }}>
-                        {judgeView && entries.length > 0
-                            ? 'No judge-relevant events yet — bids and settlements will appear here.'
-                            : 'Waiting for Chainlink service events…'}
+                        {entries.length > 0
+                            ? 'No on-chain events match the filter yet — bids and settlements will appear here.'
+                            : 'Waiting for on-chain events…'}
                         <div style={{ marginTop: '8px', fontSize: '10px', color: '#1e1b2e' }}>
                             ACE · CRE · Data Feeds · VRF · Functions
                         </div>
