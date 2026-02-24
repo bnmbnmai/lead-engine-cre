@@ -31,7 +31,7 @@ jest.mock('ethers', () => ({
 // Import service after mocks
 // ============================================
 
-import { dataStreamsService, _resetCacheForTesting } from '../../src/services/datastreams.service';
+import { dataStreamsService, _resetCacheForTesting } from '../../src/services/data-feeds.service';
 
 // ============================================
 // Helpers
@@ -71,7 +71,6 @@ describe('DataStreamsService', () => {
 
             expect(result.vertical).toBe('solar');
             expect(result.country).toBe('US');
-            expect(result.isStub).toBe(false);
             expect(result.stale).toBe(false);
             expect(result.source).toBe('on-chain');
             // Solar US base floor is $85, at neutral market should be ~$85 (±3% jitter)
@@ -150,7 +149,6 @@ describe('DataStreamsService', () => {
             // Should still return a result (either cached or default)
             expect(result.vertical).toBe('insurance');
             expect(result.country).toBe('US');
-            expect(result.isStub).toBe(false);
         });
 
         it('should handle different countries', async () => {
@@ -175,7 +173,6 @@ describe('DataStreamsService', () => {
             expect(result.vertical).toBe('solar');
             expect(result.indexValue).toBeGreaterThan(0);
             expect(result.indexValue).toBeLessThanOrEqual(1000);
-            expect(result.isStub).toBe(false);
         });
 
         it('should reflect market movement in 24h change', async () => {

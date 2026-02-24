@@ -16,6 +16,11 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 
 **✅ Stable encryption key prevents data loss on redeploy** — `PRIVACY_ENCRYPTION_KEY` is now a persistent Render secret (set once in dashboard, never regenerated).
 
+### Test Coverage
+| Suite | Scope | Status |
+|---|---|---|
+| Jest Backend Tests | Unit tests (services, data-feeds, privacy, cre, etc) | ✅ Passing (fixed after confidential service wiring) |
+
 **Biggest strengths:**
 - Six genuine Chainlink service integrations — no synthetics in the hot path
 - 5 deployed + verified contracts on Base Sepolia, independently verifiable

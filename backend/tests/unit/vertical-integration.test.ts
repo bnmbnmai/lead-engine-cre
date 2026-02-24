@@ -28,7 +28,7 @@ jest.mock('../../src/lib/cache', () => ({
     },
 }));
 
-jest.mock('../../src/services/datastreams.service', () => ({
+jest.mock('../../src/services/data-feeds.service', () => ({
     dataStreamsService: {
         getLeadPriceIndex: jest.fn().mockResolvedValue({
             indexValue: 45, change24h: 2.5, volume24h: 12000,

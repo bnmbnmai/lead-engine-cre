@@ -30,6 +30,17 @@ jest.mock('ethers', () => ({
 
 import { prisma } from '../../src/lib/prisma';
 
+jest.mock('../../src/services/confidential.service', () => ({
+    confidentialService: {
+        matchBuyerPreferencesConfidential: jest.fn().mockImplementation(async (buyer, lead) => {
+            if (buyer.vertical !== lead.vertical) return { matches: false };
+            if (buyer.geoStates?.length && !buyer.geoStates.includes(lead.state)) return { matches: false };
+            return { matches: true, score: 8000 };
+        })
+    }
+}));
+
+
 // We need to test the BountyService methods directly.
 // Since the module creates a singleton on import, and we've mocked ethers,
 // the service will be in off-chain mode.
