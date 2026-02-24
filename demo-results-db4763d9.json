@@ -1,0 +1,184 @@
+{
+  "runId": "db4763d9-719d-4a41-abaa-63cf9b453905",
+  "startedAt": "2026-02-24T01:22:12.754Z",
+  "completedAt": "2026-02-24T01:27:30.754Z",
+  "cycles": [
+    {
+      "cycle": 1,
+      "vertical": "mortgage",
+      "buyerWallet": "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad",
+      "buyerWallets": [
+        "0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE",
+        "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad"
+      ],
+      "bidAmount": 21,
+      "lockIds": [
+        462,
+        463
+      ],
+      "winnerLockId": 463,
+      "settleTxHash": "0x1f71dd7dba9060bb4cd3d5000aec2531e1a83ae89a418bf3eaafa522116e5106",
+      "refundTxHashes": [
+        "0x491c53cbc3e56653e68a081e0bd55685ada24ea4e1ce50e362553c9f693994f2"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "230255",
+      "platformIncome": 2.05,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 2,
+      "vertical": "real_estate",
+      "buyerWallet": "0x3a9a41078992734ab24Dfb51761A327eEaac7b3d",
+      "buyerWallets": [
+        "0x3a9a41078992734ab24Dfb51761A327eEaac7b3d",
+        "0x55190CE8A38079d8415A1Ba15d001BC1a52718eC",
+        "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58"
+      ],
+      "bidAmount": 21,
+      "lockIds": [
+        467,
+        469,
+        470
+      ],
+      "winnerLockId": 467,
+      "settleTxHash": "0x523b18ac1bfd251ad26d0192bc3b594f81ad44d9cbbe8ab2de529b1e30fb5989",
+      "refundTxHashes": [
+        "0x90df1256baa0ffd514e3b5c39fda10f35d6032816461c3441195f84743951aa0",
+        "0xc345a5d9a016b8bee7785ed7aba41d7f347bd12a649e1d25b39bd4b4e6a0c296"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "288307",
+      "platformIncome": 2.05,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 3,
+      "vertical": "roofing",
+      "buyerWallet": "0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9",
+      "buyerWallets": [
+        "0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9"
+      ],
+      "bidAmount": 51,
+      "lockIds": [
+        477
+      ],
+      "winnerLockId": 477,
+      "settleTxHash": "0x8aa979d5aff588b4f4192aeecc8659d1c10c7ef09ce78799e8557abfe96cfcb5",
+      "refundTxHashes": [],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "127384",
+      "platformIncome": 3.55,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 4,
+      "vertical": "financial_services",
+      "buyerWallet": "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad",
+      "buyerWallets": [
+        "0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9",
+        "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad"
+      ],
+      "bidAmount": 17,
+      "lockIds": [
+        480,
+        484
+      ],
+      "winnerLockId": 484,
+      "settleTxHash": "0x45e0f8087391e883e4e43636225d48866ce52840ebed99a1844cdda52bd52b18",
+      "refundTxHashes": [
+        "0x021443808e2c29ab9865e14225e5891f2e826d7500aafce3a543d356fd2bbe08"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "213155",
+      "platformIncome": 1.85,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 5,
+      "vertical": "mortgage",
+      "buyerWallet": "0x424CaC929939377f221348af52d4cb1247fE4379",
+      "buyerWallets": [
+        "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58",
+        "0x089B6Bdb4824628c5535acF60aBF80683452e862",
+        "0x55190CE8A38079d8415A1Ba15d001BC1a52718eC",
+        "0x424CaC929939377f221348af52d4cb1247fE4379"
+      ],
+      "bidAmount": 53,
+      "lockIds": [
+        481,
+        482,
+        483,
+        486
+      ],
+      "winnerLockId": 486,
+      "settleTxHash": "0x32fc7ee4e822df85e43b7665ef87e81823aca00189a470249c2b09d079f3ac8e",
+      "refundTxHashes": [
+        "0x932b0153ce9c93df912a12184e84630d8d688115399e380eb71830ece855af13",
+        "0x226885669be076827a24d521fc73cf9d556747ac061fd5363ba0f56bbf990230",
+        "0x2d9fe50710ab52c172ac0838ce88dda4ddeab9768d66f556c62ee0999c32a187"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "384697",
+      "platformIncome": 3.65,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 6,
+      "vertical": "insurance",
+      "buyerWallet": "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad",
+      "buyerWallets": [
+        "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58",
+        "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad"
+      ],
+      "bidAmount": 12,
+      "lockIds": [
+        489,
+        490
+      ],
+      "winnerLockId": 490,
+      "settleTxHash": "0x518beb82df21e24bd4891c11e9a4d5e6c38f92295c6dd7f1587101c84b7d17e0",
+      "refundTxHashes": [
+        "0x02133326ed93f1fb3ab2f43f7b9a77021b2308d30e5da430055d1379d08f734c"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "202536",
+      "platformIncome": 1.6,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 7,
+      "vertical": "real_estate",
+      "buyerWallet": "0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C",
+      "buyerWallets": [
+        "0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C",
+        "0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf"
+      ],
+      "bidAmount": 14,
+      "lockIds": [
+        491,
+        493
+      ],
+      "winnerLockId": 491,
+      "settleTxHash": "0x1f447344e36c0a1e7509c7f04ee78022608b8d1569d820ddca858492ec98e663",
+      "refundTxHashes": [
+        "0x551bc5552260c1aa5bac22d0a6d9989a2d69ef63040064d756602f9bcecb3134"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0x74f43de4350dbf6242e55d91821f7d1109f971d83b5744e1bdf3317fa2f9c7f4",
+      "gasUsed": "213155",
+      "platformIncome": 1.7,
+      "hadTiebreaker": false
+    }
+  ],
+  "totalGas": "1659489",
+  "totalSettled": 189,
+  "status": "completed",
+  "totalPlatformIncome": 16.45
+}

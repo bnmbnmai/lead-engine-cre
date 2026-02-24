@@ -196,9 +196,13 @@ export function scheduleBidsForLead(
                 const totalBids = reg.length;
                 const highestBid = Math.max(...reg.map(r => r.amount));
 
+                const isAgentBid = buyerAddr.toLowerCase() === KIMI_AGENT_WALLET.toLowerCase();
+                const bidLabel = isAgentBid
+                    ? `🤖 Kimi AI bid — ${buyerAddr.slice(0, 10)}… bid $${bidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`
+                    : `✅ Live bid — ${buyerAddr.slice(0, 10)}… bid $${bidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`;
                 emit(io, {
                     ts: new Date().toISOString(), level: 'success',
-                    message: `✅ Live bid — ${buyerAddr.slice(0, 10)}… bid $${bidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`,
+                    message: bidLabel,
                     txHash: receipt.hash,
                     basescanLink: `https://sepolia.basescan.org/tx/${receipt.hash}`,
                 });

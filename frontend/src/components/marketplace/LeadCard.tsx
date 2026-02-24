@@ -334,12 +334,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             </span>
                         </div>
                     )}
-                    {/* 💸 New Bid! flash badge */}
-                    {showNewBidFlash && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
-                            ⬆️ New Bid!
-                        </span>
-                    )}
+
                     {/* Bid count with hover tooltip showing last 3 bids */}
                     <Tooltip content={
                         recentBids.length > 0

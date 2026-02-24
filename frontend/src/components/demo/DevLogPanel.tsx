@@ -301,8 +301,8 @@ export function DevLogPanel() {
     // Hides: internal retry noise, gas management, recycling, nonce errors.
     const ONCHAIN_ALLOW = [
         // Auction & bid activity
-        'live bid', 'bid $', 'bid placed', 'highest bid', 'lock #',
-        'won auction', 'auction won', 'settled', 'settlement',
+        'live bid', 'kimi ai bid', 'bid $', 'bid placed', 'highest bid',
+        'won auction', 'auction won', 'settled', 'settlement', 'settle winner',
         // Chainlink services
         'vrf', 'tiebreak', 'kyc', 'ace', 'cre', 'chainlink',
         'por', 'proof of reserve', 'data feed', 'data feeds',
