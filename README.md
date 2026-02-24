@@ -22,7 +22,7 @@ Built for Chainlink Convergence 2026, it orchestrates six Chainlink services for
 
 ## Privacy & Confidential Computing
 
-Sensitive PII is AES-256-GCM encrypted. CREVerifier uses Confidential HTTP (CHTT) Phase 2 for enclave-based scoring and fraud enrichment. Results are attested and decrypted backend-side. See `PRIVACY_INTEGRATION_AUDIT.md` for details.
+Sensitive PII is AES-256-GCM encrypted (`privacy.service.ts`). CREVerifier uses Confidential HTTP (CHTT) Phase 2 for enclave-based scoring and fraud enrichment. Results are attested and decrypted backend-side. See [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) for the full code path walkthrough (line numbers, encryption details, sealed-bid pattern, Privacy Track qualification).
 
 Implications: GDPR/CCPA compliance scaffolding, with edge cases like reveal-only-to-winner minimizing exposure.
 
@@ -54,7 +54,8 @@ graph TD
 - **AI Agents** — Kimi-powered agent (`0x7be5ce88…`) uses `set_auto_bid_rules` for autonomous bidding; visible via 🤖 logs
 - **Sealed-Bid Auctions** — Commit-reveal privacy, queue registry for sync, VRF tiebreakers
 - **Escrow & Automation** — Atomic settlements, daily PoR, auto-refunds
-- **MCP Tools** — 11 custom tools for agent workflows (search, bid, preferences)
+- **MCP Tools** — 12 custom tools for agent workflows (search, bid, preferences, granular bounties)
+- **Granular Bounties** — On-chain USDC bounty pools matched via Chainlink Functions + stable AES-256-GCM encryption
 - **Real-Time UX** — Socket.IO updates, optimistic pending states, agent badges
 
 > Edge cases handled: ties, low-escrow aborts, nonce contention via gas escalation.
@@ -71,10 +72,13 @@ Six services across the lifecycle:
 | ACE | Policy-protected mint/transfer |
 | Automation | PoR checks + lock refunds |
 | VRF v2.5 | Fair tiebreakers |
-| Functions (ZK) | ZK-proof verification |
+| Functions (Bounty) | Granular bounty criteria matching (BountyMatcher) |
+| Functions (ZK) | ZK-proof verification via CHTT Phase 2 |
 | Data Feeds | Price guards in escrow |
 
-See `CHAINLINK_SERVICES_AUDIT.md` for full audit details.
+See [`CHAINLINK_SERVICES_AUDIT.md`](CHAINLINK_SERVICES_AUDIT.md) for the full service audit table with contract addresses, key functions, backend files, and Basescan links.
+
+See [`mcp-server/README.md`](mcp-server/README.md) for the full 12-tool MCP agent server documentation.
 
 ---
 
@@ -86,7 +90,7 @@ See `CHAINLINK_SERVICES_AUDIT.md` for full audit details.
 | Backend | Express + Prisma + Socket.IO + LangChain |
 | Oracles | Chainlink CRE, ACE, Automation, VRF v2.5, Functions, Data Feeds |
 | Smart Contracts | Solidity + Hardhat (Base Sepolia) |
-| AI Agents | MCP server with 11 tools; Kimi model integration |
+| AI Agents | MCP server with 12 tools; Kimi model integration |
 | Database | Render Postgres |
 
 ---
@@ -97,13 +101,17 @@ Contracts verified on Basescan as of 2026-02-24:
 
 | Contract | Address | Status |
 |---|---|---|
-| PersonalEscrowVault | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | Verified, live activity |
+| PersonalEscrowVault | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | Verified, live activity (1,477 txns) |
 | LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | Verified, ACE attached |
-| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Verified, subscription 3063 |
+| CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Verified, Functions sub 581 |
 | VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | Verified |
+| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | Verified |
 | ACELeadPolicy | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | Verified |
+| BountyMatcher | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | Verified, deployed 2026-02-24 |
 
-Certified run: `db4763d9` (7 cycles, PoR passed). See `onchain-activation-checklist.md`.
+See [`CONTRACTS.md`](CONTRACTS.md) for Basescan links and full audit details.
+
+Certified run: `db4763d9` (7 cycles, PoR passed).
 
 ---
 
