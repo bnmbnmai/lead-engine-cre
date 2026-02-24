@@ -99,6 +99,8 @@ type AuctionEventHandler = {
     'auction:bid:pending': (data: { leadId: string; buyerName: string; amount: number; timestamp: string }) => void;
     // R-07: emitted by demo-lead-drip after initial seed loop completes
     'demo:pre-populated': (data: { leadCount: number; ts: string }) => void;
+    // Kimi AI agent bid event — emitted by RTB engine when auto-bid fires
+    'agent:bid:placed': (data: { leadId: string; buyerWallet: string; amount: number; vertical: string; ts: string }) => void;
 };
 
 
@@ -138,6 +140,8 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     'auction:bid:pending',
     // R-07: marketplace pre-populated signal
     'demo:pre-populated',
+    // Kimi AI agent bid signal
+    'agent:bid:placed',
 ];
 
 
