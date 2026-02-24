@@ -196,7 +196,7 @@ export function scheduleBidsForLead(
                     // TTL covers the auction window + 5 minutes buffer
                     await redisClient.expire(redisKey, 600);
                     const list = await redisClient.lrange(redisKey, 0, -1);
-                    reg = list.map(item => JSON.parse(item));
+                    reg = list.map((item: any) => JSON.parse(item));
                 } else {
                     // Fallback to in-memory if Redis is off
                     if (!leadLockRegistry.has(leadId)) leadLockRegistry.set(leadId, []);
@@ -258,7 +258,7 @@ export async function registerManualBid(leadId: string, lockId: number, addr: st
 
     if (redisClient) {
         const existing = await redisClient.lrange(redisKey, 0, -1);
-        const alreadyRegistered = existing.some(item => JSON.parse(item).lockId === lockId);
+        const alreadyRegistered = existing.some((item: any) => JSON.parse(item).lockId === lockId);
         if (!alreadyRegistered) {
             await redisClient.rpush(redisKey, lockEntry);
             await redisClient.expire(redisKey, 600);
@@ -927,7 +927,7 @@ export async function runFullDemo(
             if (redisClient) {
                 const redisKey = `lead:lock:${demoLeadId}`;
                 const rawBids = await redisClient.lrange(redisKey, 0, -1);
-                registryBids = rawBids.map(item => JSON.parse(item));
+                registryBids = rawBids.map((item: any) => JSON.parse(item));
                 await redisClient.del(redisKey); // clean up after reading
             } else {
                 registryBids = leadLockRegistry.get(demoLeadId) ?? [];

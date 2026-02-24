@@ -7,7 +7,7 @@ const REDIS_URL = process.env.REDIS_URL;
 export const redisClient = REDIS_URL ? new Redis(REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
-    retryStrategy(times) {
+    retryStrategy(times: number) {
         if (times > 10) return null; // Stop after 10 retries
         return Math.min(times * 50, 2000);
     }
@@ -24,7 +24,7 @@ if (redisClient) {
         });
     });
 
-    redisClient.on('error', (err) => {
+    redisClient.on('error', (err: any) => {
         console.error('[Redis] Connection Error:', err);
     });
 } else {

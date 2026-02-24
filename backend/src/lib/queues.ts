@@ -47,7 +47,7 @@ export function initQueues(io: Server) {
     console.log('[BullMQ] Initializing queues and workers...');
 
     // Worker that processes auction closures
-    auctionWorker = new Worker('auction-monitor', async (job) => {
+    auctionWorker = new Worker('auction-monitor', async (job: any) => {
         if (job.name === 'resolve-auctions') {
             await resolveExpiredAuctions(io);
             await resolveExpiredBuyNow(io);
@@ -62,7 +62,7 @@ export function initQueues(io: Server) {
         // Silent success
     });
 
-    auctionWorker.on('failed', (job, err) => {
+    auctionWorker.on('failed', (job: any, err: any) => {
         console.error(`[BullMQ] Auction monitor job failed: ${err.message}`);
         aceDevBus.emit('ace:dev-log', {
             type: 'ERROR',
