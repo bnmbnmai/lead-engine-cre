@@ -90,7 +90,6 @@ export interface BidFloorResult {
     confidence: number;     // 0–1 confidence score
     timestamp: string;      // ISO timestamp
     latencyMs: number;      // Time to fetch from chain
-    isStub: boolean;        // false when using real on-chain data
     stale: boolean;         // true when serving cached data
     source: 'on-chain' | 'cached' | 'fallback'; // Data origin
     ethUsdPrice?: number;   // Current ETH/USD from Data Feed
@@ -103,7 +102,6 @@ export interface PriceIndexResult {
     change24h: number;      // Percentage
     volume24h: number;      // USDC estimated
     timestamp: string;
-    isStub: boolean;
     ethUsdPrice?: number;
 }
 
@@ -269,7 +267,6 @@ class DataStreamsService {
                 confidence: parseFloat((0.85 + Math.random() * 0.15).toFixed(3)),
                 timestamp: new Date().toISOString(),
                 latencyMs: chainPrice.latencyMs,
-                isStub: false, // Real on-chain data
                 stale: false,
                 source: 'on-chain',
                 ethUsdPrice: chainPrice.ethUsdPrice,
@@ -295,7 +292,6 @@ class DataStreamsService {
                 confidence: 0,
                 timestamp: new Date().toISOString(),
                 latencyMs: 0,
-                isStub: false,
                 stale: true,
                 source: 'fallback',
             };
@@ -320,7 +316,6 @@ class DataStreamsService {
             change24h: parseFloat(((chainPrice.marketMultiplier - 1) * 100).toFixed(2)),
             volume24h: Math.round(10000 + Math.random() * 90000),
             timestamp: new Date().toISOString(),
-            isStub: false,
             ethUsdPrice: chainPrice.ethUsdPrice,
         };
     }

@@ -20,6 +20,7 @@ import {
     requestBountyMatch,
     waitForMatchResult,
 } from './functions.service';
+import { confidentialService } from './confidential.service';
 
 // ============================================
 // Types & Schemas
@@ -256,7 +257,31 @@ class BountyService {
                             }, criteriaList);
 
                             if (txHash) {
-                                const functionsResult = await waitForMatchResult(lead.id, 30_000);
+                                let functionsResult = await waitForMatchResult(lead.id, 45_000);
+
+                                if (!functionsResult) {
+                                    console.log(`[Bounty] Retrying Functions match for ${lead.id}...`);
+                                    await requestBountyMatch(lead.id, {
+                                        qualityScore: lead.qualityScore || 0,
+                                        creditScore: lead.parameters?.creditScore || 0,
+                                        geoState: lead.state || '',
+                                        geoCountry: lead.country || '',
+                                        leadAgeHours,
+                                    }, criteriaList);
+                                    functionsResult = await waitForMatchResult(lead.id, 45_000);
+                                }
+
+                                if (!functionsResult) {
+                                    import('./ace.service').then(({ aceDevBus }) => {
+                                        aceDevBus.emit('ace:dev-log', {
+                                            level: 'error',
+                                            message: 'CRE/Functions timeout — using fallback score 5000',
+                                            module: 'Functions',
+                                            context: { leadId: lead.id }
+                                        });
+                                    }).catch(() => { });
+                                }
+
                                 if (functionsResult?.matchFound) {
                                     // Use Functions-attested pool IDs for matching
                                     const verifiedPoolIds = new Set(functionsResult.matchedPoolIds);
@@ -287,12 +312,22 @@ class BountyService {
                     continue; // Skip in-memory matching when Functions is enabled
                 }
 
-                // ── In-Memory Criteria Matching (fallback) ──
+                // ── TEE-Simulated Confidential Matching (fallback) ──
 
-                // Criteria matching engine (AND logic — all criteria must pass)
-                if (criteria.minQualityScore != null && (lead.qualityScore || 0) < criteria.minQualityScore) continue;
-                if (criteria.geoStates?.length && !criteria.geoStates.includes(lead.state || '')) continue;
+                const matchResult = await confidentialService.matchBuyerPreferencesConfidential({
+                    vertical: vertical.slug,
+                    geoStates: criteria.geoStates || [],
+                    maxBid: pool.amount || 0,
+                    requireVerified: (criteria as any).requireVerified || false
+                }, {
+                    vertical: lead.vertical || '',
+                    state: lead.state || '',
+                    verified: !!lead.parameters?.verified,
+                    qualityScore: lead.qualityScore || 0
+                });
+
                 if (criteria.geoCountries?.length && !criteria.geoCountries.includes(lead.country || '')) continue;
+                if (criteria.minQualityScore != null && (lead.qualityScore || 0) < criteria.minQualityScore) continue;
                 if (criteria.minCreditScore != null) {
                     const creditScore = lead.parameters?.creditScore || 0;
                     if (creditScore < criteria.minCreditScore) continue;
@@ -301,6 +336,8 @@ class BountyService {
                     const ageHours = (Date.now() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60);
                     if (ageHours > criteria.maxLeadAge) continue;
                 }
+
+                if (!matchResult.matches) continue;
 
                 matched.push({
                     poolId: pool.poolId || pool.buyerId,

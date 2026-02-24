@@ -18,6 +18,7 @@ import * as path from 'path';
 import { ethers } from 'ethers';
 import { prisma } from '../../lib/prisma';
 import { computeCREQualityScore, type LeadScoringInput } from '../../lib/chainlink/cre-quality-score';
+import { checkVrfSubscriptionBalance } from '../vrf.service';
 import {
     DEMO_SELLER_WALLET,
     DEMO_BUYER_WALLETS,
@@ -502,6 +503,11 @@ export async function runFullDemo(
 
     emit(io, { ts: new Date().toISOString(), level: 'success', message: '=== DEMO STARTED — Socket events are streaming ===' });
     emit(io, { ts: new Date().toISOString(), level: 'info', message: '🚀 Starting production-realistic demo (full 60 s auctions, continuous natural drip)' });
+
+    // VRF Subscription Balance Warning Check
+    try {
+        await checkVrfSubscriptionBalance();
+    } catch { /* non-fatal */ }
 
     try {
         await cleanupLockedFundsForDemoBuyers(io);

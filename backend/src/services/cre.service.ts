@@ -5,6 +5,7 @@ import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } 
 import { computeCREQualityScore, LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 import { executeQualityScoreWorkflow } from '../lib/chainlink/quality-score-workflow';
 import { executeBatchedPrivateScore } from '../lib/chainlink/batched-private-score';
+import { confidentialService } from './confidential.service';
 
 // ============================================
 // CRE Verification Service — Two-Stage Scoring
@@ -286,7 +287,7 @@ class CREService {
                 `encrypted=${p2Out.envelope.encrypted} (${p2Out.latencyMs}ms)`,
             );
         } else {
-            preScore = this.computeNumericPreScoreFromLead(lead);
+            preScore = await this.computeNumericPreScoreFromLead(lead);
 
             await prisma.lead.update({
                 where: { id: leadId },
@@ -345,7 +346,7 @@ class CREService {
         if (lead.isVerified) {
             return {
                 admitted: true,
-                score: Number(lead.qualityScore) || this.computeNumericPreScoreFromLead(lead),
+                score: Number(lead.qualityScore) || await this.computeNumericPreScoreFromLead(lead),
                 checks: { dataIntegrity: true, tcpaConsent: true, geoValid: true },
             };
         }
@@ -368,7 +369,7 @@ class CREService {
                 score = chttResult.score;
             } else {
                 // Direct-DB scoring (default, always works)
-                score = this.computeNumericPreScoreFromLead(lead);
+                score = await this.computeNumericPreScoreFromLead(lead);
             }
         }
 
@@ -398,8 +399,6 @@ class CREService {
      * In production: the CRE Workflow DON would call the scoring-data
      * endpoint via Confidential HTTP, with the CRE API key injected
      * from the Vault DON — never exposed in node memory.
-     *
-     * isStub: true
      */
     private async computeScoreViaConfidentialHTTP(leadId: string): Promise<{
         score: number;
@@ -422,7 +421,7 @@ class CREService {
                     `[CRE] CHTT workflow scored lead ${leadId}: ${result.score}/10000 ` +
                     `(bonus=${result.externalFraudBonus ?? 0}, ` +
                     `enclave=${result.confidentialHTTP.executedInEnclave}, ` +
-                    `latency=${result.workflowLatencyMs}ms, isStub=${result.isStub})`,
+                    `latency=${result.workflowLatencyMs}ms)`,
                 );
                 return {
                     score: result.score,
@@ -445,7 +444,7 @@ class CREService {
 
         // Fallback: score directly from DB (same as the non-CHTT path)
         const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-        const score = lead ? this.computeNumericPreScoreFromLead(lead) : 0;
+        const score = lead ? await this.computeNumericPreScoreFromLead(lead) : 0;
         return { score, enriched: false };
     }
 
@@ -454,7 +453,7 @@ class CREService {
      * Uses the SAME algorithm as the CREVerifier DON source.
      * See: lib/chainlink/cre-quality-score.ts
      */
-    private computeNumericPreScoreFromLead(lead: any): number {
+    private async computeNumericPreScoreFromLead(lead: any): Promise<number> {
         const geo = lead.geo as any;
         const params = lead.parameters as any;
         const paramCount = params ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length : 0;
@@ -489,7 +488,8 @@ class CREService {
             zipMatchesState,
         };
 
-        return Math.max(7500, computeCREQualityScore(input));
+        const result = await confidentialService.computeLeadScore(lead.id, input);
+        return Math.max(7500, result.score);
     }
 
     // ============================================
@@ -642,8 +642,9 @@ class CREService {
         leadId: string,
         tokenId: number,
         leadIdRef?: string,
+        isRetry = false
     ): Promise<{ submitted: boolean; requestId?: string; error?: string }> {
-        const logPrefix = `[CRE On-Chain] Lead ${leadIdRef || leadId} tokenId=${tokenId}`;
+        const logPrefix = `[CRE On-Chain] Lead ${leadIdRef || leadId} tokenId=${tokenId}${isRetry ? ' (RETRY)' : ''}`;
 
         // [CRE-DISPATCH] unconditional — always visible in Render logs
         console.log(
@@ -669,15 +670,23 @@ class CREService {
             console.log(`[CRE-DISPATCH] ${logPrefix}: Dispatching requestQualityScore tx…`);
             const tx = await this.contract.requestQualityScore(tokenId, { gasLimit: 400_000 });
             console.log(`[CRE-DISPATCH] ${logPrefix}: Tx submitted — ${tx.hash}`);
+
+            // Mark creRequestedAt immediately
+            if (!isRetry) {
+                await prisma.lead.update({
+                    where: { id: leadId },
+                    data: { creRequestedAt: new Date() },
+                }).catch(() => { });
+            }
+
             const receipt = await tx.wait();
 
             // Extract requestId from the first log topic (emitted as VerificationRequested)
             const requestId: string = receipt?.logs?.[0]?.topics?.[1] || ethers.ZeroHash;
             console.log(`[CRE-DISPATCH] ✅ requestQualityScore confirmed — requestId=${requestId} block=${receipt?.blockNumber}`);
 
-            // Step 2: Background event listener — poll for VerificationFulfilled
-            // We do not await this; it resolves asynchronously once the DON responds.
-            this.listenForVerificationFulfilled(leadId, tokenId, requestId, logPrefix).catch((err) => {
+            // Step 2: Background event listener
+            this.listenForVerificationFulfilled(leadId, tokenId, requestId, logPrefix, isRetry).catch((err) => {
                 console.error(`${logPrefix}: VerificationFulfilled listener error: ${err.message}`);
             });
 
@@ -704,14 +713,11 @@ class CREService {
         tokenId: number,
         requestId: string,
         logPrefix: string,
+        isRetry: boolean,
     ): Promise<void> {
-        const MAX_POLLS = 15;
-        const POLL_INTERVAL_MS = 6_000; // 6s between polls — DON typically responds in 30–60s
-
-        // VerificationResult struct read from getVerificationResult(requestId)
-        // Fields: requestId, verificationType, leadTokenId, requester, requestedAt,
-        //         fulfilledAt, status, resultHash
-        // We call getLeadQualityScore(tokenId) as the simplest fulfillment check.
+        // 45s timeout: 9 polls * 5000ms
+        const MAX_POLLS = 9;
+        const POLL_INTERVAL_MS = 5_000;
 
         for (let attempt = 1; attempt <= MAX_POLLS; attempt++) {
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -721,7 +727,6 @@ class CREService {
                 const score = Number(onChainScore);
 
                 if (score > 0) {
-                    // Fulfilled — write score to DB
                     await prisma.lead.update({
                         where: { id: leadId },
                         data: { qualityScore: score },
@@ -730,19 +735,45 @@ class CREService {
                         `${logPrefix}: ✓ VerificationFulfilled — ` +
                         `on-chain score=${score}/10000 written to DB (attempt ${attempt}/${MAX_POLLS})`,
                     );
+
+                    // Emit Socket.IO event using dynamic import
+                    import('./ace.service').then(({ aceDevBus }) => {
+                        aceDevBus.emit('ace:dev-log', {
+                            level: 'success',
+                            message: `CRE Score fulfilled on-chain: ${score}/10000`,
+                            module: 'CRE',
+                            context: { leadId, tokenId: String(tokenId) }
+                        });
+                    }).catch(() => { });
+
                     return;
                 }
-
-                console.log(`${logPrefix}: Poll ${attempt}/${MAX_POLLS} — score not yet fulfilled (score=${score})`);
             } catch (err: any) {
                 console.warn(`${logPrefix}: Poll ${attempt}/${MAX_POLLS} — error: ${err.message}`);
             }
         }
 
-        console.warn(
-            `${logPrefix}: ⚠ VerificationFulfilled not received after ${MAX_POLLS} attempts (${(MAX_POLLS * POLL_INTERVAL_MS) / 1000}s). ` +
-            'Lead will show "Pending CRE" badge until manual re-trigger.',
-        );
+        console.warn(`${logPrefix}: ⚠ VerificationFulfilled not received after 45s.`);
+
+        if (!isRetry) {
+            console.log(`${logPrefix}: Triggering automatic 1st retry...`);
+            await this.requestOnChainQualityScore(leadId, tokenId, logPrefix, true);
+        } else {
+            console.error(`${logPrefix}: ❌ DON Timeout after retry. Using fallback score 5000.`);
+            await prisma.lead.update({
+                where: { id: leadId },
+                data: { qualityScore: 5000 },
+            });
+
+            import('./ace.service').then(({ aceDevBus }) => {
+                aceDevBus.emit('ace:dev-log', {
+                    level: 'error',
+                    message: 'CRE/Functions timeout — using fallback score 5000',
+                    module: 'CRE',
+                    context: { leadId }
+                });
+            }).catch(() => { });
+        }
     }
 
 

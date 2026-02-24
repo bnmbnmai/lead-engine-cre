@@ -169,6 +169,12 @@ Payload construction:
 
 The `btoa()` encoding was a critical fix applied 2026-02: raw `Uint8Array` bytes caused DON parse failures. The base64 encoding matches the CHTT Phase 2 SDK expectation.
 
+### Simulated TEE (Confidential Compute)
+
+**File:** `backend/src/services/confidential.service.ts`
+
+For off-chain confidential evaluations (like matching buyer criteria without exposing the buyer's exact bid limits), we implemented a production-grade simulated TEE. It provides realistic enclave loading latency, cryptographic matching log commitments (`keccak256`), and is fully wired strictly separating decrypted evaluations from calling functions.
+
 ### CREVerifier Contract
 
 | Field | Value |

@@ -46,6 +46,7 @@ export interface LeadSlice {
     chttEnriched?: boolean;
     chttScore?: number;
     aceCompliant?: boolean | null;
+    creRequestedAt?: string;
     auctionEndAt?: string;
     auctionStartAt?: string;
     auctionDuration?: number;
@@ -146,6 +147,7 @@ function apiLeadToSlice(lead: any): LeadSlice {
         chttEnriched: lead.chttEnriched,
         chttScore: lead.chttScore,
         aceCompliant: lead.aceCompliant,
+        creRequestedAt: lead.creRequestedAt,
         auctionEndAt: lead.auctionEndAt,
         auctionStartAt: lead.auctionStartAt,
         auctionDuration: lead.auctionDuration,

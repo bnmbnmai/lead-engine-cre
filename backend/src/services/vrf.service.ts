@@ -43,6 +43,47 @@ export function isVrfConfigured(): boolean {
     return !!(VRF_TIE_BREAKER_ADDRESS && DEPLOYER_KEY);
 }
 
+const VRF_COORDINATOR_ADDRESS = '0x5C210eF41CD1a72de73bF76eC39637bB0d3d4BEE';
+const VRF_COORDINATOR_ABI = [
+    'function getSubscription(uint256 subId) external view returns (uint96 balance, uint96 nativeBalance, uint64 reqCount, address owner, address[] consumers)'
+];
+
+/**
+ * Check the VRF subscription balance and log/emit a warning if it is below 1 LINK.
+ */
+export async function checkVrfSubscriptionBalance(): Promise<void> {
+    const subIdStr = process.env.VRF_SUBSCRIPTION_ID;
+    if (!subIdStr || !isVrfConfigured()) return;
+
+    try {
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const contract = new ethers.Contract(VRF_COORDINATOR_ADDRESS, VRF_COORDINATOR_ABI, provider);
+        const result = await contract.getSubscription(BigInt(subIdStr));
+
+        const balance = result[0]; // balance is the first returned value (LINK balance)
+        const oneLink = BigInt('1000000000000000000');
+
+        if (balance < oneLink) {
+            const formattedBalance = ethers.formatEther(balance);
+            const msg = `⚠ VRF Subscription (${subIdStr.slice(0, 6)}...) balance is low: ${formattedBalance} LINK. Tie-breaks may fail!`;
+            console.warn(`[VRF] ${msg}`);
+
+            import('./ace.service').then(({ aceDevBus }) => {
+                aceDevBus.emit('ace:dev-log', {
+                    level: 'warn',
+                    message: msg,
+                    module: 'VRF',
+                    context: { subId: subIdStr }
+                });
+            }).catch(() => { });
+        } else {
+            console.log(`[VRF] Subscription balance is healthy: ${ethers.formatEther(balance)} LINK`);
+        }
+    } catch (err: any) {
+        console.error(`[VRF] checkVrfSubscriptionBalance failed:`, err.message);
+    }
+}
+
 /**
  * Request VRF tie-break for a lead.
  *

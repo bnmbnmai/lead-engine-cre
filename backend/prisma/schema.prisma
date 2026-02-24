@@ -523,6 +523,7 @@ model Lead {
   consentProof    String?     // IPFS hash or on-chain reference
   isVerified      Boolean     @default(false)
   qualityScore    Int?        // CRE quality score (0-10000), computed by CREVerifier at creation
+  creRequestedAt  DateTime?   // Timestamp when CRE on-chain quality score was requested
   
   // Timestamps
   createdAt       DateTime    @default(now())

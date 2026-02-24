@@ -24,6 +24,7 @@ interface Lead {
     chttScore?: number;
     /** True when ACECompliance.isCompliant() returned true for this lead's seller/minter. */
     aceCompliant?: boolean | null;
+    creRequestedAt?: string;
     auctionEndAt?: string;
     auctionStartAt?: string;
     auctionDuration?: number;
@@ -261,6 +262,13 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                     <Shield className="h-3 w-3" />
                                     CRE {Math.floor(lead.qualityScore / 100)}/100
                                     {lead.chttEnriched && <span className="ml-0.5 opacity-75">🔒</span>}
+                                </span>
+                            </Tooltip>
+                        ) : (lead.creRequestedAt && Date.now() - new Date(lead.creRequestedAt).getTime() > 2 * 60 * 1000) ? (
+                            <Tooltip content="Quality score pending from Chainlink DON">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-amber-500/15 text-amber-400 border-amber-500/30 cursor-help">
+                                    <span className="animate-pulse">⏳</span>
+                                    CRE Pending
                                 </span>
                             </Tooltip>
                         ) : (
