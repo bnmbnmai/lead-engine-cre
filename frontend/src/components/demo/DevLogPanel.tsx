@@ -35,6 +35,9 @@ const BASESCAN_ADDR_URL = 'https://sepolia.basescan.org/address/';
 // Color-code actions by Chainlink service
 function getActionColor(action: string): string {
     const a = action.toLowerCase();
+    // AI Agent bids — vivid orange so they stand out immediately
+    if (a.includes('agent:bid') || a.includes('agent_bid') || a.includes('agent:placed'))
+        return '#fb923c'; // Agent — orange
     if (a.includes('verifyk') || a.includes('cantransact') || a.includes('verticalpolic') || a.includes('setvertical'))
         return '#f59e0b'; // ACE — amber
     if (a.includes('cre') || a.includes('quality') || a.includes('zkproof'))
@@ -66,6 +69,9 @@ function getActionColor(action: string): string {
 // Service badge for each log line
 function getServiceBadge(action: string): { label: string; color: string } | null {
     const a = action.toLowerCase();
+    // AI Agent bids — check before other patterns
+    if (a.includes('agent:bid') || a.includes('agent_bid') || a.includes('agent:placed'))
+        return { label: '🤖 Agent', color: '#fb923c' };
     if (a.includes('verifyk') || a.includes('cantransact') || a.includes('verticalpolic') || a.includes('setvertical'))
         return { label: 'ACE', color: '#f59e0b' };
     if (a.includes('cre') || a.includes('quality') || a.includes('zkproof'))
@@ -239,6 +245,23 @@ export function DevLogPanel() {
         };
         socketClient.on('demo:complete', completeHandler);
 
+        // agent:bid:placed — direct socket event emitted by rtb/engine.ts after auto-bids fire.
+        // Also captured via ace:dev-log above, but this listener ensures visibility even if
+        // the aceDevBus path is delayed (e.g. during high-concurrency settlement).
+        const agentBidHandler = (data: any) => {
+            setSocketStatus('connected');
+            const entry: DevLogEntry = {
+                ts: data.ts ? new Date(data.ts).toISOString() : new Date().toISOString(),
+                action: 'agent:bid:placed',
+                ' ': data.message || `🤖 AI agent bid $${data.amount} on ${data.vertical || 'lead'} lead`,
+                ...(data.leadId ? { lead: data.leadId.slice(0, 8) } : {}),
+                ...(data.amount != null ? { amt: `$${data.amount}` } : {}),
+                ...(data.vertical ? { vert: data.vertical } : {}),
+            };
+            setEntries(prev => addCapped(prev, entry));
+        };
+        socketClient.on('agent:bid:placed', agentBidHandler);
+
         return () => {
             sock.off('connect', onConnect);
             sock.off('disconnect', onDisconnect);
@@ -247,6 +270,7 @@ export function DevLogPanel() {
             socketClient.off('ace:dev-log', handler);
             socketClient.off('demo:log', demoHandler);
             socketClient.off('demo:complete', completeHandler);
+            socketClient.off('agent:bid:placed', agentBidHandler);
         };
     }, []);
 
@@ -281,6 +305,8 @@ export function DevLogPanel() {
         'demo complete', '✅', '🎉', '❌', '⚠️',
         'demo:success', 'demo:error', 'demo:warn',
         'escrow', 'funding', 'funded', 'refund',
+        // AI agent bidding
+        'agent', '🤖', 'auto-bid', 'auto_bid',
     ];
     const NOISE_DENY = [
         'nonce', 'replacement fee', 'fee-retry', 'replenish',

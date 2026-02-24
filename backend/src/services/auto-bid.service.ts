@@ -18,6 +18,7 @@ import { prisma } from '../lib/prisma';
 import { ethers } from 'ethers';
 import { evaluateFieldFilters, FieldFilterRule } from './field-filter.service';
 import { dataStreamsService } from './datastreams.service';
+import { aceDevBus } from './ace.service';
 
 // ============================================
 // On-chain config for USDC allowance checks
@@ -324,6 +325,22 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                 preferenceSetId: setId,
                 amount: bidAmount,
                 reason: `Auto-bid: ${prefSet.label} → $${bidAmount}`,
+            });
+
+            // ── Surface agent activity in the frontend dev log ──
+            aceDevBus.emit('ace:dev-log', {
+                ts: new Date().toISOString(),
+                action: 'agent:bid:placed',
+                leadId: lead.id,
+                buyerId,
+                preferenceSetId: setId,
+                vertical: lead.vertical,
+                amount: bidAmount,
+                floorAdjusted,
+                floorPrice,
+                ruleLabel: prefSet.label,
+                vaultLockId: vaultLockId ?? null,
+                message: `🤖 AI agent bid $${bidAmount} on ${lead.vertical} lead (rule: ${prefSet.label})`,
             });
         } catch (err: any) {
             result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Bid creation failed: ${err.message}` });

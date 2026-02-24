@@ -1953,4 +1953,95 @@ router.post('/fund-eth', authMiddleware, requireAdmin, async (_req: Request, res
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/demo/seed-agent
+// One-shot: upserts the Kimi AI agent's User, BuyerProfile, EscrowVault, and
+// Session. Returns the session token to use as API_KEY in mcp-server/.env.
+// Protected by a simple header check (DEPLOYER_PRIVATE_KEY prefix).
+// Safe to re-run — all operations are idempotent upserts.
+// ─────────────────────────────────────────────────────────────────────────────
+const KIMI_AGENT_WALLET_ADDR = '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad'; // Wallet 10 — already funded
+
+router.post('/seed-agent', async (req: Request, res: Response) => {
+    // Lightweight admin check — require a header that only the deployer knows
+    const expectedKey = (process.env.DEPLOYER_PRIVATE_KEY || '').slice(0, 16);
+    const provided = req.headers['x-demo-admin-key'] as string | undefined;
+    if (!expectedKey || !provided || provided !== expectedKey) {
+        res.status(401).json({ error: 'Unauthorized — provide X-Demo-Admin-Key header' });
+        return;
+    }
+
+    try {
+        const { randomBytes } = await import('crypto');
+
+        // 1 — Upsert User
+        const user = await prisma.user.upsert({
+            where: { walletAddress: KIMI_AGENT_WALLET_ADDR },
+            update: { role: 'BUYER' },
+            create: {
+                walletAddress: KIMI_AGENT_WALLET_ADDR,
+                role: 'BUYER',
+                email: 'kimi-agent@lead-engine.internal',
+            },
+        });
+
+        // 2 — Upsert BuyerProfile
+        const profile = await prisma.buyerProfile.upsert({
+            where: { userId: user.id },
+            update: { kycStatus: 'VERIFIED', companyName: 'Kimi AI Agent' },
+            create: {
+                userId: user.id,
+                companyName: 'Kimi AI Agent',
+                verticals: [],
+                kycStatus: 'VERIFIED',
+                kycVerifiedAt: new Date(),
+            },
+        });
+
+        // 3 — Upsert EscrowVault
+        await prisma.escrowVault.upsert({
+            where: { userId: user.id },
+            update: {},
+            create: { userId: user.id },
+        });
+
+        // 4 — Create a 1-year session token
+        const token = randomBytes(48).toString('hex');
+        const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        const session = await prisma.session.create({
+            data: {
+                userId: user.id,
+                token,
+                expiresAt,
+                userAgent: 'Kimi-MCP-Agent/1.0',
+                ipAddress: '127.0.0.1',
+            },
+        });
+
+        console.log(`[DEMO] /seed-agent: Kimi agent account seeded — userId=${user.id}`);
+
+        res.json({
+            ok: true,
+            userId: user.id,
+            buyerProfileId: profile.id,
+            sessionId: session.id,
+            sessionToken: token,           // → mcp-server/.env  API_KEY=<this>
+            walletAddress: KIMI_AGENT_WALLET_ADDR,
+            expiresAt: expiresAt.toISOString(),
+            envLine: [
+                `# mcp-server/.env`,
+                `API_KEY=${token}`,
+                ``,
+                `# backend/.env`,
+                `KIMI_AGENT_WALLET=${KIMI_AGENT_WALLET_ADDR}`,
+                `KIMI_AGENT_USER_ID=${user.id}`,
+                `KIMI_AGENT_BUYER_PROFILE_ID=${profile.id}`,
+            ].join('\n'),
+        });
+    } catch (err: any) {
+        console.error('[DEMO] /seed-agent error:', err);
+        res.status(500).json({ error: 'Seed failed', details: err.message });
+    }
+});
+
 export default router;

@@ -8,6 +8,7 @@ import { join } from 'path';
 import swaggerUi from 'swagger-ui-express';
 import { prisma } from './lib/prisma';
 import RTBSocketServer from './rtb/socket';
+import { rtbEngine } from './rtb/engine';
 import { startQuarterlyResetCron } from './services/quarterly-reset.service';
 import { resolveExpiredAuctions } from './services/auction-closure.service';
 import { startVaultReconciliationJob } from './services/vault-reconciliation.service';
@@ -72,6 +73,7 @@ const PORT = process.env.PORT || 3001;
 // Initialize Socket.IO
 const socketServer = new RTBSocketServer(httpServer);
 app.set('io', socketServer.getIO());  // Expose to Express routes via req.app.get('io')
+rtbEngine.io = socketServer.getIO();  // Give RTB engine socket access for agent:bid:placed broadcasts
 
 // Security middleware
 app.use(helmet({

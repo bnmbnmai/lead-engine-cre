@@ -80,6 +80,7 @@ import {
 } from './demo-vault-cycle';
 import { nftService } from '../nft.service';
 import { creService } from '../cre.service';
+import { ensureKimiAgentRules, KIMI_AGENT_WALLET } from './demo-agent-rules';
 
 // Re-export types for external consumers
 export type { DemoLogEntry, CycleResult, DemoResult };
@@ -458,6 +459,18 @@ export async function runFullDemo(
 
     await checkDeployerUSDCReserve(io);
     if (!isRunning) return {} as DemoResult;
+
+    // ── Kimi Agent: bootstrap auto-bid rules before drip starts ──────────────
+    // Idempotent: upserts pref sets for all demo verticals so the auto-bid engine
+    // immediately fires on behalf of the agent when leads appear.
+    const agentProfileId = await ensureKimiAgentRules();
+    emit(io, {
+        ts: new Date().toISOString(),
+        level: agentProfileId ? 'step' : 'warn',
+        message: agentProfileId
+            ? `🤖 Kimi AI agent active — wallet ${KIMI_AGENT_WALLET.slice(0, 10)}… | auto-bid rules live`
+            : '⚠️  Kimi agent account not found — run seed-agent-buyer.ts to enable agent bidding',
+    });
 
     const runId = uuidv4();
     const startedAt = new Date().toISOString();

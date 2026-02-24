@@ -4,6 +4,7 @@ import { creService } from '../services/cre.service';
 import { applyHolderPerks, HOLDER_EARLY_PING_SECONDS, HOLDER_SCORE_BONUS } from '../services/holder-perks.service';
 import { evaluateLeadForAutoBid } from '../services/auto-bid.service';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
+import { Server as SocketServer } from 'socket.io';
 
 // ============================================
 // RTB Engine
@@ -17,6 +18,8 @@ interface MatchResult {
 }
 
 class RTBEngine {
+    /** Injected at startup so the engine can broadcast socket events. */
+    io?: SocketServer;
     // ============================================
     // Lead Intake Processing (Sealed-Bid Auction Flow)
     // ============================================
@@ -305,6 +308,31 @@ class RTBEngine {
 
                 if (autoBidResult.bidsPlaced.length > 0) {
                     console.log(`[RTB] Auto-bid placed ${autoBidResult.bidsPlaced.length} bids for lead ${leadId}`);
+
+                    // ── Broadcast agent bid activity to connected clients ──
+                    // Fetch current bid count so the marketplace card updates live.
+                    try {
+                        const bidCount = await prisma.bid.count({ where: { leadId, status: { in: ['PENDING', 'REVEALED'] } } });
+                        if (this.io) {
+                            // Update the marketplace card bid counter
+                            this.io.emit('marketplace:bid:update', { leadId, bidCount });
+                            // Surface each agent bid as a visible moment in the UI
+                            for (const bid of autoBidResult.bidsPlaced) {
+                                this.io.emit('agent:bid:placed', {
+                                    leadId,
+                                    buyerId: bid.buyerId,
+                                    amount: bid.amount,
+                                    vertical: lead.vertical,
+                                    ruleLabel: bid.reason,
+                                    ts: Date.now(),
+                                    message: `🤖 AI agent bid $${bid.amount} on ${lead.vertical} lead`,
+                                });
+                            }
+                        }
+                    } catch (emitErr) {
+                        // Non-blocking: failed socket emit should never fail the bid
+                        console.warn('[RTB] Failed to emit agent bid events:', emitErr);
+                    }
                 }
             } catch (err) {
                 console.error(`[RTB] Auto-bid evaluation failed for lead ${leadId}:`, err);

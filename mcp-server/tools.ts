@@ -31,6 +31,7 @@ export const TOOLS: ToolDefinition[] = [
         handler: '/api/v1/asks',
         method: 'GET',
     },
+    // Expects base64-encoded string "amount:salt" so platform can auto-reveal at auction close.
     {
         name: 'place_bid',
         description: 'Place a sealed bid on a lead. Submit a commitment hash (keccak256 of amount + salt). Reveal after the bidding phase ends.',
