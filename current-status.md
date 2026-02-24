@@ -8,11 +8,13 @@
 
 ## 1. Executive Summary
 
-**Overall Health Score: 9.1 / 10** *(up from 8.7 after deploying BountyMatcher + Chainlink Functions granular bounties integration)*
+**Overall Health Score: 9.3 / 10** *(up from 9.1 after PRIVACY_ENCRYPTION_KEY stability fix — stable encryption key prevents data loss on redeploy)*
 
 Lead Engine CRE is the most technically sophisticated lead-marketplace project in the hackathon field. The on-chain foundation is real, verifiable, and multi-service. The frontend quality is institutional-grade. The demo orchestrator is battle-tested with a certified 7-cycle run producing 16 real Basescan transactions. The queue-based auction sync is a clean, well-reasoned architecture.
 
-**✅ 100% source-verified contracts on Base Sepolia** — all 6 deployed contracts show "Contract Source Code Verified (Exact Match)" on Basescan, confirmed 2026-02-24.
+**✅ 100% source-verified contracts on Base Sepolia** — all 7 deployed contracts show "Contract Source Code Verified (Exact Match)" on Basescan, confirmed 2026-02-24.
+
+**✅ Stable encryption key prevents data loss on redeploy** — `PRIVACY_ENCRYPTION_KEY` is now a persistent Render secret (set once in dashboard, never regenerated).
 
 **Biggest strengths:**
 - Six genuine Chainlink service integrations — no synthetics in the hot path
@@ -30,6 +32,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 - ~~`docs/SUBMISSION_FORM.md` wrong deadline / stale data~~ ✅ Fixed
 - ~~README broken internal links~~ ✅ Fixed
 - ~~PersonalEscrowVault not yet source-verified~~ ✅ Fixed (already verified; all 6 contracts green)
+- ~~`render.yaml` used `generateValue: true` for `PRIVACY_ENCRYPTION_KEY`, regenerating the key on every redeploy — silently corrupting all encrypted PII~~ ✅ Fixed — now `sync: false`, set once in Render dashboard
 - **Demo video** not yet recorded — required for submission per `docs/LOOM_SCRIPT.md`
 - `confidential.service.ts` is a stub (`isStub: true`) — simulated TEE latency only; real Chainlink CC SDK not integrated
 

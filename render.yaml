@@ -58,8 +58,14 @@ services:
         sync: false
       - key: MARKETPLACE_ADDRESS
         sync: false
+      # ── PRIVACY_ENCRYPTION_KEY ────────────────────────────────────────────
+      # CRITICAL: Do NOT use generateValue:true — that regenerates the key on
+      # every new deploy, silently making all previously encrypted PII unreadable.
+      # Set this ONCE manually in the Render dashboard (Environment → Add Variable)
+      # using a 64-char hex string: openssl rand -hex 32
+      # It will persist across all future deploys.
       - key: PRIVACY_ENCRYPTION_KEY
-        generateValue: true
+        sync: false
       # ── Granular Bounties (Chainlink Functions) ───────────────────────────
       # BountyMatcher deployed 2026-02-24, verified on Basescan
       - key: BOUNTY_MATCHER_ADDRESS
