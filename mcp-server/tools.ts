@@ -208,6 +208,20 @@ export const TOOLS: ToolDefinition[] = [
         handler: '/api/v1/verticals/suggest',
         method: 'POST',
     },
+    {
+        name: 'query_open_granular_bounties',
+        description: 'Query active USDC bounty pools for a vertical. Returns total available bounty, pool count, and per-pool criteria (min quality score, geo states, min credit score, max lead age). Use this before placing a bid to estimate bonus revenue on top of the winning bid. Bounty matching is verified on-chain via Chainlink Functions (BountyMatcher contract).',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                vertical: { type: 'string', description: 'Lead vertical slug (solar, mortgage, roofing, etc.). Omit to get all verticals with active bounties.' },
+                state: { type: 'string', description: 'Optional 2-letter US state filter (e.g., CA, FL). Returns only pools that accept this state.' },
+                minScore: { type: 'number', description: 'Optional minimum quality score (0–10000). Returns only pools whose minQualityScore is ≤ this value, i.e. pools the lead can match.' },
+            },
+        },
+        handler: '/api/v1/bounties/available',
+        method: 'GET',
+    },
 ];
 
 // Build a lookup map

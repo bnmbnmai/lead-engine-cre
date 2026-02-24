@@ -15,8 +15,9 @@
 | **VRFTieBreaker** | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View ↗](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | ✅ Exact Match | VRF v2.5 (requestRandomWords; winner = randomWord % candidates.length) | 3 |
 | **ACECompliance** | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View ↗](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ✅ Exact Match | ACE (isCompliant, KYC/geo/reputation policy registry) | 66 |
 | **ACELeadPolicy** | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View ↗](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ✅ Exact Match | ACE (lead-specific policy rules; enforced by LeadNFTv2 mintLead) | 0 |
+| **BountyMatcher** | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View ↗](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ✅ Exact Match | Functions (granular bounty criteria matching in DON; fulfillRequest stores MatchResult) | 0 |
 
-**6 of 6 deployed contracts source-verified on Basescan. Zero pending.**
+**7 of 7 deployed contracts source-verified on Basescan. Zero pending.**
 
 ---
 

@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-**Overall Health Score: 8.7 / 10** *(up from 8.4 after confirming 100% source-verified contracts)*
+**Overall Health Score: 9.1 / 10** *(up from 8.7 after deploying BountyMatcher + Chainlink Functions granular bounties integration)*
 
 Lead Engine CRE is the most technically sophisticated lead-marketplace project in the hackathon field. The on-chain foundation is real, verifiable, and multi-service. The frontend quality is institutional-grade. The demo orchestrator is battle-tested with a certified 7-cycle run producing 16 real Basescan transactions. The queue-based auction sync is a clean, well-reasoned architecture.
 
@@ -46,7 +46,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 | **vault.balanceOf fix** | Optimistic pending state prevents flash-to-$0 display after deposit, reconciled on next heartbeat | `backend/src/services/vault-reconciliation.service.ts` |
 | **Demo orchestrator** | Startup self-heal (`setAuthorizedMinter`), BuyItNow fallback guaranteeing CRE dispatch, autonomous buyer profiles per vertical | `backend/src/services/demo/demo-orchestrator.ts` (71 KB) |
 | **Certified demo run** | Run `db4763d9` — 7 cycles, $189 settled, $16.45 income, all 7 PoR checks passed, 16 real Basescan tx hashes | `demo-results-db4763d9.json` |
-| **On-chain contracts** | 5 deployed + Basescan-verified on Base Sepolia | `CREVerifier`, `LeadNFTv2`, `PersonalEscrowVault`, `VRFTieBreaker`, `ACELeadPolicy` |
+| **On-chain contracts** | **7** deployed + Basescan-verified on Base Sepolia (now including BountyMatcher) | `CREVerifier`, `LeadNFTv2`, `PersonalEscrowVault`, `VRFTieBreaker`, `ACELeadPolicy`, `ACECompliance`, `BountyMatcher` |
 | **AES-256-GCM PII** | Real encryption at-rest, key-per-lead, zero raw PII on-chain, TCPA consent gate | `backend/src/services/piiProtection.ts`, `privacy.service.ts` |
 | **CHTT Phase 2 pattern** | `SubtleCrypto`-encrypted DON requests, enclave key at slot 0, `btoa()` fix applied | `contracts/functions-source/`, `backend/src/lib/chainlink/batched-private-score.ts` |
 | **VRF tiebreaker** | `VRFConsumerBaseV2Plus`, real subscription ID, `fulfillRandomWords` winner selection | `contracts/contracts/VRFTieBreaker.sol` |
@@ -55,7 +55,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 | **Auction closure UX** | Instant grayscale → 2.5s fade-out → DOM removal, amber closing-ring (no intrusive banners), sealed 🔒 overlay | `frontend/src/components/LeadCard.tsx` |
 | **README** | Clean, current, accurate mermaid diagrams, correct contract addresses, 6 Chainlink services table | `README.md` |
 | **CI** | 4-job matrix: Lint, Jest, Hardhat, Artillery (advisory). Concurrency cancel-in-progress. Secrets safe. | `.github/workflows/test.yml` |
-| **MCP server** | 11 tools for agent workflows (search, bid, `set_auto_bid_rules`, etc.), LangChain integration | `mcp-server/tools.ts` |
+| **MCP server** | **12 tools** for agent workflows (search, bid, `set_auto_bid_rules`, `query_open_granular_bounties`, etc.), LangChain integration | `mcp-server/tools.ts` |
 | **Swagger docs** | 24 KB full API documentation accessible at `/api/swagger` | `backend/swagger.yaml` |
 
 ---
@@ -93,7 +93,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 | L3 | `docs/README_AUDIT.md` — an internal audit doc committed publicly | `docs/README_AUDIT.md` | Move to gitignore or delete (content is superseded by this file) |
 | L4 | Root `package.json` only orchestrates workspaces; `package-lock.json` is 1.4 MB — bloats repo size and slows CI installs | root `package-lock.json` | Add `package-lock.json` to root-level gitignore, or rely on workspace-level locks |
 | L5 | `docs/AB_TEST_PLAN.md` and `docs/BETA_PLAYBOOK.md` are pre-launch planning docs — not relevant to hackathon judges | `docs/` | Move to gitignore or a `/private` folder |
-| L6 | `contracts/contracts/BountyMatcher.sol`, `VerticalAuction.sol`, `VerticalBountyPool.sol`, `VerticalNFT.sol` — large contracts (10-14 KB each) that are not among the 5 deployed contracts. May confuse code reviewers. | `contracts/contracts/` | Add a `CONTRACTS.md` explaining which contracts are deployed vs reference/future |
+| ~~L6~~ | ~~BountyMatcher.sol confusion — deployed vs reference contracts~~ | ✔️ Resolved — `BountyMatcher` deployed 2026-02-24 (`0x897f8CCa...`), Basescan-verified, `CONTRACTS.md` explains all contracts |
 | L7 | VRF subscription ID in `final-submission-certification.md` is a very long number (113264743…) — may be worth verifying it's still active | `final-submission-certification.md` | Verify via Chainlink VRF dashboard |
 
 ---
@@ -275,6 +275,50 @@ See `CONTRACTS.md` for Basescan links, Chainlink usage, and redeployment guide.
 
 ---
 
+## ✅ Granular Bounties Live via Chainlink Functions
+
+**Deployed 2026-02-24 — fully integrated end-to-end.**
+
+### BountyMatcher Contract
+| Field | Value |
+|---|---|
+| Address | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` |
+| Basescan | [View ↗](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D#code) |
+| Verification | ✅ Source code verified (Exact Match) |
+| Functions Router | `0xf9B8fc078197181C841c296C876945aaa425B278` |
+| Subscription | `581` (shared with CREVerifier) |
+
+### Criteria Supported
+| Criterion | Logic |
+|---|---|
+| `minQualityScore` | CRE score ≥ threshold (0–10000 range) |
+| `geoStates` | Lead US state in allowlist |
+| `geoCountries` | Lead country in allowlist |
+| `minCreditScore` | Credit score ≥ threshold (300–850 range) |
+| `maxLeadAge` | Lead created within N hours |
+
+### Architecture Summary
+1. Buyer deposits USDC via `POST /api/v1/bounties/deposit` → `VerticalBountyPool.depositBounty()`
+2. Lead wins auction → `bountyService.matchBounties()` fires
+3. `BOUNTY_FUNCTIONS_ENABLED=true` → `functions.service.requestBountyMatch()` → `BountyMatcher.requestBountyMatch()`
+4. Chainlink DON executes JS matching logic, writes `MatchResult` on-chain
+5. 30s polling loop reads `getMatchStatus()` → returns `matchedPoolIds[]`
+6. VRF tiebreaker fires if 2+ pools tie on amount
+7. Stacking cap (max 2× winning bid) applied
+8. `VerticalBountyPool.releaseBounty()` called per matched pool → seller receives bonus
+
+Fallback: in-memory criteria matching when Functions unavailable or timeout.
+
+### New API Endpoint
+`GET /api/v1/bounties/available?vertical=solar&state=CA&minScore=7000` → returns available bounty pools + criteria for sellers and agents.
+
+### New MCP Tool
+`query_open_granular_bounties` (#12) — agents use this pre-bid to factor bounty revenue into bid strategy.
+
+See `docs/GRANULAR_BOUNTIES.md` for full architecture diagram and code paths.
+
+---
+
 ## Appendix: Deployed Contracts (Authoritative)
 
 | Contract | Address | Basescan |
@@ -285,5 +329,6 @@ See `CONTRACTS.md` for Basescan links, Chainlink usage, and redeployment guide.
 | VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) ✅ |
 | ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) ✅ |
 | ACELeadPolicy | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) ✅ |
+| **BountyMatcher** | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) ✅ |
 
-*Source of truth: `final-submission-certification.md` (verified 2026-02-22) + live Basescan audit 2026-02-24.*
+*Source of truth: `CONTRACTS.md` — all 7 contracts source-verified on Basescan, 2026-02-24.*

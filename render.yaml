@@ -60,3 +60,14 @@ services:
         sync: false
       - key: PRIVACY_ENCRYPTION_KEY
         generateValue: true
+      # ── Granular Bounties (Chainlink Functions) ───────────────────────────
+      # BountyMatcher deployed 2026-02-24, verified on Basescan
+      - key: BOUNTY_MATCHER_ADDRESS
+        value: "0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D"
+      - key: BOUNTY_FUNCTIONS_ENABLED
+        value: "true"
+      - key: BOUNTY_POOL_ADDRESS
+        sync: false
+      # Functions subscription: 581 (shared with CREVerifier)
+      - key: FUNCTIONS_SUBSCRIPTION_ID
+        value: "581"
