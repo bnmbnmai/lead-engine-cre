@@ -13,7 +13,8 @@ export const bidQueue = connection
         add: async (name: string, data: any) => {
             console.warn('[BullMQ] Running in memory mode: bid-processing skipped to direct-call equivalent if implemented');
             return null;
-        }
+        },
+        close: async () => null
     };
 
 // 2. Auction Monitor Queue
@@ -21,7 +22,8 @@ export const auctionQueue = connection
     ? new Queue('auction-monitor', { connection })
     : {
         add: async () => null,
-        addBulk: async () => null
+        addBulk: async () => null,
+        close: async () => null
     };
 
 let auctionWorker: Worker | null = null;
@@ -88,9 +90,7 @@ export function initQueues(io: Server) {
 export async function closeQueues() {
     if (auctionWorker) await auctionWorker.close();
     if (connection) {
-        // @ts-ignore
         await auctionQueue.close();
-        // @ts-ignore
         await bidQueue.close();
     }
 }

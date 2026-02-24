@@ -158,7 +158,6 @@ class NFTService {
                 // Mint with dynamic gas + up to 4 retries (+4 gwei each) to avoid
                 // "replacement fee too low" on Base Sepolia during consecutive runs.
                 let tx: any;
-                let lastMintErr: any;
                 const feeData = await this.provider.getFeeData().catch(() => null);
                 const baseMaxFee = feeData?.maxFeePerGas ?? ethers.parseUnits('15', 'gwei');
                 for (let attempt = 0; attempt < 4; attempt++) {
@@ -179,7 +178,6 @@ class NFTService {
                         );
                         break; // success
                     } catch (retryErr: any) {
-                        lastMintErr = retryErr;
                         const isReplacement = retryErr?.message?.includes('replacement fee too low') ||
                             retryErr?.code === 'REPLACEMENT_UNDERPRICED';
                         if (!isReplacement || attempt >= 3) throw retryErr;
