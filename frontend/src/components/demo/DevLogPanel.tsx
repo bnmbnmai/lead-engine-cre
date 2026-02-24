@@ -155,12 +155,11 @@ export function DevLogPanel() {
     const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
     const [copiedAll, setCopiedAll] = useState(false);
     const [demoComplete, setDemoComplete] = useState(false);
-    // Initialize status from actual socket state — avoids yellow 'Connecting' flash when
-    // the socket is already connected (e.g. page reload, HMR, or demo still running).
-    const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
-        () => socketClient.isConnected() ? 'connected' : 'connecting'
-    );
+    // Socket status: null = not yet determined (dot hidden), avoids yellow 'Connecting'
+    // flash. Flips to 'connected' on first socket connect event or if already live.
+    const [socketStatus, setSocketStatus] = useState<'connected' | 'disconnected' | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
 
     useEffect(() => {
         // Ensure the socket is connected — critical for Guest persona who never
@@ -422,22 +421,24 @@ export function DevLogPanel() {
                 <span style={{ color: '#c4b5fd', fontWeight: 700, fontSize: '13px', flex: 1 }}>
                     On-chain Log
                 </span>
-                {/* Socket connection status dot + text */}
-                <span
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}
-                    title={socketStatus === 'connected' ? 'Socket connected — events streaming' : socketStatus === 'connecting' ? 'Connecting to backend…' : 'Socket disconnected — events paused'}
-                >
+                {/* Socket connection status dot + text — hidden until first connect event */}
+                {socketStatus !== null && (
                     <span
-                        style={{
-                            width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
-                            background: socketStatus === 'connected' ? '#22c55e' : socketStatus === 'connecting' ? '#f59e0b' : '#ef4444',
-                            boxShadow: socketStatus === 'connected' ? '0 0 4px #22c55e' : 'none',
-                        }}
-                    />
-                    <span style={{ fontSize: '9px', color: socketStatus === 'connected' ? '#22c55e' : socketStatus === 'connecting' ? '#f59e0b' : '#ef4444' }}>
-                        {socketStatus === 'connected' ? 'Live' : socketStatus === 'connecting' ? 'Connecting' : 'Offline'}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}
+                        title={socketStatus === 'connected' ? 'Socket connected — events streaming' : 'Socket disconnected — events paused'}
+                    >
+                        <span
+                            style={{
+                                width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0,
+                                background: socketStatus === 'connected' ? '#22c55e' : '#ef4444',
+                                boxShadow: socketStatus === 'connected' ? '0 0 4px #22c55e' : 'none',
+                            }}
+                        />
+                        <span style={{ fontSize: '9px', color: socketStatus === 'connected' ? '#22c55e' : '#ef4444' }}>
+                            {socketStatus === 'connected' ? 'Live' : 'Offline'}
+                        </span>
                     </span>
-                </span>
+                )}
                 <span style={{
                     color: '#4a4560',
                     fontSize: '10px',
