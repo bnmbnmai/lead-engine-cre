@@ -25,6 +25,7 @@ export default defineConfig({
     },
     build: {
         rollupOptions: {
+            external: ['valtio/vanilla'],
             output: {
                 manualChunks: {
                     vendor: ['react', 'react-dom', 'react-router-dom'],

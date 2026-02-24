@@ -40,6 +40,7 @@
         "recharts": "^3.7.0",
         "socket.io-client": "^4.7.4",
         "tailwind-merge": "^2.6.1",
+        "valtio": "^1.13.2",
         "viem": "^2.8.4",
         "wagmi": "^2.5.7",
         "zod": "^3.22.4",
