@@ -41,8 +41,9 @@ graph TD
     G --> H["Refunds + Winner-Only PII Reveal"]
     H --> I["Chainlink Automation PoR Check"]
     I --> J["NFT Transfer + Provenance Update"]
+```
 
-  ### Key Features
+### Key Features
 
 - **One-click end-to-end demo** with real on-chain activity (certified cycles with PoR verification)
 - **LeadNFTv2** with secondary-market royalties and fractional ownership support
