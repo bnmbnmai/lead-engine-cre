@@ -18,7 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     ExternalLink, ArrowLeft, Download, RotateCcw,
     CheckCircle2, XCircle, Loader2, Fuel, DollarSign,
-    Activity, Rocket, Clock, History, RefreshCw, TrendingUp, Zap
+    Activity, Rocket, Clock, RefreshCw, TrendingUp, Zap
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import api from '@/lib/api';
@@ -64,14 +64,7 @@ interface DemoResult {
     vrfProofLinks?: string[];
 }
 
-interface RunSummary {
-    runId: string;
-    status: string;
-    startedAt: string;
-    completedAt?: string;
-    totalCycles: number;
-    totalSettled: number;
-}
+
 
 // ── Retry config ──────────────────────────────
 // Used only for fallback API fetch (not for socket-driven display).
@@ -84,7 +77,6 @@ export default function DemoResults() {
     const [result, setResult] = useState<DemoResult | null>(null);
     const [loading, setLoading] = useState(() => !partialResults && !false); // skip loading if we have cached data
     const [error, setError] = useState<string | null>(null);
-    const [history, setHistory] = useState<RunSummary[]>([]);
     const [showConfetti, setShowConfetti] = useState(false);
     const hasInitRef = useRef(false);
 
@@ -103,6 +95,7 @@ export default function DemoResults() {
         totalPlatformIncome: (partialResults.cycles as CycleResult[]).reduce(
             (sum, c) => sum + (c.platformIncome ?? 0), 0
         ),
+        totalTiebreakers: (partialResults.cycles as CycleResult[]).filter(c => c.hadTiebreaker).length,
     } : null);
 
     const fetchResults = useCallback(async (specificRunId?: string) => {
@@ -151,12 +144,6 @@ export default function DemoResults() {
         setLoading(false);
     }, []);
 
-    // Fetch run history
-    useEffect(() => {
-        api.demoFullE2EStatus().then(({ data }) => {
-            if (data?.results) setHistory(data.results.slice(0, 5));
-        }).catch(() => { });
-    }, [result]);
 
     // Initial fetch — skip if we already have cached partialResults and no specific runId requested
     useEffect(() => {
@@ -217,9 +204,21 @@ export default function DemoResults() {
                             </button>
                             <button
                                 onClick={handleRunAgain}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-medium transition"
+                                disabled={isRecycling}
+                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${isRecycling
+                                    ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60'
+                                    : 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white'
+                                    }`}
                             >
-                                <Rocket className="h-4 w-4" /> Run Demo
+                                {isRecycling ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" /> Recycling...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Rocket className="h-4 w-4" /> Run Demo
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -295,9 +294,21 @@ export default function DemoResults() {
                         </button>
                         <button
                             onClick={handleRunAgain}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-medium transition"
+                            disabled={isRecycling}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${isRecycling
+                                ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60'
+                                : 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white'
+                                }`}
                         >
-                            <RotateCcw className="h-3.5 w-3.5" /> Run Again
+                            {isRecycling ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Recycling...
+                                </>
+                            ) : (
+                                <>
+                                    <RotateCcw className="h-3.5 w-3.5" /> Run Again
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -355,14 +366,16 @@ export default function DemoResults() {
                         <p className="text-2xl font-bold text-emerald-400">
                             {display.totalPlatformIncome != null ? `$${display.totalPlatformIncome.toFixed(2)}` : '—'}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">5% settle fee + $1/lock</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">5% settle fee + $1/lead</p>
                     </div>
                     <div className="glass rounded-xl p-4">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                             <Zap className="h-4 w-4 text-yellow-400" />
                             VRF Tiebreakers
                         </div>
-                        <p className="text-2xl font-bold text-yellow-400">{display.totalTiebreakers ?? 0}</p>
+                        <p className="text-2xl font-bold text-yellow-400">
+                            {display.totalTiebreakers ?? display.cycles.filter(c => c.hadTiebreaker).length}
+                        </p>
                         {display.vrfProofLinks && display.vrfProofLinks.length > 0 && (
                             <div className="flex flex-col gap-0.5 mt-1">
                                 {display.vrfProofLinks.map((link, i) => (
@@ -376,28 +389,7 @@ export default function DemoResults() {
                     </div>
                 </div>
 
-                {/* History Tabs (if more than 1 run) */}
-                {history.length > 1 && (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                        <History className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="text-xs text-muted-foreground flex-shrink-0">History:</span>
-                        {history.map((run, idx) => (
-                            <button
-                                key={run.runId}
-                                onClick={() => fetchResults(run.runId)}
-                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${display.runId === run.runId
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-                                    }`}
-                            >
-                                {idx === 0 ? 'Latest' : `Run ${idx + 1}`}
-                                <span className="ml-1 opacity-60">
-                                    ({run.totalCycles}c / ${run.totalSettled})
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                )}
+                {/* History Tabs removed: we don't have functional backends for this right now */}
 
                 {/* Results Table */}
                 <div className="glass rounded-xl overflow-hidden">

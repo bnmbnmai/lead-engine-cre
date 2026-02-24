@@ -1418,7 +1418,7 @@ function DemoButtonBanner() {
                             />
                         </div>
                         <div className="bg-blue-500/5 px-6 py-1.5 text-center text-xs text-blue-400/80">
-                            DEMO MODE — Testnet Only • Funds are recycled • Open the Dev Log (Ctrl+Shift+L) to watch
+                            DEMO MODE — Testnet Only • Demo in progress, wait for completion to view on-chain summary
                         </div>
                     </div>
                 )}

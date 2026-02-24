@@ -1,63 +1,147 @@
-# High-Volume Scaling Considerations
+# Lead Engine CRE — Roadmap
 
-The current architecture is designed for demo and early-production traffic. Scaling to 10,000+ leads per day across 50+ verticals requires the following infrastructure changes:
+**Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-**Cursor-Based Pagination & Read Replicas.** The current offset-based pagination degrades at depth. Replace with cursor-based pagination on `(createdAt, id)` composite indexes. At 10k+ daily writes, introduce a PostgreSQL read replica behind PgBouncer for all marketplace list queries (`GET /leads`, `/asks`, `/buyNow`) to keep write latency unaffected by read load.
+Current version: **v0.9.2 (24 February 2026)** — Full end-to-end prototype on Base Sepolia with CRE quality scoring, autonomous bidding agents, atomic USDC settlement via PersonalEscrowVault, and Proof-of-Reserves automation.
 
-**Distributed Bid Scheduling.** ~~Lead bids and auction timers currently run via in-memory `setTimeout` calls.~~ ✅ **Completed (Feb 2026):** Transitioned auction resolution and bid-queue management to a distributed **BullMQ** job queue backed by **Redis**. BullMQ workers pick up jobs independently of the API process, enabling horizontal scaling of the auction evaluation layer without data loss during restarts.
-
-**Persistent Lead Lock Registry.** ~~`leadLockRegistry` is currently an in-memory `Map` scoped to the API process.~~ ✅ **Completed (Feb 2026):** Migrated to a **Redis-backed persistent store** for sub-millisecond lock lookups during active auctions (with a TTL = auction end time). This removes the hard per-process memory ceiling and supports tens of thousands of concurrent leads without constraint.
-
-
-**Event-Driven Settlement.** The current settlement loop polls Prisma for expired auctions on a fixed interval — an O(n) scan that degrades linearly as lead volume grows. Replace with contract event listeners (`BidLocked`, `AuctionClosed`) feeding a lightweight message queue (BullMQ or SQS). Each event enqueues exactly one settlement job, eliminating redundant DB scans and making settlement throughput scale with queue worker counts rather than polling interval.
-
-**Async Job Queue.** Lead ingestion, CRE quality scoring, NFT minting, escrow settlement, and bounty matching currently execute synchronously in Express request handlers. At volume, each becomes an independent BullMQ worker with per-job retry (3× exponential backoff), dead-letter queues, and per-vertical concurrency limits. This decouples API response time from on-chain transaction latency.
-
-**Batch Minting, Bid Batching & Gas Management.** Individual NFT mints (~80k gas each) and single-bid vault locks are cost-prohibitive at scale. Aggregate pending mints into batches of 20–50 per transaction via a multicall wrapper on `LeadNFTv2.sol`. Apply the same pattern to bid commitments — batch multiple `lockForBid` calls into a single multicall when several auto-bid rules fire within the same block window. Combined with a nonce-managed hot wallet pool (5–10 wallets) and dynamic gas price monitoring (EIP-1559 `maxFeePerGas` escalation), this targets a sustained 1–3+ transactions per second throughput without queue stalls under testnet or mainnet congestion.
-
-**WebSocket Sharding.** Socket.IO currently broadcasts all events to all connected clients. At thousands of concurrent connections, partition clients into per-vertical rooms and add the Redis adapter (`@socket.io/redis-adapter`) for multi-process fan-out. This scales to 1,000–5,000+ concurrent WebSocket connections with ≤50ms p95 event delivery latency and supports multi-replica Render/Kubernetes deployments without sticky-session requirements.
-
-**Rate Limiting & Ingestion Throttling.** Replace the per-instance Express rate limiter with a Redis-backed sliding window (`rate-limiter-flexible`) for horizontal scaling. Enforce per-seller, per-vertical ingestion caps (configurable, default 500 leads/day/vertical) to prevent hot-vertical floods from degrading marketplace quality.
-
-**Observability & Alerting.** Add correlation IDs spanning HTTP → WebSocket → on-chain flows. Track auction-close latency (p50/p95/p99), CRE scoring round-trip, escrow funding time, NFT mint confirmation time, and settlement queue depth as Prometheus metrics. Alert on fill-rate drops >10%, CRE scoring failures, and settlement queue lag >30s.
+## Vision
+Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
 
 ---
 
-## Enterprise Features (Post-Hackathon)
+## Phase 0: Hackathon Submission (Leveraging the Extended Deadline)
 
-**Enterprise Branded Verticals.** White-label verticals for large buyers and sellers — custom branding, dedicated lead pools, priority CRE scoring, and isolated auction rooms. VerticalNFT owners can configure branded landing pages, custom form fields, and exclusive buyer access lists. Revenue-share royalties (2%) flow automatically via the deployed VerticalNFT contracts.
+**Goal**: Submit one codebase eligible for **Privacy, CRE & AI, DeFi & Tokenization, and Autonomous Agents tracks simultaneously**.
 
-**Automatic Lead Requalification.** When a lead goes unsold at auction but a buyer later configures an autobid that matches the lead's vertical, geo, and field criteria — and bids at or above the reserve price — the system automatically sends an SMS to the original lead asking if they are still interested in connecting with a service provider. If the lead replies "Yes," it is re-listed into a new auction where the matching autobidder's bid is placed automatically, resulting in a sale. This closes the loop between buyer demand and unsold inventory without any manual intervention from the seller.
+### Priority Deliverables
+- [ ] **Privacy Track deep-dive** (new $16k track)
+  - Explicitly use **Chainlink Confidential Compute (early access via CRE)** for winner-only decryption of lead PII.
+  - Surface `Confidential HTTP` in CRE workflow for seller CRM enrichment (already built — just add workflow).
+  - Add sealed-bid auction privacy diagram + attestation screenshots.
+- [ ] **CRE Workflow mandatory upgrade** (required for every track)
+  - One production CRE workflow: `EvaluateBuyerRulesAndMatch` (runs buyer vertical/geo/budget rules in enclave, outputs match score + queue placement).
+  - Run `cre simulate` and include the JSON output + Tenderly Virtual TestNet link.
+- [ ] **Autonomous Agents Track (Moltbook)**
+  - Integrate official `chainlink-agent-skills/cre-skills` into MCP agents (5-minute change).
+  - Agents now explicitly call CRE workflow generation and runtime ops.
+  - Register agent → have the agent post the project in m/chainlink-official by the deadline.
+- [ ] **Data Streams quick win** (Data Feeds already exist)
+  - Add one real-time stream (e.g., mortgage rates or weather for roofing) that triggers Automation → CRE workflow → dynamic bounty adjustment.
+- [ ] **Video & Docs** (3–5 min public Loom)
+  - Dedicated segment on the extended CRE-native architecture.
+  - Include all required README links to Chainlink files.
 
-**Secondary LeadNFT Marketplace.** Allow buyers to resell purchased LeadNFTs to other buyers on a secondary marketplace. Original sellers earn a 2% royalty on every resale via the ERC-721 royalty standard. Enables price discovery for high-converting leads and creates a liquid secondary market for lead assets.
-
-**Dispute & Arbitration Flow.** If a buyer claims a purchased lead is fake or low-quality, they can open a dispute. An oracle-backed arbitration process (or DAO vote among staked participants) reviews the evidence — CRE quality score, seller reputation, lead response data — and resolves with a full refund, partial refund, or dismissal. Escrow funds are held until resolution.
-
-**Analytics Dashboard.** Per-vertical and per-NFT conversion tracking: auction fill rates, average sale price, buyer ROI, CRE score distribution, and time-to-close metrics. Sellers see submission-to-sale funnels; buyers see cost-per-acquisition and lead quality trends. Exportable reports for both roles.
-
-**Fiat On-Ramp for Non-Crypto Buyers.** Integrate Stripe or Circle to let buyers purchase USDC with credit card or bank transfer, abstracting wallet setup behind a custodial onboarding flow. First-time buyers can bid and purchase leads without ever touching MetaMask — wallet creation, USDC funding, and bid signing happen behind the scenes.
-
-**Ad Platform Integration.** Connect Google Ads, Facebook Lead Ads, and other pixel-based platforms to auto-submit captured leads into the marketplace. Sellers configure an integration once, and every qualified form submission from their ad campaigns is ingested, CRE-scored, and auctioned in real time — no manual CSV uploads or API calls required.
-
-**Granular Vertical Field Bounty Hunting.** Buyers post bounties scoped to specific form-field criteria within a vertical — for example, "mortgage leads from ZIP code 90210 with good or excellent credit score." Sellers targeting those leads see the active bounty pool on matching form submissions and are incentivized to source hyper-specific inventory. The platform evaluates each submitted lead's field values against open bounties at ingestion time, auto-attaches matching bounty rewards to the auction, and settles USDC payouts on auction close. Enables demand-side price signals to flow directly to the seller's intake forms, driving higher-quality and more targeted lead supply.
+**Expected outcome**: Strong positioning across multiple tracks, including potential recognition in the overall Top 10.
 
 ---
 
+## Phase 1: Post-Hackathon MVP (Q2 2026 — 3 months)
 
-## Enterprise Features (Post-Hackathon)
+**Target**: First paying customers (solar installers + mortgage brokers) on Base mainnet.
 
-**Enterprise Branded Verticals.** White-label verticals for large buyers and sellers — custom branding, dedicated lead pools, priority CRE scoring, and isolated auction rooms. VerticalNFT owners can configure branded landing pages, custom form fields, and exclusive buyer access lists. Revenue-share royalties (2%) flow automatically via the deployed VerticalNFT contracts.
+- Migrate to Base mainnet + Arbitrum via CCIP (atomic cross-chain lead settlement).
+- Production security audit (already budgeted).
+- Real lead ingestion webhook (Functions + Confidential HTTP from Google/FB Ads or seller CRM).
+- Secondary marketplace for LeadNFTs (2% royalties, fractional ERC-3643 bundles).
+- Agent staking & performance fees (AgentNFT ERC-721 + USDC in PersonalEscrowVault).
+- Enterprise white-label (deploy private CRE workflows for large buyers).
 
-**Automatic Lead Requalification.** When a lead goes unsold at auction but a buyer later configures an autobid that matches the lead's vertical, geo, and field criteria — and bids at or above the reserve price — the system automatically sends an SMS to the original lead asking if they are still interested in connecting with a service provider. If the lead replies "Yes," it is re-listed into a new auction where the matching autobidder's bid is placed automatically, resulting in a sale. This closes the loop between buyer demand and unsold inventory without any manual intervention from the seller.
+**Key Chainlink integrations**:
+- Full CRE orchestration (bidding rules, bounty matching, dispute resolution).
+- Automation + Data Streams loop for real-time repricing.
+- ACE policies extended to health/KYC verticals.
 
-**Secondary LeadNFT Marketplace.** Allow buyers to resell purchased LeadNFTs to other buyers on a secondary marketplace. Original sellers earn a 2% royalty on every resale via the ERC-721 royalty standard. Enables price discovery for high-converting leads and creates a liquid secondary market for lead assets.
+### High-Volume Scaling Considerations
+The current architecture is designed for demo and early-production traffic. Scaling to 10,000+ leads per day across 50+ verticals requires the following infrastructure changes (several already implemented):
 
-**Dispute & Arbitration Flow.** If a buyer claims a purchased lead is fake or low-quality, they can open a dispute. An oracle-backed arbitration process (or DAO vote among staked participants) reviews the evidence — CRE quality score, seller reputation, lead response data — and resolves with a full refund, partial refund, or dismissal. Escrow funds are held until resolution.
+**Cursor-Based Pagination & Read Replicas.** Replace offset-based pagination with cursor-based pagination on `(createdAt, id)` composite indexes. Introduce a PostgreSQL read replica behind PgBouncer for all marketplace list queries (`GET /leads`, `/asks`, `/buyNow`) to keep write latency unaffected by read load.
 
-**Analytics Dashboard.** Per-vertical and per-NFT conversion tracking: auction fill rates, average sale price, buyer ROI, CRE score distribution, and time-to-close metrics. Sellers see submission-to-sale funnels; buyers see cost-per-acquisition and lead quality trends. Exportable reports for both roles.
+**Distributed Bid Scheduling.** Auction resolution and bid-queue management transitioned to a distributed **BullMQ** job queue backed by **Redis** (completed February 2026). BullMQ workers operate independently of the API process, enabling horizontal scaling without data loss.
 
-**Fiat On-Ramp for Non-Crypto Buyers.** Integrate Stripe or Circle to let buyers purchase USDC with credit card or bank transfer, abstracting wallet setup behind a custodial onboarding flow. First-time buyers can bid and purchase leads without ever touching MetaMask — wallet creation, USDC funding, and bid signing happen behind the scenes.
+**Persistent Lead Lock Registry.** Migrated from in-memory `Map` to a **Redis-backed persistent store** with TTL = auction end time (completed February 2026). Supports tens of thousands of concurrent leads.
 
-**Ad Platform Integration.** Connect Google Ads, Facebook Lead Ads, and other pixel-based platforms to auto-submit captured leads into the marketplace. Sellers configure an integration once, and every qualified form submission from their ad campaigns is ingested, CRE-scored, and auctioned in real time — no manual CSV uploads or API calls required.
+**Event-Driven Settlement.** Replace polling with contract event listeners (`BidLocked`, `AuctionClosed`) feeding a BullMQ queue. Each event enqueues exactly one settlement job.
 
-**Granular Vertical Field Bounty Hunting.** Buyers post bounties scoped to specific form-field criteria within a vertical — for example, "mortgage leads from ZIP code 90210 with good or excellent credit score." Sellers targeting those leads see the active bounty pool on matching form submissions and are incentivized to source hyper-specific inventory. The platform evaluates each submitted lead's field values against open bounties at ingestion time, auto-attaches matching bounty rewards to the auction, and settles USDC payouts on auction close. Enables demand-side price signals to flow directly to the seller's intake forms, driving higher-quality and more targeted lead supply.
+**Async Job Queue.** Convert lead ingestion, CRE scoring, NFT minting, escrow settlement, and bounty matching into independent BullMQ workers with retry logic, dead-letter queues, and per-vertical concurrency limits.
+
+**Batch Minting, Bid Batching & Gas Management.** Aggregate mints and `lockForBid` calls into multicall batches of 20–50. Use a nonce-managed hot wallet pool (5–10 wallets) and EIP-1559 dynamic gas escalation for 1–3+ TPS sustained throughput.
+
+**WebSocket Sharding.** Add Redis adapter (`@socket.io/redis-adapter`) and per-vertical rooms for 1,000–5,000+ concurrent connections with ≤50ms p95 latency.
+
+**Rate Limiting & Ingestion Throttling.** Deploy Redis-backed sliding-window rate limiting (`rate-limiter-flexible`) with per-seller, per-vertical caps (default 500 leads/day/vertical).
+
+**Observability & Alerting.** Add correlation IDs across flows. Track key metrics (auction-close latency, CRE round-trip, settlement queue depth) via Prometheus. Alert on fill-rate drops >10%, CRE failures, or queue lag >30s.
+
+---
+
+## Phase 2: Institutional Expansion & Privacy Moat (Q3–Q4 2026)
+
+**Privacy-first RWA data marketplace** (core asymmetric advantage)
+- Full winner-only threshold decryption using Confidential Compute.
+- Revocable encryption keys for GDPR “right to be forgotten”.
+- GLEIF vLEI + World ID integration for reusable KYC/AML proofs (bonus special track eligibility).
+- Private treasury & OTC settlement flows (institutional buyers value this).
+
+**CRE workflow expansion**
+- Move 80% of backend logic into CRE (gas savings 60–80%, institutional-grade auditability).
+- `DisputeResolution` workflow (buyer disputes → Confidential HTTP to CRM → auto-refund).
+
+**Enterprise Features**
+- **Enterprise Branded Verticals.** White-label verticals with custom branding, dedicated lead pools, priority CRE scoring, and isolated auction rooms. VerticalNFT owners configure branded landing pages, custom form fields, and exclusive buyer access lists. Revenue-share royalties (2%) flow automatically.
+- **Automatic Lead Requalification.** Unsold leads automatically re-listed when a matching autobid appears; SMS confirmation sent to original lead for re-engagement and instant sale.
+- **Dispute & Arbitration Flow.** Oracle-backed (or DAO) review of CRE score, seller reputation, and response data; escrow held until full/partial refund or dismissal.
+- **Analytics Dashboard.** Per-vertical and per-NFT tracking of fill rates, average sale price, buyer ROI, CRE score distribution, and time-to-close metrics. Exportable reports for sellers and buyers.
+- **Fiat On-Ramp for Non-Crypto Buyers.** Stripe/Circle integration for credit-card or bank-transfer USDC purchases with custodial onboarding (no MetaMask required).
+- **Ad Platform Integration.** One-time configuration for Google Ads, Facebook Lead Ads, etc.; captured leads auto-ingested, CRE-scored, and auctioned in real time.
+- **Granular Vertical Field Bounty Hunting.** Buyers post field-specific bounties (e.g., “ZIP 90210 + excellent credit”); system auto-matches at ingestion and attaches rewards to auctions.
+
+**Monetization**
+- 5% platform fee on settlements.
+- Premium CRE workflow licensing for enterprises.
+- Data subscription bundles (encrypted lead cohorts).
+
+---
+
+## Phase 3: Ecosystem & Derivatives (2027+)
+
+- **Prediction Markets crossover** — buyers create onchain markets on lead conversion rates, resolved via Data Streams + Functions + Automation.
+- **Lead derivatives & options** (strike price tied to conversion prediction markets).
+- **Agent-owned economy** — agents earn fees, can be delegated or traded.
+- **Multi-chain expansion** via CCIP Private Transactions (privacy preserved across chains).
+- **Enterprise ERP/CRM push** — settled leads land directly in Salesforce/HubSpot via Confidential HTTP.
+
+**Long-term TAM impact**
+- Capture 0.5–1% of the $14.5B+ lead-gen services market ($50–150M ARR opportunity).
+- Become the **de-facto standard for tokenized sensitive data** (health, finance, insurance verticals).
+
+---
+
+## Technical Priorities Across Phases
+
+| Priority | Feature                              | Chainlink Services             | Effort   | Impact                              |
+|----------|--------------------------------------|--------------------------------|----------|-------------------------------------|
+| High     | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Privacy Track + institutions        |
+| High     | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Mandatory for all tracks            |
+| High     | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
+| Medium   | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
+| Medium   | CCIP cross-chain + private tx        | CCIP Private                   | Medium   | Multi-chain RWA                     |
+| Medium   | Prediction market on conversion      | Functions + Streams            | Medium   | New asset class                     |
+| Low      | World ID sybil resistance            | World ID + CRE                 | Low      | Special track bonus                 |
+
+---
+
+## Risk Management
+- Privacy and regulatory compliance are addressed through client-side AES-256-GCM encryption, enclave-only compute, and ACE policy enforcement.
+- Oracle dependencies incorporate multi-DON verification and structured dispute periods.
+- Agent operations are supported by on-chain attestation and logging.
+
+---
+
+**We are not building another lead marketplace.**  
+We are building the **Chainlink-native, privacy-first protocol for the entire sensitive data economy**.  
+
+With the extended deadline and the new Privacy + Agents tracks, Lead Engine CRE is positioned for competitive success in the hackathon and as foundational infrastructure thereafter.
+
+---
+
+*Last updated: 24 February 2026*
