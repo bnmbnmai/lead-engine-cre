@@ -8,27 +8,39 @@
  */
 
 import { prisma } from './prisma';
+import { redisClient } from './redis';
 
-// ── In-memory cache (key → { value, expiresAt }) ──
-const cache = new Map<string, { value: string; expiresAt: number }>();
-const CACHE_TTL_MS = 5_000;
+// ── In-memory cache fallback (key → { value, expiresAt }) ──
+const fallbackCache = new Map<string, { value: string; expiresAt: number }>();
+const CACHE_TTL_S = 5;
 
-/**
- * Read a config value.  Returns `defaultValue` when the key
- * does not yet exist in the DB.
- */
 export async function getConfig(key: string, defaultValue: string): Promise<string> {
-    // 1. Check cache
-    const cached = cache.get(key);
-    if (cached && Date.now() < cached.expiresAt) {
-        return cached.value;
+    const redisKey = `config:cache:${key}`;
+
+    // 1. Check cache (Redis first, then fallback)
+    if (redisClient) {
+        try {
+            const cached = await redisClient.get(redisKey);
+            if (cached) return cached;
+        } catch { /* skip redis err */ }
+    } else {
+        const cached = fallbackCache.get(key);
+        if (cached && Date.now() < cached.expiresAt) {
+            return cached.value;
+        }
     }
 
     // 2. Read from DB
     try {
         const row = await prisma.platformConfig.findUnique({ where: { key } });
         const value = row?.value ?? defaultValue;
-        cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+
+        // 3. Write cache
+        if (redisClient) {
+            await redisClient.setex(redisKey, CACHE_TTL_S, value).catch(() => { });
+        } else {
+            fallbackCache.set(key, { value, expiresAt: Date.now() + (CACHE_TTL_S * 1000) });
+        }
         return value;
     } catch {
         // DB unreachable — return default (graceful degradation)
@@ -36,16 +48,17 @@ export async function getConfig(key: string, defaultValue: string): Promise<stri
     }
 }
 
-/**
- * Write (upsert) a config value.  Immediately invalidates the
- * cache so the next read reflects the new value.
- */
 export async function setConfig(key: string, value: string): Promise<void> {
     await prisma.platformConfig.upsert({
         where: { key },
         create: { key, value },
         update: { value },
     });
+
     // Invalidate cache so subsequent reads see the new value
-    cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+    if (redisClient) {
+        await redisClient.setex(`config:cache:${key}`, CACHE_TTL_S, value).catch(() => { });
+    } else {
+        fallbackCache.set(key, { value, expiresAt: Date.now() + (CACHE_TTL_S * 1000) });
+    }
 }

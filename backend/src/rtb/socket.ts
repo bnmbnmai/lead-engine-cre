@@ -12,7 +12,7 @@ import { SPAM_THRESHOLD_BIDS_PER_MINUTE } from '../config/perks.env';
 import { setHolderNotifyOptIn } from '../services/notification.service';
 import { resolveExpiredAuctions, resolveStuckAuctions, resolveExpiredBuyNow } from '../services/auction-closure.service';
 import * as vaultService from '../services/vault.service';
-
+import { initQueues } from '../lib/queues';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -557,18 +557,20 @@ class RTBSocketServer {
     }
 
     private startAuctionMonitor() {
+        // v8: broadcast server-authoritative remaining time for closing-window auctions
+        // We still keep the broadcast running on a lightweight interval because it just 
+        // emits websocket events, but the heavy lifting of resolving auctions is moved 
+        // to BullMQ via initQueues.
         setInterval(async () => {
             try {
-                // v8: broadcast server-authoritative remaining time for closing-window auctions
                 await this.broadcastActiveAuctionStates();
-                // Delegate auction lifecycle management to the shared service
-                await resolveExpiredAuctions(this.io);
-                await resolveExpiredBuyNow(this.io);
-                await resolveStuckAuctions(this.io);
             } catch (error) {
-                console.error('Auction monitor error:', error);
+                console.error('Auction broadcast error:', error);
             }
-        }, 2_000); // v8: 2 s (was 5 s) — ensures at least 5 broadcasts in closing-soon window
+        }, 2_000);
+
+        // Initialize BullMQ Worker for auction resolutions (or fallback to Interval)
+        initQueues(this.io);
     }
 
     // ============================================

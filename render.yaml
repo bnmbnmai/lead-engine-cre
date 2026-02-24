@@ -58,6 +58,8 @@ services:
         sync: false
       - key: MARKETPLACE_ADDRESS
         sync: false
+      - key: REDIS_URL
+        sync: false
       # ── PRIVACY_ENCRYPTION_KEY ────────────────────────────────────────────
       # CRITICAL: Do NOT use generateValue:true — that regenerates the key on
       # every new deploy, silently making all previously encrypted PII unreadable.

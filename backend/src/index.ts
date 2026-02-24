@@ -12,6 +12,7 @@ import { rtbEngine } from './rtb/engine';
 import { startQuarterlyResetCron } from './services/quarterly-reset.service';
 import { resolveExpiredAuctions } from './services/auction-closure.service';
 import { startVaultReconciliationJob } from './services/vault-reconciliation.service';
+import { closeQueues } from './lib/queues';
 
 // Load environment variables FIRST
 dotenv.config();
@@ -256,6 +257,9 @@ const shutdown = async () => {
     console.log('\nShutting down gracefully...');
 
     try {
+        await closeQueues();
+        console.log('BullMQ and Redis disconnected');
+
         await prisma.$disconnect();
         console.log('Database disconnected');
 
@@ -303,8 +307,8 @@ httpServer.listen(PORT, () => {
 
     // Sweep any auctions that expired during downtime
     resolveExpiredAuctions()
-        .then((count) => { if (count > 0) console.log(`  ✅ Resolved ${count} expired auctions on startup`); })
-        .catch((err) => console.error('  ⚠️  Startup auction sweep failed:', err));
+        .then((count: any) => { if (count > 0) console.log(`  ✅ Resolved ${count} expired auctions on startup`); })
+        .catch((err: any) => console.error('  ⚠️  Startup auction sweep failed:', err));
 });
 
 export { app, httpServer, socketServer };

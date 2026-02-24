@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ethers } from 'ethers';
 import { prisma } from '../../lib/prisma';
+import { redisClient } from '../../lib/redis';
 import { computeCREQualityScore, type LeadScoringInput } from '../../lib/chainlink/cre-quality-score';
 import { checkVrfSubscriptionBalance } from '../vrf.service';
 import {
@@ -136,9 +137,6 @@ export function scheduleBidsForLead(
     );
 
     // Initialize registry for this lead (manual bids from UI can also push here)
-    if (!leadLockRegistry.has(leadId)) {
-        leadLockRegistry.set(leadId, []);
-    }
 
     emit(io, {
         ts: new Date().toISOString(), level: 'info',
@@ -188,10 +186,24 @@ export function scheduleBidsForLead(
 
                 if (lockId == null) return;
 
-                // Register this lock
-                const reg = leadLockRegistry.get(leadId) ?? [];
-                reg.push({ lockId, addr: buyerAddr, amount: bidAmount });
-                leadLockRegistry.set(leadId, reg);
+                // Register this lock in Redis
+                const lockEntry = JSON.stringify({ lockId, addr: buyerAddr, amount: bidAmount });
+                const redisKey = `lead:lock:${leadId}`;
+                let reg: any[] = [];
+
+                if (redisClient) {
+                    await redisClient.rpush(redisKey, lockEntry);
+                    // TTL covers the auction window + 5 minutes buffer
+                    await redisClient.expire(redisKey, 600);
+                    const list = await redisClient.lrange(redisKey, 0, -1);
+                    reg = list.map(item => JSON.parse(item));
+                } else {
+                    // Fallback to in-memory if Redis is off
+                    if (!leadLockRegistry.has(leadId)) leadLockRegistry.set(leadId, []);
+                    reg = leadLockRegistry.get(leadId)!;
+                    reg.push({ lockId, addr: buyerAddr, amount: bidAmount });
+                }
+
                 pendingLockIds.add(lockId); // BUG-04 orphan tracking
 
                 const totalBids = reg.length;
@@ -240,12 +252,25 @@ export function scheduleBidsForLead(
 }
 
 /** Register a manual bid (from Place Bid UI) into the lead's lock registry. */
-export function registerManualBid(leadId: string, lockId: number, addr: string, amount: number): void {
-    const reg = leadLockRegistry.get(leadId) ?? [];
-    if (reg.some(r => r.lockId === lockId)) return; // already registered
-    reg.push({ lockId, addr, amount });
-    leadLockRegistry.set(leadId, reg);
-    pendingLockIds.add(lockId);
+export async function registerManualBid(leadId: string, lockId: number, addr: string, amount: number): Promise<void> { // CHANGED TO ASYNC
+    const lockEntry = JSON.stringify({ lockId, addr, amount });
+    const redisKey = `lead:lock:${leadId}`;
+
+    if (redisClient) {
+        const existing = await redisClient.lrange(redisKey, 0, -1);
+        const alreadyRegistered = existing.some(item => JSON.parse(item).lockId === lockId);
+        if (!alreadyRegistered) {
+            await redisClient.rpush(redisKey, lockEntry);
+            await redisClient.expire(redisKey, 600);
+            pendingLockIds.add(lockId);
+        }
+    } else {
+        const reg = leadLockRegistry.get(leadId) ?? [];
+        if (reg.some(r => r.lockId === lockId)) return; // already registered
+        reg.push({ lockId, addr, amount });
+        leadLockRegistry.set(leadId, reg);
+        pendingLockIds.add(lockId);
+    }
 }
 
 
@@ -895,10 +920,19 @@ export async function runFullDemo(
 
             // ── Read bids from the pre-populated registry ──────────────────────
             // scheduleBidsForLead() fired lockForBid during the live window and pushed
-            // each confirmed lock into leadLockRegistry. Manual UI bids are also here
+            // each confirmed lock into redis list. Manual UI bids are also here
             // via registerManualBid(). We just settle and refund — no new locks needed.
-            const registryBids = leadLockRegistry.get(demoLeadId) ?? [];
-            leadLockRegistry.delete(demoLeadId); // clean up after reading
+            let registryBids: { lockId: number, addr: string, amount: number }[] = [];
+
+            if (redisClient) {
+                const redisKey = `lead:lock:${demoLeadId}`;
+                const rawBids = await redisClient.lrange(redisKey, 0, -1);
+                registryBids = rawBids.map(item => JSON.parse(item));
+                await redisClient.del(redisKey); // clean up after reading
+            } else {
+                registryBids = leadLockRegistry.get(demoLeadId) ?? [];
+                leadLockRegistry.delete(demoLeadId);
+            }
 
             // Determine winner — highest amount wins; ties broken by first-lock-wins
             // (consistent with VRF tie-break which already ran during lockForBid)
