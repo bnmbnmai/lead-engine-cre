@@ -672,9 +672,10 @@ export function HomePage() {
                                     <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
                                 </div>
                                 <p className="text-sm leading-relaxed text-muted-foreground">
-                                    RTBEscrow holds USDC in smart-contract escrow and releases
-                                    instantly on auction win or Buy-It-Now purchase. Sellers receive funds in
-                                    seconds, not weeks.
+                                    PersonalEscrowVault holds USDC in smart-contract escrow and releases
+                                    instantly on auction win or Buy-It-Now purchase — with granular bounties
+                                    via Chainlink Functions rewarding high-quality matches. Sellers receive
+                                    funds in seconds, not weeks.
                                 </p>
                             </div>
                         </div>

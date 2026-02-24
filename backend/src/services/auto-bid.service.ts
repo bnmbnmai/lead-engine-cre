@@ -17,7 +17,7 @@
 import { prisma } from '../lib/prisma';
 import { ethers } from 'ethers';
 import { evaluateFieldFilters, FieldFilterRule } from './field-filter.service';
-import { dataStreamsService } from './datastreams.service';
+import { dataStreamsService } from './data-feeds.service';
 import { aceDevBus } from './ace.service';
 
 // ============================================

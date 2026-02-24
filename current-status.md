@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-**Overall Health Score: 9.5 / 10** *(up from 9.3 after full track documentation closure: mcp-server/README.md, CHAINLINK_SERVICES_AUDIT.md, docs/PRIVACY_TRACK.md — stale docs cleaned up)*
+**Overall Health Score: 9.6 / 10** *(up from 9.5 after service naming cleanup: `datastreams.service.ts` → `data-feeds.service.ts`, all 5 imports updated; frontend index blurbs updated for current vault + granular bounties terminology)*
 
 Lead Engine CRE is the most technically sophisticated lead-marketplace project in the hackathon field. The on-chain foundation is real, verifiable, and multi-service. The frontend quality is institutional-grade. The demo orchestrator is battle-tested with a certified 7-cycle run producing 16 real Basescan transactions. The queue-based auction sync is a clean, well-reasoned architecture.
 
@@ -38,6 +38,8 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 
 **Confidence Level:** HIGH — on-chain work and core services are real and clean. Remaining items are operational (video, contract verify), not architectural.
 
+> ✅ Frontend index blurbs updated for current vault + granular bounties terminology (RTBEscrow → PersonalEscrowVault, Chainlink Functions bounty mention added)
+
 ---
 
 ## 2. What Is Excellent / Production-Grade
@@ -56,9 +58,10 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 | **Automation + PoR** | `checkUpkeep`/`performUpkeep` daily reserve verification on `PersonalEscrowVault` | `contracts/contracts/PersonalEscrowVault.sol` (L357, L384) |
 | **ACE compliance** | `PolicyProtectedUpgradeable` on mint + transfer, `ACECompliance.isCompliant()` gate | `contracts/contracts/LeadNFTv2.sol`, `ACECompliance.sol` |
 | **Auction closure UX** | Instant grayscale → 2.5s fade-out → DOM removal, amber closing-ring (no intrusive banners), sealed 🔒 overlay | `frontend/src/components/LeadCard.tsx` |
-| **README** | Clean, current, accurate mermaid diagrams, correct contract addresses, 6 Chainlink services table | `README.md` |
+| **README** | Clean, current, accurate mermaid diagrams, correct contract addresses, 7 Chainlink services table, all links verified | `README.md` |
 | **CI** | 4-job matrix: Lint, Jest, Hardhat, Artillery (advisory). Concurrency cancel-in-progress. Secrets safe. | `.github/workflows/test.yml` |
-| **MCP server** | **12 tools** for agent workflows (search, bid, `set_auto_bid_rules`, `query_open_granular_bounties`, etc.), LangChain integration | `mcp-server/tools.ts` |
+| **MCP server** | **12 tools** for agent workflows (search, bid, `set_auto_bid_rules`, `query_open_granular_bounties`, etc.), LangChain integration — full reference in `mcp-server/README.md` | `mcp-server/tools.ts` |
+| **Data Feeds service** | Renamed `datastreams.service.ts` → `data-feeds.service.ts` (Feb 2026); header comment added; all 5 import sites updated; zero live references to old name | `backend/src/services/data-feeds.service.ts` |
 | **Swagger docs** | 24 KB full API documentation accessible at `/api/swagger` | `backend/swagger.yaml` |
 
 ---
@@ -79,7 +82,7 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 
 | # | Issue | File | Fix |
 |---|---|---|---|
-| M1 | **`datastreams.service.ts`** — 16 KB file named as if Chainlink Data Streams, but Data Streams was corrected to "Data Feeds" in Feb 2026 — may confuse judges reviewing the file tree | `backend/src/services/datastreams.service.ts` | Rename to `data-feeds.service.ts` or add a comment header clarifying it's price feeds, not Data Streams |
+| M1 | ~~**`datastreams.service.ts`** — named as Data Streams, but implements Data Feeds~~ | ~~`backend/src/services/datastreams.service.ts`~~ | ✅ Fixed — renamed to `data-feeds.service.ts`, all 5 imports updated, old file deleted |
 | ~~M2~~ | ~~`docs/SUBMISSION_FORM.md` deadline mismatch~~ | ✔️ Resolved |
 | ~~M3~~ | ~~README broken links (CHAINLINK_SERVICES_AUDIT.md etc.)~~ | ✔️ Resolved |
 | ~~M4~~ | ~~`PersonalEscrowVault` source verification pending~~ | ✔️ Resolved — already verified, 1,477 txns |

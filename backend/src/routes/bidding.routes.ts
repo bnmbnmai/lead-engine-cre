@@ -6,7 +6,7 @@ import { authMiddleware, AuthenticatedRequest, requireBuyer } from '../middlewar
 import { BidCommitSchema, BidRevealSchema, BuyerPreferencesSchema, BuyerPreferencesV2Schema } from '../utils/validation';
 import { rtbBiddingLimiter } from '../middleware/rateLimit';
 import { aceService } from '../services/ace.service';
-import { dataStreamsService } from '../services/datastreams.service';
+import { dataStreamsService } from '../services/data-feeds.service';
 import { evaluateLeadForAutoBid, LeadData } from '../services/auto-bid.service';
 import { applyHolderPerks } from '../services/holder-perks.service';
 

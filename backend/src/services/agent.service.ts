@@ -256,7 +256,7 @@ function buildTools() {
             }),
             func: async (params: Record<string, unknown>) => {
                 // Call dataStreamsService directly — real on-chain Chainlink Data Feed
-                const { dataStreamsService } = await import('./datastreams.service');
+                const { dataStreamsService } = await import('./data-feeds.service');
                 const floor = await dataStreamsService.getRealtimeBidFloor(
                     params.vertical as string,
                     (params.country as string) || 'US'
@@ -339,7 +339,7 @@ function buildTools() {
                 bidCount: z.number().optional().describe('Current number of bids on the lead'),
             }),
             func: async (params: Record<string, unknown>) => {
-                const { dataStreamsService } = await import('./datastreams.service');
+                const { dataStreamsService } = await import('./data-feeds.service');
                 const floor = await dataStreamsService.getRealtimeBidFloor(
                     params.vertical as string,
                     (params.country as string) || 'US'

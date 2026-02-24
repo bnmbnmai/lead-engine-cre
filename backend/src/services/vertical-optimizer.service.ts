@@ -13,7 +13,7 @@
 
 import { prisma } from '../lib/prisma';
 import { verticalHierarchyCache } from '../lib/cache';
-import { dataStreamsService } from './datastreams.service';
+import { dataStreamsService } from './data-feeds.service';
 import { activateVertical } from './vertical-nft.service';
 import { PII_AUDIT_ENABLED } from '../config/perks.env';
 

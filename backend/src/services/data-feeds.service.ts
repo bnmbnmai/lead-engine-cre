@@ -1,3 +1,4 @@
+// Renamed from datastreams.service.ts (Feb 2026) — implements Chainlink Data Feeds, not Data Streams.
 /**
  * Chainlink Data Feeds — Dynamic Bid Floor Pricing
  *
