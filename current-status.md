@@ -16,6 +16,8 @@ Lead Engine CRE is the most technically sophisticated lead-marketplace project i
 
 **✅ Stable encryption key prevents data loss on redeploy** — `PRIVACY_ENCRYPTION_KEY` is now a persistent Render secret (set once in dashboard, never regenerated).
 
+**✅ Repository fully cleaned of stale scaffolding and temporary artifacts.**
+
 ### Test Coverage
 | Suite | Scope | Status |
 |---|---|---|
@@ -111,7 +113,7 @@ The system underwent its final comprehensive validation, passing all checks for 
 ### Nice-to-Have for Submission (Lowest Priority)
 | Item | Notes |
 |---|---|
-| **Demo Polish & Next Steps** | Move remaining cosmetic polish from `demo-polish-next-steps.md` to post-hackathon items |
+| **Video Recording** | Record the final 3-minute submission video highlighting the architecture and UI |
 | **Video Recording** | Record the final 3-minute submission video highlighting the architecture and UI |
 | **LangChain MCP Agent** | Re-enable the LangChain MCP agent if time permits (purely for 'cool factor') |
 
@@ -125,7 +127,6 @@ The system underwent its final comprehensive validation, passing all checks for 
 | `CHAINLINK_SERVICES_AUDIT.md` | ✅ Created 2026-02-24 (root level) |
 | `mcp-server/README.md` | ✅ Created 2026-02-24 (12-tool reference) |
 | `docs/PRIVACY_TRACK.md` | ✅ Created 2026-02-24 (full code path walkthrough) |
-| `demo-polish-next-steps.md` | Referenced in README line 141 — does not exist (low priority) |
 | Video / Loom link | `docs/SUBMISSION_FORM.md` placeholder — not yet recorded |
 
 **Zero blocking missing files.** All judge-critical documentation is now present.
@@ -156,7 +157,6 @@ The system underwent its final comprehensive validation, passing all checks for 
 | Link | Status |
 |---|---|
 | `See CHAINLINK_SERVICES_AUDIT.md` (line 77) | ✅ Fixed — file created at root, link updated |
-| `See demo-polish-next-steps.md` (line 141) | ⚠️ Still missing — low priority, not judge-critical |
 | `See ROADMAP.md` (line 153) | ✅ File exists |
 | `See PRIVACY_TRACK.md` (Privacy section) | ✅ File created, link added to README |
 

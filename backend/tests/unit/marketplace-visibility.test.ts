@@ -381,7 +381,7 @@ describe('Bounty Criteria Matching', () => {
 
 describe('Cross-Persona Consistency', () => {
     it('seller and buyer should see the same lead count (unified view)', () => {
-        // Simulate: 10 leads in DB, various statuses
+        // Simulate: N leads in DB, various statuses
         const allLeads = [
             { status: 'IN_AUCTION' },
             { status: 'IN_AUCTION' },

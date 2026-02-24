@@ -706,7 +706,7 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
             if (sessionSeller) sessionSellerId = sessionSeller.id;
         }
 
-        // Create 10 leads using hierarchical verticals — mix of IN_AUCTION + UNSOLD
+        // Create N leads using hierarchical verticals — mix of IN_AUCTION + UNSOLD
         let leadCount = 0;
         const leadIds: string[] = [];
 
