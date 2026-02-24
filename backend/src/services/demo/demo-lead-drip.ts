@@ -27,6 +27,7 @@ import {
     pick,
     sleep,
 } from './demo-shared';
+import { evaluateLeadForAutoBid } from '../auto-bid.service';
 
 // NOTE: Per-lead bid scheduling has been moved exclusively to the settlement monitor
 // (demo-orchestrator.ts). The drip path only injects leads — it does NOT schedule bids.
@@ -237,8 +238,30 @@ export async function injectOneLead(
 
     // Bids are handled by scheduleBidsForLead() in demo-orchestrator.ts, called via
     // the onLeadInjected callback from startLeadDrip. Do NOT call lockForBid here.
+
+    // Trigger auto-bid evaluation for the Kimi agent (fire-and-forget).
+    // evaluateLeadForAutoBid checks BuyerPreferenceSet rules — if the agent has an
+    // active rule matching this vertical it will place a bid via the RTB engine and
+    // emit ace:dev-log with action 'agent:bid:placed' (shows 🤖 Agent badge in Dev Log).
+    evaluateLeadForAutoBid({
+        id: lead.id,
+        vertical,
+        geo: { country: geo.country, state: geo.state, city: geo.city },
+        source: 'DEMO',
+        qualityScore,
+        isVerified: true,
+        reservePrice,
+        parameters: params as any,
+    }).catch((err: unknown) => {
+        // Non-fatal — agent bid failure should never break the demo drip
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn('[DRIP] evaluateLeadForAutoBid failed (non-fatal):', (err as any)?.message?.slice(0, 80));
+        }
+    });
+
     return { leadId: lead.id, reservePrice, auctionEndMs };
 }
+
 
 // ── Active Lead Minimum Top-Up (BUG-10) ──────────────
 

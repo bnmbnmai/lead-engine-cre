@@ -1,0 +1,181 @@
+{
+  "runId": "57a1df6f-0b64-473e-bf21-dcae36f0aa25",
+  "startedAt": "2026-02-24T00:43:38.579Z",
+  "completedAt": "2026-02-24T00:48:52.579Z",
+  "cycles": [
+    {
+      "cycle": 1,
+      "vertical": "mortgage",
+      "buyerWallet": "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58",
+      "buyerWallets": [
+        "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58",
+        "0x424CaC929939377f221348af52d4cb1247fE4379",
+        "0x55190CE8A38079d8415A1Ba15d001BC1a52718eC"
+      ],
+      "bidAmount": 29,
+      "lockIds": [
+        432,
+        433,
+        434
+      ],
+      "winnerLockId": 432,
+      "settleTxHash": "0xa70ca4144da0972372150954fc54b5a520a147e1a2190b14b7a51fd5475d7605",
+      "refundTxHashes": [
+        "0x56d93eeb992c099633ceae300eb3742e10f38e0c51ac9b6085f8c15081b0ff0c",
+        "0x4c6d512511ced5193fc0fbe3f5621c47b6de1f0f8321fa31e5cefddbfaf51648"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "316026",
+      "platformIncome": 2.45,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 2,
+      "vertical": "real_estate",
+      "buyerWallet": "0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9",
+      "buyerWallets": [
+        "0x55190CE8A38079d8415A1Ba15d001BC1a52718eC",
+        "0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9"
+      ],
+      "bidAmount": 17,
+      "lockIds": [
+        436,
+        437
+      ],
+      "winnerLockId": 437,
+      "settleTxHash": "0xb27853d8d903e44983f6007db637c2c3073bcd83921e0334227ead51743a8e1e",
+      "refundTxHashes": [
+        "0x12a8d3bf41bd767123d0aa32ea7c8cdf21773a44cb3a3bc30e79f538143d41f3"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "213155",
+      "platformIncome": 1.85,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 3,
+      "vertical": "roofing",
+      "buyerWallet": "0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf",
+      "buyerWallets": [
+        "0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf",
+        "0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C",
+        "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad"
+      ],
+      "bidAmount": 43,
+      "lockIds": [
+        438,
+        439,
+        440
+      ],
+      "winnerLockId": 438,
+      "settleTxHash": "0x1a98b53baaf5361d09947cbcfe61e6bb2cc0be3c62d6d10ddaf84415f9c99ca0",
+      "refundTxHashes": [
+        "0x2c88a1586c968f8a38e654fe6eeb05ae72782e6bfbb780a90cec4af1fe613fa4",
+        "0x6d57c962a5c869fd28de622fdbf9587433ae63566d6877fc3a8ee9a43c8263be"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "288307",
+      "platformIncome": 3.15,
+      "hadTiebreaker": true,
+      "vrfTxHash": "0x1a98b53baaf5361d09947cbcfe61e6bb2cc0be3c62d6d10ddaf84415f9c99ca0"
+    },
+    {
+      "cycle": 4,
+      "vertical": "hvac",
+      "buyerWallet": "0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C",
+      "buyerWallets": [
+        "0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C"
+      ],
+      "bidAmount": 50,
+      "lockIds": [
+        441
+      ],
+      "winnerLockId": 441,
+      "settleTxHash": "0x8bc41982614ed62c4c1299c89a11560c57300baf1598aaf56114dd7e067c2019",
+      "refundTxHashes": [],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "127384",
+      "platformIncome": 3.5,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 5,
+      "vertical": "legal",
+      "buyerWallet": "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58",
+      "buyerWallets": [
+        "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58",
+        "0x424CaC929939377f221348af52d4cb1247fE4379",
+        "0x55190CE8A38079d8415A1Ba15d001BC1a52718eC"
+      ],
+      "bidAmount": 24,
+      "lockIds": [
+        442,
+        443,
+        444
+      ],
+      "winnerLockId": 442,
+      "settleTxHash": "0xe153c9a7ccc9ff1f672656fc4dc5b6c468bcdc81e7a9793cee092c4f68a66c66",
+      "refundTxHashes": [
+        "0xff10e690af3e2a76e11f27fa87e68d4d00404b7b9aa4013426a6a90c7185a7d5",
+        "0xdb715bba06ea7241d238c64d19bffe1b5eaad6fe14cbeac2a67c49a006e554c2"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "298926",
+      "platformIncome": 2.2,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 6,
+      "vertical": "solar",
+      "buyerWallet": "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad",
+      "buyerWallets": [
+        "0x7be5ce8824d5c1890bC09042837cEAc57a55fdad",
+        "0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf"
+      ],
+      "bidAmount": 22,
+      "lockIds": [
+        452,
+        453
+      ],
+      "winnerLockId": 452,
+      "settleTxHash": "0x52c95eb3ac0c7772f1ef7198591bf32a4d847794c88d980208098b59ba984995",
+      "refundTxHashes": [
+        "0x5093f82cc91447c45aed607d4cf4ba6ad19f589a3bd6c31ce514708de5eec68e"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "213155",
+      "platformIncome": 2.1,
+      "hadTiebreaker": false
+    },
+    {
+      "cycle": 7,
+      "vertical": "insurance",
+      "buyerWallet": "0x3a9a41078992734ab24Dfb51761A327eEaac7b3d",
+      "buyerWallets": [
+        "0x3a9a41078992734ab24Dfb51761A327eEaac7b3d"
+      ],
+      "bidAmount": 21,
+      "lockIds": [
+        455
+      ],
+      "winnerLockId": 455,
+      "settleTxHash": "0x9217311acfe655e7b1eb9c70c2e94e8bf563a1655cbd026cdaf420181f3826ef",
+      "refundTxHashes": [],
+      "porSolvent": true,
+      "porTxHash": "0xa5b8336502ef88cbf5121561a461ed79ae8d1559e24001911b4ad30fc5621e52",
+      "gasUsed": "127384",
+      "platformIncome": 2.05,
+      "hadTiebreaker": false
+    }
+  ],
+  "totalGas": "1584337",
+  "totalSettled": 206,
+  "status": "completed",
+  "totalPlatformIncome": 17.3
+}

@@ -1307,7 +1307,9 @@ function DemoButtonBanner() {
     const statusText = isRunning
         ? progress.phase === 'seeding'
             ? '📦 Seeding marketplace with leads...'
-            : `🔄 Cycle ${progress.currentCycle} of ${progress.totalCycles} • ${progress.percent}% complete`
+            : progress.totalCycles > 0
+                ? `🔄 Cycle ${progress.currentCycle} of ${progress.totalCycles} • ${progress.percent}% complete`
+                : `🔄 Cycle ${progress.currentCycle} • Running`
         : isGlobalRunning
             ? totalCycles > 0
                 ? `🔄 Demo in progress — Cycle ${currentCycle} of ${totalCycles} (${percent}%)`
