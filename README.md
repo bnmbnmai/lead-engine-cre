@@ -6,7 +6,7 @@
 [![Confidential HTTP](https://img.shields.io/badge/Privacy-CHTT-green)](https://chain.link/cre)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-vercel.app-brightgreen)](https://lead-engine-cre-frontend.vercel.app)
 
-[Live Demo](https://lead-engine-cre-frontend.vercel.app) | [X Profile](https://x.com/qasrn_exe) | Last Updated: February 23, 2026
+[Live Demo](https://lead-engine-cre-frontend.vercel.app) | Last Updated: February 23, 2026
 
 ---
 
