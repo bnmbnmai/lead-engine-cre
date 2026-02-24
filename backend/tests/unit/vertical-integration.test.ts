@@ -48,7 +48,12 @@ import { activateVertical } from '../../src/services/vertical-nft.service';
 let optimizer: any;
 
 beforeAll(async () => {
-    optimizer = await import('../../src/services/vertical-optimizer.service');
+    try {
+        optimizer = await import('../../src/services/vertical-optimizer.service');
+    } catch (e) {
+        console.error("DEBUG FATAL ERROR:", e);
+        throw e;
+    }
 });
 
 afterEach(() => jest.clearAllMocks());

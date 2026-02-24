@@ -146,7 +146,7 @@ class X402Service {
 
         // ── Guard: on-chain infra required ──
         if (!this.escrowContract || !this.signer) {
-            const missing = [];
+            const missing: string[] = [];
             if (!ESCROW_CONTRACT_ADDRESS) missing.push('ESCROW_CONTRACT_ADDRESS');
             if (!DEPLOYER_KEY) missing.push('DEPLOYER_PRIVATE_KEY');
             const msg = `On-chain escrow not configured: missing ${missing.join(', ')}`;

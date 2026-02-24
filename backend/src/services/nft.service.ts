@@ -257,7 +257,7 @@ class NFTService {
         }
 
         // No contract/signer — fail explicitly, no off-chain fallback
-        const missing = [];
+        const missing: string[] = [];
         if (!LEAD_NFT_ADDRESS) missing.push('LEAD_NFT_CONTRACT_ADDRESS');
         if (!DEPLOYER_KEY) missing.push('DEPLOYER_PRIVATE_KEY');
         const msg = `On-chain NFT mint not configured: missing ${missing.join(', ')}`;

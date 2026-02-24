@@ -141,7 +141,7 @@ class RTBEngine {
         });
 
         // Filter by geo match and parameters
-        const matchingAsks = [];
+        const matchingAsks: any[] = [];
 
         for (const ask of asks) {
             const geoTargets = ask.geoTargets as any;

@@ -305,7 +305,7 @@ router.post('/zk-verify', async (req: Request, res: Response) => {
 
         const fraudVerify = zkService.verifyProofLocally(fraudProof);
 
-        let matchProof = null;
+        let matchProof: any = null;
         if (targetStates) {
             matchProof = zkService.generateGeoParameterMatchProof(
                 { vertical, geoState, geoZip, parameters: req.body.parameters || {} },

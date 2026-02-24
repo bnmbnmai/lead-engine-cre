@@ -194,7 +194,7 @@ router.put('/suggestions/:id/approve', authMiddleware, requireAdmin, async (req:
         });
 
         // Optionally mint NFT
-        let nftResult = null;
+        let nftResult: any = null;
         if (mintNft && NFT_FEATURES_ENABLED) {
             try {
                 nftResult = await verticalNFTService.activateVertical(vertical.slug);

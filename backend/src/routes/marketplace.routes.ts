@@ -1642,7 +1642,7 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
             return;
         }
 
-        let escrowTxData = null;
+        let escrowTxData: any = null;
         try {
             const prepared = await x402Service.prepareEscrowTx(
                 sellerUser.walletAddress,

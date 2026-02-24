@@ -76,7 +76,7 @@ router.get('/available', async (req: Request, res: Response) => {
             select: { slug: true, formConfig: true },
         });
 
-        const results = [];
+        const results: any[] = [];
         for (const v of verticals) {
             const config = (v.formConfig as any) || {};
             const pools: any[] = (config.bountyPools || []).filter((p: any) => p.active);
