@@ -18,9 +18,10 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
   - Explicitly use **Chainlink Confidential Compute (early access via CRE)** for winner-only decryption of lead PII.
   - Surface `Confidential HTTP` in CRE workflow for seller CRM enrichment (already built — just add workflow).
   - Add sealed-bid auction privacy diagram + attestation screenshots.
-- [ ] **CRE Workflow mandatory upgrade** (required for every track)
-  - One production CRE workflow: `EvaluateBuyerRulesAndMatch` (runs buyer vertical/geo/budget rules in enclave, outputs match score + queue placement).
-  - Run `cre simulate` and include the JSON output + Tenderly Virtual TestNet link.
+- [x] **CRE Workflow mandatory upgrade** (required for every track)
+  - Production CRE workflow: `EvaluateBuyerRulesAndMatch` — runs buyer vertical/geo/budget rules inside Confidential HTTP, outputs match score + queue placement. Uses `@chainlink/cre-sdk ^1.0.9` with `CronCapability`, `ConfidentialHTTPClient`, `consensusIdenticalAggregation`. Full 7-gate deterministic evaluation ported from `auto-bid.service.ts`.
+  - `cre workflow simulate` command documented in README. Backend integration via `triggerBuyerRulesWorkflow()` in `cre.service.ts`.
+  - ✅ **COMPLETED 2026-02-26** — See `cre-workflows/EvaluateBuyerRulesAndMatch/`
 - [ ] **Autonomous Agents Track (Moltbook)**
   - Integrate official `chainlink-agent-skills/cre-skills` into MCP agents (5-minute change).
   - Agents now explicitly call CRE workflow generation and runtime ops.

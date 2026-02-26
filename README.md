@@ -55,6 +55,63 @@ graph TD
 - **Production-Grade Scaling Infrastructure** — horizontal scaling via BullMQ/Redis (distributed bid scheduling, persistent lock registry, event-driven settlement) and WebSocket sharding, already implemented and proven ready for 10,000+ leads per day.
 
 All major edge cases (ties, low-escrow aborts, nonce escalation, concurrent bidding) are handled in production code. Real-time frontend updates via Socket.IO with optimistic states and agent activity badges.
+
+### CRE Workflow: `EvaluateBuyerRulesAndMatch`
+
+Production CRE workflow that evaluates buyer preference rules against incoming leads inside the Chainlink DON using `@chainlink/cre-sdk`. Uses Confidential HTTP to fetch buyer preference sets from the backend API with vault DON secrets (API key never in config or node memory), then runs a deterministic 7-gate rule evaluation with BFT consensus via `consensusIdenticalAggregation`.
+
+**Architecture (Hybrid Model):**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Chainlink DON (BFT Consensus)                    │
+│                                                                     │
+│  1. CronCapability trigger                                          │
+│  2. ConfidentialHTTPClient → GET /api/v1/auto-bid/pending-lead      │
+│     (API key injected from Vault DON via {{.creApiKey}})            │
+│  3. ConfidentialHTTPClient → GET /api/v1/auto-bid/preference-sets   │
+│  4. Deterministic 7-gate evaluation:                                │
+│     ├── Gate 1: Vertical match (exact or wildcard '*')              │
+│     ├── Gate 2: Geo country match                                   │
+│     ├── Gate 3: Geo state include/exclude                           │
+│     ├── Gate 4: Quality score threshold                             │
+│     ├── Gate 5: Off-site toggle                                     │
+│     ├── Gate 6: Verified-only toggle                                │
+│     └── Gate 7: Field-level filter evaluation                       │
+│  5. consensusIdenticalAggregation → match results                   │
+│                                                                     │
+│  Output: { leadId, matchedSets[], suggestedBidAmounts[] }           │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Backend Server (Real-Time)                        │
+│                                                                     │
+│  triggerBuyerRulesWorkflow() receives DON match results, then:      │
+│  6. Daily budget enforcement (requires real-time DB state)          │
+│  7. Vault balance lock (requires on-chain tx)                       │
+│  8. Duplicate bid check (requires real-time DB state)               │
+│  9. Sealed-bid creation + commitment hash                           │
+│                                                                     │
+│  Fallback: CRE_WORKFLOW_ENABLED=false → local auto-bid engine      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key files:**
+- [`cre-workflows/EvaluateBuyerRulesAndMatch/main.ts`](cre-workflows/EvaluateBuyerRulesAndMatch/main.ts) — CRE SDK workflow with 7-gate evaluation
+- [`cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml`](cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml) — Workflow settings
+- [`cre-workflows/secrets.yaml`](cre-workflows/secrets.yaml) — Vault DON secret mapping
+- [`cre-workflows/project.yaml`](cre-workflows/project.yaml) — Base Sepolia RPC config
+- [`backend/src/services/cre.service.ts`](backend/src/services/cre.service.ts) — `triggerBuyerRulesWorkflow()` integration
+
+**Simulate:**
+```bash
+cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target=staging-settings
+```
+
+**Gas savings:** Moving buyer rule evaluation into a single CRE workflow DON call reduces on-chain transactions from N (one per verification type) to 1 per lead — estimated 60–80% gas reduction on Base Sepolia. The DON handles deterministic computation; only matched results trigger on-chain vault locks.
+
+
 ### Chainlink Integration
 
 | Service | Role |

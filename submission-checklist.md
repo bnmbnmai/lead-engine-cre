@@ -60,9 +60,24 @@ losers         → 100% refund via refundBid()
 zero-bid leads → UNSOLD immediately, $0 fee, no VRF
 ```
 
+## 6. CRE Workflow: EvaluateBuyerRulesAndMatch
+
+| Evidence | Details |
+|---|---|
+| Workflow entry | `cre-workflows/EvaluateBuyerRulesAndMatch/main.ts` — `@chainlink/cre-sdk ^1.0.9` |
+| SDK usage | `CronCapability`, `ConfidentialHTTPClient`, `consensusIdenticalAggregation`, `Runner.newRunner<Config>` |
+| Gate evaluation | 7 deterministic gates: vertical, geo country, geo state include/exclude, quality score, off-site toggle, verified-only, field filters |
+| Confidential HTTP | `ConfidentialHTTPClient` fetches preference sets + lead data with vault DON secret `{{.creApiKey}}` |
+| Backend integration | `cre.service.ts:triggerBuyerRulesWorkflow(leadId)` — hybrid fallback with `CRE_WORKFLOW_ENABLED` env var |
+| API endpoints | `GET /api/v1/auto-bid/preference-sets`, `GET /api/v1/auto-bid/pending-lead` — served by `auto-bid.routes.ts` |
+| Vault secrets | `secrets.yaml`: `creApiKey` → `CRE_API_KEY_ALL`, `aesEncryptionKey` → `AES_KEY_ALL` |
+| Simulate command | `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target=staging-settings` |
+| Project config | `project.yaml`: Base Sepolia RPC, `workflow.yaml`: staging + production targets |
+
 ## Results Persistence
 
 - In-memory: `resultsStore: Map<runId, DemoResult>`
 - On-disk: `demo-results.json` (atomic write on each update)
 - API: `GET /api/demo/results/latest` + `GET /api/demo/results/:runId`
 - All fields persisted: `cycles[], totalGas, totalSettled, totalPlatformIncome, vrfProofLinks[], totalTiebreakers`
+
