@@ -101,6 +101,8 @@ type AuctionEventHandler = {
     'demo:pre-populated': (data: { leadCount: number; ts: string }) => void;
     // Kimi AI agent bid event — emitted by RTB engine when auto-bid fires
     'agent:bid:placed': (data: { leadId: string; buyerWallet: string; amount: number; vertical: string; ts: string }) => void;
+    // CRE-Native demo evaluation result
+    'demo:cre-evaluation': (data: { leadId: string; vertical: string; matchedSets: number; totalPreferenceSets: number; results: any[]; timestamp: string }) => void;
 };
 
 
@@ -142,6 +144,8 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     'demo:pre-populated',
     // Kimi AI agent bid signal
     'agent:bid:placed',
+    // CRE-Native demo evaluation
+    'demo:cre-evaluation',
 ];
 
 

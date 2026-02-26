@@ -36,6 +36,7 @@ import {
     Banknote,
     Users,
     Wallet,
+    Link2,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -74,6 +75,8 @@ export function DemoPanel() {
     const [demoMetrics, setDemoMetrics] = useState<{ activeCount: number; leadsThisMinute: number; dailyRevenue: number } | null>(null);
     const [demoRunning, setDemoRunning] = useState(false);
     const [elapsedSec, setElapsedSec] = useState(0);
+    const [creNativeMode, setCreNativeMode] = useState(false);
+    const [creEvalResult, setCreEvalResult] = useState<{ leadId: string; matchedSets: number; totalPreferenceSets: number } | null>(null);
     const demoStartRef = useRef<number | null>(null);
     const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -121,7 +124,12 @@ export function DemoPanel() {
                 setElapsedSec(0);
             }
         });
-        return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); };
+        // CRE evaluation results from backend
+        const unsubCre = socketClient.on('demo:cre-evaluation', (data: any) => {
+            setCreEvalResult({ leadId: data.leadId, matchedSets: data.matchedSets, totalPreferenceSets: data.totalPreferenceSets });
+            setTimeout(() => setCreEvalResult(null), 8000);
+        });
+        return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); unsubCre(); };
     }, []);
 
     // Fetch demo status on open
@@ -153,6 +161,10 @@ export function DemoPanel() {
             // Fetch demo seller address
             api.demoWallets().then(({ data }) => {
                 if (data) setDemoSellerAddress(data.seller);
+            }).catch(() => { });
+            // Fetch CRE-Native mode status
+            api.demoCreModeStatus().then(({ data }) => {
+                if (data) setCreNativeMode(data.enabled);
             }).catch(() => { });
         }
     }, [isOpen, refreshStatus]);
@@ -413,6 +425,16 @@ export function DemoPanel() {
             if (error) throw new Error(error.message || error.error);
             return `🔄 ${data?.message || 'Full reset initiated — watch the Dev Log panel for progress.'}${data?.wasRunning ? ' (stopped active demo first)' : ''}`;
         });
+    }
+
+    async function handleToggleCreMode() {
+        const next = !creNativeMode;
+        setCreNativeMode(next);
+        try {
+            await api.demoCreModeToggle(next);
+        } catch {
+            setCreNativeMode(!next); // revert on failure
+        }
     }
 
     // ============================================
@@ -755,6 +777,58 @@ export function DemoPanel() {
                                 {demoBuyersEnabled ? 'Bot buyers will place bids during auctions.' : 'No bot bids — only real users can bid.'}
                             </p>
 
+                        </Section>
+
+                        {/* Section: CRE Workflow Mode */}
+                        <Section id="cre-workflow" title="⛓️ CRE Workflow Mode">
+                            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
+                                <div className="flex items-center gap-2">
+                                    <Shield className="h-4 w-4 text-purple-400" />
+                                    <span className="text-sm">CRE-Native</span>
+                                </div>
+                                <button
+                                    onClick={handleToggleCreMode}
+                                    className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${creNativeMode ? 'bg-purple-500' : 'bg-muted'
+                                        }`}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${creNativeMode ? 'translate-x-5' : ''
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground pl-1">
+                                {creNativeMode
+                                    ? 'CRE DON 7-gate evaluation runs on every injected lead.'
+                                    : 'Classic mode — standard auction flow without CRE evaluation.'}
+                            </p>
+                            {creNativeMode && (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-400">
+                                    <Shield className="h-3 w-3 shrink-0" />
+                                    <span>7-gate: vertical • geo • state • quality • off-site • verified • field filters</span>
+                                </div>
+                            )}
+                            {creEvalResult && (
+                                <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 animate-in fade-in duration-300">
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="h-3.5 w-3.5 text-purple-400" />
+                                        <span className="text-[11px] font-semibold text-purple-400">CRE DON Executed</span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground mt-1 pl-5">
+                                        Lead {creEvalResult.leadId.slice(0, 8)}… → {creEvalResult.matchedSets}/{creEvalResult.totalPreferenceSets} buyer rules matched
+                                    </p>
+                                    <div className="flex gap-2 mt-1.5 pl-5">
+                                        <a
+                                            href={`https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
+                                        >
+                                            <Link2 className="h-3 w-3" /> Basescan
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
                         </Section>
 
                         {/* Section 2b: On-Chain Settlement */}

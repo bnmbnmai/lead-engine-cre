@@ -13,7 +13,7 @@ import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
 import { generateToken, authMiddleware, requireAdmin, AuthenticatedRequest } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
-// creService import removed — not used in demo-panel routes
+import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
 import { nftService } from '../services/nft.service';
 import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
@@ -87,6 +87,15 @@ const DEMO_BUYERS_DEFAULT = (process.env.NODE_ENV === 'production' && process.en
 /** Read the current toggle state — persisted in DB, cached in memory (5 s). */
 export async function getDemoBuyersEnabled(): Promise<boolean> {
     const val = await getConfig(DEMO_BUYERS_KEY, DEMO_BUYERS_DEFAULT);
+    return val === 'true';
+}
+
+// CRE-Native Demo Mode toggle — persisted in PlatformConfig.
+// When ON, injected leads are evaluated by the CRE 7-gate workflow.
+const CRE_NATIVE_MODE_KEY = 'creNativeDemoMode';
+
+export async function getCreNativeModeEnabled(): Promise<boolean> {
+    const val = await getConfig(CRE_NATIVE_MODE_KEY, 'false');
     return val === 'true';
 }
 
@@ -473,6 +482,29 @@ router.post('/demo-buyers-toggle', authMiddleware, publicDemoBypass, async (req:
     }
     await setConfig(DEMO_BUYERS_KEY, String(newValue));
     console.log(`[DEMO] Demo buyers toggled → ${newValue ? 'ON' : 'OFF'} (persisted)`);
+    res.json({ enabled: newValue });
+});
+
+// ============================================
+// GET /cre-mode — read CRE-Native demo mode toggle
+// POST /cre-mode — set CRE-Native demo mode toggle
+// ============================================
+
+router.get('/cre-mode', async (_req: Request, res: Response) => {
+    const enabled = await getCreNativeModeEnabled();
+    res.json({ enabled });
+});
+
+router.post('/cre-mode', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+    const { enabled } = req.body as { enabled?: boolean };
+    let newValue: boolean;
+    if (typeof enabled === 'boolean') {
+        newValue = enabled;
+    } else {
+        newValue = !(await getCreNativeModeEnabled());
+    }
+    await setConfig(CRE_NATIVE_MODE_KEY, String(newValue));
+    console.log(`[DEMO] CRE-Native mode toggled → ${newValue ? 'ON' : 'OFF'} (persisted)`);
     res.json({ enabled: newValue });
 });
 
@@ -999,7 +1031,40 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
             io.emit('marketplace:refreshAll');
         }
 
-        res.json({ success: true, lead: { id: lead.id, vertical, geo: { country: geo.country, state: geo.state }, price, parameters: params } });
+        // CRE-Native mode: evaluate lead against buyer rules via 7-gate workflow
+        let creEvaluation: any = null;
+        const creMode = await getCreNativeModeEnabled();
+        if (creMode) {
+            try {
+                const creResult = await creService.triggerBuyerRulesWorkflow(lead.id);
+                creEvaluation = {
+                    workflowEnabled: true,
+                    matchedSets: creResult.matchedSets,
+                    totalPreferenceSets: creResult.totalPreferenceSets,
+                    results: creResult.results,
+                };
+                const io2 = req.app.get('io');
+                if (io2) {
+                    io2.emit('demo:cre-evaluation', {
+                        leadId: lead.id,
+                        vertical,
+                        matchedSets: creResult.matchedSets,
+                        totalPreferenceSets: creResult.totalPreferenceSets,
+                        results: creResult.results,
+                        timestamp: new Date().toISOString(),
+                    });
+                }
+                console.log(`[CRE-NATIVE] Lead ${lead.id.slice(0, 8)}… evaluated: ${creResult.matchedSets}/${creResult.totalPreferenceSets} matched`);
+            } catch (creErr: any) {
+                console.warn(`[CRE-NATIVE] Evaluation failed for ${lead.id.slice(0, 8)}…: ${creErr.message?.slice(0, 80)}`);
+            }
+        }
+
+        res.json({
+            success: true,
+            lead: { id: lead.id, vertical, geo: { country: geo.country, state: geo.state }, price, parameters: params },
+            creEvaluation,
+        });
     } catch (error) {
         console.error('Demo inject lead error:', error);
         res.status(500).json({ error: 'Failed to inject lead' });

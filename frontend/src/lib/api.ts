@@ -329,6 +329,10 @@ export const api = {
     demoWipe: () => apiFetch<{ success: boolean; deleted: { leads: number; bids: number; transactions: number; auctionRooms: number; asks: number }; message: string }>('/api/v1/demo-panel/wipe', { method: 'POST', body: JSON.stringify({ confirm: true }) }),
     demoFundEth: () => apiFetch<{ totalSent: string; deployerBefore: string; deployerAfter: string; results: Array<{ label: string; addr: string; sent: string; status: string }> }>('/api/v1/demo-panel/fund-eth', { method: 'POST' }),
 
+    // CRE-Native Demo Mode
+    demoCreModeStatus: () => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/cre-mode'),
+    demoCreModeToggle: (enabled: boolean) => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/cre-mode', { method: 'POST', body: JSON.stringify({ enabled }) }),
+
     // Vertical Auctions
     createVerticalAuction: (slug: string, reservePrice: number, durationSecs: number) =>
         apiFetch<{ success: boolean; auctionId?: number; startTime?: string; endTime?: string }>(
