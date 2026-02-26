@@ -1,0 +1,29 @@
+# ==========================================================================
+# CRE WORKFLOW SETTINGS — DecryptForWinner
+# ==========================================================================
+# Winner-only PII decryption workflow. Uses Confidential HTTP to call the
+# Lead Engine backend's /decrypt-pii endpoint. The backend verifies that
+# the caller is the auction winner before returning decrypted PII.
+#
+# encryptOutput: true ensures the PII response is encrypted for the
+# winner's DON node only — no other node can read the plaintext.
+#
+# Reference: cre-templates/conf-http-demo/my-workflow/workflow.yaml
+
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "decrypt-for-winner-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
+
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "decrypt-for-winner-production"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "../secrets.yaml"

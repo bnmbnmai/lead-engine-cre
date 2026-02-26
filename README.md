@@ -99,6 +99,7 @@ Production CRE workflow that evaluates buyer preference rules against incoming l
 
 **Key files:**
 - [`cre-workflows/EvaluateBuyerRulesAndMatch/main.ts`](cre-workflows/EvaluateBuyerRulesAndMatch/main.ts) — CRE SDK workflow with 7-gate evaluation
+- [`cre-workflows/DecryptForWinner/main.ts`](cre-workflows/DecryptForWinner/main.ts) — Winner-only PII decryption (encryptOutput: true)
 - [`cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml`](cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml) — Workflow settings
 - [`cre-workflows/secrets.yaml`](cre-workflows/secrets.yaml) — Vault DON secret mapping
 - [`cre-workflows/project.yaml`](cre-workflows/project.yaml) — Base Sepolia RPC config
@@ -112,11 +113,11 @@ cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target=
 **Gas savings:** Moving buyer rule evaluation into a single CRE workflow DON call reduces on-chain transactions from N (one per verification type) to 1 per lead — estimated 60–80% gas reduction on Base Sepolia. The DON handles deterministic computation; only matched results trigger on-chain vault locks.
 
 **CRE-Native Demo Mode:**
-Toggle in the Demo Control Panel (⛓️ CRE Workflow Mode section). When enabled:
+The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click). The Demo Control Panel also has an explicit toggle (⛓️ CRE Workflow Mode) for manual Classic/CRE switching. When enabled:
 - Every injected lead is evaluated by the 7-gate CRE workflow via `triggerBuyerRulesWorkflow()`
-- Real-time "CRE DON Executed" badge shows match results in the panel
-- Proof links to Basescan for on-chain verification
-- Classic mode remains fully functional when toggle is OFF (default)
+- Real-time CRE DON entries appear in the persistent On-Chain Log with Basescan proof links
+- Winner-only PII decryption via "🔓 Decrypt Lead Data" button (CRE DON attested, `encryptOutput: true`)
+- Classic mode remains fully functional when toggle is OFF
 
 
 ### Chainlink Integration

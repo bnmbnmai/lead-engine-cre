@@ -263,6 +263,20 @@ export function DevLogPanel() {
         };
         socketClient.on('agent:bid:placed', agentBidHandler);
 
+        // demo:cre-evaluation — CRE DON 7-gate evaluation results (persistent in On-Chain Log)
+        const creEvalHandler = (data: any) => {
+            setSocketStatus('connected');
+            const entry: DevLogEntry = {
+                ts: data.timestamp || new Date().toISOString(),
+                action: 'cre:don-evaluation',
+                ' ': `⛓️ CRE 7-gate: ${(data.leadId || '').slice(0, 8)}… → ${data.matchedSets}/${data.totalPreferenceSets} buyer rules matched (${data.vertical || 'lead'})`,
+                ...(data.leadId ? { lead: data.leadId.slice(0, 8) } : {}),
+                contractAddress: '0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b',
+            };
+            setEntries(prev => addCapped(prev, entry));
+        };
+        socketClient.on('demo:cre-evaluation', creEvalHandler);
+
         return () => {
             sock.off('connect', onConnect);
             sock.off('disconnect', onDisconnect);
@@ -272,6 +286,7 @@ export function DevLogPanel() {
             socketClient.off('demo:log', demoHandler);
             socketClient.off('demo:complete', completeHandler);
             socketClient.off('agent:bid:placed', agentBidHandler);
+            socketClient.off('demo:cre-evaluation', creEvalHandler);
         };
     }, []);
 
@@ -306,6 +321,8 @@ export function DevLogPanel() {
         // Chainlink services
         'vrf', 'tiebreak', 'kyc', 'ace', 'cre', 'chainlink',
         'por', 'proof of reserve', 'data feed', 'data feeds',
+        // CRE DON evaluation
+        'cre don', '7-gate', 'cre:don', 'buyer rules matched',
         // AI agent
         'agent', '🤖', 'auto-bid',
         // Demo lifecycle

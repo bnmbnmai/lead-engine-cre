@@ -474,6 +474,7 @@ export async function cleanupLockedFundsForDemoBuyers(io: SocketServer): Promise
 export async function runFullDemo(
     io: SocketServer,
     cycles: number = 5,
+    creNativeMode: boolean = false,
 ): Promise<DemoResult> {
     // ── Singleton lock ──
     if (isRunning) {
@@ -855,6 +856,28 @@ export async function runFullDemo(
             // scheduleBidsForLead fires real lockForBid txs at random offsets within 60s,
             // pushing lockIds into leadLockRegistry so the settlement monitor can settle.
             scheduleBidsForLead(io, leadId, reservePrice, auctionEndMs, signal);
+
+            // CRE-Native: evaluate lead against buyer rules via 7-gate workflow
+            if (creNativeMode) {
+                creService.triggerBuyerRulesWorkflow(leadId).then(creResult => {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'success',
+                        message: `⛓️ CRE DON: ${leadId.slice(0, 8)}… → ${creResult.matchedSets}/${creResult.totalPreferenceSets} buyer rules matched`,
+                    });
+                    io.emit('demo:cre-evaluation', {
+                        leadId,
+                        matchedSets: creResult.matchedSets,
+                        totalPreferenceSets: creResult.totalPreferenceSets,
+                        results: creResult.results,
+                        timestamp: new Date().toISOString(),
+                    });
+                }).catch(err => {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'warn',
+                        message: `⚠️ CRE DON eval failed for ${leadId.slice(0, 8)}…: ${err.message?.slice(0, 60)}`,
+                    });
+                });
+            }
         });
 
 

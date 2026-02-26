@@ -6,6 +6,7 @@
 #
 # Workflows:
 #   - EvaluateBuyerRulesAndMatch: Buyer rule evaluation + matching
+#   - DecryptForWinner: Winner-only PII decryption (encryptOutput: true)
 #
 # Reference: cre-templates/conf-http-demo/project.yaml
 

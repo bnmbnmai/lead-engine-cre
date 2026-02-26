@@ -37,6 +37,8 @@ import {
     Users,
     Wallet,
     Link2,
+    Lock,
+    Unlock,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -77,6 +79,7 @@ export function DemoPanel() {
     const [elapsedSec, setElapsedSec] = useState(0);
     const [creNativeMode, setCreNativeMode] = useState(false);
     const [creEvalResult, setCreEvalResult] = useState<{ leadId: string; matchedSets: number; totalPreferenceSets: number } | null>(null);
+    const [decryptResult, setDecryptResult] = useState<{ pii: any; attestation: any; leadId: string } | null>(null);
     const demoStartRef = useRef<number | null>(null);
     const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -127,7 +130,7 @@ export function DemoPanel() {
         // CRE evaluation results from backend
         const unsubCre = socketClient.on('demo:cre-evaluation', (data: any) => {
             setCreEvalResult({ leadId: data.leadId, matchedSets: data.matchedSets, totalPreferenceSets: data.totalPreferenceSets });
-            setTimeout(() => setCreEvalResult(null), 8000);
+            setTimeout(() => setCreEvalResult(null), 3000);
         });
         return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); unsubCre(); };
     }, []);
@@ -825,6 +828,56 @@ export function DemoPanel() {
                                             className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
                                         >
                                             <Link2 className="h-3 w-3" /> Basescan
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+                            {/* Winner-Only PII Decryption */}
+                            {creNativeMode && creEvalResult && (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const result = await api.demoDecryptPII(creEvalResult.leadId);
+                                            if ('data' in result && result.data?.success) {
+                                                setDecryptResult({ pii: result.data.pii, attestation: result.data.attestation, leadId: creEvalResult.leadId });
+                                            }
+                                        } catch (err) {
+                                            console.error('Decrypt PII failed:', err);
+                                        }
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 text-purple-300 text-[11px] font-semibold hover:from-purple-600/30 hover:to-blue-600/30 transition-all"
+                                >
+                                    <Unlock className="h-3.5 w-3.5" /> Decrypt Lead Data (Winner-Only)
+                                </button>
+                            )}
+                            {decryptResult && (
+                                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Lock className="h-3.5 w-3.5 text-emerald-400" />
+                                        <span className="text-[11px] font-bold text-emerald-400">PII Decrypted — CRE DON Attested</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] pl-5">
+                                        <span className="text-muted-foreground">Name</span>
+                                        <span className="text-foreground font-medium">{decryptResult.pii.firstName} {decryptResult.pii.lastName}</span>
+                                        <span className="text-muted-foreground">Email</span>
+                                        <span className="text-foreground font-medium">{decryptResult.pii.email}</span>
+                                        <span className="text-muted-foreground">Phone</span>
+                                        <span className="text-foreground font-medium">{decryptResult.pii.phone}</span>
+                                        <span className="text-muted-foreground">Address</span>
+                                        <span className="text-foreground font-medium">{decryptResult.pii.address}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 mt-2 pl-5">
+                                        <span className="inline-flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                            <Shield className="h-2.5 w-2.5" /> {decryptResult.attestation.source}
+                                        </span>
+                                        <span className="text-[9px] text-muted-foreground">encryptOutput: true</span>
+                                        <a
+                                            href={`https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[9px] text-blue-400 hover:underline"
+                                        >
+                                            <Link2 className="h-2.5 w-2.5" /> Proof
                                         </a>
                                     </div>
                                 </div>

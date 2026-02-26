@@ -333,6 +333,9 @@ export const api = {
     demoCreModeStatus: () => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/cre-mode'),
     demoCreModeToggle: (enabled: boolean) => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/cre-mode', { method: 'POST', body: JSON.stringify({ enabled }) }),
 
+    // Winner-Only PII Decryption (CRE-Native mode)
+    demoDecryptPII: (leadId: string) => apiFetch<{ success: boolean; pii: any; attestation: any }>(`/api/v1/demo-panel/leads/${leadId}/decrypt-pii`, { method: 'POST' }),
+
     // Vertical Auctions
     createVerticalAuction: (slug: string, reservePrice: number, durationSecs: number) =>
         apiFetch<{ success: boolean; auctionId?: number; startTime?: string; endTime?: string }>(
