@@ -1,0 +1,39 @@
+# ==========================================================================
+# CRE WORKFLOW SETTINGS — EvaluateBuyerRulesAndMatch
+# ==========================================================================
+# Production CRE workflow that evaluates buyer preference rules against
+# incoming leads inside the Chainlink DON. Uses Confidential HTTP to fetch
+# buyer preference sets and lead scoring data from the backend API, then
+# runs deterministic 6-gate rule evaluation with BFT consensus.
+#
+# Gates evaluated in-DON (deterministic):
+#   1. Vertical match (exact or wildcard '*')
+#   2. Geo country match
+#   3. Geo state include/exclude
+#   4. Quality score gate (minQualityScore)
+#   5. Off-site toggle (acceptOffSite)
+#   6. Verified-only toggle (requireVerified)
+#   + Field-level filter evaluation (EQUALS, IN, GT, LT, BETWEEN, etc.)
+#
+# Gates handled server-side (require real-time state):
+#   - Budget enforcement, vault locking, duplicate checks, bid placement
+#
+# Reference: cre-templates/conf-http-demo/my-workflow/workflow.yaml
+
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "evaluate-buyer-rules-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../secrets.yaml"
+
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "evaluate-buyer-rules-production"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: "../secrets.yaml"
