@@ -312,7 +312,7 @@ router.get('/my', authMiddleware, async (req: AuthenticatedRequest, res: Respons
             const ownBidIds = new Set(bids.map(b => b.id));
             const demoBids = await prisma.bid.findMany({
                 where: {
-                    status: { in: ['ACCEPTED', 'WON'] },
+                    status: 'ACCEPTED',
                     lead: { source: 'DEMO' },
                     id: { notIn: [...ownBidIds] },   // deduplicate
                 },
