@@ -47,7 +47,7 @@ graph TD
 
 - **One-click end-to-end demo** with certified on-chain activity across the complete lifecycle (submission → CRE scoring → mint → sealed-bid auction → atomic settlement → Proof-of-Reserves verification and winner-only PII reveal).
 - **LeadNFTv2** supporting secondary-market royalties (2 %) and fractional ownership via ERC-3643 compliance.
-- **Autonomous MCP agents** operating 24/7, powered by LangChain ReAct with 11 custom tools and official `chainlink-agent-skills` integration for CRE workflow orchestration.
+- **Autonomous AI Agent** powered by Kimi K2.5 (LLM) + LangChain ReAct with 12 custom MCP tools. Fully LLM-autonomous bidding, search, compliance checks, and navigation — distinct from the deterministic rule-based auto-bid engine that evaluates 7 gates per lead without LLM involvement.
 - **Sealed-bid auctions** with commit-reveal privacy, VRF v2.5 fairness for tie resolution, and PersonalEscrowVault atomic USDC settlement.
 - **PersonalEscrowVault** with Chainlink Automation-driven daily Proof-of-Reserves checks and automatic refund of expired bid locks.
 - **Granular Vertical Field Bounty Hunting** — buyers post field-specific bounties (for example, “mortgage leads from ZIP code 90210 with good or excellent credit score”). The system automatically matches each submitted lead’s field values at ingestion, attaches matching bounty rewards to the auction, and settles the additional USDC payouts on close — creating direct, hyper-targeted demand signals.
@@ -130,6 +130,7 @@ The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click
 - Won leads appear in **Buyer Dashboard → Purchased Leads** and **Buyer Portfolio** with CRE Quality badge
 - Each purchased lead has a **🔓 Decrypt PII** button → inline PII display (name, email, phone) with "CRE DON Attested" badge
 - Quality tooltips use honest wording: "CRE DON Match + Quality Score (pending on-chain scoring)"
+- **Demo Portfolio Fallback:** In demo mode, `GET /bids/my` automatically returns recent ACCEPTED demo bids so judges see won leads without needing wallet-matched bid ownership.
 
 
 ### Chainlink Integration
@@ -150,7 +151,7 @@ The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click
 | **Frontend** | Vite + React + Tailwind + Zustand + Socket.IO |
 | **Backend** | Express + Prisma + Socket.IO + LangChain |
 | **Smart Contracts** | Solidity 0.8.27 + Hardhat (Base Sepolia) |
-| **AI Agents** | MCP server with 11 custom tools; official Chainlink agent skills integration |
+| **AI Agent** | Kimi K2.5 (LLM) + LangChain ReAct + 12 MCP tools (autonomous). Separate deterministic auto-bid engine (7-gate rule evaluation, no LLM). |
 | **Oracles** | Chainlink CRE, ACE, Automation, VRF v2.5, Functions, Data Feeds |
 | **Database** | Render Postgres (with planned read replicas) |
 
@@ -171,10 +172,17 @@ Certified demo run available in repository artifacts.
 ```mermaid
 graph TD
     Frontend["Frontend (React/Vite)"] --> Backend["Backend (Express/Prisma)"]
-    Backend --> MCP["MCP Agent Server (LangChain + Tools)"]
+    Backend --> MCP["AI Agent (Kimi K2.5 · LangChain)"]
+    Backend --> AutoBid["Auto-Bid Engine (7-Gate Rules)"]
+    Backend --> Bounty["Bounty Pool Service"]
     Backend --> Contracts["Smart Contracts (Base Sepolia)"]
     Contracts --> Chainlink["Chainlink Services"]
     MCP --> Backend
+    AutoBid --> Backend
+    Bounty --> Contracts
+    Backend -->|afterLeadCreated| CRE["CRE DON Workflow"]
+    CRE --> Contracts
+    Backend -->|demo fallback| Portfolio["Buyer Portfolio (GET /bids/my)"]
 ```
 
 ### Market Opportunity

@@ -54,7 +54,6 @@ export function AgentChatWidget() {
     const [messages, setMessages] = useState<ChatMessage[]>(() => loadHistory());
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [agentMode, setAgentMode] = useState<string | null>(null);
     const [hasUnread, setHasUnread] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -171,8 +170,6 @@ export function AgentChatWidget() {
                 newMessages.push(assistantMsg);
             }
 
-            if (data.mode) setAgentMode(data.mode);
-
             setMessages((prev) => [...prev, ...newMessages]);
 
             // Mark unread if panel is minimized
@@ -232,17 +229,12 @@ export function AgentChatWidget() {
                                 <Sparkles className="h-4 w-4 text-violet-400" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-bold text-foreground">Agent Chat</h3>
+                                <h3 className="text-sm font-bold text-foreground">LEAD Engine AI</h3>
                                 <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-muted-foreground">MCP tools</span>
-                                    {agentMode && (
-                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono ${agentMode === 'kimi-k2.5' || agentMode === 'langchain'
-                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                            }`}>
-                                            {agentMode === 'langchain' ? '🧠 LangChain' : agentMode === 'kimi-k2.5' ? '🧠 Kimi' : '⚡ Fallback'}
-                                        </span>
-                                    )}
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                        🧠 Kimi K2.5 · LangChain
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">12 MCP tools</span>
                                 </div>
                             </div>
                         </div>
