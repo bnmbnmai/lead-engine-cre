@@ -477,43 +477,6 @@ function buildTools() {
                 });
             },
         }),
-        new _DynamicStructuredTool({
-            name: 'subscribe_to_live_leads',
-            description: 'Subscribe to real-time events for new leads and auction updates via Socket.IO. Use this to wait for live events. Returns the first event received.',
-            schema: z.object({
-                verticals: z.array(z.string()).optional().describe('Filter by vertical (e.g. solar). Omit for all.'),
-            }),
-            func: async (params: Record<string, unknown>) => {
-                const { aceDevBus } = await import('./ace.service');
-                const io = require('socket.io-client');
-                return new Promise((resolve) => {
-                    const socket = io(process.env.API_BASE_URL || 'http://localhost:3001');
-                    const verts = params.verticals as string[] | undefined;
-
-                    aceDevBus.emit('ace:dev-log', {
-                        level: 'info',
-                        message: `Agent subscribed to live stream ${verts ? `(${verts.join(',')})` : '(all verticals)'}`,
-                        module: 'Agent',
-                    });
-
-                    const cleanup = (res: any) => {
-                        socket.disconnect();
-                        resolve(JSON.stringify(res));
-                    };
-
-                    socket.on('marketplace:lead:new', (data: any) => {
-                        if (verts && data.lead && !verts.includes(data.lead.vertical)) return;
-                        aceDevBus.emit('ace:dev-log', { level: 'success', message: 'Agent received new lead via live stream', module: 'Agent' });
-                        cleanup({ event: 'marketplace:lead:new', data });
-                    });
-
-                    socket.on('auction:updated', (data: any) => cleanup({ event: 'auction:updated', data }));
-                    socket.on('ace:dev-log', (data: any) => cleanup({ event: 'ace:dev-log', data }));
-
-                    setTimeout(() => cleanup({ status: 'timeout', message: 'No events received in 15 seconds. You can call subscribe again.' }), 15000);
-                });
-            },
-        }),
     ];
 }
 

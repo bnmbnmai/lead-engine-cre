@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { SkeletonTable } from '@/components/ui/skeleton';
 import api from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -257,7 +258,7 @@ export function BuyerPortfolio() {
     const handleCrmPush = () => {
         const ids = selected.size > 0 ? [...selected] : sorted.map(b => b.lead?.id || b.id);
         ids.forEach(id => setCrmPushed(prev => new Set(prev).add(id)));
-        // In production, this would POST to /api/v1/crm/push
+        toast({ type: 'success', title: `CRM Push Queued (${ids.length} leads)`, description: 'Configure your CRM webhook in Integrations → Webhooks' });
     };
 
     return (

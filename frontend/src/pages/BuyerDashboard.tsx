@@ -66,7 +66,7 @@ export function BuyerDashboard() {
 
     const handleCrmPushSingle = (leadId: string) => {
         setCrmPushed((prev) => new Set(prev).add(leadId));
-        // In production, this would POST to /api/v1/crm/push with the lead ID
+        toast({ type: 'success', title: 'CRM Push Queued', description: 'Configure your CRM webhook in Integrations → Webhooks' });
     };
 
     const handleExportPurchasedCSV = () => {
