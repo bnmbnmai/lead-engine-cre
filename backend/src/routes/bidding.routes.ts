@@ -305,29 +305,9 @@ router.get('/my', authMiddleware, async (req: AuthenticatedRequest, res: Respons
             include: { lead: { select: leadSelect } },
         });
 
-        // ── Demo portfolio fallback ──────────────────────────────────
-        // In demo mode: ALWAYS include the 20 most recent ACCEPTED bids
-        // from demo-created leads so judges see purchased leads in the
-        // Buyer Dashboard and Portfolio after running the 1-click demo.
-        // Strictly gated to DEMO_MODE — production uses wallet-matched bids only.
-        const DEMO_MODE = process.env.DEMO_MODE === 'true' || process.env.NODE_ENV === 'development';
-
-        if (DEMO_MODE) {
-            const ownBidIds = new Set(bids.map(b => b.id));
-            const demoBids = await prisma.bid.findMany({
-                where: {
-                    status: 'ACCEPTED',
-                    lead: { source: 'DEMO' },
-                    id: { notIn: [...ownBidIds] },   // deduplicate
-                },
-                orderBy: { createdAt: 'desc' },
-                take: 20,
-                include: { lead: { select: leadSelect } },
-            });
-            res.json({ bids: [...bids, ...demoBids] });
-            return;
-        }
-
+        // Pure wallet-based ownership: return only the authenticated user's own bids.
+        // The demo orchestrator guarantees the Buyer persona wallet wins at least one
+        // lead per run, so ACCEPTED bids appear naturally via buyerId match.
         res.json({ bids });
     } catch (error) {
         console.error('Get my bids error:', error);

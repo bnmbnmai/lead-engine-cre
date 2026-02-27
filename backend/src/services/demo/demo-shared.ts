@@ -71,6 +71,10 @@ export const DEMO_BUYER_WALLETS = [
 export const DEMO_SELLER_WALLET = '0x9Bb15F98982715E33a2113a35662036528eE0A36';
 export const DEMO_SELLER_KEY = '0x618bee99ca60f5511dad533a998344f3a0a7b2339db5726ae33d56fd543294ce';
 
+// Buyer persona wallet — used by /demo-login with role=BUYER (no connectedWallet).
+// Must always match DEMO_WALLETS.BUYER in demo-panel.routes.ts.
+export const BUYER_PERSONA_WALLET = DEMO_BUYER_WALLETS[3]; // 0x424CaC…
+
 // ── Buyer private keys (Wallets 1–10, mirror of DEMO_BUYER_WALLETS order) ─────
 // Source of truth: faucet-wallets.txt (gitignored, never committed).
 // Deployer key is separate — loaded exclusively from process.env.DEPLOYER_PRIVATE_KEY.

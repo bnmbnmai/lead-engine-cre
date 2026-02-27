@@ -24,6 +24,7 @@ import {
     DEMO_SELLER_WALLET,
     DEMO_BUYER_WALLETS,
     DEMO_BUYER_KEYS,
+    BUYER_PERSONA_WALLET,
     DEMO_VERTICALS,
     GEOS,
     USDC_ADDRESS,
@@ -91,6 +92,11 @@ export type { DemoLogEntry, CycleResult, DemoResult };
 let isRunning = false;
 let currentAbort: AbortController | null = null;
 
+// ── Buyer Persona Win Guarantee ────────────────────
+// Tracks whether the Buyer persona wallet (0x424CaC…) has won at least
+// one lead this run. Reset at the start of every runFullDemo.
+let _buyerPersonaHasWon = false;
+
 // ── Per-Lead Lock Registry ─────────────────────────
 // Maps leadId → array of confirmed on-chain lockIds from scheduled buyer bids.
 // The settlement monitor reads this at expiry to settle winner + refund losers.
@@ -136,6 +142,14 @@ export function scheduleBidsForLead(
         DEMO_BUYER_WALLETS[(startOffset + i) % DEMO_BUYER_WALLETS.length]
     );
 
+    // ── Buyer Persona Win Guarantee ────────────────────────────────────
+    // Until the persona wallet has won one lead, ensure it's always in
+    // the bidders array so it has a chance to win on every lead.
+    const needsPersonaGuarantee = !_buyerPersonaHasWon;
+    if (needsPersonaGuarantee && !buyers.includes(BUYER_PERSONA_WALLET)) {
+        buyers[buyers.length - 1] = BUYER_PERSONA_WALLET; // replace last slot
+    }
+
     // Initialize registry for this lead (manual bids from UI can also push here)
 
     emit(io, {
@@ -145,7 +159,12 @@ export function scheduleBidsForLead(
 
     buyers.forEach((buyerAddr, idx) => {
         const variance = Math.round(reservePrice * 0.20);
-        const bidAmount = Math.max(10, reservePrice + (idx === 0 ? 0 : rand(-variance, variance)));
+        let bidAmount = Math.max(10, reservePrice + (idx === 0 ? 0 : rand(-variance, variance)));
+
+        // Persona wallet always bids highest until it has won once
+        if (needsPersonaGuarantee && buyerAddr === BUYER_PERSONA_WALLET) {
+            bidAmount = Math.max(bidAmount, Math.round(reservePrice * 1.3));
+        }
         const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
 
         // Stagger: spread bids from 8s after drip to 15s before expiry
@@ -520,6 +539,7 @@ export async function runFullDemo(
         if (k) BUYER_KEYS[addr] = k;
     });
 
+    _buyerPersonaHasWon = false; // reset for each demo run
     isRunning = true;
     currentAbort = new AbortController();
     const signal = currentAbort.signal;
@@ -1053,6 +1073,11 @@ export async function runFullDemo(
                             data: { status: 'SOLD', winningBid: bidAmount, soldAt: new Date() },
                         });
                         emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 DB bid record created for ${buyerWallet.slice(0, 10)}… → Portfolio visible` });
+                        // Track persona wallet wins for deterministic guarantee
+                        if (buyerWallet.toLowerCase() === BUYER_PERSONA_WALLET.toLowerCase()) {
+                            _buyerPersonaHasWon = true;
+                            emit(io, { ts: new Date().toISOString(), level: 'success', message: `🎯 Buyer persona wallet won lead ${demoLeadId.slice(0, 8)}… — Portfolio will show this lead` });
+                        }
                     }
                 } catch (bidRecordErr: any) {
                     console.warn(`[DEMO] Bid record creation failed (non-fatal): ${bidRecordErr.message?.slice(0, 80)}`);
