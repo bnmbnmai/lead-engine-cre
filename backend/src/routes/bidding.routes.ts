@@ -293,6 +293,10 @@ router.get('/my', authMiddleware, async (req: AuthenticatedRequest, res: Respons
             auctionEndAt: true,
             source: true,
             reservePrice: true,
+            winningBid: true,
+            encryptedData: true,
+            dataHash: true,
+            sellerId: true,
         };
 
         const bids = await prisma.bid.findMany({
