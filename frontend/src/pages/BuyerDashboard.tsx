@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag, Wallet, ArrowDown, ArrowUp, Shield } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag, Wallet, ArrowDown, ArrowUp, Shield, Unlock, Lock } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -35,6 +35,22 @@ export function BuyerDashboard() {
     const sellerDropdownRef = useRef<HTMLDivElement>(null);
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
     const [csvExporting, setCsvExporting] = useState(false);
+    const [decryptedPII, setDecryptedPII] = useState<Record<string, any>>({});
+    const [decryptingId, setDecryptingId] = useState<string | null>(null);
+
+    const handleDecryptPII = async (leadId: string) => {
+        setDecryptingId(leadId);
+        try {
+            const result = await api.demoDecryptPII(leadId);
+            if ('data' in result && result.data?.success) {
+                setDecryptedPII(prev => ({ ...prev, [leadId]: result.data!.pii }));
+            }
+        } catch (err) {
+            console.error('Decrypt PII failed:', err);
+        } finally {
+            setDecryptingId(null);
+        }
+    };
 
     // Vault state — delegated to useVault hook (on-chain read + MetaMask signing)
     const {
@@ -542,7 +558,7 @@ export function BuyerDashboard() {
                                             <th>CRE Quality</th>
                                             <th>NFT ID</th>
                                             <th>Date</th>
-                                            <th>Actions</th>
+                                            <th title="CRE DON Match + Quality Score (pending on-chain scoring)">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -606,7 +622,36 @@ export function BuyerDashboard() {
                                                                 </Link>
                                                             </Button>
                                                         )}
+                                                        {bid.lead?.id && !decryptedPII[bid.lead.id] && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 px-2 text-xs text-purple-400 hover:text-purple-300"
+                                                                onClick={() => handleDecryptPII(bid.lead!.id)}
+                                                                disabled={decryptingId === bid.lead.id}
+                                                            >
+                                                                <Unlock className="h-3 w-3 mr-0.5" />
+                                                                {decryptingId === bid.lead.id ? 'Decrypting…' : 'Decrypt'}
+                                                            </Button>
+                                                        )}
+                                                        {bid.lead?.id && decryptedPII[bid.lead.id] && (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                                                                <Lock className="h-3 w-3" /> PII Unlocked
+                                                            </span>
+                                                        )}
                                                     </div>
+                                                    {bid.lead?.id && decryptedPII[bid.lead.id] && (
+                                                        <div className="mt-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5">
+                                                            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                                                                <span className="text-muted-foreground">Name</span>
+                                                                <span className="text-foreground font-medium">{decryptedPII[bid.lead.id].firstName} {decryptedPII[bid.lead.id].lastName}</span>
+                                                                <span className="text-muted-foreground">Email</span>
+                                                                <span className="text-foreground font-medium">{decryptedPII[bid.lead.id].email}</span>
+                                                                <span className="text-muted-foreground">Phone</span>
+                                                                <span className="text-foreground font-medium">{decryptedPII[bid.lead.id].phone}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}

@@ -81,3 +81,22 @@ zero-bid leads → UNSOLD immediately, $0 fee, no VRF
 - API: `GET /api/demo/results/latest` + `GET /api/demo/results/:runId`
 - All fields persisted: `cycles[], totalGas, totalSettled, totalPlatformIncome, vrfProofLinks[], totalTiebreakers`
 
+## 7. CRE Workflow: DecryptForWinner
+
+| Evidence | Details |
+|---|---|
+| Workflow entry | `cre-workflows/DecryptForWinner/main.ts` — `@chainlink/cre-sdk ^1.0.9` |
+| SDK usage | `ConfidentialHTTPClient`, `encryptOutput: true` |
+| Backend endpoint | `POST /leads/:leadId/decrypt-pii` — verifies `escrowReleased: true` |
+| Frontend integration | 🔓 Decrypt PII button in DemoPanel, BuyerDashboard, BuyerPortfolio |
+
+## 8. Buyer Persona Experience
+
+| Evidence | Details |
+|---|---|
+| Persona access | DemoPanel + "Run Full Demo" button accessible to all personas (env-gated, not role-gated) |
+| Won leads in Dashboard | BuyerDashboard `Purchased Leads` table includes CRE Quality column with Shield badge |
+| Won leads in Portfolio | BuyerPortfolio table + card views include CRE Quality badge + Decrypt PII button |
+| PII decryption | Inline PII display (name, email, phone) with "CRE DON Attested" badge |
+| Tooltip honesty | All quality-score tooltips use "CRE DON Match + Quality Score (pending on-chain scoring)" |
+

@@ -119,6 +119,12 @@ The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click
 - Winner-only PII decryption via "🔓 Decrypt Lead Data" button (CRE DON attested, `encryptOutput: true`)
 - Classic mode remains fully functional when toggle is OFF
 
+**Buyer Persona Experience:**
+- Demo Control Panel is **env-gated** (`VITE_DEMO_MODE`), accessible to all personas (Buyer, Seller, Admin)
+- Won leads appear in **Buyer Dashboard → Purchased Leads** and **Buyer Portfolio** with CRE Quality badge
+- Each purchased lead has a **🔓 Decrypt PII** button → inline PII display (name, email, phone) with "CRE DON Attested" badge
+- Quality tooltips use honest wording: "CRE DON Match + Quality Score (pending on-chain scoring)"
+
 
 ### Chainlink Integration
 

@@ -19,6 +19,8 @@ import {
     CheckCircle,
     Square,
     CheckSquare,
+    Unlock,
+    Lock,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,7 +61,7 @@ function CREBadge({ score }: { score: number }) {
             displayed >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' :
                 'text-red-400 bg-red-500/15 border-red-500/30';
     return (
-        <Tooltip content={`CRE Quality Score: ${displayed}/100 — confirmed on-chain after purchase`}>
+        <Tooltip content={`CRE Quality Score: ${displayed}/100 — CRE DON Match + Quality Score (pending on-chain scoring)`}>
             <Badge variant="outline" className={`text-xs ${color}`}>
                 <Shield className="h-3 w-3 mr-1" />
                 CRE {displayed}/100
@@ -76,8 +78,8 @@ function ACEBadge({ compliant }: { compliant: boolean }) {
             ? 'ACE Compliance: on-chain check passed — caller is compliant with all active policies'
             : 'ACE Compliance: on-chain check failed — caller did not pass active policies'}>
             <Badge variant="outline" className={`text-xs ${compliant
-                    ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
-                    : 'text-red-400 bg-red-500/15 border-red-500/30'
+                ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+                : 'text-red-400 bg-red-500/15 border-red-500/30'
                 }`}>
                 {compliant ? '✓' : '✗'} ACE
             </Badge>
@@ -103,6 +105,22 @@ export function BuyerPortfolio() {
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [crmPushed, setCrmPushed] = useState<Set<string>>(new Set());
     const [csvExporting, setCsvExporting] = useState(false);
+    const [decryptedPII, setDecryptedPII] = useState<Record<string, any>>({});
+    const [decryptingId, setDecryptingId] = useState<string | null>(null);
+
+    const handleDecryptPII = async (leadId: string) => {
+        setDecryptingId(leadId);
+        try {
+            const result = await api.demoDecryptPII(leadId);
+            if ('data' in result && result.data?.success) {
+                setDecryptedPII(prev => ({ ...prev, [leadId]: result.data!.pii }));
+            }
+        } catch (err) {
+            console.error('Decrypt PII failed:', err);
+        } finally {
+            setDecryptingId(null);
+        }
+    };
 
     const fetchPortfolio = useCallback(async () => {
         try {
@@ -464,6 +482,23 @@ export function BuyerPortfolio() {
                                                                 </Link>
                                                             </Button>
                                                         )}
+                                                        {lead?.id && !decryptedPII[lead.id] && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 px-2 text-xs text-purple-400 hover:text-purple-300"
+                                                                onClick={() => handleDecryptPII(lead.id)}
+                                                                disabled={decryptingId === lead.id}
+                                                            >
+                                                                <Unlock className="h-3 w-3 mr-0.5" />
+                                                                {decryptingId === lead.id ? 'Decrypting…' : 'Decrypt PII'}
+                                                            </Button>
+                                                        )}
+                                                        {lead?.id && decryptedPII[lead.id] && (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                                                                <Lock className="h-3 w-3" /> PII Unlocked
+                                                            </span>
+                                                        )}
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
@@ -476,6 +511,18 @@ export function BuyerPortfolio() {
                                                                 : <><Send className="h-3 w-3" /> CRM</>}
                                                         </Button>
                                                     </div>
+                                                    {lead?.id && decryptedPII[lead.id] && (
+                                                        <div className="mt-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5">
+                                                            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                                                                <span className="text-muted-foreground">Name</span>
+                                                                <span className="text-foreground font-medium">{decryptedPII[lead.id].firstName} {decryptedPII[lead.id].lastName}</span>
+                                                                <span className="text-muted-foreground">Email</span>
+                                                                <span className="text-foreground font-medium">{decryptedPII[lead.id].email}</span>
+                                                                <span className="text-muted-foreground">Phone</span>
+                                                                <span className="text-foreground font-medium">{decryptedPII[lead.id].phone}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );
@@ -568,7 +615,35 @@ export function BuyerPortfolio() {
                                                     </Link>
                                                 </Button>
                                             )}
+                                            {lead?.id && !decryptedPII[lead.id] && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10"
+                                                    onClick={() => handleDecryptPII(lead.id)}
+                                                    disabled={decryptingId === lead.id}
+                                                >
+                                                    <Unlock className="h-3.5 w-3.5 mr-1" />
+                                                    {decryptingId === lead.id ? 'Decrypting…' : 'Decrypt PII'}
+                                                </Button>
+                                            )}
                                         </div>
+                                        {lead?.id && decryptedPII[lead.id] && (
+                                            <div className="mt-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <Lock className="h-3 w-3 text-emerald-400" />
+                                                    <span className="text-[10px] font-bold text-emerald-400">Decrypted PII — CRE DON Attested</span>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                                                    <span className="text-muted-foreground">Name</span>
+                                                    <span className="text-foreground font-medium">{decryptedPII[lead.id].firstName} {decryptedPII[lead.id].lastName}</span>
+                                                    <span className="text-muted-foreground">Email</span>
+                                                    <span className="text-foreground font-medium">{decryptedPII[lead.id].email}</span>
+                                                    <span className="text-muted-foreground">Phone</span>
+                                                    <span className="text-foreground font-medium">{decryptedPII[lead.id].phone}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             );
