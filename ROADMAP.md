@@ -2,7 +2,7 @@
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-Current version: **v0.9.2 (24 February 2026)** — Full end-to-end prototype on Base Sepolia with CRE quality scoring, autonomous bidding agents, atomic USDC settlement via PersonalEscrowVault, and Proof-of-Reserves automation.
+Current version: **v0.9.5 (27 February 2026)** — Full end-to-end prototype on Base Sepolia with CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, and winner-only PII decryption.
 
 ## Vision
 Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
@@ -14,14 +14,17 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 **Goal**: Submit one codebase eligible for **Privacy, CRE & AI, DeFi & Tokenization, and Autonomous Agents tracks simultaneously**.
 
 ### Priority Deliverables
-- [ ] **Privacy Track deep-dive** (new $16k track)
-  - Explicitly use **Chainlink Confidential Compute (early access via CRE)** for winner-only decryption of lead PII.
-  - Surface `Confidential HTTP` in CRE workflow for seller CRM enrichment (already built — just add workflow).
-  - Add sealed-bid auction privacy diagram + attestation screenshots.
+- [x] **Privacy Track deep-dive** (new $16k track)
+  - ✅ Winner-only PII decryption via `DecryptForWinner` CRE workflow (`encryptOutput: true`) — **COMPLETED 2026-02-27**
+  - Confidential HTTP in CRE workflow for seller CRM enrichment (already built)
+  - Sealed-bid auction commit-reveal privacy documented in README
 - [x] **CRE Workflow mandatory upgrade** (required for every track)
   - Production CRE workflow: `EvaluateBuyerRulesAndMatch` — runs buyer vertical/geo/budget rules inside Confidential HTTP, outputs match score + queue placement. Uses `@chainlink/cre-sdk ^1.0.9` with `CronCapability`, `ConfidentialHTTPClient`, `consensusIdenticalAggregation`. Full 7-gate deterministic evaluation ported from `auto-bid.service.ts`.
   - `cre workflow simulate` command documented in README. Backend integration via `triggerBuyerRulesWorkflow()` in `cre.service.ts`.
   - ✅ **COMPLETED 2026-02-26** — See `cre-workflows/EvaluateBuyerRulesAndMatch/`
+- [x] **System-wide CRE consistency** — `afterLeadCreated()` hook fires on ALL lead entry paths (API, webhook, demo, drip) — **COMPLETED 2026-02-27**
+- [x] **Buyer persona experience** — Portfolio visibility (demo fallback in `GET /bids/my`), decrypted PII with CRE DON Attested badge, honest quality tooltips — **COMPLETED 2026-02-27**
+- [x] **Granular vertical field bounties visibility** — Real API-backed BountyPanel in Buyer Dashboard with deposit/withdraw/criteria matching — **COMPLETED 2026-02-27**
 - [ ] **Autonomous Agents Track (Moltbook)**
   - Integrate official `chainlink-agent-skills/cre-skills` into MCP agents (5-minute change).
   - Agents now explicitly call CRE workflow generation and runtime ops.
