@@ -62,6 +62,7 @@ interface DemoResult {
     totalPlatformIncome?: number;
     totalTiebreakers?: number;
     vrfProofLinks?: string[];
+    creQualityScores?: Record<number, number>; // cycle → real CRE quality score (0-100)
 }
 
 
@@ -427,9 +428,7 @@ export default function DemoResults() {
                                         cycles: display.cycles.map(c => ({
                                             cycle: c.cycle,
                                             vertical: c.vertical,
-                                            qualityScore: 72 + (c.cycle * 7) % 28,
-                                            matchedSets: 2 + (c.cycle % 3),
-                                            totalPreferenceSets: 5,
+                                            qualityScore: display.creQualityScores?.[c.cycle] ?? 'pending',
                                             gates: ['vertical', 'geo', 'state', 'quality', 'off-site', 'verified', 'field-filters'],
                                         })),
                                         timestamp: new Date().toISOString(),
@@ -460,7 +459,7 @@ export default function DemoResults() {
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Cycle</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Vertical</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground"
-                                        title="CRE DON Match + Quality Score: confirmed on-chain">
+                                        title="CRE DON evaluation confirmed — quality pending on-chain scoring">
                                         CRE Quality
                                     </th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Bid</th>
@@ -493,13 +492,23 @@ export default function DemoResults() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <span
-                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-xs font-bold"
-                                                    title="CRE DON Match + Quality Score: confirmed on-chain"
-                                                >
-                                                    <Shield className="h-3 w-3" />
-                                                    {72 + (cycle.cycle * 7) % 28}/100
-                                                </span>
+                                                {display.creQualityScores?.[cycle.cycle] != null ? (
+                                                    <span
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-xs font-bold"
+                                                        title="CRE DON Match + Quality Score: confirmed on-chain"
+                                                    >
+                                                        <Shield className="h-3 w-3" />
+                                                        {display.creQualityScores[cycle.cycle]}/100
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-xs font-medium"
+                                                        title="CRE DON evaluation ran — quality score pending on-chain confirmation"
+                                                    >
+                                                        <Shield className="h-3 w-3" />
+                                                        Pending
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 font-mono text-emerald-400">${cycle.bidAmount}</td>
                                             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">[{cycle.lockIds.join(', ')}]</td>

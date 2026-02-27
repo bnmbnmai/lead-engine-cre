@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag, Wallet, ArrowDown, ArrowUp } from 'lucide-react';
+import { TrendingUp, Gavel, DollarSign, Target, ArrowUpRight, Clock, CheckCircle, MapPin, Search, Users, Star, Download, Send, Tag, Wallet, ArrowDown, ArrowUp, Shield } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -539,6 +539,7 @@ export function BuyerDashboard() {
                                             <th>Vertical</th>
                                             <th>Location</th>
                                             <th>Amount Paid</th>
+                                            <th>CRE Quality</th>
                                             <th>NFT ID</th>
                                             <th>Date</th>
                                             <th>Actions</th>
@@ -558,6 +559,16 @@ export function BuyerDashboard() {
                                                 </td>
                                                 <td>
                                                     <span className="font-semibold">{formatCurrency(bid.amount || 0)}</span>
+                                                </td>
+                                                <td>
+                                                    {bid.lead?.qualityScore != null ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20">
+                                                            <Shield className="h-3 w-3" />
+                                                            {Math.floor(bid.lead.qualityScore / 100)}/100
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground text-xs">—</span>
+                                                    )}
                                                 </td>
                                                 <td>
                                                     {bid.lead?.nftTokenId ? (
