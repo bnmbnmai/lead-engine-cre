@@ -403,6 +403,9 @@ router.post('/leads/submit', leadSubmitLimiter, apiKeyMiddleware, async (req: Au
             return;
         }
 
+        // CRE workflow: fire buyer-rules evaluation (fire-and-forget)
+        creService.afterLeadCreated(lead.id);
+
         // Find matching asks for this lead
         const matchingAsks = await prisma.ask.findMany({
             where: {
@@ -599,6 +602,9 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
             });
             return;
         }
+
+        // CRE workflow: fire buyer-rules evaluation (fire-and-forget)
+        creService.afterLeadCreated(lead.id);
 
         // Pre-score is already stored in the DB by verifyLead above.
 

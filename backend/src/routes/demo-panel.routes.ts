@@ -838,6 +838,7 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
             }
 
             leadIds.push(lead.id);
+            creService.afterLeadCreated(lead.id);
             leadCount++;
         }
 
@@ -998,6 +999,7 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
         });
 
         // Create auction room so the auction monitor can resolve this lead
+        creService.afterLeadCreated(lead.id);
         await prisma.auctionRoom.create({
             data: {
                 leadId: lead.id,
@@ -1217,6 +1219,7 @@ router.post('/auction', authMiddleware, publicDemoBypass, async (req: Request, r
         });
 
         // Create auction room
+        creService.afterLeadCreated(lead.id);
         await prisma.auctionRoom.create({
             data: {
                 leadId: lead.id,

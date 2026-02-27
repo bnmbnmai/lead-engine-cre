@@ -413,6 +413,16 @@ export default function DemoResults() {
                             </a>
                         </div>
                         <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground">CREVerifier Contract</span>
+                            <a
+                                href="https://sepolia.basescan.org/address/0xe9c9C03C83D4da5AB29D7E0A53Ae48D8C84c6D6"
+                                target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition font-mono"
+                            >
+                                0xe9c9C...c6D6 <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                        </div>
+                        <div className="flex flex-col gap-1">
                             <span className="text-xs text-muted-foreground">Workflows Executed</span>
                             <span className="text-sm font-bold text-purple-300">
                                 {display.cycles.length} × EvaluateBuyerRulesAndMatch
@@ -468,6 +478,8 @@ export default function DemoResults() {
                                     <th className="px-4 py-3 font-medium text-muted-foreground">LeadNFT</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Refunds</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">PoR</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">Tx Status</th>
+                                    <th className="px-4 py-3 font-medium text-muted-foreground">On-Chain Proof</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Gas</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Platform</th>
                                     <th className="px-4 py-3 font-medium text-muted-foreground">Tiebreaker</th>

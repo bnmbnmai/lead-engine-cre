@@ -93,6 +93,12 @@ Production CRE workflow that evaluates buyer preference rules against incoming l
 │  8. Duplicate bid check (requires real-time DB state)               │
 │  9. Sealed-bid creation + commitment hash                           │
 │                                                                     │
+│  Centralized hook: afterLeadCreated() fires on ALL lead entry paths │
+│  ├── API (marketplace.routes.ts — seller submit, public submit)     │
+│  ├── Webhook (integration.routes.ts — e2e-bid)                      │
+│  ├── Demo (demo-panel.routes.ts — seed, inject, auction)            │
+│  └── Drip (demo-orchestrator.ts — via onLeadInjected callback)      │
+│                                                                     │
 │  Fallback: CRE_WORKFLOW_ENABLED=false → local auto-bid engine      │
 └─────────────────────────────────────────────────────────────────────┘
 ```

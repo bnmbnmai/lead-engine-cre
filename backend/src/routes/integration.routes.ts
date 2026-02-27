@@ -89,6 +89,9 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, steps, error: verification.reason });
         }
 
+        // CRE workflow: fire buyer-rules evaluation (fire-and-forget)
+        creService.afterLeadCreated(lead.id);
+
         // ─── Step 3: ZK Fraud Detection ────────────
         stepStart = Date.now();
         const zkProof = zkService.generateFraudProof({

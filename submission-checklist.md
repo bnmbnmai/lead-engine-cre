@@ -100,3 +100,17 @@ zero-bid leads → UNSOLD immediately, $0 fee, no VRF
 | PII decryption | Inline PII display (name, email, phone) with "CRE DON Attested" badge |
 | Tooltip honesty | All quality-score tooltips use "CRE DON Match + Quality Score (pending on-chain scoring)" |
 
+## 9. System-Wide CRE Consistency
+
+| Evidence | Details |
+|---|---|
+| Centralized hook | `cre.service.ts:afterLeadCreated(leadId)` — fire-and-forget `triggerBuyerRulesWorkflow()` |
+| marketplace.routes (Seller submit) | `afterLeadCreated(lead.id)` after CRE verify gate |
+| marketplace.routes (Public submit) | `afterLeadCreated(lead.id)` after CRE verify gate |
+| integration.routes (e2e-bid) | `afterLeadCreated(lead.id)` after CRE verify gate |
+| demo-panel.routes (seed) | `afterLeadCreated(lead.id)` in seed loop |
+| demo-panel.routes (POST /lead) | `afterLeadCreated(lead.id)` after auction room |
+| demo-panel.routes (POST /demo-auction) | `afterLeadCreated(lead.id)` after auction room |
+| demo-lead-drip (demo mode) | via `onLeadInjected` callback in `demo-orchestrator.ts` |
+| Guard | `CRE_WORKFLOW_ENABLED=true` env var (default false) |
+
