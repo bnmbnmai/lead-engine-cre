@@ -128,6 +128,7 @@ export interface DemoLogEntry {
 
 export interface CycleResult {
     cycle: number;           // sequential 1-based index within this run
+    leadId?: string;         // lead UUID (for quality score lookup)
     vertical: string;
     buyerWallet: string;     // winner's wallet (kept for backward compat)
     buyerWallets: string[];  // all distinct bidder wallets
@@ -142,6 +143,9 @@ export interface CycleResult {
     platformIncome?: number;   // (winningBid * 0.05) + $1 winner-only convenience fee
     hadTiebreaker?: boolean;   // true if 2+ buyers tied on highest bid
     vrfTxHash?: string;        // settle tx hash used as VRF-equivalent proof link
+    nftTokenId?: number;       // LeadNFT token ID (for Basescan link)
+    mintTxHash?: string;       // NFT mint tx hash
+    txStatus?: string;         // 'confirmed' | 'pending'
 }
 
 export interface DemoResult {
@@ -156,6 +160,7 @@ export interface DemoResult {
     totalPlatformIncome?: number;
     totalTiebreakers?: number;
     vrfProofLinks?: string[];
+    creQualityScores?: Record<number, number>; // cycle → real CRE quality score (0-100)
 }
 
 // ── Shared Deployer Provider + Nonce Queue ─────────

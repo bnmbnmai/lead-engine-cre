@@ -31,6 +31,7 @@ const LEAD_NFT_ADDR = import.meta.env.VITE_LEAD_NFT_ADDRESS || '0x00000000000000
 
 interface CycleResult {
     cycle: number;
+    leadId?: string;
     vertical: string;
     buyerWallet: string;         // winner's wallet (backward compat)
     buyerWallets?: string[];     // all distinct bidder wallets
@@ -44,6 +45,7 @@ interface CycleResult {
     gasUsed: string;
     mintTxHash?: string;         // optional — present if backend captures NFT mint tx
     nftTokenId?: number;         // optional — present if backend resolves token ID
+    txStatus?: string;           // 'confirmed' | 'pending'
     // ── Judge-facing financials (optional — backward-compat) ──
     platformIncome?: number;
     hadTiebreaker?: boolean;
@@ -580,6 +582,48 @@ export default function DemoResults() {
                                                             <ExternalLink className="h-3 w-3" />
                                                         </a>
                                                     )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold ${(cycle.txStatus ?? 'confirmed') === 'confirmed' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
+                                                    }`}>
+                                                    {cycle.txStatus ?? 'confirmed'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <a
+                                                        href="https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b"
+                                                        target="_blank" rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition"
+                                                    >
+                                                        Basescan <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                    <button
+                                                        onClick={() => {
+                                                            const blob = new Blob([JSON.stringify({
+                                                                workflow: 'EvaluateBuyerRulesAndMatch',
+                                                                target: 'staging-settings',
+                                                                cycle: cycle.cycle,
+                                                                leadId: cycle.leadId ?? 'unknown',
+                                                                vertical: cycle.vertical,
+                                                                qualityScore: display.creQualityScores?.[cycle.cycle] ?? 'pending',
+                                                                txStatus: cycle.txStatus ?? 'confirmed',
+                                                                gates: ['vertical', 'geo', 'state', 'quality', 'off-site', 'verified', 'field-filters'],
+                                                                timestamp: new Date().toISOString(),
+                                                            }, null, 2)], { type: 'application/json' });
+                                                            const url = URL.createObjectURL(blob);
+                                                            const a = document.createElement('a');
+                                                            a.href = url;
+                                                            a.download = `cre-cycle-${cycle.cycle}.json`;
+                                                            a.click();
+                                                            URL.revokeObjectURL(url);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition cursor-pointer bg-transparent border-none p-0"
+                                                        title="Download simulate JSON for this cycle"
+                                                    >
+                                                        <Download className="h-3 w-3" />
+                                                    </button>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">

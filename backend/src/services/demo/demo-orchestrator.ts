@@ -1158,7 +1158,7 @@ export async function runFullDemo(
             totalGas += cycleGas;
 
             cycleResults.push({
-                cycle: settlementCycle, vertical,
+                cycle: settlementCycle, leadId: demoLeadId, vertical,
                 buyerWallet, buyerWallets: registryBids.map(r => r.addr),
                 bidAmount,
                 lockIds: cycleUsedBuyItNow ? [] : lockIds,
@@ -1170,6 +1170,7 @@ export async function runFullDemo(
                 platformIncome: cyclePlatformIncome,
                 hadTiebreaker: cycleUsedBuyItNow ? false : hadTiebreaker,
                 vrfTxHash: vrfTxHashForCycle,
+                txStatus: settleReceiptHash ? 'confirmed' : 'pending',
             });
 
             await sleep(1000);
@@ -1268,10 +1269,24 @@ export async function runFullDemo(
             })();
         }
 
+        // Read real quality scores from DB for all settled leads
+        const creQualityScores: Record<number, number> = {};
+        for (const cr of cycleResults) {
+            if (cr.leadId) {
+                try {
+                    const dbLead = await prisma.lead.findUnique({ where: { id: cr.leadId }, select: { qualityScore: true } });
+                    if (dbLead?.qualityScore != null) {
+                        creQualityScores[cr.cycle] = Math.floor(dbLead.qualityScore / 100); // 0-10000 → 0-100
+                    }
+                } catch { /* non-fatal */ }
+            }
+        }
+
         const result: DemoResult = {
             runId, startedAt, completedAt: new Date().toISOString(),
             cycles: cycleResults, totalGas: totalGas.toString(), totalSettled,
             status: 'completed', totalPlatformIncome, totalTiebreakers, vrfProofLinks,
+            creQualityScores: Object.keys(creQualityScores).length > 0 ? creQualityScores : undefined,
         };
 
         await saveResultsToDB(result);

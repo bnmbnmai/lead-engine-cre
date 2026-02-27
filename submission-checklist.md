@@ -114,3 +114,13 @@ zero-bid leads → UNSOLD immediately, $0 fee, no VRF
 | demo-lead-drip (demo mode) | via `onLeadInjected` callback in `demo-orchestrator.ts` |
 | Guard | `CRE_WORKFLOW_ENABLED=true` env var (default false) |
 
+## 10. Real Quality Score Flow
+
+| Evidence | Details |
+|---|---|
+| On-chain dispatch | `requestOnChainQualityScore(leadId, tokenId)` in demo-orchestrator after NFT mint |
+| DON callback | `CREVerifier.fulfillRequest()` stores quality score in DB |
+| DemoResult population | `demo-orchestrator.ts` reads `lead.qualityScore` from DB after settlement |
+| Frontend display | DemoResults shows real score when available, "Pending" badge when not |
+| Per-cycle download | Each cycle row has Download button → JSON with leadId, qualityScore, gates |
+
