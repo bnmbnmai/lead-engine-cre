@@ -1027,6 +1027,37 @@ export async function runFullDemo(
                 totalSettled += bidAmount;
                 settleReceiptHash = settleReceipt.hash;
 
+                // ── DB BID RECORD: create ACCEPTED bid so Portfolio/My Bids pages populate ──
+                // scheduleBidsForLead only creates on-chain vault locks, not Prisma records.
+                // The GET /bids/my fallback requires status='ACCEPTED' + lead.source='DEMO'.
+                try {
+                    const winnerUser = await prisma.user.findFirst({
+                        where: { walletAddress: buyerWallet },
+                    });
+                    if (winnerUser && demoLeadId) {
+                        await prisma.bid.create({
+                            data: {
+                                leadId: demoLeadId,
+                                buyerId: winnerUser.id,
+                                amount: bidAmount,
+                                effectiveBid: bidAmount,
+                                status: 'ACCEPTED',
+                                source: 'AGENT',
+                                processedAt: new Date(),
+                                escrowTxHash: `vaultLock:${winnerLockId}`,
+                            },
+                        });
+                        // Mark lead SOLD in DB (socket event fires later, but DB should match)
+                        await prisma.lead.update({
+                            where: { id: demoLeadId },
+                            data: { status: 'SOLD', winningBid: bidAmount, soldAt: new Date() },
+                        });
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 DB bid record created for ${buyerWallet.slice(0, 10)}… → Portfolio visible` });
+                    }
+                } catch (bidRecordErr: any) {
+                    console.warn(`[DEMO] Bid record creation failed (non-fatal): ${bidRecordErr.message?.slice(0, 80)}`);
+                }
+
                 // Winner-only fee model: 5% of winning bid + $1 convenience fee.
                 // Losers get 100% refund — NO fee charged to losers.
                 const cyclePlatformFee = parseFloat((bidAmount * 0.05).toFixed(2));
