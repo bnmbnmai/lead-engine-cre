@@ -11,7 +11,7 @@
  */
 
 import {
-    // Facade re-exports
+    // Orchestrator exports (formerly via demo-e2e.service facade)
     runFullDemo,
     stopDemo,
     isDemoRunning,
@@ -21,9 +21,12 @@ import {
     getAllResults,
     initResultsStore,
     cleanupLockedFundsForDemoBuyers,
+} from '../../src/services/demo/demo-orchestrator';
+
+import {
     countActiveLeads,
     checkActiveLeadsAndTopUp,
-} from '../../src/services/demo-e2e.service';
+} from '../../src/services/demo/demo-lead-drip';
 
 import {
     pendingLockIds,

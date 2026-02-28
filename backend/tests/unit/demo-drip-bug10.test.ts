@@ -66,7 +66,7 @@ jest.mock('ethers', () => ({
     },
 }));
 
-import { checkActiveLeadsAndTopUp, countActiveLeads } from '../../src/services/demo-e2e.service';
+import { checkActiveLeadsAndTopUp, countActiveLeads } from '../../src/services/demo/demo-lead-drip';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
