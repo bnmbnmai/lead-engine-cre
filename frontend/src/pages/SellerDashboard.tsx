@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote, Inbox } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote, Inbox, Sparkles } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import api from '@/lib/api';
+import { API_BASE_URL } from '@/lib/api';
 import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
@@ -25,6 +26,7 @@ export function SellerDashboard() {
     const [hasProfile, setHasProfile] = useState<boolean | null>(null);
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
+    const [bountyData, setBountyData] = useState<{ vertical: string; totalAvailableUSDC: number }[]>([]);
 
 
     useEffect(() => {
@@ -56,6 +58,18 @@ export function SellerDashboard() {
 
         fetchData();
     }, [debouncedSearch]);
+
+    // Fetch bounty demand signals
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/v1/bounties/available`);
+                if (!res.ok) return;
+                const data = await res.json();
+                setBountyData((data.verticals || []).filter((v: any) => v.totalAvailableUSDC > 0).slice(0, 4));
+            } catch { /* non-critical */ }
+        })();
+    }, []);
 
 
 
@@ -214,6 +228,31 @@ export function SellerDashboard() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Bounty Demand Signal Banner */}
+                {bountyData.length > 0 && (
+                    <Card className="border-amber-500/20 bg-amber-500/[0.04]">
+                        <CardContent className="py-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 rounded-xl bg-amber-500/10">
+                                    <Sparkles className="h-5 w-5 text-amber-500" />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-sm">💰 Active Buyer Bounties</h3>
+                                    <p className="text-xs text-muted-foreground">Buyers have deposited USDC bounties for these verticals — submit leads here for bonus payouts</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {bountyData.map((b) => (
+                                    <div key={b.vertical} className="rounded-lg bg-white/[0.06] border border-amber-500/10 px-3 py-2 text-center">
+                                        <div className="text-lg font-bold text-amber-500">${b.totalAvailableUSDC.toFixed(0)}</div>
+                                        <div className="text-[10px] text-muted-foreground capitalize">{b.vertical.replace(/[._]/g, ' ')}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Recent Leads */}

@@ -440,6 +440,28 @@ export function DemoPanel() {
         }
     }
 
+    async function handleSimulateTrafficLead() {
+        await runAction('trafficLead', async () => {
+            // Fetch a random sample payload from the backend
+            const sampleRes = await fetch(`${API_BASE_URL}/api/v1/ingest/sample-payload`);
+            if (!sampleRes.ok) throw new Error('Failed to fetch sample payload');
+            const { payload } = await sampleRes.json();
+
+            // Submit via the traffic platform endpoint
+            const ingestRes = await fetch(`${API_BASE_URL}/api/v1/ingest/traffic-platform`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': 'demo-traffic-key' },
+                body: JSON.stringify(payload),
+            });
+            if (!ingestRes.ok) {
+                const err = await ingestRes.json().catch(() => ({}));
+                throw new Error(err.error || 'Ingestion failed');
+            }
+            const result = await ingestRes.json();
+            return `📡 ${result.lead.platform} lead → ${result.lead.vertical} (CRE ${result.lead.qualityScore ?? '?'}/100) — auction started`;
+        });
+    }
+
     // ============================================
     // Action button component
     // ============================================
@@ -920,6 +942,24 @@ export function DemoPanel() {
                             <p className="text-[10px] text-muted-foreground pl-1">
                                 Use if demo gets stuck or after Render restart. Watch Dev Log for progress.
                             </p>
+                        </Section>
+
+                        {/* Section 2e: Traffic Platform Ingestion (Stretch Feature) */}
+                        <Section id="traffic" title="📡 Traffic Platform Ingestion">
+                            <ActionButton
+                                actionKey="trafficLead"
+                                label="Simulate Traffic Lead"
+                                icon={Zap}
+                                onClick={handleSimulateTrafficLead}
+                                variant="accent"
+                            />
+                            <p className="text-[10px] text-muted-foreground pl-1">
+                                Simulates a Google Ads / Facebook / TikTok / TTD webhook → CRE pipeline → live auction. Check Marketplace for the new lead.
+                            </p>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400">
+                                <Layers className="h-3 w-3 shrink-0" />
+                                <span>Full pipeline: PII encrypt → CRE verify → buyer match → auction</span>
+                            </div>
                         </Section>
 
                         {/* Section 3: Analytics */}

@@ -200,6 +200,18 @@ The global lead generation services market is valued at approximately $14.5 bill
 
 See [`ROADMAP.md`](ROADMAP.md) for detailed TAM analysis, phased expansion, and the post-hackathon production roadmap.
 
+### Stretch Features
+
+**Traffic Platform Lead Ingestion** — A production-ready webhook endpoint (`POST /api/v1/ingest/traffic-platform`) simulates how real-world ad platforms (Google Ads, Facebook Lead Ads, TikTok Lead Gen, The Trade Desk / DV360) push leads directly into the CRE pipeline. Each ingested lead runs the full on-chain pipeline: PII encryption → CRE quality scoring → buyer preference matching via `afterLeadCreated()` → live marketplace auction with socket.IO broadcast.
+
+The Demo Control Panel includes a **"Simulate Traffic Lead"** button that calls the endpoint with a randomized sample payload from one of four supported platforms. This demonstrates:
+
+- **Programmatic media buying integration** — budget pacing and spend caps can be enforced via Chainlink Data Feeds on the bid side
+- **Multi-source attribution** — each lead carries `_trafficPlatform` and `_campaignId` metadata for ROI tracking
+- **Horizontal scalability** — the stateless webhook pattern supports thousands of concurrent ingestion events with CRE verification at the gate
+
+**Granular Bounties — Seller Demand Signals** — The Seller Dashboard surfaces a real-time "Active Buyer Bounties" banner showing per-vertical USDC bounty pools deposited by buyers, enabling sellers to prioritize lead submission to the highest-demand verticals. Autonomous MCP agents can query bounty availability via the `query_open_granular_bounties` tool.
+
 ### Quick Start & Demo Guide
 
 1. **Clone the repository:** `git clone https://github.com/bnmbnmai/lead-engine-cre`

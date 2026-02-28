@@ -196,6 +196,19 @@ const MCP_TOOLS = [
             },
         },
     },
+    {
+        type: 'function' as const,
+        function: {
+            name: 'query_open_granular_bounties',
+            description: 'Query active buyer bounty pools across all verticals. Returns total USDC available per vertical, pool count, and contract address. Use this when users ask about bounties, demand signals, or which verticals have the most buyer interest.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    vertical: { type: 'string', description: 'Optional: filter by specific vertical slug (e.g. solar.residential)' },
+                },
+            },
+        },
+    },
 ];
 
 // Use relative paths for lead links — the AgentChatModal renders these inside the SPA
@@ -204,7 +217,7 @@ const _FRONTEND_URL = '';
 const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Block Magic Hackathon.
 You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
 You help buyers discover, evaluate, and bid on commercial real-estate leads on a blockchain-verified marketplace powered by Chainlink.
-You have access to 10 MCP tools. Use them to answer the user's questions.
+You have access to 12 MCP tools. Use them to answer the user's questions.
 
 ## STRICT PII RULES
 - NEVER reveal phone numbers, emails, full names, street addresses, or any personally identifiable information.
@@ -427,6 +440,21 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
     // place_bid gets a race-condition guard (P2-MCP)
     if (name === 'place_bid') {
         return mcpPlaceBid(params);
+    }
+
+    // query_open_granular_bounties — fetch bounty availability from local API
+    if (name === 'query_open_granular_bounties') {
+        try {
+            const vertical = params.vertical as string | undefined;
+            const url = vertical
+                ? `${MCP_BASE}/api/v1/bounties/available?vertical=${encodeURIComponent(vertical)}`
+                : `${MCP_BASE}/api/v1/bounties/available`;
+            const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+            if (!res.ok) return { error: `Bounty API returned ${res.status}` };
+            return await res.json();
+        } catch (err: any) {
+            return { error: `query_open_granular_bounties failed: ${err.message}` };
+        }
     }
 
     // batched_private_score_request — Phase 2 CHTT batched confidential score
@@ -677,6 +705,14 @@ function pickToolCalls(message: string): { name: string; params: Record<string, 
 
     if (lower.includes('export') || lower.includes('csv') || lower.includes('download')) {
         calls.push({ name: 'export_leads', params: { format: lower.includes('csv') ? 'csv' : 'json' } });
+    }
+
+    if (lower.includes('bounty') || lower.includes('bounties') || lower.includes('demand signal') || lower.includes('buyer demand')) {
+        const params: Record<string, unknown> = {};
+        for (const v of ['solar', 'mortgage', 'roofing', 'insurance', 'hvac']) {
+            if (lower.includes(v)) { params.vertical = v; break; }
+        }
+        calls.push({ name: 'query_open_granular_bounties', params });
     }
 
     if (calls.length === 0) {

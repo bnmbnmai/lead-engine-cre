@@ -65,6 +65,7 @@ import vaultRoutes from './routes/vault.routes';
 import mockRoutes from './routes/mock.routes';
 import bountiesRoutes from './routes/bounties.routes';
 import autoBidRoutes from './routes/auto-bid.routes';
+import ingestRoutes from './routes/ingest.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -221,6 +222,7 @@ app.use('/api/v1/buyer/vault', vaultRoutes);
 app.use('/api/v1/mcp', mcpRoutes);
 app.use('/api/v1/bounties', bountiesRoutes);
 app.use('/api/v1/auto-bid', autoBidRoutes);
+app.use('/api/v1/ingest', ingestRoutes);
 // Mock endpoints — simulate external APIs called by Chainlink CHTT workflow from TEE enclave
 app.use('/api/mock', mockRoutes);
 
