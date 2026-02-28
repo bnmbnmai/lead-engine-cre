@@ -6,7 +6,7 @@
 [![Confidential HTTP](https://img.shields.io/badge/Privacy-CHTT-green)](https://chain.link/cre)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-vercel.app-brightgreen)](https://lead-engine-cre-frontend.vercel.app)
 
-[Live Demo](https://lead-engine-cre-frontend.vercel.app) | Last Updated: 24 February 2026
+[Live Demo](https://lead-engine-cre-frontend.vercel.app) | Last Updated: 28 February 2026
 
 ---
 
@@ -24,7 +24,7 @@ Built for Chainlink Convergence 2026, the platform positions sensitive lead data
 
 All personal identifiable information is protected with client-side AES-256-GCM encryption. The CREVerifier contract leverages Chainlink Confidential HTTP (CHTT) Phase 2 for enclave-based quality scoring and HMAC fraud-signal enrichment. Results are returned with enclave attestations and decrypted only by authorized backend processes.
 
-Winner-only decryption of lead PII via Confidential Compute (early access through CRE) and deeper CRE workflow orchestration are targeted for completion by the March 8 submission deadline. Full technical details and compliance scaffolding for GDPR/CCPA are documented in `PRIVACY_INTEGRATION_AUDIT.md`.
+Winner-only decryption of lead PII via Confidential Compute (CRE DON `encryptOutput: true`) is fully implemented. The `DecryptForWinner` CRE workflow verifies `escrowReleased: true` before decrypting, ensuring only auction winners can access PII. Full technical details and compliance scaffolding for GDPR/CCPA are documented in [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md).
 
 ---
 
@@ -127,22 +127,29 @@ The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click
 
 **Buyer Persona Experience:**
 - Demo Control Panel is **env-gated** (`VITE_DEMO_MODE`), accessible to all personas (Buyer, Seller, Admin)
-- Won leads appear in **Buyer Dashboard → Purchased Leads** and **Buyer Portfolio** with CRE Quality badge
+- Won leads appear in **Buyer Dashboard → Purchased Leads** and **Buyer Portfolio** with CRE Quality badge and ACE KYC Verified status
 - Each purchased lead has a **🔓 Decrypt PII** button → inline PII display (name, email, phone) with "CRE DON Attested" badge
 - Quality tooltips use honest wording: "CRE DON Match + Quality Score (pending on-chain scoring)"
-- **Demo Portfolio Fallback:** In demo mode, `GET /bids/my` automatically returns recent ACCEPTED demo bids so judges see won leads without needing wallet-matched bid ownership.
+- NFT ID column shows vault lock ID with Basescan provenance link (or "Mint Pending" when NFT mint is in progress)
+- **Pure persona-wallet architecture:** Buyer persona authenticates as the AI-agent wallet (`0x424CaC…`), and only leads legitimately won by that wallet on-chain appear in Portfolio and My Bids — no synthetic fallbacks.
 
 
 ### Chainlink Integration
 
-| Service | Role |
-|---|---|
-| **CRE** | Quality scoring, Confidential HTTP enrichment, and workflow orchestration |
-| **ACE** | Policy-protected minting and transfers on LeadNFTv2 |
-| **Automation** | Daily Proof-of-Reserves and automatic expired-bid refunds |
-| **VRF v2.5** | Verifiable random tiebreaker for equal bids |
-| **Functions (ZK)** | ZK-proof verification and external data requests |
-| **Data Feeds** | USDC/ETH price guards in escrow (Data Streams integration planned for dynamic repricing) |
+| # | Service | Contract | Address | Status | Backend File |
+|---|---|---|---|---|---|
+| 1 | **CRE** (Quality Scoring) | `CREVerifier` | [`0xfec22A…`](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | ✅ Live | `cre.service.ts` |
+| 2 | **Functions** (Bounty Match) | `BountyMatcher` | [`0x897f8C…`](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ✅ Live | `functions.service.ts` |
+| 3 | **Automation** (PoR) | `PersonalEscrowVault` | [`0x56bB31…`](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | ✅ Live | `vault-reconciliation.service.ts` |
+| 4 | **VRF v2.5** (Tiebreakers) | `VRFTieBreaker` | [`0x86c8f3…`](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | ✅ Live | `vrf.service.ts` |
+| 5 | **Data Feeds** (Price Guards) | Inline in Vault | — | ✅ Live | `data-feeds.service.ts` |
+| 6 | **ACE** (Compliance) | `ACECompliance` | [`0xAea259…`](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ✅ Live | `ace.service.ts` |
+| 7 | **CHTT Phase 2** (Confidential) | `CREVerifier` | (shared) | ✅ Live | `batched-private-score.ts` |
+| 8 | **CRE Workflow** (Buyer Rules) | DON-executed | — | ✅ Live | `cre-workflows/EvaluateBuyerRulesAndMatch/` |
+| 9 | **CRE Workflow** (Winner Decrypt) | DON-executed | — | ✅ Live | `cre-workflows/DecryptForWinner/` |
+| 10 | **LeadNFTv2** (ACE-Protected) | `LeadNFTv2` | [`0x73ebD9…`](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | ✅ Live | `nft.service.ts` |
+
+> All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CHAINLINK_SERVICES_AUDIT.md`](CHAINLINK_SERVICES_AUDIT.md) for full details.
 
 ### Tech Stack
 
@@ -182,7 +189,7 @@ graph TD
     Bounty --> Contracts
     Backend -->|afterLeadCreated| CRE["CRE DON Workflow"]
     CRE --> Contracts
-    Backend -->|demo fallback| Portfolio["Buyer Portfolio (GET /bids/my)"]
+    Backend -->|pure persona auth| Portfolio["Buyer Portfolio (GET /bids/my)"]
 ```
 
 ### Market Opportunity
@@ -198,12 +205,13 @@ See `ROADMAP.md` for detailed TAM analysis and phased expansion.
 4. **Run locally:** `npm run dev`
 5. **Enable demo mode** on Vercel by setting the environment variable `VITE_DEMO_MODE=true`
 
-Full demonstration instructions, including curl examples and faucet guidance, are in `demo-polish-next-steps.md`.
+Full demonstration instructions, including curl examples and faucet guidance, are in [`submission-checklist.md`](submission-checklist.md).
 
 ### Documentation
 
 - [`ROADMAP.md`](ROADMAP.md) — Phased development plan and hackathon deliverables
-- [`PRIVACY_INTEGRATION_AUDIT.md`](PRIVACY_INTEGRATION_AUDIT.md) — Confidential Compute and CHTT details
+- [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) — Confidential Compute and CHTT details
 - [`CHAINLINK_SERVICES_AUDIT.md`](CHAINLINK_SERVICES_AUDIT.md) — Service integration audit
-- [`onchain-activation-checklist.md`](onchain-activation-checklist.md) — Contract verification status
+- [`CONTRACTS.md`](CONTRACTS.md) — Contract verification status and addresses
+- [`FINAL_PROJECT_AUDIT.md`](FINAL_PROJECT_AUDIT.md) — Full project audit (8.2/10 readiness)
 - [`submission-checklist.md`](submission-checklist.md) — Hackathon submission requirements
