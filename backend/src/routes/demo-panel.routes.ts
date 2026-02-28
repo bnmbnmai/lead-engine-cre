@@ -1490,7 +1490,7 @@ router.post('/seed-templates', authMiddleware, publicDemoBypass, async (req: Req
 router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.body as { leadId?: string };
-        const { x402Service } = await import('../services/escrow-impl.service');
+        const { x402Service } = await import('../services/escrow.service');
 
         console.log(`[DEMO SETTLE] Request received — leadId=${leadId || '(auto-detect)'}`);
 

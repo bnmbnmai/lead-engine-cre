@@ -6,6 +6,11 @@ const EVENT_NAME = 'mockdata:toggle';
 /**
  * Reactive hook for the mock-data toggle.
  *
+ * **Intentional analytics placeholder.** Used by BuyerAnalytics and
+ * SellerAnalytics to switch between mock chart data and real API data.
+ * This is NOT dead code — it enables the DemoPanel "Use Real Data" toggle
+ * for analytics pages without requiring a full analytics API backend.
+ *
  * Listens for the custom `mockdata:toggle` event dispatched by DemoPanel
  * so analytics pages re-render instantly when the toggle flips — no
  * page refresh required.

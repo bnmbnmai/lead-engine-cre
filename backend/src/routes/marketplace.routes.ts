@@ -6,7 +6,7 @@ import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } fr
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService, aceDevBus } from '../services/ace.service';
-import { x402Service } from '../services/escrow-impl.service';
+import { x402Service } from '../services/escrow.service';
 import { nftService } from '../services/nft.service';
 import { marketplaceAsksCache } from '../lib/cache';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
