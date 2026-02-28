@@ -54,26 +54,27 @@ export const GEOS: Array<{ country: string; state: string; city: string }> = [
 
 // Demo buyer wallets — 10 distinct faucet wallets (Wallets 1–10).
 // None of these overlap with the seller wallet (Wallet 11).
+// All addresses normalized to lowercase for consistent DB lookups (EVM is case-insensitive).
 export const DEMO_BUYER_WALLETS = [
-    '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9', // Wallet 1
-    '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC', // Wallet 2
-    '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58', // Wallet 3
-    '0x424CaC929939377f221348af52d4cb1247fE4379', // Wallet 4
-    '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d', // Wallet 5
-    '0x089B6Bdb4824628c5535acF60aBF80683452e862', // Wallet 6
-    '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE', // Wallet 7
-    '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C', // Wallet 8
-    '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf', // Wallet 9
-    '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad', // Wallet 10
+    '0xa75d76b27ff9511354c78cb915cfc106c6b23dd9', // Wallet 1
+    '0x55190ce8a38079d8415a1ba15d001bc1a52718ec', // Wallet 2
+    '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58', // Wallet 3
+    '0x424cac929939377f221348af52d4cb1247fe4379', // Wallet 4
+    '0x3a9a41078992734ab24dfb51761a327eeaac7b3d', // Wallet 5
+    '0x089b6bdb4824628c5535acf60abf80683452e862', // Wallet 6
+    '0xc92a0a5080077fb8c2b756f8f52419cb76d99afe', // Wallet 7
+    '0xb9edeeb25bf7f2db79c03e3175d71e715e5ee78c', // Wallet 8
+    '0xe10a5ba5fe03adb833b8c01ff12cedc4422f0fdf', // Wallet 9
+    '0x7be5ce8824d5c1890bc09042837ceac57a55fdad', // Wallet 10
 ];
 
 // Demo seller wallet (Wallet 11 — dedicated, never overlaps with any buyer).
-export const DEMO_SELLER_WALLET = '0x9Bb15F98982715E33a2113a35662036528eE0A36';
+export const DEMO_SELLER_WALLET = '0x9bb15f98982715e33a2113a35662036528ee0a36';
 export const DEMO_SELLER_KEY = '0x618bee99ca60f5511dad533a998344f3a0a7b2339db5726ae33d56fd543294ce';
 
-// Buyer persona wallet — used by /demo-login with role=BUYER (no connectedWallet).
+// Buyer persona wallet — used by /demo-login with role=BUYER.
 // Must always match DEMO_WALLETS.BUYER in demo-panel.routes.ts.
-export const BUYER_PERSONA_WALLET = DEMO_BUYER_WALLETS[3]; // 0x424CaC…
+export const BUYER_PERSONA_WALLET = DEMO_BUYER_WALLETS[3]; // 0x424cac…
 
 // ── Buyer private keys (Wallets 1–10, mirror of DEMO_BUYER_WALLETS order) ─────
 // Source of truth: faucet-wallets.txt (gitignored, never committed).

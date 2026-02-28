@@ -48,28 +48,29 @@ router.use(devOnly);
 const DEMO_TAG = 'DEMO_PANEL';  // Only for Ask.parameters._demoTag (no LeadSource on Ask model)
 
 // Real Base Sepolia wallet addresses for demo personas (replaces old 0xDEMO_ placeholders)
+// All addresses normalized to lowercase for consistent DB lookups.
 const DEMO_WALLETS = {
-    PANEL_USER: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Demo seller / panel user
-    ADMIN: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Admin (same as panel user)
-    BUYER: '0x424CaC929939377f221348af52d4cb1247fE4379',   // Demo buyer
-    BUYER_1: '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',   // Auction bidder 1
-    BUYER_2: '0x424CaC929939377f221348af52d4cb1247fE4379',   // Auction bidder 2
-    BUYER_3: '0x089B6Bdb4824628c5535acF60aBF80683452e862',   // Auction bidder 3
-    SELLER_KYC: '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',   // Verified seller (deployer)
+    PANEL_USER: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Demo seller / panel user
+    ADMIN: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Admin (same as panel user)
+    BUYER: '0x424cac929939377f221348af52d4cb1247fe4379',   // Demo buyer
+    BUYER_1: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Auction bidder 1
+    BUYER_2: '0x424cac929939377f221348af52d4cb1247fe4379',   // Auction bidder 2
+    BUYER_3: '0x089b6bdb4824628c5535acf60abf80683452e862',   // Auction bidder 3
+    SELLER_KYC: '0x6bbcf283847f409a58ff984a79efd5719d3a9f70',   // Verified seller (deployer)
 };
 
 // 10 faucet wallets for seller rotation (from faucet-wallets.txt)
 const FAUCET_WALLETS = [
-    '0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9',
-    '0x55190CE8A38079d8415A1Ba15d001BC1a52718eC',
-    '0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58',
-    '0x424CaC929939377f221348af52d4cb1247fE4379',
-    '0x3a9a41078992734ab24Dfb51761A327eEaac7b3d',
-    '0x089B6Bdb4824628c5535acF60aBF80683452e862',
-    '0xc92A0A5080077fb8C2B756f8F52419Cb76d99afE',
-    '0xb9eDEEB25bf7F2db79c03E3175d71E715E5ee78C',
-    '0xE10a5ba5FE03Adb833B8C01fF12CEDC4422f0fdf',
-    '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad',
+    '0xa75d76b27ff9511354c78cb915cfc106c6b23dd9',
+    '0x55190ce8a38079d8415a1ba15d001bc1a52718ec',
+    '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',
+    '0x424cac929939377f221348af52d4cb1247fe4379',
+    '0x3a9a41078992734ab24dfb51761a327eeaac7b3d',
+    '0x089b6bdb4824628c5535acf60abf80683452e862',
+    '0xc92a0a5080077fb8c2b756f8f52419cb76d99afe',
+    '0xb9edeeb25bf7f2db79c03e3175d71e715e5ee78c',
+    '0xe10a5ba5fe03adb833b8c01ff12cedc4422f0fdf',
+    '0x7be5ce8824d5c1890bc09042837ceac57a55fdad',
 ];
 
 let faucetWalletIndex = 0;
@@ -105,13 +106,12 @@ export async function getCreNativeModeEnabled(): Promise<boolean> {
 
 router.post('/demo-login', async (req: Request, res: Response) => {
     try {
-        const { role, connectedWallet } = req.body as { role?: string; connectedWallet?: string };
+        const { role } = req.body as { role?: string };
         const isBuyer = role === 'BUYER';
-        // If buyer and the frontend passes the user's connected MetaMask wallet, use it.
-        // This ensures bids are placed from the SIWE-authenticated wallet, not a demo wallet.
-        const walletAddress = isBuyer && connectedWallet
-            ? connectedWallet.toLowerCase()
-            : isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.PANEL_USER;
+        // Always use the fixed persona wallet — ignore MetaMask connectedWallet.
+        // The whole point of persona switching is to authenticate AS the demo wallet
+        // so GET /bids/my returns bids owned by the persona wallet's userId.
+        const walletAddress = (isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.PANEL_USER).toLowerCase();
         const targetRole = isBuyer ? 'BUYER' : 'SELLER';
 
         // Find or create the demo user

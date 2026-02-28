@@ -1081,10 +1081,12 @@ export async function runFullDemo(
 
                 // ── DB BID RECORD: create ACCEPTED bid so Portfolio/My Bids pages populate ──
                 // scheduleBidsForLead only creates on-chain vault locks, not Prisma records.
-                // The GET /bids/my fallback requires status='ACCEPTED' + lead.source='DEMO'.
+                // The GET /bids/my query matches on buyerId = req.user.id, so the User
+                // record must be found by the exact wallet address (normalized to lowercase).
                 try {
+                    const normalizedWallet = buyerWallet.toLowerCase();
                     const winnerUser = await prisma.user.findFirst({
-                        where: { walletAddress: buyerWallet },
+                        where: { walletAddress: { equals: normalizedWallet, mode: 'insensitive' } },
                     });
                     if (winnerUser && demoLeadId) {
                         await prisma.bid.create({
@@ -1104,15 +1106,19 @@ export async function runFullDemo(
                             where: { id: demoLeadId },
                             data: { status: 'SOLD', winningBid: bidAmount, soldAt: new Date() },
                         });
-                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 DB bid record created for ${buyerWallet.slice(0, 10)}… → Portfolio visible` });
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 DB bid record created for ${normalizedWallet.slice(0, 10)}… (userId: ${winnerUser.id.slice(0, 8)}…) → Portfolio visible` });
                         // Track persona wallet wins for deterministic guarantee
-                        if (buyerWallet.toLowerCase() === BUYER_PERSONA_WALLET.toLowerCase()) {
+                        if (normalizedWallet === BUYER_PERSONA_WALLET) {
                             _buyerPersonaHasWon = true;
                             emit(io, { ts: new Date().toISOString(), level: 'success', message: `🎯 Buyer persona wallet won lead ${demoLeadId.slice(0, 8)}… — Portfolio will show this lead` });
                         }
+                    } else if (!winnerUser) {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ No User record found for wallet ${normalizedWallet.slice(0, 10)}… — Bid record NOT created` });
                     }
                 } catch (bidRecordErr: any) {
-                    console.warn(`[DEMO] Bid record creation failed (non-fatal): ${bidRecordErr.message?.slice(0, 80)}`);
+                    const errMsg = bidRecordErr.message?.slice(0, 120) || 'unknown';
+                    console.warn(`[DEMO] Bid record creation failed: ${errMsg}`);
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ DB Bid record creation failed: ${errMsg}` });
                 }
 
                 // Winner-only fee model: 5% of winning bid + $1 convenience fee.
