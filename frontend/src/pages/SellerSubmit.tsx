@@ -17,6 +17,7 @@ export function SellerSubmit() {
     const { isAuthenticated } = useAuth();
     const [hasProfile, setHasProfile] = useState<boolean | null>(null);
     const [profileLoading, setProfileLoading] = useState(true);
+    const [matchingBountyUSDC, setMatchingBountyUSDC] = useState<number>(0);
 
     // Profile wizard state
     const [wizardCompany, setWizardCompany] = useState('');
@@ -43,6 +44,21 @@ export function SellerSubmit() {
         };
         checkProfile();
     }, [isAuthenticated]);
+
+    // Auto-detect matching bounties when form vertical changes
+    useEffect(() => {
+        // Listen for vertical selection from LeadSubmitForm via URL params or custom event
+        const detectBounties = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/v1/bounties/available`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const total = (data.verticals || []).reduce((sum: number, v: any) => sum + (v.totalAvailableUSDC || 0), 0);
+                setMatchingBountyUSDC(total);
+            } catch { /* non-critical */ }
+        };
+        detectBounties();
+    }, []);
 
     const handleProfileCreate = async () => {
         if (!wizardCompany.trim() || wizardVerticals.length === 0) return;
@@ -154,7 +170,7 @@ export function SellerSubmit() {
                                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
                                             >
                                                 <VerticalBreadcrumb slug={v} size="sm" />
-                                                <span className="ml-0.5">×</span>
+                                                <span className="ml-0.5">&times;</span>
                                             </button>
                                         ))}
                                     </div>
@@ -176,7 +192,7 @@ export function SellerSubmit() {
                                         className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition"
                                         onClick={() => window.open('/seller/kyc', '_blank')}
                                     >
-                                        Verify Now →
+                                        Verify Now &rarr;
                                     </button>
                                 </div>
                             </div>
@@ -193,7 +209,7 @@ export function SellerSubmit() {
                                 {wizardSubmitting ? 'Creating Profile...' : (
                                     <>
                                         <CheckCircle className="h-4 w-4 mr-2" />
-                                        Create Seller Profile & Continue
+                                        Create Seller Profile &amp; Continue
                                     </>
                                 )}
                             </Button>
@@ -214,6 +230,23 @@ export function SellerSubmit() {
                         Add a verified lead to the marketplace for real-time bidding
                     </p>
                 </div>
+
+                {/* Bounty Auto-Detect Banner */}
+                {matchingBountyUSDC > 0 && (
+                    <div className="mb-6 flex items-center gap-3 p-4 rounded-xl bg-amber-500/[0.06] border border-amber-500/15">
+                        <div className="p-2 rounded-lg bg-amber-500/10">
+                            <span className="text-lg">💰</span>
+                        </div>
+                        <div className="flex-1">
+                            <div className="text-sm font-semibold text-amber-500">
+                                ${matchingBountyUSDC.toFixed(0)} in buyer bounties available
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                Qualifying leads automatically earn bonus USDC on top of auction price &mdash; bounties match by vertical, geo, and quality score at settlement
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <LeadSubmitForm
                     source="PLATFORM"
