@@ -198,27 +198,7 @@ graph TD
 ### Market Opportunity
 The global lead generation services market is valued at approximately $14.5 billion in 2025 with sustained double-digit growth. Primary verticals include solar, roofing, HVAC, mortgage, and insurance. Lead Engine CRE addresses core industry challenges—fraud, delayed payouts, lack of provenance, and manual matching—while establishing infrastructure for tokenized sensitive data assets.
 
-See `ROADMAP.md` for detailed TAM analysis and phased expansion.
-
-### Post-Hackathon Roadmap — Production & Institutional Expansion
-
-**Phase 1: Real-World Lead Ingestion (Weeks 1–4 post-submission)**
-- Mock → production endpoints for traffic platforms (Google Ads, Facebook Lead Ads, TikTok Lead Gen).
-- Programmatic media buying integration (The Trade Desk / DV360) to auto-purchase lead inventory based on real-time CRE quality scores and auction pricing.
-- Budget pacing and spend caps via Chainlink Data Feeds.
-
-**Phase 2: Permanent PII & Buyer Experience (Weeks 5–8)**
-- "Permanent Unlock" toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
-- Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
-
-**Phase 3: Enterprise & Scale (Months 3–6)**
-- White-label verticals: one-click marketplace rebranding for insurers, banks, or lead aggregators.
-- Secondary NFT market for lead resale with 2% royalties.
-- Fractional ownership via ERC-3643 compliance.
-- Cross-chain settlement via CCIP for multi-chain USDC.
-
-**Technical Foundations Already in Place:**
-All current features (CRE workflow, ACE KYC, PersonalEscrowVault PoR, VRF tiebreakers, pure persona-wallet architecture) are production-grade and can be extended without breaking changes.
+See [`ROADMAP.md`](ROADMAP.md) for detailed TAM analysis, phased expansion, and the post-hackathon production roadmap.
 
 ### Quick Start & Demo Guide
 

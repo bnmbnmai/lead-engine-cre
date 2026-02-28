@@ -22,7 +22,7 @@ import { prisma } from '../../src/lib/prisma';
 let escrowService: any;
 
 beforeAll(async () => {
-    const mod = await import('../../src/services/escrow-impl.service');
+    const mod = await import('../../src/services/escrow.service');
     escrowService = mod.escrowService;
 });
 
@@ -149,12 +149,12 @@ describe('escrowService', () => {
     // ─── generatePaymentHeader ───────────────────
 
     describe('generatePaymentHeader', () => {
-        it('should generate correct x402 payment headers', () => {
+        it('should generate correct escrow payment headers', () => {
             const headers = escrowService.generatePaymentHeader(
                 'escrow-123', 35.50, '0xRecipient'
             );
 
-            expect(headers['X-Payment-Protocol']).toBe('x402');
+            expect(headers['X-Payment-Protocol']).toBe('escrow-v1');
             expect(headers['X-Payment-Version']).toBe('1.0');
             expect(headers['X-Payment-Escrow-Id']).toBe('escrow-123');
             expect(headers['X-Payment-Amount']).toBe('35.500000');

@@ -39,6 +39,28 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 
 ---
 
+### Post-Hackathon Roadmap — Production & Institutional Expansion
+
+**Near-Term Phase A: Real-World Lead Ingestion (Weeks 1–4 post-submission)**
+- Mock → production endpoints for traffic platforms (Google Ads, Facebook Lead Ads, TikTok Lead Gen).
+- Programmatic media buying integration (The Trade Desk / DV360) to auto-purchase lead inventory based on real-time CRE quality scores and auction pricing.
+- Budget pacing and spend caps via Chainlink Data Feeds.
+
+**Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)**
+- "Permanent Unlock" toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
+- Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
+
+**Near-Term Phase C: Enterprise & Scale (Months 3–6)**
+- White-label verticals: one-click marketplace rebranding for insurers, banks, or lead aggregators.
+- Secondary NFT market for lead resale with 2% royalties.
+- Fractional ownership via ERC-3643 compliance.
+- Cross-chain settlement via CCIP for multi-chain USDC.
+
+**Technical Foundations Already in Place:**
+All current features (CRE workflow, ACE KYC, PersonalEscrowVault PoR, VRF tiebreakers, pure persona-wallet architecture) are production-grade and can be extended without breaking changes.
+
+---
+
 ## Phase 1: Post-Hackathon MVP (Q2 2026 — 3 months)
 
 **Target**: First paying customers (solar installers + mortgage brokers) on Base mainnet.
