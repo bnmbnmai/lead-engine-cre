@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote, Inbox, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FileText, DollarSign, TrendingUp, Users, Plus, ArrowUpRight, UserPlus, Search, Banknote, Inbox, Sparkles, ChevronDown, ChevronUp, Crosshair, X, MapPin, Shield, Filter } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlassCard } from '@/components/ui/card';
@@ -16,9 +16,30 @@ import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { toast } from '@/hooks/useToast';
 import { useDebounce } from '@/hooks/useDebounce';
 
+// ── Bounty Types ──
+interface BountyPool {
+    poolId: string;
+    availableUSDC: number;
+    criteria: {
+        minQualityScore: number | null;
+        geoStates: string[] | null;
+        geoCountries: string[] | null;
+        minCreditScore: number | null;
+        maxLeadAge: number | null;
+    };
+}
+
+interface BountyVertical {
+    vertical: string;
+    totalAvailableUSDC: number;
+    poolCount: number;
+    pools?: BountyPool[];
+}
+
 
 
 export function SellerDashboard() {
+    const navigate = useNavigate();
     const [overview, setOverview] = useState<any>(null);
     const [recentLeads, setRecentLeads] = useState<any[]>([]);
     const [activeAsks, setActiveAsks] = useState<any[]>([]);
@@ -26,7 +47,12 @@ export function SellerDashboard() {
     const [hasProfile, setHasProfile] = useState<boolean | null>(null);
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
-    const [bountyData, setBountyData] = useState<{ vertical: string; totalAvailableUSDC: number }[]>([]);
+    const [bountyData, setBountyData] = useState<BountyVertical[]>([]);
+    const [bountyExpanded, setBountyExpanded] = useState(false);
+    const [bountyModalOpen, setBountyModalOpen] = useState(false);
+    const [bountySearch, setBountySearch] = useState('');
+    const [expandedVertical, setExpandedVertical] = useState<string | null>(null);
+    const [verticalPools, setVerticalPools] = useState<Record<string, BountyPool[]>>({});
 
 
     useEffect(() => {
@@ -59,17 +85,32 @@ export function SellerDashboard() {
         fetchData();
     }, [debouncedSearch]);
 
-    // Fetch bounty demand signals
+    // Fetch bounty demand signals — all verticals, then per-vertical criteria on expand
     useEffect(() => {
         (async () => {
             try {
                 const res = await fetch(`${API_BASE_URL}/api/v1/bounties/available`);
                 if (!res.ok) return;
                 const data = await res.json();
-                setBountyData((data.verticals || []).filter((v: any) => v.totalAvailableUSDC > 0).slice(0, 4));
+                setBountyData(
+                    (data.verticals || []).filter((v: any) => v.totalAvailableUSDC > 0).slice(0, 8)
+                );
             } catch { /* non-critical */ }
         })();
     }, []);
+
+    // Fetch per-vertical pool details when a vertical row is expanded
+    useEffect(() => {
+        if (!expandedVertical || verticalPools[expandedVertical]) return;
+        (async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/v1/bounties/available?vertical=${encodeURIComponent(expandedVertical)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                setVerticalPools(prev => ({ ...prev, [expandedVertical]: data.pools || [] }));
+            } catch { /* non-critical */ }
+        })();
+    }, [expandedVertical, verticalPools]);
 
 
 
@@ -229,29 +270,181 @@ export function SellerDashboard() {
                     </CardContent>
                 </Card>
 
-                {/* Bounty Demand Signal Banner */}
+                {/* ── Bounty Hunt Card ── */}
                 {bountyData.length > 0 && (
-                    <Card className="border-amber-500/20 bg-amber-500/[0.04]">
-                        <CardContent className="py-4">
-                            <div className="flex items-center gap-3 mb-3">
+                    <Card className="border-amber-500/20 bg-amber-500/[0.04] overflow-hidden">
+                        <CardHeader className="flex-row items-center justify-between pb-2">
+                            <div className="flex items-center gap-3">
                                 <div className="p-2 rounded-xl bg-amber-500/10">
                                     <Sparkles className="h-5 w-5 text-amber-500" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-sm">💰 Active Buyer Bounties</h3>
-                                    <p className="text-xs text-muted-foreground">Buyers have deposited USDC bounties for these verticals — submit leads here for bonus payouts</p>
+                                    <CardTitle className="text-sm flex items-center gap-2">
+                                        💰 Active Buyer Bounties
+                                        <Badge variant="outline" className="text-amber-500 border-amber-500/30 font-mono text-[10px]">
+                                            ${bountyData.reduce((s, b) => s + b.totalAvailableUSDC, 0).toFixed(0)} total
+                                        </Badge>
+                                    </CardTitle>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Submit leads in these verticals for bonus USDC payouts on top of auction price</p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                {bountyData.map((b) => (
+                            <div className="flex items-center gap-2">
+                                <Button variant="ghost" size="sm" className="text-xs text-amber-500 hover:text-amber-400" onClick={() => setBountyModalOpen(true)}>
+                                    View All <ArrowUpRight className="h-3 w-3 ml-1" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setBountyExpanded(!bountyExpanded)} className="px-2">
+                                    {bountyExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                            {/* Summary row — always visible */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-1">
+                                {bountyData.slice(0, 4).map((b) => (
                                     <div key={b.vertical} className="rounded-lg bg-white/[0.06] border border-amber-500/10 px-3 py-2 text-center">
                                         <div className="text-lg font-bold text-amber-500">${b.totalAvailableUSDC.toFixed(0)}</div>
                                         <div className="text-[10px] text-muted-foreground capitalize">{b.vertical.replace(/[._]/g, ' ')}</div>
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Expanded: detailed bounty rows */}
+                            {bountyExpanded && (
+                                <div className="mt-3 space-y-2 border-t border-amber-500/10 pt-3">
+                                    {bountyData.map((b) => {
+                                        const isOpen = expandedVertical === b.vertical;
+                                        const pools = verticalPools[b.vertical] || [];
+                                        return (
+                                            <div key={b.vertical} className="rounded-lg bg-white/[0.04] border border-border overflow-hidden">
+                                                <button
+                                                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                                                    onClick={() => setExpandedVertical(isOpen ? null : b.vertical)}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-sm">
+                                                            🎯
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-medium text-sm capitalize">{b.vertical.replace(/[._]/g, ' ')}</div>
+                                                            <div className="text-[10px] text-muted-foreground">{b.poolCount} pool{b.poolCount !== 1 ? 's' : ''}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-lg font-bold text-amber-500">${b.totalAvailableUSDC.toFixed(0)}</span>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 h-7"
+                                                            onClick={(e) => { e.stopPropagation(); navigate(`/seller/submit?vertical=${b.vertical}`); }}
+                                                        >
+                                                            <Crosshair className="h-3 w-3 mr-1" /> Hunt
+                                                        </Button>
+                                                        {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                                                    </div>
+                                                </button>
+
+                                                {/* Per-pool criteria pills */}
+                                                {isOpen && pools.length > 0 && (
+                                                    <div className="px-4 pb-3 space-y-2">
+                                                        {pools.map((pool) => (
+                                                            <div key={pool.poolId} className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                                <Badge variant="outline" className="text-emerald-400 border-emerald-500/20 px-1.5 py-0">
+                                                                    ${pool.availableUSDC.toFixed(0)} USDC
+                                                                </Badge>
+                                                                {pool.criteria.minQualityScore != null && (
+                                                                    <Badge variant="outline" className="text-purple-400 border-purple-500/20 px-1.5 py-0">
+                                                                        <Shield className="h-2.5 w-2.5 mr-0.5" /> Q≥{Math.floor(pool.criteria.minQualityScore / 100)}
+                                                                    </Badge>
+                                                                )}
+                                                                {pool.criteria.geoStates && pool.criteria.geoStates.length > 0 && (
+                                                                    <Badge variant="outline" className="text-blue-400 border-blue-500/20 px-1.5 py-0">
+                                                                        <MapPin className="h-2.5 w-2.5 mr-0.5" /> {pool.criteria.geoStates.join(', ')}
+                                                                    </Badge>
+                                                                )}
+                                                                {pool.criteria.minCreditScore != null && (
+                                                                    <Badge variant="outline" className="text-orange-400 border-orange-500/20 px-1.5 py-0">
+                                                                        Credit ≥{pool.criteria.minCreditScore}
+                                                                    </Badge>
+                                                                )}
+                                                                {pool.criteria.maxLeadAge != null && (
+                                                                    <Badge variant="outline" className="text-pink-400 border-pink-500/20 px-1.5 py-0">
+                                                                        ≤{pool.criteria.maxLeadAge}d old
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {isOpen && pools.length === 0 && (
+                                                    <p className="px-4 pb-3 text-xs text-muted-foreground">Loading criteria…</p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
+                )}
+
+                {/* ── Bounty Modal ── */}
+                {bountyModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setBountyModalOpen(false)}>
+                        <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                                <h2 className="text-lg font-bold flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-amber-500" /> All Active Bounties
+                                </h2>
+                                <Button variant="ghost" size="sm" onClick={() => setBountyModalOpen(false)} className="px-2">
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <div className="px-6 py-3 border-b border-border">
+                                <Input
+                                    placeholder="Search verticals…"
+                                    value={bountySearch}
+                                    onChange={(e) => setBountySearch(e.target.value)}
+                                    icon={<Filter className="h-4 w-4" />}
+                                />
+                            </div>
+                            <div className="overflow-auto max-h-[60vh]">
+                                <table className="data-table w-full">
+                                    <thead>
+                                        <tr>
+                                            <th>Vertical</th>
+                                            <th>Bounty USDC</th>
+                                            <th>Pools</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {bountyData
+                                            .filter(b => !bountySearch || b.vertical.replace(/[._]/g, ' ').toLowerCase().includes(bountySearch.toLowerCase()))
+                                            .map((b) => (
+                                                <tr key={b.vertical}>
+                                                    <td className="capitalize font-medium">{b.vertical.replace(/[._]/g, ' ')}</td>
+                                                    <td><span className="font-bold text-amber-500">${b.totalAvailableUSDC.toFixed(0)}</span></td>
+                                                    <td>{b.poolCount}</td>
+                                                    <td>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 h-7"
+                                                            onClick={() => { setBountyModalOpen(false); navigate(`/seller/submit?vertical=${b.vertical}`); }}
+                                                        >
+                                                            <Crosshair className="h-3 w-3 mr-1" /> Hunt
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        {bountyData.filter(b => !bountySearch || b.vertical.replace(/[._]/g, ' ').toLowerCase().includes(bountySearch.toLowerCase())).length === 0 && (
+                                            <tr><td colSpan={4} className="text-center text-muted-foreground py-6">No bounties match your search</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 )}
 
                 <div className="grid lg:grid-cols-3 gap-6">

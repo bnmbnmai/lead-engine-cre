@@ -400,6 +400,24 @@ export function BuyerDashboard() {
                     </CardContent>
                 </Card>
 
+                {/* My Active Bounties Summary */}
+                <Card className="border-amber-500/20 bg-amber-500/[0.04]">
+                    <CardContent className="flex items-center gap-4 py-4">
+                        <div className="p-3 rounded-xl bg-amber-500/10">
+                            <DollarSign className="h-6 w-6 text-amber-500" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-sm">💰 My Bounty Pools</h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Your active bounty deposits incentivize sellers to submit leads in your target verticals. Bounties auto-release to sellers on auction settlement.
+                            </p>
+                        </div>
+                        <Button variant="outline" size="sm" className="text-xs border-amber-500/30 text-amber-500 shrink-0" asChild>
+                            <Link to="/buyer/preferences">Manage Rules</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
                 {/* Bounty Pools */}
                 <BountyPanel />
 

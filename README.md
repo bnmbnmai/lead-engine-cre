@@ -210,7 +210,7 @@ The Demo Control Panel includes a **"Simulate Traffic Lead"** button that calls 
 - **Multi-source attribution** — each lead carries `_trafficPlatform` and `_campaignId` metadata for ROI tracking
 - **Horizontal scalability** — the stateless webhook pattern supports thousands of concurrent ingestion events with CRE verification at the gate
 
-**Granular Bounties — Seller Demand Signals** — The Seller Dashboard surfaces a real-time "Active Buyer Bounties" banner showing per-vertical USDC bounty pools deposited by buyers, enabling sellers to prioritize lead submission to the highest-demand verticals. Autonomous MCP agents can query bounty availability via the `query_open_granular_bounties` tool.
+**Granular Bounties — Seller Demand Signals & Bounty Hunting** — The Seller Dashboard surfaces a real-time expandable "Active Buyer Bounties" card showing per-vertical USDC bounty pools deposited by buyers. Each bounty row displays criteria pills (geo states, min quality score, credit score thresholds, max lead age) so sellers can see exactly what buyers want. A "Hunt This Bounty" button pre-fills the Submit Lead form for that vertical. A searchable "View All Bounties" modal provides a full table view. Autonomous MCP agents query bounty availability via the `query_open_granular_bounties` tool. On the Buyer Dashboard, a symmetric "My Bounty Pools" summary card links to pool management, enabling a complete two-sided bounty marketplace that scales with vertical count.
 
 ### Quick Start & Demo Guide
 
