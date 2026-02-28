@@ -1,12 +1,32 @@
+/**
+ * @module confidential.service
+ *
+ * Production-grade TEE (Trusted Execution Environment) simulation service.
+ *
+ * **Purpose:** Provides confidential compute primitives — encrypted lead scoring,
+ * buyer-preference matching, and generic decrypt-and-process — that mirror the
+ * Chainlink Confidential Compute (CC) / CHTT Phase 2 API surface.
+ *
+ * **How it relates to CHTT:**
+ * - `confidential-http.stub.ts` (CHTT stub) handles the low-level HTTP+AES-GCM
+ *   encrypted envelope pattern used by `quality-score-workflow.ts`.
+ * - This service wraps the *business-logic layer* — scoring, matching, and
+ *   attestation proofs — in a simulated TEE enclave with realistic latency.
+ * - When the real Chainlink CC SDK is available, this service swaps to the
+ *   live enclave with zero API changes (same interface, same return types).
+ *
+ * **Key functions:**
+ * - `computeLeadScore()` — CRE quality score inside TEE (delegates to `computeCREQualityScore`)
+ * - `matchBuyerPreferencesConfidential()` — buyer-lead matching with keccak proof
+ * - `decryptAndProcess()` — generic encrypted-payload processing
+ *
+ * @see {@link ../lib/chainlink/confidential-http.stub.ts} CHTT HTTP stub
+ * @see {@link ../lib/chainlink/quality-score-workflow.ts} CRE workflow using CHTT
+ */
+
 import crypto from 'crypto';
 import { aceDevBus } from './ace.service';
 import { computeCREQualityScore } from '../lib/chainlink/cre-quality-score';
-
-// ============================================
-// Production-grade TEE simulation (2026-02-24) — matches CHTT Phase 2 pattern; ready for real Chainlink CC SDK when available
-// ============================================
-// Runs sensitive computations in TEE (Trusted Execution Environment).
-// Simulates realistic enclave latency, memory operations, and cryptographic proofs.
 
 const CC_LATENCY_MIN = 150;
 const CC_LATENCY_MAX = 500;

@@ -1783,10 +1783,20 @@ router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, re
 // POST /full-e2e — One-Click Full On-Chain Demo
 // ============================================
 
-import * as demoE2E from '../services/demo-e2e.service';
+import {
+    initResultsStore,
+    runFullDemo,
+    stopDemo,
+    isDemoRunning,
+    isDemoRecycling,
+    getResults,
+    getLatestResult,
+    getAllResults,
+    cleanupLockedFundsForDemoBuyers,
+} from '../services/demo/demo-orchestrator';
 
 // Hydrate in-memory results cache from DB on startup (non-blocking, never throws)
-void demoE2E.initResultsStore().catch((e: Error) =>
+void initResultsStore().catch((e: Error) =>
     console.warn('[demo-panel] initResultsStore startup failed (non-fatal):', e.message)
 );
 
@@ -1852,11 +1862,11 @@ function publicDemoBypass(req: AuthenticatedRequest, res: Response, next: NextFu
 
 router.post('/full-e2e', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
-        if (demoE2E.isDemoRunning()) {
+        if (isDemoRunning()) {
             res.status(409).json({ error: 'A demo is already running', running: true, recycling: false });
             return;
         }
-        if (demoE2E.isDemoRecycling()) {
+        if (isDemoRecycling()) {
             res.status(409).json({
                 error: 'Token redistribution from the previous run is in progress — please wait ~30s',
                 running: false,
@@ -1882,7 +1892,7 @@ router.post('/full-e2e', authMiddleware, publicDemoBypass, async (req: Request, 
         });
 
         // Start the demo asynchronously — results stream via Socket.IO
-        const resultPromise = demoE2E.runFullDemo(io, cycles, true);
+        const resultPromise = runFullDemo(io, cycles, true);
 
         // Return immediately with runId
         res.json({
@@ -1906,9 +1916,9 @@ router.post('/full-e2e', authMiddleware, publicDemoBypass, async (req: Request, 
 // ============================================
 
 router.post('/full-e2e/stop', authMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
-    const wasRunning = demoE2E.isDemoRunning();
-    const wasRecycling = demoE2E.isDemoRecycling();
-    const stopped = demoE2E.stopDemo();
+    const wasRunning = isDemoRunning();
+    const wasRecycling = isDemoRecycling();
+    const stopped = stopDemo();
     res.json({
         success: stopped,
         message: stopped
@@ -1925,13 +1935,13 @@ router.post('/full-e2e/stop', authMiddleware, publicDemoBypass, async (_req: Req
 
 router.get('/full-e2e/results/latest', async (_req: Request, res: Response) => {
     // While demo is actively running, signal that results aren't ready yet
-    if (demoE2E.isDemoRunning()) {
+    if (isDemoRunning()) {
         res.json({ status: 'running', message: 'Demo is still in progress' });
         return;
     }
 
     // While recycle is in flight, return 202 so frontend can show a friendly message
-    if (demoE2E.isDemoRecycling()) {
+    if (isDemoRecycling()) {
         res.status(202).json({
             status: 'finalizing',
             recycling: true,
@@ -1941,7 +1951,7 @@ router.get('/full-e2e/results/latest', async (_req: Request, res: Response) => {
     }
 
     // Async-aware: queries DB on cache miss (cold boot recovery)
-    const result = await demoE2E.getLatestResult();
+    const result = await getLatestResult();
     if (!result) {
         res.status(404).json({ error: 'No demo results available yet', resultsReady: false });
         return;
@@ -1955,11 +1965,11 @@ router.get('/full-e2e/results/latest', async (_req: Request, res: Response) => {
 
 router.get('/full-e2e/results/:runId', async (req: Request, res: Response) => {
     const { runId } = req.params;
-    const result = demoE2E.getResults(runId);
+    const result = getResults(runId);
 
     if (!result) {
         // Check if demo is still running
-        if (demoE2E.isDemoRunning()) {
+        if (isDemoRunning()) {
             res.json({ status: 'running', message: 'Demo is still in progress' });
             return;
         }
@@ -1975,11 +1985,11 @@ router.get('/full-e2e/results/:runId', async (req: Request, res: Response) => {
 // ============================================
 
 router.get('/full-e2e/status', async (_req: Request, res: Response) => {
-    const allResults = demoE2E.getAllResults();
+    const allResults = getAllResults();
     const resultsReady = allResults.length > 0;
     safeSend(res, {
-        running: demoE2E.isDemoRunning(),
-        recycling: demoE2E.isDemoRecycling(),
+        running: isDemoRunning(),
+        recycling: isDemoRecycling(),
         resultsReady,
         results: allResults.map(r => ({
             runId: r.runId,
@@ -2003,8 +2013,8 @@ router.post('/full-e2e/reset', authMiddleware, requireAdmin, async (req: Request
     const io = req.app.get('io');
 
     // 1. Abort any running demo or recycle
-    const wasRunning = demoE2E.isDemoRunning() || demoE2E.isDemoRecycling();
-    if (wasRunning) demoE2E.stopDemo();
+    const wasRunning = isDemoRunning() || isDemoRecycling();
+    if (wasRunning) stopDemo();
 
     // Respond immediately — the heavy work runs in the background
     res.json({
@@ -2026,7 +2036,7 @@ router.post('/full-e2e/reset', authMiddleware, requireAdmin, async (req: Request
 
             // 3. Clean up any stranded locked funds
             if (io) {
-                await demoE2E.cleanupLockedFundsForDemoBuyers(io);
+                await cleanupLockedFundsForDemoBuyers(io);
             }
 
             // 4. Prune DEMO leads older than 1 hour

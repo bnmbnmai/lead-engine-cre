@@ -166,10 +166,10 @@ jest.mock('ethers', () => {
 // Note: because runFullDemo has side effects on the module-level isRunning/isRecycling
 // flags, we reset them between tests by calling stopDemo() or by re-importing.
 
-let demoE2E: typeof import('../../src/services/demo-e2e.service');
+let demoE2E: typeof import('../../src/services/demo/demo-orchestrator');
 
 beforeAll(async () => {
-    demoE2E = await import('../../src/services/demo-e2e.service');
+    demoE2E = await import('../../src/services/demo/demo-orchestrator');
 });
 
 beforeEach(() => {
