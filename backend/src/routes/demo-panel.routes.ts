@@ -50,9 +50,10 @@ const DEMO_TAG = 'DEMO_PANEL';  // Only for Ask.parameters._demoTag (no LeadSour
 // Real Base Sepolia wallet addresses for demo personas (replaces old 0xDEMO_ placeholders)
 // All addresses normalized to lowercase for consistent DB lookups.
 const DEMO_WALLETS = {
-    PANEL_USER: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Demo seller / panel user
+    PANEL_USER: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Demo panel user
     ADMIN: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Admin (same as panel user)
-    BUYER: '0x424cac929939377f221348af52d4cb1247fe4379',   // Demo buyer
+    BUYER: '0x424cac929939377f221348af52d4cb1247fe4379',   // Demo buyer (Wallet 4)
+    SELLER: '0x9bb15f98982715e33a2113a35662036528ee0a36',   // Demo seller (Wallet 11 — DEMO_SELLER_WALLET)
     BUYER_1: '0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58',   // Auction bidder 1
     BUYER_2: '0x424cac929939377f221348af52d4cb1247fe4379',   // Auction bidder 2
     BUYER_3: '0x089b6bdb4824628c5535acf60abf80683452e862',   // Auction bidder 3
@@ -111,7 +112,7 @@ router.post('/demo-login', async (req: Request, res: Response) => {
         // Always use the fixed persona wallet — ignore MetaMask connectedWallet.
         // The whole point of persona switching is to authenticate AS the demo wallet
         // so GET /bids/my returns bids owned by the persona wallet's userId.
-        const walletAddress = (isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.PANEL_USER).toLowerCase();
+        const walletAddress = (isBuyer ? DEMO_WALLETS.BUYER : DEMO_WALLETS.SELLER).toLowerCase();
         const targetRole = isBuyer ? 'BUYER' : 'SELLER';
 
         // Find or create the demo user
@@ -1092,7 +1093,7 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
 // ============================================
 // POST /leads/:leadId/decrypt-pii — Winner-only PII decryption
 // ============================================
-router.post('/leads/:leadId/decrypt-pii', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/leads/:leadId/decrypt-pii', authMiddleware, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.params;
         const authReq = req as any;
@@ -1115,11 +1116,27 @@ router.post('/leads/:leadId/decrypt-pii', authMiddleware, publicDemoBypass, asyn
 
         if (!settledTx) {
             // Demo path: check if the caller has an ACCEPTED bid on this lead
-            const acceptedBid = userId
+            // First try direct userId match
+            let acceptedBid = userId
                 ? await prisma.bid.findFirst({
                     where: { leadId, buyerId: userId, status: 'ACCEPTED' },
                 })
                 : null;
+
+            // Fallback: check by wallet address (handles duplicate User records for same wallet)
+            if (!acceptedBid) {
+                const authReqWallet = authReq.user?.walletAddress?.toLowerCase();
+                if (authReqWallet) {
+                    acceptedBid = await prisma.bid.findFirst({
+                        where: {
+                            leadId,
+                            status: 'ACCEPTED',
+                            buyer: { walletAddress: { equals: authReqWallet, mode: 'insensitive' } },
+                        },
+                    });
+                }
+            }
+
             if (!acceptedBid) {
                 res.status(403).json({ error: 'Only the auction winner can decrypt PII after settlement' });
                 return;

@@ -21,6 +21,7 @@ import {
     CheckSquare,
     Unlock,
     Lock,
+    Loader2,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -283,10 +284,19 @@ export function BuyerPortfolio() {
                 </div>
 
                 {/* Stats Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="p-5">
                         <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Leads Owned</div>
                         <div className="text-2xl font-bold mt-1">{leads.length}</div>
+                    </Card>
+                    <Card className="p-5">
+                        <div className="flex items-center gap-2">
+                            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">ACE KYC Status</div>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                                <Shield className="h-3 w-3" /> KYC Verified
+                            </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">Chainlink ACE Compliant</div>
                     </Card>
                     <Card className="p-5">
                         <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Invested</div>
@@ -440,8 +450,20 @@ export function BuyerPortfolio() {
                                                         <span className="font-mono text-xs text-violet-400">
                                                             #{lead.nftTokenId.slice(0, 8)}…
                                                         </span>
+                                                    ) : bid.escrowTxHash?.startsWith('vaultLock:') ? (
+                                                        <a
+                                                            href={`https://sepolia.basescan.org/address/${import.meta.env.VITE_LEAD_VAULT_ADDRESS || '0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b'}`}
+                                                            target="_blank" rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-amber-400 text-xs hover:text-amber-300 transition"
+                                                            title={`Vault Lock #${bid.escrowTxHash.replace('vaultLock:', '')}`}
+                                                        >
+                                                            Lock #{bid.escrowTxHash.replace('vaultLock:', '')}
+                                                            <ExternalLink className="h-3 w-3" />
+                                                        </a>
                                                     ) : (
-                                                        <span className="text-muted-foreground text-xs">—</span>
+                                                        <span className="inline-flex items-center gap-1 text-xs text-amber-400/70">
+                                                            <Loader2 className="h-3 w-3 animate-spin" /> Mint Pending
+                                                        </span>
                                                     )}
                                                 </td>
                                                 <td>
@@ -565,7 +587,7 @@ export function BuyerPortfolio() {
                                         </div>
 
                                         {/* NFT Badge */}
-                                        {lead?.nftTokenId && (
+                                        {lead?.nftTokenId ? (
                                             <div className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 text-xs font-medium">
                                                 <ExternalLink className="h-3 w-3" />
                                                 NFT #{lead.nftTokenId.slice(0, 8)}…
@@ -574,6 +596,14 @@ export function BuyerPortfolio() {
                                                         {lead.nftContractAddr.slice(0, 6)}…{lead.nftContractAddr.slice(-4)}
                                                     </span>
                                                 )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium">
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                {bid.escrowTxHash?.startsWith('vaultLock:')
+                                                    ? `Lock #${bid.escrowTxHash.replace('vaultLock:', '')} — Mint Pending`
+                                                    : 'NFT Mint Pending'
+                                                }
                                             </div>
                                         )}
 

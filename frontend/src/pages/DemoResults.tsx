@@ -288,12 +288,37 @@ export default function DemoResults() {
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <button
                             onClick={downloadLogs}
                             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
                         >
-                            <Download className="h-3.5 w-3.5" /> Download Raw Log
+                            <Download className="h-3.5 w-3.5" /> Raw Log
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (!display) return;
+                                const blob = new Blob([JSON.stringify({
+                                    workflow: 'EvaluateBuyerRulesAndMatch',
+                                    target: 'staging-settings',
+                                    cycles: display.cycles.map(c => ({
+                                        cycle: c.cycle,
+                                        vertical: c.vertical,
+                                        qualityScore: display.creQualityScores?.[c.cycle] ?? 'pending',
+                                        gates: ['vertical', 'geo', 'state', 'quality', 'off-site', 'verified', 'field-filters'],
+                                    })),
+                                    timestamp: new Date().toISOString(),
+                                }, null, 2)], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `cre-simulate-${display.runId?.slice(0, 8)}.json`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
+                        >
+                            <Download className="h-3.5 w-3.5" /> Simulate JSON
                         </button>
                         <button
                             onClick={handleRunAgain}
@@ -430,33 +455,6 @@ export default function DemoResults() {
                                 {display.cycles.length} × EvaluateBuyerRulesAndMatch
                             </span>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-xs text-muted-foreground">CRE Workflow Simulate</span>
-                            <button
-                                onClick={() => {
-                                    const blob = new Blob([JSON.stringify({
-                                        workflow: 'EvaluateBuyerRulesAndMatch',
-                                        target: 'staging-settings',
-                                        cycles: display.cycles.map(c => ({
-                                            cycle: c.cycle,
-                                            vertical: c.vertical,
-                                            qualityScore: display.creQualityScores?.[c.cycle] ?? 'pending',
-                                            gates: ['vertical', 'geo', 'state', 'quality', 'off-site', 'verified', 'field-filters'],
-                                        })),
-                                        timestamp: new Date().toISOString(),
-                                    }, null, 2)], { type: 'application/json' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `cre-simulate-${display.runId?.slice(0, 8)}.json`;
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                }}
-                                className="inline-flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition cursor-pointer bg-transparent border-none p-0 font-mono"
-                            >
-                                Download simulate JSON <Download className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
                     </div>
                 </div>
 
@@ -465,27 +463,22 @@ export default function DemoResults() {
                 {/* Results Table */}
                 <div className="glass rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm" style={{ minWidth: '900px' }}>
                             <thead>
                                 <tr className="border-b border-border/50 text-left">
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Cycle</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Vertical</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground"
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Cycle</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Vertical</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground"
                                         title="CRE DON evaluation confirmed — quality pending on-chain scoring">
                                         CRE Quality
                                     </th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Bid</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Lock IDs</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Settle Tx</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">LeadNFT</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Refunds</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">PoR</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Tx Status</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">On-Chain Proof</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Gas</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Platform</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">Tiebreaker</th>
-                                    <th className="px-4 py-3 font-medium text-muted-foreground">VRF Proof</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Bid / Locks</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Settle Tx</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">NFT</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Refunds</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">PoR / Status</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Proof</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Gas / Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -499,13 +492,13 @@ export default function DemoResults() {
 
                                     return (
                                         <tr key={cycle.cycle} className="border-b border-border/30 hover:bg-white/[0.02] transition">
-                                            <td className="px-4 py-3 font-mono font-bold text-blue-400">#{cycle.cycle}</td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3 py-3 font-mono font-bold text-blue-400">#{cycle.cycle}</td>
+                                            <td className="px-3 py-3">
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 text-xs font-medium capitalize">
                                                     {cycle.vertical.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3 py-3">
                                                 {display.creQualityScores?.[cycle.cycle] != null ? (
                                                     <span
                                                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-xs font-bold"
@@ -524,9 +517,11 @@ export default function DemoResults() {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3 font-mono text-emerald-400">${cycle.bidAmount}</td>
-                                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">[{cycle.lockIds.join(', ')}]</td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3 py-3">
+                                                <div className="font-mono text-emerald-400">${cycle.bidAmount}</div>
+                                                <div className="font-mono text-[10px] text-muted-foreground">[{cycle.lockIds.join(', ')}]</div>
+                                            </td>
+                                            <td className="px-3 py-3">
                                                 <a
                                                     href={`${BASESCAN_TX}${cycle.settleTxHash}`}
                                                     target="_blank"
@@ -537,7 +532,7 @@ export default function DemoResults() {
                                                     <ExternalLink className="h-3 w-3" />
                                                 </a>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3 py-3">
                                                 <a
                                                     href={nftHref}
                                                     target="_blank"
@@ -549,7 +544,7 @@ export default function DemoResults() {
                                                     <ExternalLink className="h-3 w-3" />
                                                 </a>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3 py-3">
                                                 <div className="flex flex-col gap-0.5">
                                                     {cycle.refundTxHashes.map((hash, i) => (
                                                         <a
@@ -565,7 +560,7 @@ export default function DemoResults() {
                                                     ))}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3 py-3">
                                                 <div className="flex items-center gap-1.5">
                                                     {cycle.porSolvent ? (
                                                         <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -583,15 +578,13 @@ export default function DemoResults() {
                                                         </a>
                                                     )}
                                                 </div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold ${(cycle.txStatus ?? 'confirmed') === 'confirmed' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
+                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mt-1 ${(cycle.txStatus ?? 'confirmed') === 'confirmed' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
                                                     }`}>
                                                     {cycle.txStatus ?? 'confirmed'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
+                                            <td className="px-3 py-3">
+                                                <div className="flex flex-col gap-1">
                                                     <a
                                                         href="https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b"
                                                         target="_blank" rel="noopener noreferrer"
@@ -599,53 +592,24 @@ export default function DemoResults() {
                                                     >
                                                         Basescan <ExternalLink className="h-3 w-3" />
                                                     </a>
-                                                    <button
-                                                        onClick={() => {
-                                                            const blob = new Blob([JSON.stringify({
-                                                                workflow: 'EvaluateBuyerRulesAndMatch',
-                                                                target: 'staging-settings',
-                                                                cycle: cycle.cycle,
-                                                                leadId: cycle.leadId ?? 'unknown',
-                                                                vertical: cycle.vertical,
-                                                                qualityScore: display.creQualityScores?.[cycle.cycle] ?? 'pending',
-                                                                txStatus: cycle.txStatus ?? 'confirmed',
-                                                                gates: ['vertical', 'geo', 'state', 'quality', 'off-site', 'verified', 'field-filters'],
-                                                                timestamp: new Date().toISOString(),
-                                                            }, null, 2)], { type: 'application/json' });
-                                                            const url = URL.createObjectURL(blob);
-                                                            const a = document.createElement('a');
-                                                            a.href = url;
-                                                            a.download = `cre-cycle-${cycle.cycle}.json`;
-                                                            a.click();
-                                                            URL.revokeObjectURL(url);
-                                                        }}
-                                                        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition cursor-pointer bg-transparent border-none p-0"
-                                                        title="Download simulate JSON for this cycle"
-                                                    >
-                                                        <Download className="h-3 w-3" />
-                                                    </button>
+                                                    {cycle.hadTiebreaker && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-[10px] font-medium">
+                                                            <Zap className="h-3 w-3" /> VRF
+                                                        </span>
+                                                    )}
+                                                    {cycle.vrfTxHash && (
+                                                        <a href={`${BASESCAN_TX}${cycle.vrfTxHash}`} target="_blank" rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition font-mono text-[10px]">
+                                                            {cycle.vrfTxHash.slice(0, 10)}… <ExternalLink className="h-3 w-3" />
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                                                {BigInt(cycle.gasUsed || '0').toLocaleString()}
-                                            </td>
-                                            <td className="px-4 py-3 font-mono text-xs text-emerald-400">
-                                                {cycle.platformIncome != null ? `$${cycle.platformIncome.toFixed(2)}` : '—'}
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                {cycle.hadTiebreaker ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-xs font-medium">
-                                                        <Zap className="h-3 w-3" /> VRF
-                                                    </span>
-                                                ) : <span className="text-muted-foreground">—</span>}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {cycle.vrfTxHash ? (
-                                                    <a href={`${BASESCAN_TX}${cycle.vrfTxHash}`} target="_blank" rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition font-mono text-xs">
-                                                        {cycle.vrfTxHash.slice(0, 10)}… <ExternalLink className="h-3 w-3" />
-                                                    </a>
-                                                ) : <span className="text-muted-foreground">—</span>}
+                                            <td className="px-3 py-3">
+                                                <div className="font-mono text-xs text-muted-foreground">{BigInt(cycle.gasUsed || '0').toLocaleString()}</div>
+                                                <div className="font-mono text-xs text-emerald-400">
+                                                    {cycle.platformIncome != null ? `$${cycle.platformIncome.toFixed(2)}` : '—'}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

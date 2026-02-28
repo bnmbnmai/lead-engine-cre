@@ -604,56 +604,18 @@ export function DemoPanel() {
                                 <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                                     Platform rev today: ~${demoMetrics.dailyRevenue.toLocaleString()}
                                 </p>
-                                {/* Stop Demo button — visible only when demo is actively running */}
-                                <button
-                                    onClick={async () => {
-                                        const { error } = await api.demoFullE2EStop();
-                                        if (error) {
-                                            setActions(prev => ({ ...prev, stopDemo: { state: 'error', message: error.message || 'Stop failed' } }));
-                                        } else {
-                                            setDemoRunning(false);
-                                            setDemoMetrics(null);
-                                            setActions(prev => ({ ...prev, stopDemo: { state: 'success', message: '⏹ Demo stopped' } }));
-                                        }
-                                        setTimeout(() => setActions(prev => ({ ...prev, stopDemo: { state: 'idle' } })), 3000);
-                                    }}
-                                    disabled={actions.stopDemo?.state === 'loading'}
-                                    className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition"
-                                >
-                                    {actions.stopDemo?.state === 'loading' ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                        <X className="h-3 w-3" />
-                                    )}
-                                    Stop Demo
-                                </button>
-                                {actions.stopDemo?.message && (
-                                    <p className={`text-[10px] pl-1 mt-0.5 ${actions.stopDemo.state === 'error' ? 'text-red-400' : 'text-muted-foreground'}`}>
-                                        {actions.stopDemo.message}
-                                    </p>
-                                )}
+                                {/* Demo running indicator — stop button removed per user request */}
                             </div>
                         )}
 
-                        {/* Stop Demo chip — shown while demo is running but before demoMetrics fires (first 30s) */}
+                        {/* Demo running chip — shown while demo is running but before demoMetrics fires (first 30s) */}
                         {demoRunning && !demoMetrics && (
-                            <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-red-500/30 bg-red-500/[0.08] mb-1">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                                    </span>
-                                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">Demo Running…</span>
-                                </div>
-                                <button
-                                    onClick={async () => {
-                                        await api.demoFullE2EStop();
-                                        setDemoRunning(false);
-                                    }}
-                                    className="text-[10px] font-semibold px-2 py-1 rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/30 transition flex items-center gap-1"
-                                >
-                                    <X className="h-3 w-3" /> Stop
-                                </button>
+                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-500/30 bg-blue-500/[0.08] mb-1">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                                </span>
+                                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Demo Running…</span>
                             </div>
                         )}
 

@@ -230,6 +230,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 <MapPin className="h-3 w-3" />
                                 {lead.geo.city ? `${lead.geo.city}, ` : ''}{lead.geo.state || 'Unknown'}
                             </div>
+                            <div className="text-[10px] text-muted-foreground/60 font-mono" title={lead.id}>
+                                ID: {lead.id.slice(0, 8)}…
+                            </div>
                             {lead.seller?.companyName && (
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <Star className="h-3 w-3 text-amber-500" />

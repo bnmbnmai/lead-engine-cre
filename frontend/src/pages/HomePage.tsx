@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2, Rocket, Square, RotateCcw } from 'lucide-react';
+import { Search, MapPin, X, Globe, Users, Star, Tag, ShieldCheck, Eye, Zap, DollarSign, TrendingUp, Filter, ChevronDown, ChevronUp, LayoutGrid, List, History, BarChart3, Loader2, Rocket, RotateCcw } from 'lucide-react';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
@@ -1294,7 +1294,7 @@ export function HomePage() {
 
 // ── Demo Button Banner ──────────────────────────
 function DemoButtonBanner() {
-    const { isRunning, isComplete, startDemo, stopDemo, progress, completedRunId } = useDemo();
+    const { isRunning, isComplete, startDemo, progress, completedRunId } = useDemo();
     const { isRunning: isGlobalRunning, isRecycling, currentCycle, totalCycles, percent } = useDemoStatus();
     const [selectedCycles, setSelectedCycles] = useState(5);
     const navigate = useNavigate();
@@ -1343,13 +1343,13 @@ function DemoButtonBanner() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {isRunning ? (
+                        {isRunning || (isGlobalRunning && !isComplete) ? (
                             <button
-                                onClick={stopDemo}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 text-sm font-medium transition border border-red-500/20"
+                                disabled
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-500/15 text-blue-400 text-sm font-medium cursor-default border border-blue-500/20"
                             >
-                                <Square className="h-4 w-4" />
-                                Stop Demo
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Demo Running…
                             </button>
                         ) : demoBlocked ? (
                             // Another viewer started the demo — show disabled state for all
@@ -1418,7 +1418,7 @@ function DemoButtonBanner() {
                             />
                         </div>
                         <div className="bg-blue-500/5 px-6 py-1.5 text-center text-xs text-blue-400/80">
-                            DEMO MODE — Testnet Only • Demo in progress, wait for completion to view on-chain summary
+                            DEMO MODE — Testnet Only • {progress.percent >= 100 ? 'Demo finished — waiting for reset/recycle' : 'Demo in progress, wait for completion to view on-chain summary'}
                         </div>
                     </div>
                 )}

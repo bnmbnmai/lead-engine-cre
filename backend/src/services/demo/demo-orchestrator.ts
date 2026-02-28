@@ -1085,10 +1085,23 @@ export async function runFullDemo(
                 // record must be found by the exact wallet address (normalized to lowercase).
                 try {
                     const normalizedWallet = buyerWallet.toLowerCase();
-                    const winnerUser = await prisma.user.findFirst({
+                    let winnerUser = await prisma.user.findFirst({
                         where: { walletAddress: { equals: normalizedWallet, mode: 'insensitive' } },
                     });
-                    if (winnerUser && demoLeadId) {
+                    // Auto-create the User record if one doesn't exist yet.
+                    // This is critical: if the Buyer persona hasn't logged in before
+                    // the demo runs, findFirst returns null and the Bid record never
+                    // gets created — which causes Decrypt PII to 403 later.
+                    if (!winnerUser) {
+                        winnerUser = await prisma.user.create({
+                            data: {
+                                walletAddress: normalizedWallet,
+                                role: 'BUYER',
+                            },
+                        });
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `👤 Auto-created User for buyer wallet ${normalizedWallet.slice(0, 10)}…` });
+                    }
+                    if (demoLeadId) {
                         await prisma.bid.create({
                             data: {
                                 leadId: demoLeadId,
@@ -1119,8 +1132,6 @@ export async function runFullDemo(
                                 ts: new Date().toISOString(),
                             });
                         }
-                    } else if (!winnerUser) {
-                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ No User record found for wallet ${normalizedWallet.slice(0, 10)}… — Bid record NOT created` });
                     }
                 } catch (bidRecordErr: any) {
                     const errMsg = bidRecordErr.message?.slice(0, 120) || 'unknown';
