@@ -132,7 +132,7 @@ describe('E2E Demo Flow', () => {
             mockPrisma.bid.update.mockResolvedValue({ status: 'ACCEPTED' });
             mockPrisma.lead.update.mockResolvedValue({ status: 'SOLD', winningBid: 35.00 });
 
-            // Step 8: x402 Settlement (off-chain)
+            // Step 8: Escrow Settlement (off-chain)
             mockPrisma.transaction.create.mockResolvedValue({
                 id: 'tx-e2e-1',
                 amount: 35.00,

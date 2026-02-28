@@ -53,7 +53,7 @@ Chainlink Hackathon 2026 — Convergence
                  │
 ┌────────────────▼───────────────────────────┐
 │  Backend (Render) ─ Express + Prisma + WS  │
-│  RTB Engine · Privacy Suite · x402         │
+│  RTB Engine · Privacy Suite · Escrow     │
 │  DECO Stub · Data Feeds · Confid HTTP  │
 └───┬───────────────────┬───────────────┬────┘
     │                   │               │
@@ -151,7 +151,7 @@ Chainlink Hackathon 2026 — Convergence
 - **Global reach:** 20+ countries from day one — US, EU, APAC, LATAM, Africa
 - **Multi-chain:** Sepolia today → Base mainnet for low-cost production
 - **Revenue:** 2.5% platform fee on every transaction via `RTBEscrow.sol`
-- **Moat:** x402 instant settlement + 10-gate auto-bid + MCP agent server + CCIP = no competitor has this stack
+- **Moat:** Atomic escrow settlement + 10-gate auto-bid + MCP agent server + CCIP = no competitor has this stack
 
 ---
 
@@ -187,7 +187,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 
 | Criteria | Lead Engine |
 |----------|-------------|
-| **Innovation** | 7 Chainlink services + MCP agent server + CCIP-ready + x402 instant settlement |
+| **Innovation** | 7 Chainlink services + MCP agent server + CCIP-ready + atomic escrow settlement |
 | **Technical depth** | 10 smart contracts, ZK proofs, commit-reveal, TEE scoring, 10-gate auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
 | **Traction** | 500+ testnet txs, 1,288+ tests passing, 10K concurrent users |

@@ -33,7 +33,7 @@ interface MockApiOptions {
     failChainlink?: boolean;
     /** Simulate >5s Chainlink latency (stale price) */
     slowChainlink?: boolean;
-    /** Simulate x402 payment failure (insufficient funds) */
+    /** Simulate escrow payment failure (insufficient funds) */
     failPayment?: boolean;
 }
 
@@ -179,7 +179,7 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
         delay,
     }).as('createAsk');
 
-    // Bid Place — x402 payment simulation
+    // Bid Place — escrow payment simulation
     if (options.failPayment) {
         cy.intercept('POST', `${API}/bids*`, {
             statusCode: 402,
@@ -193,7 +193,7 @@ Cypress.Commands.add('mockApi', (options: MockApiOptions = {}) => {
         }).as('placeBid');
     }
 
-    // x402 Payment endpoint
+    // escrow Payment endpoint
     cy.intercept('POST', `${API}/payments*`, {
         statusCode: options.failPayment ? 402 : 200,
         body: options.failPayment ? mockPaymentFailure : mockPaymentReceipt,

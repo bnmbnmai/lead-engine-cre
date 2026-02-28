@@ -3,7 +3,7 @@ info:
   title: Lead Engine CRE API
   description: |
     REST API for the Lead Engine CRE marketplace — a decentralized lead exchange with
-    sealed-bid auctions, ZK-verified compliance, and x402 USDC settlement.
+    sealed-bid auctions, ZK-verified compliance, and atomic USDC escrow settlement.
 
     ## Authentication
     All endpoints require a JWT Bearer token obtained via the wallet auth flow:

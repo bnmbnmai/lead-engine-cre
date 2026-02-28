@@ -2,10 +2,10 @@
  * Escrow Implementation Service Unit Tests
  *
  * Tests payment lifecycle (create, settle, refund), off-chain fallback,
- * payment status retrieval, and x402 HTTP header generation.
+ * payment status retrieval, and payment header generation.
  *
- * Previously named x402.service.test.ts — renamed in P2-11 to match
- * the escrow-impl.service.ts rename.
+ * Previously named escrow.service.test.ts — renamed in P2-11 to match
+ * the escrow.service.ts rename.
  */
 
 jest.mock('../../src/lib/prisma', () => ({
@@ -19,24 +19,24 @@ jest.mock('../../src/lib/prisma', () => ({
 
 import { prisma } from '../../src/lib/prisma';
 
-let x402Service: any;
+let escrowService: any;
 
 beforeAll(async () => {
     const mod = await import('../../src/services/escrow-impl.service');
-    x402Service = mod.x402Service;
+    escrowService = mod.escrowService;
 });
 
 afterEach(() => {
     jest.clearAllMocks();
 });
 
-describe('X402Service', () => {
+describe('escrowService', () => {
 
     // ─── createPayment (off-chain fallback) ──────
 
     describe('createPayment', () => {
         it('should fail when no on-chain escrow contract is configured', async () => {
-            const result = await x402Service.createPayment(
+            const result = await escrowService.createPayment(
                 '0xSeller', '0xBuyer', 35.50, 1, 'tx-123'
             );
 
@@ -55,7 +55,7 @@ describe('X402Service', () => {
                 status: 'ESCROWED',
             });
 
-            const result = await x402Service.settlePayment('tx-1');
+            const result = await escrowService.settlePayment('tx-1');
             expect(result.success).toBe(false);
             expect(result.error).toContain('not configured');
         });
@@ -63,7 +63,7 @@ describe('X402Service', () => {
         it('should return error for non-existent transaction', async () => {
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(null);
 
-            const result = await x402Service.settlePayment('tx-missing');
+            const result = await escrowService.settlePayment('tx-missing');
             expect(result.success).toBe(false);
             expect(result.error).toContain('not found');
         });
@@ -74,7 +74,7 @@ describe('X402Service', () => {
                 escrowId: null,
             });
 
-            const result = await x402Service.settlePayment('tx-2');
+            const result = await escrowService.settlePayment('tx-2');
             expect(result.success).toBe(false);
         });
     });
@@ -90,7 +90,7 @@ describe('X402Service', () => {
             });
             (prisma.transaction.update as jest.Mock).mockResolvedValue({});
 
-            const result = await x402Service.refundPayment('tx-3');
+            const result = await escrowService.refundPayment('tx-3');
             expect(result.success).toBe(true);
             expect(prisma.transaction.update).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -102,7 +102,7 @@ describe('X402Service', () => {
         it('should return error for non-existent transaction', async () => {
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(null);
 
-            const result = await x402Service.refundPayment('tx-missing');
+            const result = await escrowService.refundPayment('tx-missing');
             expect(result.success).toBe(false);
         });
     });
@@ -113,7 +113,7 @@ describe('X402Service', () => {
         it('should return null for non-existent transaction', async () => {
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(null);
 
-            const result = await x402Service.getPaymentStatus('tx-missing');
+            const result = await escrowService.getPaymentStatus('tx-missing');
             expect(result).toBeNull();
         });
 
@@ -137,7 +137,7 @@ describe('X402Service', () => {
             };
             (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockTx);
 
-            const result = await x402Service.getPaymentStatus('tx-4');
+            const result = await escrowService.getPaymentStatus('tx-4');
             expect(result).not.toBeNull();
             expect(result!.escrowId).toBe('offchain-111');
             expect(result!.seller).toBe('0xSeller');
@@ -150,7 +150,7 @@ describe('X402Service', () => {
 
     describe('generatePaymentHeader', () => {
         it('should generate correct x402 payment headers', () => {
-            const headers = x402Service.generatePaymentHeader(
+            const headers = escrowService.generatePaymentHeader(
                 'escrow-123', 35.50, '0xRecipient'
             );
 
@@ -164,7 +164,7 @@ describe('X402Service', () => {
         });
 
         it('should handle zero amount', () => {
-            const headers = x402Service.generatePaymentHeader('esc-0', 0, '0x0');
+            const headers = escrowService.generatePaymentHeader('esc-0', 0, '0x0');
             expect(headers['X-Payment-Amount']).toBe('0.000000');
         });
     });
@@ -179,14 +179,14 @@ describe('X402Service', () => {
                 status: 'RELEASED',
             });
 
-            const result = await x402Service.settlePayment('tx-double');
+            const result = await escrowService.settlePayment('tx-double');
             // Without on-chain escrow, settle now fails
             expect(result.success).toBe(false);
             expect(result.error).toContain('not configured');
         });
 
         it('should fail to create escrow with large USDC amount (no contract)', async () => {
-            const result = await x402Service.createPayment(
+            const result = await escrowService.createPayment(
                 '0xSeller', '0xBuyer', 999999.99, 42, 'tx-large'
             );
             expect(result.success).toBe(false);
@@ -194,7 +194,7 @@ describe('X402Service', () => {
         });
 
         it('should fail to create escrow with zero amount (no contract)', async () => {
-            const result = await x402Service.createPayment(
+            const result = await escrowService.createPayment(
                 '0xSeller', '0xBuyer', 0, 1, 'tx-zero'
             );
             expect(result.success).toBe(false);
@@ -209,7 +209,7 @@ describe('X402Service', () => {
             });
             (prisma.transaction.update as jest.Mock).mockResolvedValue({});
 
-            const result = await x402Service.refundPayment('tx-refunded');
+            const result = await escrowService.refundPayment('tx-refunded');
             expect(result.success).toBe(true);
         });
 
@@ -219,7 +219,7 @@ describe('X402Service', () => {
                 escrowId: null,
             });
 
-            const result = await x402Service.refundPayment('tx-noesc');
+            const result = await escrowService.refundPayment('tx-noesc');
             expect(result.success).toBe(false);
         });
 
@@ -237,14 +237,14 @@ describe('X402Service', () => {
                 buyer: { walletAddress: '0xB' },
             });
 
-            const result = await x402Service.getPaymentStatus('tx-rel');
+            const result = await escrowService.getPaymentStatus('tx-rel');
             expect(result).not.toBeNull();
             expect(result!.status).toBe('RELEASED');
             expect(result!.releasedAt).toEqual(relDate);
         });
 
         it('should generate headers with custom escrow ID', () => {
-            const headers = x402Service.generatePaymentHeader('custom-esc', 100, '0xR');
+            const headers = escrowService.generatePaymentHeader('custom-esc', 100, '0xR');
             expect(headers['X-Payment-Escrow-Id']).toBe('custom-esc');
             expect(headers['X-Payment-Amount']).toBe('100.000000');
         });
@@ -270,7 +270,7 @@ describe('X402Service', () => {
             // Without ESCROW_CONTRACT_ADDRESS set, prepareEscrowTx should fail
             // but we can verify the function exists and handles missing config
             try {
-                const result = await x402Service.prepareEscrowTx('tx-prep');
+                const result = await escrowService.prepareEscrowTx('tx-prep');
                 // If env vars are set, verify the response shape includes new field
                 if (result) {
                     expect(result).toHaveProperty('escrowContractAddress');

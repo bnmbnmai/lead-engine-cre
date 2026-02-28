@@ -130,8 +130,8 @@ function generateApacPayload(requestParams, context, ee, next) {
 
 // ─── Failure Injection Functions ──────────────
 
-/** Simulate x402 payment failure with edge-case bid amounts */
-function simulateX402Failure(requestParams, context, ee, next) {
+/** Simulate escrow payment failure with edge-case bid amounts */
+function simulateEscrowFailure(requestParams, context, ee, next) {
     // Use amounts that trigger edge cases: $0 (invalid), $999999 (exceeds cap),
     // or small fractions that stress USDC precision
     const edgeCaseAmounts = [0, 0.001, 999999, -1, 50.555555];
@@ -146,7 +146,7 @@ function simulateX402Failure(requestParams, context, ee, next) {
     context.vars.commitment = commitment;
     context.vars.salt = "0x" + salt;
 
-    ee.emit("counter", "custom.x402_attempts", 1);
+    ee.emit("counter", "custom.escrow_attempts", 1);
     return next();
 }
 
@@ -201,16 +201,16 @@ function fireCrmWebhookBurst(requestParams, context, ee, next) {
 
 // ─── Metric Tracking Functions ────────────────
 
-/** Track x402 payment failure metrics */
-function trackX402Metrics(requestParams, response, context, ee, next) {
+/** Track escrow payment failure metrics */
+function trackEscrowMetrics(requestParams, response, context, ee, next) {
     if (response.statusCode === 402) {
-        ee.emit("counter", "custom.x402_payment_required", 1);
+        ee.emit("counter", "custom.escrow_payment_required", 1);
     } else if (response.statusCode === 500) {
-        ee.emit("counter", "custom.x402_escrow_failure", 1);
+        ee.emit("counter", "custom.escrow_escrow_failure", 1);
     } else if (response.statusCode === 503) {
-        ee.emit("counter", "custom.x402_service_unavailable", 1);
+        ee.emit("counter", "custom.escrow_service_unavailable", 1);
     } else if (response.statusCode >= 200 && response.statusCode < 300) {
-        ee.emit("counter", "custom.x402_retry_success", 1);
+        ee.emit("counter", "custom.escrow_retry_success", 1);
     }
     return next();
 }
@@ -288,13 +288,13 @@ module.exports = {
     generateLatamPayload,
     generateApacPayload,
     // Failure injection
-    simulateX402Failure,
+    simulateEscrowFailure,
     generateAutoBidBudgetExhaust,
     simulateChainlinkLatency,
     generateDuplicateBid,
     fireCrmWebhookBurst,
     // Metric tracking
-    trackX402Metrics,
+    trackEscrowMetrics,
     trackBudgetMetrics,
     trackLatencyMetrics,
     trackWebhookMetrics,

@@ -5,11 +5,10 @@ import { prisma } from '../lib/prisma';
 // Escrow Service (canonical entry-point)
 // ============================================
 // Wraps the PersonalEscrowVault contract for USDC escrow flows.
-// Originally named x402.service.ts (HTTP 402 payment protocol origin),
-// then escrow-impl.service.ts. Consolidated as escrow.service.ts.
+// Consolidated as escrow.service.ts.
 //
-// Import:  import { x402Service } from '../services/escrow.service';
-// Wraps RTBEscrow for HTTP-native payment flows
+// Import:  import { escrowService } from '../services/escrow.service';
+// Wraps PersonalEscrowVault for on-chain payment flows
 
 // Normalize addresses with ethers.getAddress() — ethers v6 enforces EIP-55 checksums
 // and will throw if an address has incorrect mixed-case (e.g. from copy-paste or env vars)
@@ -90,7 +89,7 @@ interface PaymentStatus {
     offChain?: boolean;
 }
 
-class X402Service {
+class EscrowService {
     private provider: ethers.JsonRpcProvider;
     private escrowContract: ethers.Contract | null = null;
     private usdcContract: ethers.Contract | null = null;
@@ -116,14 +115,14 @@ class X402Service {
         }
 
         // Startup diagnostics
-        console.log(`[x402] Service initialized:`);
-        console.log(`[x402]   ESCROW_CONTRACT = ${ESCROW_CONTRACT_ADDRESS || '⚠️  NOT SET'}`);
-        console.log(`[x402]   USDC_CONTRACT   = ${USDC_CONTRACT_ADDRESS || '⚠️  NOT SET'}`);
-        console.log(`[x402]   RPC_URL         = ${RPC_URL}`);
-        console.log(`[x402]   DEPLOYER_KEY    = ${DEPLOYER_KEY ? '✓ set' : '⚠️  NOT SET'}`);
-        console.log(`[x402]   PLATFORM_WALLET = ${PLATFORM_WALLET_ADDRESS || '⚠️  NOT SET'}`);
+        console.log(`[Escrow] Service initialized:`);
+        console.log(`[Escrow]   ESCROW_CONTRACT = ${ESCROW_CONTRACT_ADDRESS || '⚠️  NOT SET'}`);
+        console.log(`[Escrow]   USDC_CONTRACT   = ${USDC_CONTRACT_ADDRESS || '⚠️  NOT SET'}`);
+        console.log(`[Escrow]   RPC_URL         = ${RPC_URL}`);
+        console.log(`[Escrow]   DEPLOYER_KEY    = ${DEPLOYER_KEY ? '✓ set' : '⚠️  NOT SET'}`);
+        console.log(`[Escrow]   PLATFORM_WALLET = ${PLATFORM_WALLET_ADDRESS || '⚠️  NOT SET'}`);
         if (!ESCROW_CONTRACT_ADDRESS || !USDC_CONTRACT_ADDRESS || !DEPLOYER_KEY) {
-            console.warn(`[x402] ⚠️  Missing env vars — prepareEscrowTx will return 503. Set RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA, USDC_CONTRACT_ADDRESS, and DEPLOYER_PRIVATE_KEY on Render.`);
+            console.warn(`[Escrow] ⚠️  Missing env vars — prepareEscrowTx will return 503. Set RTB_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA, USDC_CONTRACT_ADDRESS, and DEPLOYER_PRIVATE_KEY on Render.`);
 
         }
     }
@@ -147,11 +146,11 @@ class X402Service {
             if (!ESCROW_CONTRACT_ADDRESS) missing.push('ESCROW_CONTRACT_ADDRESS');
             if (!DEPLOYER_KEY) missing.push('DEPLOYER_PRIVATE_KEY');
             const msg = `On-chain escrow not configured: missing ${missing.join(', ')}`;
-            console.error(`[x402] createPayment FAILED: ${msg}`);
+            console.error(`[Escrow] createPayment FAILED: ${msg}`);
             return { success: false, error: msg };
         }
 
-        console.log(`[x402] createPayment START:`, {
+        console.log(`[Escrow] createPayment START:`, {
             leadId,
             seller: sellerAddress,
             buyer: buyerAddress,
@@ -166,38 +165,38 @@ class X402Service {
         try {
             // Step 1: Create escrow on-chain
             // Contract: createEscrow(string leadId, address seller, address buyer, uint256 amount)
-            console.log(`[x402] Step 1: createEscrow("${leadId}", ${sellerAddress}, ${buyerAddress}, ${amountWei})`);
+            console.log(`[Escrow] Step 1: createEscrow("${leadId}", ${sellerAddress}, ${buyerAddress}, ${amountWei})`);
             const createTx = await this.escrowContract.createEscrow(
                 leadId, sellerAddress, buyerAddress, amountWei
             );
-            console.log(`[x402] createEscrow tx sent: ${createTx.hash}`);
+            console.log(`[Escrow] createEscrow tx sent: ${createTx.hash}`);
             const createReceipt = await createTx.wait();
             const escrowId = createReceipt?.logs?.[0]?.topics?.[1] || '0';
             const parsedEscrowId = escrowId.toString();
-            console.log(`[x402] createEscrow confirmed — escrowId=${parsedEscrowId}, block=${createReceipt?.blockNumber}`);
+            console.log(`[Escrow] createEscrow confirmed — escrowId=${parsedEscrowId}, block=${createReceipt?.blockNumber}`);
 
             // Step 2: Approve + Fund escrow
             if (this.usdcContract) {
                 const currentAllowance = await this.usdcContract.allowance(
                     this.signer.address, ESCROW_CONTRACT_ADDRESS
                 );
-                console.log(`[x402] Step 2a: USDC allowance check — current=${currentAllowance.toString()}, needed=${amountWei.toString()}`);
+                console.log(`[Escrow] Step 2a: USDC allowance check — current=${currentAllowance.toString()}, needed=${amountWei.toString()}`);
 
                 if (currentAllowance < amountWei) {
-                    console.log(`[x402] Step 2b: Approving USDC spend...`);
+                    console.log(`[Escrow] Step 2b: Approving USDC spend...`);
                     const approveTx = await this.usdcContract.approve(
                         ESCROW_CONTRACT_ADDRESS, amountWei * 10n
                     );
                     await approveTx.wait();
-                    console.log(`[x402] USDC approved: ${approveTx.hash}`);
+                    console.log(`[Escrow] USDC approved: ${approveTx.hash}`);
                 }
 
-                console.log(`[x402] Step 2c: fundEscrow(${parsedEscrowId})`);
+                console.log(`[Escrow] Step 2c: fundEscrow(${parsedEscrowId})`);
                 const fundTx = await this.escrowContract.fundEscrow(parsedEscrowId);
                 await fundTx.wait();
-                console.log(`[x402] fundEscrow confirmed: ${fundTx.hash}`);
+                console.log(`[Escrow] fundEscrow confirmed: ${fundTx.hash}`);
             } else {
-                console.warn(`[x402] USDC contract not configured — escrow created but NOT funded`);
+                console.warn(`[Escrow] USDC contract not configured — escrow created but NOT funded`);
             }
 
             // Step 3: Transfer convenience fee to platform wallet (if applicable)
@@ -206,12 +205,12 @@ class X402Service {
             if (convFee > 0 && this.usdcContract && PLATFORM_WALLET_ADDRESS) {
                 try {
                     const feeWei = BigInt(Math.floor(convFee * 1e6));
-                    console.log(`[x402] Step 3: Transferring $${convFee} convenience fee → ${PLATFORM_WALLET_ADDRESS.slice(0, 10)}…`);
+                    console.log(`[Escrow] Step 3: Transferring $${convFee} convenience fee → ${PLATFORM_WALLET_ADDRESS.slice(0, 10)}…`);
                     const feeTx = await this.usdcContract.transfer(PLATFORM_WALLET_ADDRESS, feeWei);
                     await feeTx.wait();
-                    console.log(`[x402] Convenience fee transfer confirmed: ${feeTx.hash}`);
+                    console.log(`[Escrow] Convenience fee transfer confirmed: ${feeTx.hash}`);
                 } catch (feeErr: any) {
-                    console.error(`[x402] Convenience fee transfer FAILED (non-fatal):`, feeErr.message);
+                    console.error(`[Escrow] Convenience fee transfer FAILED (non-fatal):`, feeErr.message);
                 }
             }
 
@@ -233,18 +232,18 @@ class X402Service {
         } catch (error: any) {
             // ── Handle "Escrow exists for lead" — recover the existing escrow ──
             if (error.reason === 'Escrow exists for lead' && this.escrowContract && this.signer) {
-                console.warn(`[x402] Escrow already exists for lead ${leadId} — scanning on-chain to recover escrowId`);
+                console.warn(`[Escrow] Escrow already exists for lead ${leadId} — scanning on-chain to recover escrowId`);
                 try {
                     const existingEscrowId = await this.findEscrowByLeadId(leadId);
                     if (existingEscrowId !== null) {
                         const escrow = await this.escrowContract.getEscrow(existingEscrowId);
                         const stateMap = ['PENDING', 'ESCROWED', 'RELEASED', 'REFUNDED', 'DISPUTED'] as const;
                         const escrowState = stateMap[Number(escrow.state)] || 'PENDING';
-                        console.log(`[x402] Found existing escrow ${existingEscrowId} — state=${escrowState}`);
+                        console.log(`[Escrow] Found existing escrow ${existingEscrowId} — state=${escrowState}`);
 
                         // Fund if still in PENDING (created but not funded)
                         if (escrowState === 'PENDING' && this.usdcContract) {
-                            console.log(`[x402] Funding existing escrow ${existingEscrowId}`);
+                            console.log(`[Escrow] Funding existing escrow ${existingEscrowId}`);
                             const currentAllowance = await this.usdcContract.allowance(
                                 this.signer.address, ESCROW_CONTRACT_ADDRESS
                             );
@@ -256,7 +255,7 @@ class X402Service {
                             }
                             const fundTx = await this.escrowContract.fundEscrow(existingEscrowId);
                             await fundTx.wait();
-                            console.log(`[x402] fundEscrow confirmed for recovered escrow`);
+                            console.log(`[Escrow] fundEscrow confirmed for recovered escrow`);
                         }
 
                         // Update DB
@@ -269,11 +268,11 @@ class X402Service {
                             },
                         });
 
-                        console.log(`[x402] Recovered existing escrow — escrowId=${parsedId}, state=${escrowState}`);
+                        console.log(`[Escrow] Recovered existing escrow — escrowId=${parsedId}, state=${escrowState}`);
                         return { success: true, escrowId: parsedId };
                     }
                 } catch (recoveryErr: any) {
-                    console.error(`[x402] Escrow recovery scan failed:`, recoveryErr.message);
+                    console.error(`[Escrow] Escrow recovery scan failed:`, recoveryErr.message);
                 }
             }
 
@@ -298,8 +297,8 @@ class X402Service {
                 errorInfo.signerBalance = ethers.formatEther(balance) + ' ETH';
             } catch { /* ignore */ }
 
-            console.error(`[x402] createPayment FAILED:`, JSON.stringify(errorInfo, null, 2));
-            console.error(`[x402] Full stack:`, error.stack || error);
+            console.error(`[Escrow] createPayment FAILED:`, JSON.stringify(errorInfo, null, 2));
+            console.error(`[Escrow] Full stack:`, error.stack || error);
 
             // Human-readable error
             let userError = error.shortMessage || error.reason || error.message;
@@ -330,11 +329,11 @@ class X402Service {
             return { success: false, error: 'On-chain escrow contract not configured' };
         }
 
-        console.log(`[x402] settlePayment START: txId=${transactionId}, escrowId=${transaction.escrowId}`);
+        console.log(`[Escrow] settlePayment START: txId=${transactionId}, escrowId=${transaction.escrowId}`);
 
         try {
             const tx = await this.escrowContract.releaseEscrow(transaction.escrowId);
-            console.log(`[x402] releaseEscrow tx sent: ${tx.hash}`);
+            console.log(`[Escrow] releaseEscrow tx sent: ${tx.hash}`);
             const receipt = await tx.wait();
 
             await prisma.transaction.update({
@@ -348,16 +347,16 @@ class X402Service {
                 },
             });
 
-            console.log(`[x402] settlePayment COMPLETE — txHash=${receipt?.hash}`);
+            console.log(`[Escrow] settlePayment COMPLETE — txHash=${receipt?.hash}`);
             return { success: true, txHash: receipt?.hash };
         } catch (error: any) {
-            console.error(`[x402] settlePayment FAILED:`, {
+            console.error(`[Escrow] settlePayment FAILED:`, {
                 message: error.message,
                 code: error.code,
                 reason: error.reason,
                 shortMessage: error.shortMessage,
             });
-            console.error(`[x402] Full stack:`, error.stack || error);
+            console.error(`[Escrow] Full stack:`, error.stack || error);
             return { success: false, error: error.shortMessage || error.reason || error.message };
         }
     }
@@ -373,7 +372,7 @@ class X402Service {
             try {
                 const escrow = await this.escrowContract.getEscrow(id);
                 if (escrow.leadId === leadId) {
-                    console.log(`[x402] Found escrow #${id} for lead ${leadId}`);
+                    console.log(`[Escrow] Found escrow #${id} for lead ${leadId}`);
                     return id;
                 }
             } catch {
@@ -381,7 +380,7 @@ class X402Service {
                 break;
             }
         }
-        console.warn(`[x402] No existing escrow found for lead ${leadId} (scanned 1-50)`);
+        console.warn(`[Escrow] No existing escrow found for lead ${leadId} (scanned 1-50)`);
         return null;
     }
 
@@ -400,7 +399,7 @@ class X402Service {
 
         // Off-chain / unconfigured: DB-only refund
         if (!this.escrowContract || !this.signer || transaction.escrowId.startsWith('offchain-')) {
-            console.error(`[x402] ⚠️ DB-ONLY refund for tx=${transactionId} (escrowId=${transaction.escrowId}) — no on-chain refund executed`);
+            console.error(`[Escrow] ⚠️ DB-ONLY refund for tx=${transactionId} (escrowId=${transaction.escrowId}) — no on-chain refund executed`);
             await prisma.transaction.update({
                 where: { id: transactionId },
                 data: { status: 'REFUNDED' },
@@ -419,7 +418,7 @@ class X402Service {
 
             return { success: true, txHash: receipt?.hash };
         } catch (error: any) {
-            console.error('x402 refundPayment on-chain failed:', error);
+            console.error('[Escrow] refundPayment on-chain failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -452,7 +451,7 @@ class X402Service {
                     releasedAt: escrow.releaseTime > 0 ? new Date(Number(escrow.releaseTime) * 1000) : undefined,
                 };
             } catch (error) {
-                console.error('x402 getPaymentStatus on-chain failed:', error);
+                console.error('[Escrow] getPaymentStatus on-chain failed:', error);
             }
         }
 
@@ -521,10 +520,10 @@ class X402Service {
                         platformWalletAddress: PLATFORM_WALLET_ADDRESS,
                     };
                 }
-                console.log(`[x402] Convenience fee: $${convFee} (${convenienceFeeWei} wei)`);
+                console.log(`[Escrow] Convenience fee: $${convFee} (${convenienceFeeWei} wei)`);
             }
         } catch (err) {
-            console.warn(`[x402] Could not look up convenience fee for tx=${transactionId}:`, err);
+            console.warn(`[Escrow] Could not look up convenience fee for tx=${transactionId}:`, err);
         }
 
         // Encode single-signature createAndFundEscrow calldata
@@ -539,7 +538,7 @@ class X402Service {
             ESCROW_CONTRACT_ADDRESS, totalApproval,
         ]);
 
-        console.log(`[x402] prepareEscrowTx: lead=${leadId}, buyer=${buyerAddress}, amount=$${amountUSDC} (${amountWei} wei), convFee=${convenienceFeeWei} wei`);
+        console.log(`[Escrow] prepareEscrowTx: lead=${leadId}, buyer=${buyerAddress}, amount=$${amountUSDC} (${amountWei} wei), convFee=${convenienceFeeWei} wei`);
 
         return {
             success: true,
@@ -571,7 +570,7 @@ class X402Service {
         fundTxHash?: string,
         convenienceFeeTxHash?: string
     ): Promise<PaymentResult> {
-        console.log(`[x402] confirmEscrowTx START: txId=${transactionId}, escrowTxHash=${escrowTxHash}${convenienceFeeTxHash ? `, convFeeTx=${convenienceFeeTxHash}` : ''}`);
+        console.log(`[Escrow] confirmEscrowTx START: txId=${transactionId}, escrowTxHash=${escrowTxHash}${convenienceFeeTxHash ? `, convFeeTx=${convenienceFeeTxHash}` : ''}`);
 
         try {
             // 1. Wait for createEscrow tx receipt
@@ -598,13 +597,13 @@ class X402Service {
                 parsedEscrowId = receipt.logs[0].topics?.[1] || '0';
             }
 
-            console.log(`[x402] confirmEscrowTx: escrowId=${parsedEscrowId}, block=${receipt.blockNumber}`);
+            console.log(`[Escrow] confirmEscrowTx: escrowId=${parsedEscrowId}, block=${receipt.blockNumber}`);
 
             // 3. If fundTxHash provided, verify it too
             if (fundTxHash) {
                 const fundReceipt = await this.provider.waitForTransaction(fundTxHash, 1, 60_000);
                 if (!fundReceipt || fundReceipt.status !== 1) {
-                    console.warn(`[x402] fundEscrow tx failed (hash=${fundTxHash}), escrow created but not funded`);
+                    console.warn(`[Escrow] fundEscrow tx failed (hash=${fundTxHash}), escrow created but not funded`);
                 }
             }
 
@@ -613,12 +612,12 @@ class X402Service {
                 try {
                     const feeReceipt = await this.provider.waitForTransaction(convenienceFeeTxHash, 1, 60_000);
                     if (feeReceipt && feeReceipt.status === 1) {
-                        console.log(`[x402] Convenience fee transfer confirmed: ${convenienceFeeTxHash}`);
+                        console.log(`[Escrow] Convenience fee transfer confirmed: ${convenienceFeeTxHash}`);
                     } else {
-                        console.warn(`[x402] Convenience fee transfer failed (hash=${convenienceFeeTxHash}) — fee not collected`);
+                        console.warn(`[Escrow] Convenience fee transfer failed (hash=${convenienceFeeTxHash}) — fee not collected`);
                     }
                 } catch (feeErr) {
-                    console.warn(`[x402] Convenience fee transfer verification failed:`, feeErr);
+                    console.warn(`[Escrow] Convenience fee transfer verification failed:`, feeErr);
                 }
             }
 
@@ -635,10 +634,10 @@ class X402Service {
                 },
             });
 
-            console.log(`[x402] confirmEscrowTx COMPLETE — escrowId=${parsedEscrowId}`);
+            console.log(`[Escrow] confirmEscrowTx COMPLETE — escrowId=${parsedEscrowId}`);
             return { success: true, escrowId: parsedEscrowId, txHash: escrowTxHash };
         } catch (error: any) {
-            console.error(`[x402] confirmEscrowTx FAILED:`, error.message);
+            console.error(`[Escrow] confirmEscrowTx FAILED:`, error.message);
             return { success: false, error: error.message };
         }
     }
@@ -651,7 +650,7 @@ class X402Service {
     get usdcAddress(): string { return USDC_CONTRACT_ADDRESS; }
 
     // ============================================
-    // x402 Payment Header (HTTP-native)
+    // Payment Header (HTTP-native)
     // ============================================
 
     generatePaymentHeader(
@@ -660,7 +659,7 @@ class X402Service {
         recipient: string
     ): Record<string, string> {
         return {
-            'X-Payment-Protocol': 'x402',
+            'X-Payment-Protocol': 'escrow-v1',
             'X-Payment-Version': '1.0',
             'X-Payment-Escrow-Id': escrowId,
             'X-Payment-Amount': amount.toFixed(6),
@@ -672,5 +671,5 @@ class X402Service {
 
 }
 
-export const x402Service = new X402Service();
+export const escrowService = new EscrowService();
 

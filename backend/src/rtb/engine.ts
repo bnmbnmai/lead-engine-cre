@@ -439,7 +439,7 @@ class RTBEngine {
     }
 
     // ============================================
-    // Settlement (x402 Integration Placeholder)
+    // Settlement (Escrow Integration)
     // ============================================
 
     async initiateSettlement(transactionId: string): Promise<{ success: boolean; txHash?: string; error?: string }> {
@@ -461,8 +461,8 @@ class RTBEngine {
             }
 
             // ⚠️ DEPRECATED — settlement goes through client-side RTBEscrow signing.
-            // The real flow is: marketplace.routes.ts → x402Service.prepareEscrowTx()
-            // → buyer signs in MetaMask → x402Service.confirmEscrowTx().
+            // The real flow is: marketplace.routes.ts → escrowService.prepareEscrowTx()
+            // → buyer signs in MetaMask → escrowService.confirmEscrowTx().
             console.error(`[ENGINE] ⚠️ initiateSettlement called for tx=${transactionId} — this method is deprecated. Use client-side escrow flow.`);
             return { success: false, error: 'Settlement must go through client-side escrow flow (RTBEscrow). This method is deprecated.' };
         } catch (error) {

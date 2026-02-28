@@ -2,7 +2,7 @@
 ## Artillery Stress Test — 10,000+ Concurrent Bids
 ##
 ## Scales to 10K arrivals/s with geo-specific bursts (LATAM/APAC),
-## x402 tx failure injection, auto-bid budget exhaustion, Chainlink
+## escrow tx failure injection, auto-bid budget exhaustion, Chainlink
 ## stub latency simulation, CRM webhook bursts, and duplicate bid storms.
 ##
 ## Usage: npx artillery run tests/load/artillery-stress-10k.yaml
@@ -263,8 +263,8 @@ scenarios:
                 - 201
                 - 200
 
-  # ─── 6. x402 Transaction Failure + Retry ───────
-  - name: "x402 Tx Failure Simulation"
+  # ─── 6. escrow Transaction Failure + Retry ───────
+  - name: "escrow Tx Failure Simulation"
     weight: 5
     flow:
       - function: "generateLeadPayload"
@@ -275,9 +275,9 @@ scenarios:
             geo:
               country: "{{ country }}"
               state: "{{ state }}"
-            firstName: "X402Fail"
+            firstName: "escrowFail"
             lastName: "Test{{ $randomInt(1, 99999) }}"
-            email: "x402{{ $randomInt(1, 99999) }}@test.com"
+            email: "escrow{{ $randomInt(1, 99999) }}@test.com"
             phone: "+1555{{ $randomInt(1000000, 9999999) }}"
             source: "API"
           capture:
@@ -287,15 +287,15 @@ scenarios:
             - statusCode: 201
       - think: 0.1
       # Intentionally bid with amount that triggers escrow edge case
-      - function: "simulateX402Failure"
+      - function: "simulateescrowFailure"
       - post:
           url: "/api/v1/bids"
           json:
             leadId: "{{ leadId }}"
             amount: "{{ bidAmount }}"
             commitment: "{{ commitment }}"
-            x402SimulateFailure: true
-          afterResponse: "trackX402Metrics"
+            escrowSimulateFailure: true
+          afterResponse: "trackescrowMetrics"
           expect:
             - statusCode:
                 - 201
@@ -312,7 +312,7 @@ scenarios:
             leadId: "{{ leadId }}"
             amount: "{{ bidAmount }}"
             commitment: "{{ commitment }}"
-          afterResponse: "trackX402Metrics"
+          afterResponse: "trackescrowMetrics"
           expect:
             - statusCode:
                 - 201

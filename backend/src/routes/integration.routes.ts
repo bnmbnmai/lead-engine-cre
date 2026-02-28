@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
-import { x402Service } from '../services/escrow.service';
+import { escrowService } from '../services/escrow.service';
 import { privacyService } from '../services/privacy.service';
 import { nftService } from '../services/nft.service';
 import { zkService } from '../services/zk.service';
@@ -192,7 +192,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
                 status: 'PENDING',
             },
         });
-        const paymentResult = await x402Service.createPayment(
+        const paymentResult = await escrowService.createPayment(
             '0x0000000000000000000000000000000000000002', // demo seller address
             buyerAddress,
             bidAmount,
@@ -202,7 +202,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
 
         let settlementResult: { success: boolean; txHash?: string } = { success: false };
         if (paymentResult.success) {
-            const settleRes = await x402Service.settlePayment(transaction.id);
+            const settleRes = await escrowService.settlePayment(transaction.id);
             settlementResult = { success: settleRes.success, txHash: settleRes.txHash };
         }
 
@@ -216,7 +216,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
             data: {
                 escrowId: paymentResult.escrowId,
                 txHash: settlementResult.txHash,
-                paymentHeaders: x402Service.generatePaymentHeader(
+                paymentHeaders: escrowService.generatePaymentHeader(
                     paymentResult.escrowId || '', bidAmount, buyerAddress
                 ),
             },

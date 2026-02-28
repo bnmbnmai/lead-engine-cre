@@ -311,7 +311,7 @@ export const mockChainlinkLatencyFeed = {
     answer: '184500000000',
 };
 
-// ── x402 Payment Responses ──────────────────────────────────
+// ── escrow Payment Responses ──────────────────────────────────
 export const mockPaymentReceipt = {
     txHash: '0xabc123def456789012345678901234567890abcdef1234567890abcdef123456',
     status: 'confirmed',
@@ -328,7 +328,7 @@ export const mockPaymentReceipt = {
 
 export const mockPaymentFailure = {
     error: 'Payment Required',
-    code: 'X402_INSUFFICIENT_FUNDS',
+    code: 'escrow_INSUFFICIENT_FUNDS',
     resolution: 'Deposit at least 175 USDC to your connected wallet.',
     action: { label: 'Add Funds', href: '/wallet/deposit' },
     requiredAmount: '175000000',

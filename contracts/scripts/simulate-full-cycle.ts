@@ -81,14 +81,14 @@ async function advanceTime(seconds: number, label: string) {
 }
 
 // ============================================
-// x402 Configuration
+// Escrow Configuration
 // ============================================
 
-/** Default x402 settlement amount (USDC, 6 decimals). Override via X402_AMOUNT env. */
-const X402_PAYMENT_AMOUNT = Number(process.env.X402_AMOUNT || "50");
+/** Default escrow settlement amount (USDC, 6 decimals). Override via ESCROW_AMOUNT env. */
+const ESCROW_PAYMENT_AMOUNT = Number(process.env.ESCROW_AMOUNT || "50");
 
-/** Track x402 payment results for summary */
-const x402Results: { label: string; buyer: string; seller: string; amount: string; txHash: string }[] = [];
+/** Track escrow payment results for summary */
+const escrowResults: { label: string; buyer: string; seller: string; amount: string; txHash: string }[] = [];
 
 /**
  * x402 Instant Settlement — mirrors x402.service.ts flow:
@@ -111,7 +111,7 @@ async function x402Pay(
     const amountRaw = ethers.parseUnits(amountUSDC.toString(), 6);
     const escrowAddr = await escrowContract.getAddress();
 
-    emit(`\n  💳 x402 Settlement: ${label}`);
+    emit(`\n  💳 escrow settlement: ${label}`);
     emit(`     Amount: ${amountUSDC} USDC | Buyer: ${buyerSigner.address.slice(0, 10)}… → Seller: ${sellerAddress.slice(0, 10)}…`);
 
     // ── Balance check (before) ──
@@ -165,9 +165,9 @@ async function x402Pay(
 
     const sellerGain = sellerBalAfter - sellerBalBefore;
     emit(`     💰 Seller received: ${ethers.formatUnits(sellerGain, 6)} USDC (after 2.5% platform fee)`);
-    emit(`     ✅ x402 payment of ${amountUSDC} USDC sent from Buyer → Seller`);
+    emit(`     ✅ escrow payment of ${amountUSDC} USDC sent from Buyer → Seller`);
 
-    x402Results.push({
+    escrowResults.push({
         label,
         buyer: buyerSigner.address,
         seller: sellerAddress,
@@ -479,7 +479,7 @@ async function main() {
     // Phase 2.5: x402 Instant Settlement (Auction)
     // ============================================
 
-    emit("\n⚡ Phase 2.5: x402 Settlement (auction winner → seller)");
+    emit("\n⚡ Phase 2.5: escrow settlement (auction winner → seller)");
     emit("─".repeat(40));
 
     await x402Pay(
@@ -489,11 +489,11 @@ async function main() {
         buyer3,              // winner
         sellerA.address,     // seller
         "x402_auction_1",    // lead ID for escrow
-        X402_PAYMENT_AMOUNT, // configurable, default 50 USDC
+        ESCROW_PAYMENT_AMOUNT, // configurable, default 50 USDC
         chainId
     );
 
-    emit("\n✅ Phase 2.5 complete — Instant x402 settlement after auction");
+    emit("\n✅ Phase 2.5 complete — Instant escrow settlement after auction");
 
     // ============================================
     // Phase 3: Buy-Now Instant Purchase
@@ -538,7 +538,7 @@ async function main() {
     // Phase 3.5: x402 Instant Settlement (Buy-Now)
     // ============================================
 
-    emit("\n⚡ Phase 3.5: x402 Settlement (buy-now buyer → seller)");
+    emit("\n⚡ Phase 3.5: escrow settlement (buy-now buyer → seller)");
     emit("─".repeat(40));
 
     await x402Pay(
@@ -548,11 +548,11 @@ async function main() {
         buyer4,              // buy-now buyer
         sellerA.address,     // seller
         "x402_buynow_2",     // lead ID for escrow
-        X402_PAYMENT_AMOUNT, // configurable, default 50 USDC
+        ESCROW_PAYMENT_AMOUNT, // configurable, default 50 USDC
         chainId
     );
 
-    emit("\n✅ Phase 3.5 complete — Instant x402 settlement after buy-now");
+    emit("\n✅ Phase 3.5 complete — Instant escrow settlement after buy-now");
 
     // ============================================
     // Phase 4: VerticalAuction with Holder Perks
@@ -726,27 +726,27 @@ async function main() {
     emit(`
 Network:        ${networkName}
 Wallets used:   8
-Phases run:     ${verticalNFT ? 8 : 6} (including x402 settlements)
+Phases run:     ${verticalNFT ? 8 : 6} (including escrow settlements)
 
 Results:
   ✅ Phase 1   — KYC'd 8 wallets, minted 4 leads + vertical NFT
   ✅ Phase 2   — Commit-reveal auction: Buyer3 won @ 120 USDC
-  ⚡ Phase 2.5 — x402 settlement: ${X402_PAYMENT_AMOUNT} USDC Buyer3 → SellerA
+  ⚡ Phase 2.5 — escrow settlement: ${ESCROW_PAYMENT_AMOUNT} USDC Buyer3 → SellerA
   ✅ Phase 3   — Buy-now: Buyer4 purchased @ 200 USDC
-  ⚡ Phase 3.5 — x402 settlement: ${X402_PAYMENT_AMOUNT} USDC Buyer4 → SellerA
+  ⚡ Phase 3.5 — escrow settlement: ${ESCROW_PAYMENT_AMOUNT} USDC Buyer4 → SellerA
   ${verticalNFT ? "✅ Phase 4   — VerticalAuction: Holder won via 1.2× multiplier" : "⏭️  Phase 4   — Skipped"}
   ${verticalNFT ? "✅ Phase 5   — NFT resale with EIP-2981 royalties" : "⏭️  Phase 5   — Skipped"}
   ✅ Phase 6   — Escrow: 300 USDC funded → released with 2.5% fee
 `);
 
-    // x402 Payment Summary
-    if (x402Results.length > 0) {
-        emit("💳 x402 PAYMENT SUMMARY");
+    // escrow payment Summary
+    if (escrowResults.length > 0) {
+        emit("💳 escrow payment SUMMARY");
         emit("─".repeat(40));
-        for (const p of x402Results) {
+        for (const p of escrowResults) {
             emit(`  ⚡ ${p.label}: ${p.amount} | ${p.buyer.slice(0, 10)}… → ${p.seller.slice(0, 10)}… | tx: ${p.txHash.slice(0, 16)}…`);
         }
-        emit(`  Total x402 payments: ${x402Results.length} | Total USDC moved: ${x402Results.length * X402_PAYMENT_AMOUNT}`);
+        emit(`  Total escrow payments: ${escrowResults.length} | Total USDC moved: ${escrowResults.length * ESCROW_PAYMENT_AMOUNT}`);
         emit("");
     }
 

@@ -1484,13 +1484,13 @@ router.post('/seed-templates', authMiddleware, publicDemoBypass, async (req: Req
 });
 
 // ============================================
-// Settle (x402 Escrow Release) — on-chain settlement
+// Settle (Escrow Release) — on-chain settlement
 // ============================================
 
 router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.body as { leadId?: string };
-        const { x402Service } = await import('../services/escrow.service');
+        const { escrowService } = await import('../services/escrow.service');
 
         console.log(`[DEMO SETTLE] Request received — leadId=${leadId || '(auto-detect)'}`);
 
@@ -1653,7 +1653,7 @@ router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, re
         // 2. If no escrow yet (recovery path — escrow should have been created at auction resolution)
         if (!transaction.escrowId) {
             console.warn(`[DEMO SETTLE] No escrowId on tx=${transaction.id} — retrying createPayment (recovery path)`);
-            const createResult = await x402Service.createPayment(
+            const createResult = await escrowService.createPayment(
                 sellerWallet,
                 buyerWallet,
                 amount,
@@ -1677,8 +1677,8 @@ router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, re
         }
 
         // 3. Release the escrow on-chain
-        console.log(`[DEMO SETTLE] Releasing escrow via x402Service.settlePayment`);
-        const settleResult = await x402Service.settlePayment(transaction.id);
+        console.log(`[DEMO SETTLE] Releasing escrow via escrowService.settlePayment`);
+        const settleResult = await escrowService.settlePayment(transaction.id);
 
         if (!settleResult.success) {
             console.error(`[DEMO SETTLE] settlePayment failed: ${settleResult.error}`);

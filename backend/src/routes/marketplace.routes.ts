@@ -6,7 +6,7 @@ import { LeadSubmitSchema, LeadQuerySchema, AskCreateSchema, AskQuerySchema } fr
 import { leadSubmitLimiter, generalLimiter } from '../middleware/rateLimit';
 import { creService } from '../services/cre.service';
 import { aceService, aceDevBus } from '../services/ace.service';
-import { x402Service } from '../services/escrow.service';
+import { escrowService } from '../services/escrow.service';
 import { nftService } from '../services/nft.service';
 import { marketplaceAsksCache } from '../lib/cache';
 import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
@@ -1650,7 +1650,7 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
 
         let escrowTxData: any = null;
         try {
-            const prepared = await x402Service.prepareEscrowTx(
+            const prepared = await escrowService.prepareEscrowTx(
                 sellerUser.walletAddress,
                 req.user.walletAddress,
                 Number(result.transaction.amount),
@@ -1808,7 +1808,7 @@ router.post('/leads/:id/prepare-escrow', authMiddleware, requireBuyer, async (re
         }
 
         // 2. Build escrow tx data
-        const result = await x402Service.prepareEscrowTx(
+        const result = await escrowService.prepareEscrowTx(
             sellerWallet,
             buyerWallet,
             Number(transaction.amount),
@@ -1893,7 +1893,7 @@ router.post('/leads/:id/prepare-prebid-escrow', authMiddleware, requireBuyer, as
             },
         });
 
-        const result = await x402Service.prepareEscrowTx(
+        const result = await escrowService.prepareEscrowTx(
             sellerWallet,
             buyerWallet,
             totalAmount,
@@ -1956,7 +1956,7 @@ router.post('/leads/:id/confirm-escrow', authMiddleware, requireBuyer, async (re
             return;
         }
 
-        const result = await x402Service.confirmEscrowTx(
+        const result = await escrowService.confirmEscrowTx(
             transaction.id,
             escrowTxHash,
             fundTxHash,

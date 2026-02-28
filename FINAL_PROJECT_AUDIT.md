@@ -122,7 +122,7 @@ No critical issues remaining. All Chainlink integrations are live, Decrypt PII w
 
 #### M-4: `escrow.service.ts` Is a 12-Line Re-Export Wrapper
 
-[backend/src/services/escrow.service.ts](backend/src/services/escrow.service.ts) only re-exports `x402Service as escrowService` from `escrow-impl.service.ts`. The rename from `x402` was done in P2-11 but the indirection adds confusion.
+[backend/src/services/escrow.service.ts](backend/src/services/escrow.service.ts) only re-exports `escrowService` from `escrow-impl.service.ts`. The rename from `escrow` was done in P2-11 but the indirection adds confusion.
 
 **Action:** Rename `escrow-impl.service.ts` → `escrow.service.ts` directly, update all imports.
 

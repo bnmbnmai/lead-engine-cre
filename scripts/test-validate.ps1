@@ -327,7 +327,7 @@ if ($Suite -eq "all") {
     Write-Host '    unit/cre             12 tests  verify + quality score + match' -ForegroundColor DarkGray
     Write-Host '    unit/nft              7 tests  mint + sale + metadata + quality' -ForegroundColor DarkGray
     Write-Host '    unit/privacy         14 tests  AES-GCM + bids + metadata + commitments' -ForegroundColor DarkGray
-    Write-Host '    unit/x402            10 tests  create + settle + refund + headers' -ForegroundColor DarkGray
+    Write-Host '    unit/escrow            10 tests  create + settle + refund + headers' -ForegroundColor DarkGray
     Write-Host '    unit/zk              11 tests  fraud proof + verify + geo-match + bid' -ForegroundColor DarkGray
     Write-Host '    auto-bid             18 tests  quality + geo + budget + verified + multi' -ForegroundColor DarkGray
     Write-Host '    crm-webhooks         10 tests  register + list + delete + HubSpot + Zapier' -ForegroundColor DarkGray
