@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom';
 import { Bot, Send, Loader2, Wrench, User, Sparkles, X, MessageSquare } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 import { RenderMarkdown } from './AgentMarkdown';
+import socketClient from '@/lib/socket';
 
 // ── Types ──
 
@@ -62,6 +63,21 @@ export function AgentChatWidget() {
     useEffect(() => {
         saveHistory(messages);
     }, [messages]);
+
+    // Listen for agent bid announcements via shared socketClient
+    useEffect(() => {
+        const sock = socketClient.connect();
+        const handler = (data: { leadId: string; amount: number; buyerAddr: string; vertical: string; txHash: string; isAgentBid: boolean }) => {
+            const msg: ChatMessage = {
+                role: 'assistant',
+                content: `🤖 **Bid placed:** $${data.amount} on lead \`${data.leadId.slice(0, 8)}…\`\n\n[View on Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
+            };
+            setMessages(prev => [...prev, msg]);
+            if (!isOpen) setHasUnread(true);
+        };
+        sock.on('agent:bid-placed', handler);
+        return () => { sock.off('agent:bid-placed', handler); };
+    }, [isOpen]);
 
     // Auto-scroll to bottom
     useEffect(() => {

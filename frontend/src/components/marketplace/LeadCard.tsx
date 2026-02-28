@@ -247,9 +247,11 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     <div className="flex items-center gap-2">
                         {/* CRE Quality Score badge */}
                         {lead.qualityScore != null ? (
-                            <Tooltip content={lead.chttEnriched
-                                ? `CRE Quality Score — enriched by Chainlink CHTT TEE (${Math.floor(lead.qualityScore / 100)}/100)`
-                                : `CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}
+                            <Tooltip content={lead.qualityScore === 0
+                                ? 'CRE DON Match + Quality Score (pending on-chain scoring)'
+                                : lead.chttEnriched
+                                    ? `CRE Quality Score — enriched by Chainlink CHTT TEE (${Math.floor(lead.qualityScore / 100)}/100)`
+                                    : `CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}
                             >
                                 <span
                                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
@@ -272,7 +274,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 </span>
                             </Tooltip>
                         ) : (
-                            <Tooltip content="CRE quality score pending — confirmed on-chain after purchase">
+                            <Tooltip content="CRE DON Match + Quality Score (pending on-chain scoring)">
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
                                     <Shield className="h-3 w-3" />
                                     CRE —

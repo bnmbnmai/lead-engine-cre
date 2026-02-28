@@ -149,6 +149,14 @@ export function scheduleBidsForLead(
     if (needsPersonaGuarantee && !buyers.includes(BUYER_PERSONA_WALLET)) {
         buyers[buyers.length - 1] = BUYER_PERSONA_WALLET; // replace last slot
     }
+    // Move persona wallet to index 0 so it gets the earliest scheduling slot
+    if (needsPersonaGuarantee) {
+        const pidx = buyers.indexOf(BUYER_PERSONA_WALLET);
+        if (pidx > 0) {
+            buyers.splice(pidx, 1);
+            buyers.unshift(BUYER_PERSONA_WALLET);
+        }
+    }
 
     // Initialize registry for this lead (manual bids from UI can also push here)
 
@@ -167,10 +175,16 @@ export function scheduleBidsForLead(
         }
         const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
 
-        // Stagger: spread bids from 8s after drip to 15s before expiry
+        // Stagger: persona wallet fires first (3s), others spread normally
         const earliest = 8_000;
         const latest = Math.max(8_000, windowMs - 15_000);
-        const delayMs = rand(earliest, latest);
+        const delayMs = (needsPersonaGuarantee && buyerAddr === BUYER_PERSONA_WALLET)
+            ? 3_000  // fire persona bid ASAP for maximum reliability
+            : rand(earliest, latest);
+
+        // Allow bidAmount to be mutated inside the setTimeout for persona vault capping
+        let mutableBidAmount = bidAmount;
+        let mutableBidAmountUnits = bidAmountUnits;
 
         setTimeout(async () => {
             if (signal.aborted) return;
@@ -183,13 +197,20 @@ export function scheduleBidsForLead(
                 // Check vault balance
                 const bVaultBal: bigint = await vault.balanceOf(buyerAddr).catch(() => 0n);
                 const available = Number(bVaultBal) / 1e6;
-                if (available < bidAmount) {
-                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Scheduled bid skipped — buyer ${buyerAddr.slice(0, 10)}… vault $${available.toFixed(0)} < $${bidAmount}` });
-                    return;
+                if (available < mutableBidAmount) {
+                    // Persona wallet: cap bid to available vault balance instead of skipping
+                    if (needsPersonaGuarantee && buyerAddr === BUYER_PERSONA_WALLET && available >= 10) {
+                        mutableBidAmount = Math.floor(available);
+                        mutableBidAmountUnits = ethers.parseUnits(String(mutableBidAmount), 6);
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `🎯 Persona wallet vault capped — bidding $${mutableBidAmount} (available: $${available.toFixed(0)})` });
+                    } else {
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Scheduled bid skipped — buyer ${buyerAddr.slice(0, 10)}… vault $${available.toFixed(0)} < $${mutableBidAmount}` });
+                        return;
+                    }
                 }
 
                 const nonce = await getNextNonce();
-                const tx = await vault.lockForBid(buyerAddr, bidAmountUnits, { nonce });
+                const tx = await vault.lockForBid(buyerAddr, mutableBidAmountUnits, { nonce });
                 const receipt = await tx.wait();
 
                 // Parse lockId from BidLocked event
@@ -206,7 +227,7 @@ export function scheduleBidsForLead(
                 if (lockId == null) return;
 
                 // Register this lock in Redis
-                const lockEntry = JSON.stringify({ lockId, addr: buyerAddr, amount: bidAmount });
+                const lockEntry = JSON.stringify({ lockId, addr: buyerAddr, amount: mutableBidAmount });
                 const redisKey = `lead:lock:${leadId}`;
                 let reg: any[] = [];
 
@@ -220,7 +241,7 @@ export function scheduleBidsForLead(
                     // Fallback to in-memory if Redis is off
                     if (!leadLockRegistry.has(leadId)) leadLockRegistry.set(leadId, []);
                     reg = leadLockRegistry.get(leadId)!;
-                    reg.push({ lockId, addr: buyerAddr, amount: bidAmount });
+                    reg.push({ lockId, addr: buyerAddr, amount: mutableBidAmount });
                 }
 
                 pendingLockIds.add(lockId); // BUG-04 orphan tracking
@@ -230,13 +251,24 @@ export function scheduleBidsForLead(
 
                 const isAgentBid = buyerAddr.toLowerCase() === KIMI_AGENT_WALLET.toLowerCase();
                 const bidLabel = isAgentBid
-                    ? `🤖 Kimi AI bid — ${buyerAddr.slice(0, 10)}… bid $${bidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`
-                    : `✅ Live bid — ${buyerAddr.slice(0, 10)}… bid $${bidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`;
+                    ? `🤖 Kimi AI bid — ${buyerAddr.slice(0, 10)}… bid $${mutableBidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`
+                    : `✅ Live bid — ${buyerAddr.slice(0, 10)}… bid $${mutableBidAmount} on ${leadId.slice(0, 8)}… (lock #${lockId}, bid ${totalBids}/${numBuyers}) tx: ${receipt.hash.slice(0, 22)}…`;
                 emit(io, {
                     ts: new Date().toISOString(), level: 'success',
                     message: bidLabel,
                     txHash: receipt.hash,
                     basescanLink: `https://sepolia.basescan.org/tx/${receipt.hash}`,
+                });
+
+                // Emit agent bid announcement for AI chat widget
+                io.emit('agent:bid-placed', {
+                    leadId,
+                    amount: mutableBidAmount,
+                    buyerAddr,
+                    vertical: 'lead',
+                    txHash: receipt.hash,
+                    isAgentBid,
+                    ts: new Date().toISOString(),
                 });
 
                 // Emit live bid to all connected clients — card updates in real time

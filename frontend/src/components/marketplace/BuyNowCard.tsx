@@ -129,7 +129,9 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                         </Badge>
                         {/* CRE Quality Score */}
                         {lead.qualityScore != null ? (
-                            <Tooltip content={`CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}>
+                            <Tooltip content={lead.qualityScore === 0
+                                ? 'CRE DON Match + Quality Score (pending on-chain scoring)'
+                                : `CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}>
                                 <span
                                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
                                         ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
@@ -142,7 +144,7 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                                 </span>
                             </Tooltip>
                         ) : (
-                            <Tooltip content="CRE quality score pending — confirmed on-chain after purchase">
+                            <Tooltip content="CRE DON Match + Quality Score (pending on-chain scoring)">
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
                                     CRE —
                                 </span>
@@ -154,8 +156,8 @@ export function BuyNowCard({ lead, onPurchased }: BuyNowCardProps) {
                                 ? 'ACE Compliance: on-chain check passed'
                                 : 'ACE Compliance: on-chain check failed'}>
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide border cursor-help ${lead.aceCompliant
-                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                        : 'bg-red-500/15 text-red-400 border-red-500/30'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                    : 'bg-red-500/15 text-red-400 border-red-500/30'
                                     }`}>
                                     {lead.aceCompliant ? '✓' : '✗'} ACE
                                 </span>
