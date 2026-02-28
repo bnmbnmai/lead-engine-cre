@@ -36,7 +36,7 @@
 
 4. **VRF v2.5** — `vrf.service.ts:requestTieBreak()` calls `VRFTieBreaker.requestRandomWords()` with a live subscription. The winner is deterministically derived from the returned `randomWord` — no server-side randomness substitution.
 
-5. **Data Feeds** — `datastreams.service.ts` reads the Chainlink USDC/ETH price feed via the standard AggregatorV3Interface. The feed address is in `CHAINLINK_PRICE_FEED_ADDRESS` env var.
+5. **Data Feeds** — `data-feeds.service.ts` reads the Chainlink USDC/ETH price feed via the standard AggregatorV3Interface. The feed address is in `CHAINLINK_PRICE_FEED_ADDRESS` env var.
 
 6. **ACE** — `LeadNFTv2.mintLead()` carries the `runPolicy` modifier which calls `ACECompliance.checkPolicy()`. Any non-compliant lead mint reverts. Policy rules are stored in `ACELeadPolicy`.
 
@@ -60,4 +60,4 @@
 
 See [CONTRACTS.md](../CONTRACTS.md) for the full verified contract table with Basescan links and transaction counts.
 
-*All 7 deployed contracts carry "Contract Source Code Verified (Exact Match)" status on Basescan — independently verifiable by any auditor.*
+*All 7 deployed contracts carry "Contract Source Code Verified (Exact Match)" status on Basescan — independently verifiable by any auditor. Together with 2 CRE Workflows (DON-executed), 1 Confidential Compute simulation, and 1 CHTT Phase 2 pattern, this yields **12 distinct Chainlink service integrations**.*

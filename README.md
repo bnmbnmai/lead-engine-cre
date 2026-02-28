@@ -133,6 +133,9 @@ The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click
 - NFT ID column shows vault lock ID with Basescan provenance link (or "Mint Pending" when NFT mint is in progress)
 - **Pure persona-wallet architecture:** Buyer persona authenticates as the AI-agent wallet (`0x424CaC…`), and only leads legitimately won by that wallet on-chain appear in Portfolio and My Bids — no synthetic fallbacks.
 
+**Hybrid CRE Workflow + Backend Stateful Gates:**
+Lead Engine CRE operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=true`, the CRE DON executes the 7-gate `EvaluateBuyerRulesAndMatch` workflow on Chainlink's decentralized oracle network — deterministic, verifiable, and gas-optimized (1 DON call per lead vs. N on-chain transactions). When the CRE DON toggle is off (default for local/staging), the backend `auto-bid.service.ts` evaluates the **same buyer preference JSON** stored in the database — vertical filters, geo exclusions, max bid, verified-lead requirements — ensuring consistent scoring between on-chain and off-chain paths. Neither path uses synthetic or random scoring; both derive from the buyer's declared preferences as the single source of truth. This design enables production readiness: DON for mainnet settlement, backend for rapid iteration during development.
+
 
 ### Chainlink Integration
 
