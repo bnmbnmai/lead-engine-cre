@@ -95,9 +95,12 @@ zero-bid leads → UNSOLD immediately, $0 fee, no VRF
 | Evidence | Details |
 |---|---|
 | Persona access | DemoPanel + "Run Full Demo" button accessible to all personas (env-gated, not role-gated) |
+| Pure persona-wallet | Buyer persona authenticates as AI-agent wallet (`0x424CaC…`), Seller as `0x9Bb1…` — no MetaMask override, no synthetic fallbacks |
 | Won leads in Dashboard | BuyerDashboard `Purchased Leads` table includes CRE Quality column with Shield badge |
-| Won leads in Portfolio | BuyerPortfolio table + card views include CRE Quality badge + Decrypt PII button |
-| PII decryption | Inline PII display (name, email, phone) with "CRE DON Attested" badge |
+| Won leads in Portfolio | BuyerPortfolio table + card views include CRE Quality badge + ACE KYC Verified status card + Decrypt PII button |
+| NFT ID fallback | Shows vault lock ID with Basescan link or "Mint Pending" when `nftTokenId` is null |
+| PII decryption | Inline PII display (name, email, phone) with "CRE DON Attested" badge — `POST /leads/:leadId/decrypt-pii` with wallet-based ownership check |
+| ACE KYC badge | Portfolio stats row shows "ACE KYC Status: KYC Verified / Chainlink ACE Compliant" |
 | Tooltip honesty | All quality-score tooltips use "CRE DON Match + Quality Score (pending on-chain scoring)" |
 
 ## 9. System-Wide CRE Consistency

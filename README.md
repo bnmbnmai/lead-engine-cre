@@ -213,5 +213,4 @@ Full demonstration instructions, including curl examples and faucet guidance, ar
 - [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) — Confidential Compute and CHTT details
 - [`CHAINLINK_SERVICES_AUDIT.md`](CHAINLINK_SERVICES_AUDIT.md) — Service integration audit
 - [`CONTRACTS.md`](CONTRACTS.md) — Contract verification status and addresses
-- [`FINAL_PROJECT_AUDIT.md`](FINAL_PROJECT_AUDIT.md) — Full project audit (8.2/10 readiness)
 - [`submission-checklist.md`](submission-checklist.md) — Hackathon submission requirements
