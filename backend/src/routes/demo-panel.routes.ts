@@ -174,6 +174,22 @@ router.post('/demo-login', async (req: Request, res: Response) => {
                     });
                 }
             }
+        } else {
+            // Seller persona — ensure SellerProfile exists so analytics overview
+            // endpoint returns real stats (Total Leads, Revenue, Conversion, etc.).
+            await prisma.sellerProfile.upsert({
+                where: { userId: user.id },
+                create: {
+                    userId: user.id,
+                    companyName: 'Demo Seller',
+                    verticals: [],
+                    isVerified: true,
+                    kycStatus: 'VERIFIED',
+                },
+                update: {
+                    kycStatus: 'VERIFIED',
+                },
+            });
         }
 
         // Generate real JWT
@@ -1079,11 +1095,8 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
 router.post('/leads/:leadId/decrypt-pii', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.params;
-        const creMode = await getCreNativeModeEnabled();
-        if (!creMode) {
-            res.status(403).json({ error: 'PII decryption only available in CRE-Native mode' });
-            return;
-        }
+        const authReq = req as any;
+        const userId = authReq.user?.id;
 
         // Verify the lead exists
         const lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -1092,15 +1105,25 @@ router.post('/leads/:leadId/decrypt-pii', authMiddleware, publicDemoBypass, asyn
             return;
         }
 
-        // Verify the caller is the auction winner (has a settled/escrow-released transaction)
+        // Ownership check: the caller must be the auction winner.
+        // 1. Check for a settled Transaction (production path / CRE-Native mode)
+        // 2. Fall back to checking for an ACCEPTED Bid record (demo path)
         const settledTx = await prisma.transaction.findFirst({
             where: { leadId, escrowReleased: true },
             orderBy: { createdAt: 'desc' },
         });
 
         if (!settledTx) {
-            res.status(403).json({ error: 'Only the auction winner can decrypt PII after settlement' });
-            return;
+            // Demo path: check if the caller has an ACCEPTED bid on this lead
+            const acceptedBid = userId
+                ? await prisma.bid.findFirst({
+                    where: { leadId, buyerId: userId, status: 'ACCEPTED' },
+                })
+                : null;
+            if (!acceptedBid) {
+                res.status(403).json({ error: 'Only the auction winner can decrypt PII after settlement' });
+                return;
+            }
         }
 
         // Generate demo PII based on lead vertical/geo (deterministic from leadId)

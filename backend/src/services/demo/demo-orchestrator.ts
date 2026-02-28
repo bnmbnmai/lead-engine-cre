@@ -1111,6 +1111,13 @@ export async function runFullDemo(
                         if (normalizedWallet === BUYER_PERSONA_WALLET) {
                             _buyerPersonaHasWon = true;
                             emit(io, { ts: new Date().toISOString(), level: 'success', message: `🎯 Buyer persona wallet won lead ${demoLeadId.slice(0, 8)}… — Portfolio will show this lead` });
+                            // Emit win announcement for AI chat widget
+                            io.emit('agent:bid-won', {
+                                leadId: demoLeadId,
+                                amount: bidAmount,
+                                txHash: settleReceiptHash,
+                                ts: new Date().toISOString(),
+                            });
                         }
                     } else if (!winnerUser) {
                         emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ No User record found for wallet ${normalizedWallet.slice(0, 10)}… — Bid record NOT created` });

@@ -65,9 +65,11 @@ export function AgentChatWidget() {
     }, [messages]);
 
     // Listen for agent bid announcements via shared socketClient
+    // Only show bids from the AI agent wallet (isAgentBid=true), not all demo wallets.
     useEffect(() => {
         const sock = socketClient.connect();
-        const handler = (data: { leadId: string; amount: number; buyerAddr: string; vertical: string; txHash: string; isAgentBid: boolean }) => {
+        const bidHandler = (data: { leadId: string; amount: number; buyerAddr: string; vertical: string; txHash: string; isAgentBid: boolean }) => {
+            if (!data.isAgentBid) return; // Filter: only persona/AI-agent bids
             const msg: ChatMessage = {
                 role: 'assistant',
                 content: `🤖 **Bid placed:** $${data.amount} on lead \`${data.leadId.slice(0, 8)}…\`\n\n[View on Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
@@ -75,8 +77,20 @@ export function AgentChatWidget() {
             setMessages(prev => [...prev, msg]);
             if (!isOpen) setHasUnread(true);
         };
-        sock.on('agent:bid-placed', handler);
-        return () => { sock.off('agent:bid-placed', handler); };
+        const winHandler = (data: { leadId: string; amount: number; txHash: string }) => {
+            const msg: ChatMessage = {
+                role: 'assistant',
+                content: `🏆 **Won lead** \`${data.leadId.slice(0, 8)}…\` for $${data.amount}! PII is now available.\n\n[View in Portfolio](/buyer/portfolio) · [Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
+            };
+            setMessages(prev => [...prev, msg]);
+            if (!isOpen) setHasUnread(true);
+        };
+        sock.on('agent:bid-placed', bidHandler);
+        sock.on('agent:bid-won', winHandler);
+        return () => {
+            sock.off('agent:bid-placed', bidHandler);
+            sock.off('agent:bid-won', winHandler);
+        };
     }, [isOpen]);
 
     // Auto-scroll to bottom
