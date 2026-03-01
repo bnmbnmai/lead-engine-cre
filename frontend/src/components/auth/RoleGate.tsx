@@ -29,7 +29,7 @@ const ROLE_INFO: Record<string, { label: string; description: string; dashboardP
     ADMIN: {
         label: 'Admin',
         description: 'Admins can manage users, review flagged content, and access platform-wide analytics.',
-        dashboardPath: '/admin/nfts',
+        dashboardPath: '/admin',
     },
 };
 

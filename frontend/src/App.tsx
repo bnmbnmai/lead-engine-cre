@@ -25,6 +25,7 @@ import SellerAnalytics from '@/pages/SellerAnalytics';
 import BuyerAnalytics from '@/pages/BuyerAnalytics';
 import AdminNFTs from '@/pages/AdminNFTs';
 import AdminVerticals from '@/pages/AdminVerticals';
+import AdminDashboard from '@/pages/AdminDashboard';
 import AskDetailPage from '@/pages/AskDetailPage';
 import HostedForm from '@/pages/HostedForm';
 import LeadDetailPage from '@/pages/LeadDetailPage';
@@ -118,6 +119,7 @@ function App() {
                                 <Route path="/seller/integrations" element={<ProtectedRoute role="SELLER"><SellerIntegrations /></ProtectedRoute>} />
 
                                 {/* Admin Routes (auth + admin role required) */}
+                                <Route path="/admin" element={<ProtectedRoute role="ADMIN"><AdminDashboard /></ProtectedRoute>} />
                                 <Route path="/admin/nfts" element={<ProtectedRoute role="ADMIN"><AdminNFTs /></ProtectedRoute>} />
                                 <Route path="/admin/verticals" element={<ProtectedRoute role="ADMIN"><AdminVerticals /></ProtectedRoute>} />
                                 <Route path="/admin/form-builder" element={<ProtectedRoute role="ADMIN"><FormBuilder /></ProtectedRoute>} />

@@ -54,6 +54,7 @@ const sellerItems: SidebarItem[] = [
 ];
 
 const adminItems: SidebarItem[] = [
+    { href: '/admin', label: 'Overview', icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: '/admin/nfts', label: 'NFT Admin', icon: <Gem className="h-5 w-5" /> },
     { href: '/admin/verticals', label: 'Verticals', icon: <Layers className="h-5 w-5" /> },
     { href: '/admin/form-builder', label: 'Form Builder', icon: <Blocks className="h-5 w-5" /> },
@@ -127,7 +128,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         ? [{ href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-4 w-4" /> }]
                         : []),
                     ...(label !== 'Admin' && (user?.role === 'ADMIN' || import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true')
-                        ? [{ href: '/admin/nfts', label: 'Admin Panel', icon: <Shield className="h-4 w-4" /> }]
+                        ? [{ href: '/admin', label: 'Admin Panel', icon: <Shield className="h-4 w-4" /> }]
                         : []),
                 ].map((item) => (
                     <Link

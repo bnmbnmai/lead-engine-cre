@@ -377,7 +377,7 @@ export function DemoPanel() {
                 adminLogin: { state: 'success', message: '🔐 Logged in as Demo Admin' },
             }));
             if (import.meta.env.DEV) console.log('[DemoPanel] Demo admin login success — ADMIN persona set with real JWT');
-            navigate('/admin/nfts');
+            navigate('/admin');
             setTimeout(() => setActions(prev => ({ ...prev, adminLogin: { state: 'idle' } })), 3000);
         } catch (err: any) {
             setActions(prev => ({
