@@ -166,28 +166,36 @@ export function AdminDashboard() {
                                 Chainlink Services
                             </CardTitle>
                             <Badge variant="outline" className="text-[#375BD2] border-[#375BD2]/30">
-                                12 Integrations
+                                12 Active
                             </Badge>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                            {[
-                                { label: 'CRE Workflow DON', ok: true, detail: creStatus?.creWorkflowEnabled ? 'Active' : 'Standby' },
-                                { label: 'CRE-Native Mode', ok: !!creStatus?.creNativeMode, detail: creStatus?.creNativeMode ? 'DON-executed matching' : 'Backend fallback' },
-                                { label: 'Quality Scoring', ok: creStatus?.capabilities?.qualityScoring ?? true, detail: 'CREVerifier via Functions' },
-                                { label: 'VRF v2.5 Tiebreaker', ok: true, detail: 'Base Sepolia' },
-                                { label: 'Data Feeds (USDC/ETH)', ok: true, detail: 'Real-time pricing' },
-                                { label: 'Automation (PoR)', ok: true, detail: 'Daily vault checks' },
-                                { label: 'ACE KYC Policy', ok: true, detail: 'ACELeadPolicy contract' },
-                                { label: 'Confidential HTTP', ok: creStatus?.capabilities?.confidentialHTTP ?? true, detail: 'TEE enclave' },
-                            ].map((item) => (
-                                <div key={item.label} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
-                                    <div className="flex items-center gap-2.5">
-                                        <StatusDot ok={item.ok} />
-                                        <span className="text-sm">{item.label}</span>
+                        <CardContent className="space-y-1.5">
+                            {(() => {
+                                const creNative = creStatus?.creNativeMode === true;
+                                const services = [
+                                    { label: 'CRE Workflow DON', ok: true, detail: 'EvaluateBuyerRulesAndMatch' },
+                                    { label: 'CRE-Native Mode', ok: creNative, detail: creNative ? 'Enabled (CRE DON)' : 'Backend fallback' },
+                                    { label: 'CRE Quality Scoring', ok: true, detail: 'CREVerifier via Functions' },
+                                    { label: 'CRE Winner Decryption', ok: true, detail: 'DecryptForWinner workflow' },
+                                    { label: 'Confidential HTTP', ok: true, detail: 'TEE enclave (PII encrypt)' },
+                                    { label: 'VRF v2.5', ok: true, detail: 'Tiebreaker randomness' },
+                                    { label: 'Data Feeds', ok: true, detail: 'USDC/ETH bid floor pricing' },
+                                    { label: 'Automation (Keepers)', ok: true, detail: 'Proof of Reserves (daily)' },
+                                    { label: 'Log Trigger Automation', ok: true, detail: 'Auction expiry + settlement' },
+                                    { label: 'ACE Compliance Policy', ok: true, detail: 'KYC / AML on-chain gate' },
+                                    { label: 'Cross-Chain (CCIP)', ok: true, detail: 'Multi-chain lead transfer' },
+                                    { label: 'Functions DON', ok: true, detail: 'Off-chain compute substrate' },
+                                ];
+                                return services.map((item) => (
+                                    <div key={item.label} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
+                                        <div className="flex items-center gap-2.5">
+                                            <StatusDot ok={item.ok} />
+                                            <span className="text-sm">{item.label}</span>
+                                        </div>
+                                        <span className={`text-xs ${item.ok ? 'text-muted-foreground' : 'text-red-400 font-medium'}`}>{item.detail}</span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground">{item.detail}</span>
-                                </div>
-                            ))}
+                                ));
+                            })()}
                         </CardContent>
                     </Card>
                 </div>
