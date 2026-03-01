@@ -95,10 +95,10 @@ export function AdminDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" asChild>
-                            <Link to="/admin/nfts">Manage NFTs</Link>
+                            <Link to="/admin/form-builder">Form Builder</Link>
                         </Button>
                         <Button variant="outline" size="sm" asChild>
-                            <Link to="/admin/verticals">Manage Verticals</Link>
+                            <Link to="/admin/verticals">Verticals</Link>
                         </Button>
                     </div>
                 </div>
@@ -340,10 +340,10 @@ export function AdminDashboard() {
                 {/* Quick Admin Actions */}
                 <div className="grid sm:grid-cols-3 gap-4">
                     <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
-                        <Link to="/admin/nfts">
-                            <Database className="h-5 w-5 text-violet-500" />
-                            <span className="text-sm font-medium">Manage NFTs</span>
-                            <span className="text-[10px] text-muted-foreground">Mint, transfer, burn LeadNFTs</span>
+                        <Link to="/admin/form-builder">
+                            <FileText className="h-5 w-5 text-emerald-500" />
+                            <span className="text-sm font-medium">Form Builder</span>
+                            <span className="text-[10px] text-muted-foreground">Create and edit hosted lead forms</span>
                         </Link>
                     </Button>
                     <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
@@ -353,13 +353,16 @@ export function AdminDashboard() {
                             <span className="text-[10px] text-muted-foreground">Approve, configure, deprecate</span>
                         </Link>
                     </Button>
-                    <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
-                        <Link to="/admin/form-builder">
-                            <FileText className="h-5 w-5 text-emerald-500" />
-                            <span className="text-sm font-medium">Form Builder</span>
-                            <span className="text-[10px] text-muted-foreground">Create and edit lead forms</span>
-                        </Link>
-                    </Button>
+                    <div className="relative">
+                        <Button variant="outline" className="h-auto py-4 flex-col gap-2 w-full opacity-50 cursor-default" disabled>
+                            <Database className="h-5 w-5 text-violet-500" />
+                            <span className="text-sm font-medium">NFT Management</span>
+                            <span className="text-[10px] text-muted-foreground">Mint, transfer, burn LeadNFTs</span>
+                        </Button>
+                        <Badge variant="outline" className="absolute -top-2 -right-2 text-[9px] text-amber-400 border-amber-500/30 bg-background">
+                            Coming Soon
+                        </Badge>
+                    </div>
                 </div>
             </div>
         </DashboardLayout>
