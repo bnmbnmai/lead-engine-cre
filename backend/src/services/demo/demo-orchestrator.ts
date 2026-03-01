@@ -1406,13 +1406,13 @@ export async function runFullDemo(
         emitStatus(io, { running: false, phase: 'idle', totalCycles: cycles, currentCycle: cycles, percent: 100, runId });
 
         try {
-            safeEmit(io, 'demo:results-ready', { runId, status: 'completed', totalCycles: cycles, totalSettled, elapsedSec, cycles: cycleResults });
+            safeEmit(io, 'demo:results-ready', { runId, status: 'completed', totalCycles: cycleResults.length, totalSettled, elapsedSec, cycles: cycleResults });
         } catch (emitErr: any) {
             console.error('[DEMO] demo:results-ready emit failed (non-fatal):', emitErr.message);
         }
 
         try {
-            safeEmit(io, 'demo:complete', { runId, status: 'completed', totalCycles: cycles, totalSettled });
+            safeEmit(io, 'demo:complete', { runId, status: 'completed', totalCycles: cycleResults.length, totalSettled });
         } catch (emitErr: any) {
             console.error('[DEMO] demo:complete emit failed (non-fatal):', emitErr.message);
         }

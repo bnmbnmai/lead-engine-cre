@@ -74,6 +74,8 @@ export function DemoPanel() {
     const [demoSellerAddress, setDemoSellerAddress] = useState<string | null>(null);
     const [demoComplete, setDemoComplete] = useState<{ runId: string; totalSettled: number; elapsedSec?: number } | null>(null);
     const [recyclePercent, setRecyclePercent] = useState<number | null>(null);
+    const [isRecycling, setIsRecycling] = useState(false);
+    const demoCompleteRef = useRef<{ runId: string; totalSettled: number; elapsedSec?: number } | null>(null);
     const [demoMetrics, setDemoMetrics] = useState<{ activeCount: number; leadsThisMinute: number; dailyRevenue: number } | null>(null);
     const [demoRunning, setDemoRunning] = useState(false);
     const [elapsedSec, setElapsedSec] = useState(0);
@@ -95,7 +97,9 @@ export function DemoPanel() {
     // Track demo completion + recycle progress for in-panel notifications
     useEffect(() => {
         const unsubReady = socketClient.on('demo:results-ready', (data: any) => {
-            setDemoComplete({ runId: data.runId, totalSettled: data.totalSettled, elapsedSec: data.elapsedSec });
+            // Store result but defer banner until recycling completes
+            demoCompleteRef.current = { runId: data.runId, totalSettled: data.totalSettled, elapsedSec: data.elapsedSec };
+            setIsRecycling(true);
             setRecyclePercent(0);
             setDemoRunning(false);
             setDemoMetrics(null);
@@ -105,6 +109,12 @@ export function DemoPanel() {
         });
         const unsubComplete = socketClient.on('demo:recycle-complete', () => {
             setRecyclePercent(null);
+            setIsRecycling(false);
+            // Now show the completion banner (deferred until recycling done)
+            if (demoCompleteRef.current) {
+                setDemoComplete(demoCompleteRef.current);
+                demoCompleteRef.current = null;
+            }
         });
         // Live metrics pulse from emitLiveMetrics (every 30 s while demo runs)
         const unsubMetrics = socketClient.on('demo:metrics', (data: any) => {
@@ -641,9 +651,33 @@ export function DemoPanel() {
                             </div>
                         )}
 
-                        {/* Demo Complete – Results Ready banner */}
+                        {/* Recycling in progress banner */}
+                        {isRecycling && (
+                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin" />
+                                    <p className="text-xs font-semibold text-amber-400">♻️ Recycling wallets — please wait…</p>
+                                </div>
+                                {recyclePercent !== null && (
+                                    <div className="mt-2">
+                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+                                            <span>Recovering USDC from demo wallets</span>
+                                            <span>{recyclePercent}%</span>
+                                        </div>
+                                        <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden">
+                                            <div
+                                                className="h-full bg-amber-500/60 rounded-full transition-all duration-500"
+                                                style={{ width: `${recyclePercent}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                        {demoComplete && (
+                        {/* Demo Complete – Results Ready banner (shown after recycling finishes) */}
+
+                        {demoComplete && !isRecycling && (
                             <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2.5">
                                 <div className="flex items-center justify-between gap-2">
                                     <div>
@@ -659,20 +693,6 @@ export function DemoPanel() {
                                         View →
                                     </button>
                                 </div>
-                                {recyclePercent !== null && (
-                                    <div className="mt-2">
-                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                                            <span>♻️ Recycling wallets…</span>
-                                            <span>{recyclePercent}%</span>
-                                        </div>
-                                        <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden">
-                                            <div
-                                                className="h-full bg-green-500/60 rounded-full transition-all duration-500"
-                                                style={{ width: `${recyclePercent}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
                         {/* Section 1: Marketplace Data */}
@@ -728,10 +748,11 @@ export function DemoPanel() {
                         <Section id="simulation" title="Live Simulation">
                             <ActionButton
                                 actionKey="auction"
-                                label="Start Live Auction"
+                                label={isRecycling ? 'Recycling in progress…' : 'Start Live Auction'}
                                 icon={Gavel}
                                 onClick={handleStartAuction}
                                 variant="accent"
+                                disabled={isRecycling}
                             />
                             <p className="text-[10px] text-muted-foreground pl-1">
                                 60s auction{demoBuyersEnabled ? ' + 3 bot bids over 30s' : ' (no bot bids)'}. Click IN_AUCTION on Marketplace to watch live.
@@ -1064,8 +1085,9 @@ export function DemoPanel() {
                     <div className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground text-center">
                         Hidden in production builds • v1.0
                     </div>
-                </div>
-            )}
+                </div >
+            )
+            }
         </>
     );
 }
