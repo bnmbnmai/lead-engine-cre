@@ -37,6 +37,11 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 
 **Expected outcome**: Strong positioning across multiple tracks, including potential recognition in the overall Top 10.
 
+### Immediate Pre-Submission Polish
+- [ ] **Demo Flow Phase Order Audit & Fix** — Ensure recycle → fund → banner sequencing is correct; defer "Demo Complete" banner until recycling finishes.
+- [ ] **Final Documentation Sync** — Update `submission-checklist.md` and `final-submission-certification.md` with latest service count (12), feature additions, and fresh demo run data.
+- [ ] **Seed Demo Bounties Button** — Add one-click button in Demo Control Panel to pre-populate bounty pools for hackathon judges, so the Seller Dashboard "Active Buyer Bounties" card is populated without manual API calls.
+
 ---
 
 ### Post-Hackathon Roadmap — Production & Institutional Expansion
@@ -48,7 +53,9 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 
 **Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)**
 - "Permanent Unlock" toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
+- **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action, reducing friction for high-volume buyers.
 - Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
+- **Marketplace Bounty Boost Badges** — leads matching active bounty criteria display a "💰 Bounty Boost" badge on marketplace cards, signaling higher payout potential to sellers and increasing fill rates.
 
 **Near-Term Phase C: Enterprise & Scale (Months 3–6)**
 - White-label verticals: one-click marketplace rebranding for insurers, banks, or lead aggregators.
@@ -121,10 +128,14 @@ The current architecture is designed for demo and early-production traffic. Scal
 - **Ad Platform Integration.** One-time configuration for Google Ads, Facebook Lead Ads, etc.; captured leads auto-ingested, CRE-scored, and auctioned in real time.
 - **Granular Vertical Field Bounty Hunting.** Buyers post field-specific bounties (e.g., “ZIP 90210 + excellent credit”); system auto-matches at ingestion and attaches rewards to auctions.
 
-**Monetization**
+- **Monetization**
 - 5% platform fee on settlements.
 - Premium CRE workflow licensing for enterprises.
 - Data subscription bundles (encrypted lead cohorts).
+
+**Infrastructure & Observability**
+- **Expanded Admin Dashboard** — system health monitoring, audit logs, wallet balance overview, demo run history, and real-time CRE workflow status. Consolidates operational visibility for platform operators.
+- **Comprehensive Test Suite** — unit tests for all services (ace, cre, vrf, vault, auction), integration tests for critical flows (demo run, settlement, PII decryption), frontend component tests, and E2E tests with Playwright. Target 80% coverage.
 
 ---
 
@@ -135,6 +146,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 - **Agent-owned economy** — agents earn fees, can be delegated or traded.
 - **Multi-chain expansion** via CCIP Private Transactions (privacy preserved across chains).
 - **Enterprise ERP/CRM push** — settled leads land directly in Salesforce/HubSpot via Confidential HTTP.
+- **Agent Chat Enhancements** — voice-of-buyer and voice-of-seller personas in the AI chat widget, enabling natural-language negotiation and real-time deal commentary.
 
 **Long-term TAM impact**
 - Capture 0.5–1% of the $14.5B+ lead-gen services market ($50–150M ARR opportunity).
@@ -151,6 +163,8 @@ The current architecture is designed for demo and early-production traffic. Scal
 | High     | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
 | Medium   | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
 | Medium   | CCIP cross-chain + private tx        | CCIP Private                   | Medium   | Multi-chain RWA                     |
+| Medium   | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
+| Medium   | Marketplace bounty boost badges      | Functions                      | Low      | Seller engagement + fill rates      |
 | Medium   | Prediction market on conversion      | Functions + Streams            | Medium   | New asset class                     |
 | Low      | World ID sybil resistance            | World ID + CRE                 | Low      | Special track bonus                 |
 
