@@ -62,7 +62,7 @@ export function Navbar() {
                             <span className="text-white font-bold text-base tracking-tight">LE</span>
                         </div>
                         <span className="text-lg font-semibold text-foreground hidden sm:inline tracking-tight">
-                            Lead Engine
+                            LeadRTB
                         </span>
                     </Link>
                 </div>

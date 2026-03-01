@@ -377,7 +377,7 @@ export default function HostedForm() {
                     </div>
 
                     <p style={{ fontSize: '0.65rem', color: colors.muted, marginTop: '1.5rem', opacity: 0.4 }}>
-                        Powered by Lead Engine
+                        Powered by LeadRTB
                     </p>
                 </div>
             </div>

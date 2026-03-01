@@ -242,7 +242,7 @@ export function MarketMetricsPanel() {
                             <div>
                                 <h3 className="font-semibold text-sm mb-1">CustomLeadFeed.sol — Public Data Producer</h3>
                                 <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                                    Lead Engine publishes anonymized market metrics as a Chainlink-compatible on-chain data feed.
+                                    LeadRTB publishes anonymized market metrics as a Chainlink-compatible on-chain data feed.
                                     Other dApps can call <code className="text-blue-400 font-mono text-[11px]">latestAnswer()</code> to
                                     read aggregate quality scores, settlement volume, leads tokenized, and fill rate.
                                 </p>

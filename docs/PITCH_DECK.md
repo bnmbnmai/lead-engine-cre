@@ -1,4 +1,4 @@
-# Pitch Deck — Lead Engine CRE
+# Pitch Deck — LeadRTB
 
 **Format:** 12 slides, 3-minute verbal walkthrough
 
@@ -6,7 +6,7 @@
 
 ## Slide 1: Title
 
-**Lead Engine**
+**LeadRTB**
 *Decentralized Real-Time Bidding for the $200B+ Lead Marketplace*
 
 Built with 12 Chainlink Service Integrations: CRE + ACE + Functions + VRF + Data Feeds + Confidential HTTP + CRE Workflows + Confidential Compute
@@ -31,7 +31,7 @@ Chainlink Hackathon 2026 — Convergence
 
 ## Slide 3: Solution
 
-**Lead Engine = Chainlink-powered trust layer for lead trading**
+**LeadRTB = Chainlink-powered trust layer for lead trading**
 
 | Problem | Solution |
 |---------|----------|
@@ -185,7 +185,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 
 ## Slide 11: Why We Win
 
-| Criteria | Lead Engine |
+| Criteria | LeadRTB |
 |----------|-------------|
 | **Innovation** | 12 Chainlink service integrations + MCP agent server + CCIP-ready + atomic escrow settlement |
 | **Technical depth** | 7 smart contracts (verified), ZK proofs, commit-reveal, TEE scoring, 10-gate auto-bid |

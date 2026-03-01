@@ -32,7 +32,7 @@ export const CONTRACT_ADDRESSES = {
 // ============================================
 
 export const wagmiConfig = getDefaultConfig({
-    appName: 'Lead Engine CRE',
+    appName: 'LeadRTB',
     projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'demo',
     chains: [baseSepolia, sepolia],
     transports: {

@@ -1,4 +1,4 @@
-# On-Chain Verification — Lead Engine CRE
+# On-Chain Verification — LeadRTB
 
 > **Network:** Base Sepolia (chain ID 84532)
 > **Last verified:** 2026-03-01 | **Source of truth:** [CONTRACTS.md](../CONTRACTS.md)

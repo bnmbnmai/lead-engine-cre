@@ -1,4 +1,4 @@
-# PROJECT_AUDIT.md — Lead Engine CRE
+# PROJECT_AUDIT.md — LeadRTB
 > **Audit Date:** 2026-02-26 | **Scope:** Full repository scan — all .md, source, contracts, CI, scripts  
 > **Method:** Direct file content inspection against deployed on-chain state
 
@@ -219,7 +219,7 @@ All stubs are intentional fallbacks with clear documentation:
 | `ROADMAP.md` | Version bumped to v0.9.5. 5 Phase 0 items marked COMPLETED: Privacy Track, CRE Workflow, CRE consistency, Buyer persona, Granular bounties. |
 | `DemoResults.tsx` | Stale CREVerifier Basescan link fixed (`0xe9c9` → `0xfec22`) |
 | `.gitignore` | Added `*.log` pattern |
-| `AgentChatWidget.tsx` | Renamed to "LEAD Engine AI", permanent Kimi K2.5 badge |
+| `AgentChatWidget.tsx` | Renamed to "LeadRTB AI", permanent Kimi K2.5 badge |
 | `agent.service.ts` | System prompt: Kimi K2.5 identity, agent vs auto-bid distinction, tool count 10→12 |
 | `README.md` | Architecture diagram expanded (7 nodes), agent autonomy distinction, tech stack updated |
 

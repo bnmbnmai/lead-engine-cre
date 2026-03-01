@@ -1,4 +1,4 @@
-# Final Submission Certification — Lead Engine CRE
+# Final Submission Certification — LeadRTB
 
 **Chainlink Convergence Hackathon 2026**
 **Certified: 2026-03-01 | Network: Base Sepolia (chain ID 84532)**
@@ -7,7 +7,7 @@
 
 ## Project Summary
 
-**Lead Engine CRE** is a fully on-chain lead marketplace combining RTB (real-time bidding) auction mechanics, Chainlink Automation-enforced escrow, VRF-based tiebreaking, Chainlink Functions (CRE) quality scoring, ACE policy-gated NFT minting, and CHTT Phase 2 confidential scoring — all independently verifiable on Base Sepolia.
+**LeadRTB** is a fully on-chain lead marketplace combining RTB (real-time bidding) auction mechanics, Chainlink Automation-enforced escrow, VRF-based tiebreaking, Chainlink Functions (CRE) quality scoring, ACE policy-gated NFT minting, and CHTT Phase 2 confidential scoring — all independently verifiable on Base Sepolia.
 
 ---
 

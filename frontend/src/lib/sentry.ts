@@ -1,5 +1,5 @@
 /**
- * Sentry Browser Monitoring — Lead Engine CRE Frontend
+ * Sentry Browser Monitoring — LeadRTB Frontend
  *
  * Gracefully initializes Sentry when VITE_SENTRY_DSN is set AND
  * @sentry/react is installed. If the package is not installed,

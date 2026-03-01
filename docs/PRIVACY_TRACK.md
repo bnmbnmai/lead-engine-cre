@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Lead Engine CRE implements a **dual-layer privacy architecture**:
+LeadRTB implements a **dual-layer privacy architecture**:
 
 1. **At-rest PII encryption** — All lead PII (name, email, phone, address) is AES-256-GCM encrypted before storage. Buyers see only redacted previews (vertical, geo-state, non-PII parameters). PII is revealed only to the auction winner after settlement.
 
@@ -203,7 +203,7 @@ For off-chain confidential evaluations (like matching buyer criteria without exp
 
 ## Why This Qualifies for the Privacy Track
 
-Lead Engine CRE demonstrates the **complete CHTT Phase 2 pattern** as documented at [docs.chain.link/cre/capabilities/confidential-http-ts](https://docs.chain.link/cre/capabilities/confidential-http-ts):
+LeadRTB demonstrates the **complete CHTT Phase 2 pattern** as documented at [docs.chain.link/cre/capabilities/confidential-http-ts](https://docs.chain.link/cre/capabilities/confidential-http-ts):
 
 1. **SubtleCrypto encryption** of scoring payloads before DON submission — payloads are opaque to any observer on the request path
 2. **Enclave key at slot 0** — the DON decrypts inside the execution environment; the key is never exposed on-chain

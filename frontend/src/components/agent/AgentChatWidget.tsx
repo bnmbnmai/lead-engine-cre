@@ -112,7 +112,7 @@ export function AgentChatWidget() {
         if (isOpen && messages.length === 0) {
             setMessages([{
                 role: 'assistant',
-                content: '👋 Hi! I\'m **LEAD Engine AI**, your autonomous bidding agent. I can search leads, check bid floors, configure auto bid rules, and navigate the platform.\n\nTry asking:\n• "Search solar leads in California"\n• "What\'s the bid floor for mortgage?"\n• "Show my auto bid rules"\n• "Take me to the marketplace"',
+                content: '👋 Hi! I\'m **LeadRTB AI**, your autonomous bidding agent. I can search leads, check bid floors, configure auto bid rules, and navigate the platform.\n\nTry asking:\n• "Search solar leads in California"\n• "What\'s the bid floor for mortgage?"\n• "Show my auto bid rules"\n• "Take me to the marketplace"',
             }]);
         }
     }, [isOpen, messages.length]);
@@ -259,7 +259,7 @@ export function AgentChatWidget() {
                                 <Sparkles className="h-4 w-4 text-violet-400" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-bold text-foreground">LEAD Engine AI</h3>
+                                <h3 className="text-sm font-bold text-foreground">LeadRTB AI</h3>
                                 <div className="flex items-center gap-1.5">
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                         🧠 Kimi K2.5 · LangChain

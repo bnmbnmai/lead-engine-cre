@@ -1,4 +1,4 @@
-# Lead Engine CRE — Roadmap
+# LeadRTB — Roadmap
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
@@ -195,7 +195,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 **We are not building another lead marketplace.**  
 We are building the **Chainlink-native, privacy-first protocol for the entire sensitive data economy**.  
 
-With the extended deadline and the new Privacy + Agents tracks, Lead Engine CRE is positioned for competitive success in the hackathon and as foundational infrastructure thereafter.
+With the extended deadline and the new Privacy + Agents tracks, LeadRTB is positioned for competitive success in the hackathon and as foundational infrastructure thereafter.
 
 ---
 

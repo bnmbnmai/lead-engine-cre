@@ -59,7 +59,7 @@ export function FeedbackButton() {
                 <div className="fixed bottom-20 right-6 z-50 w-80 rounded-xl border border-border bg-background shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200" id="feedback-panel">
                     <div className="p-4 border-b border-border">
                         <h3 className="font-semibold text-sm">Send Feedback</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">Help us improve Lead Engine</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Help us improve LeadRTB</p>
                     </div>
 
                     {sent ? (

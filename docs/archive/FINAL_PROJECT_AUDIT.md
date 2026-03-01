@@ -1,4 +1,4 @@
-# FINAL PROJECT AUDIT — Lead Engine CRE
+# FINAL PROJECT AUDIT — LeadRTB
 
 > **Audit Date:** 28 February 2026  
 > **Auditor:** Antigravity AI (full codebase scan via Google Antigravity IDE)  
@@ -11,7 +11,7 @@
 
 **Overall Readiness Score: 8.2 / 10**
 
-Lead Engine CRE is a mature, hackathon-ready platform with **12 genuine Chainlink service integrations** (all live on Base Sepolia), **7 verified smart contracts**, a **full-stack on-chain demo**, and a **production-grade AI agent**. The core functionality — lead tokenization, sealed-bid auctions, atomic USDC settlement, winner-only PII decryption, and CRE workflow orchestration — is solid and well-implemented.
+LeadRTB is a mature, hackathon-ready platform with **12 genuine Chainlink service integrations** (all live on Base Sepolia), **7 verified smart contracts**, a **full-stack on-chain demo**, and a **production-grade AI agent**. The core functionality — lead tokenization, sealed-bid auctions, atomic USDC settlement, winner-only PII decryption, and CRE workflow orchestration — is solid and well-implemented.
 
 **Why not 10:** The project has accumulated tech debt from rapid iteration: several oversized files (104KB, 95KB, 88KB route/page files), 3 dead frontend pages totaling ~61KB, 3 missing documentation files still referenced in README, near-empty test coverage, and 25+ TODO/FIXME markers. These are cosmetic/maintenance issues that don't affect demo functionality but would matter for a production audit.
 

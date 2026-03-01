@@ -3,7 +3,7 @@ name: lead-engine-cre-agent
 description: Programmatic lead bidding via MCP — search, bid, export with CCIP-ready architecture
 ---
 
-# Lead Engine CRE — Agent Skill
+# LeadRTB — Agent Skill
 
 Enables AI agents to programmatically discover, bid on, and export CRE leads via the MCP JSON-RPC server.
 
@@ -222,7 +222,7 @@ llm = ChatOpenAI(
     temperature=0,
 )
 prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an autonomous lead bidding agent for the Lead Engine CRE platform.
+    ("system", """You are an autonomous lead bidding agent for the LeadRTB platform.
     Your job is to:
     1. Set up auto-bid rules for specific verticals with quality score gates
     2. Register CRM webhooks so won leads flow to the buyer's CRM

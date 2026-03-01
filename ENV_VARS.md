@@ -1,6 +1,6 @@
 # Environment Variables
 
-All required and optional environment variables for Lead Engine CRE.
+All required and optional environment variables for LeadRTB.
 
 ## Backend (`backend/.env`)
 

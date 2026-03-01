@@ -2,7 +2,7 @@
 
 ## Overview
 
-Lead Engine CRE supports **per-vertical, per-lead granular bounty pools** where buyers pre-fund USDC escrow pools with specific matching criteria (geo, quality score, credit score, lead age). When a seller wins an auction with a matching lead, the bounty auto-releases on-chain as a bonus on top of the winning bid.
+LeadRTB supports **per-vertical, per-lead granular bounty pools** where buyers pre-fund USDC escrow pools with specific matching criteria (geo, quality score, credit score, lead age). When a seller wins an auction with a matching lead, the bounty auto-releases on-chain as a bonus on top of the winning bid.
 
 Matching is verified through **Chainlink Functions** — the DON executes JavaScript matching logic off-chain and writes an attested result on-chain. This ensures trustless, chain-verified criteria evaluation with gas costs ~10× cheaper than on-chain Solidity logic.
 

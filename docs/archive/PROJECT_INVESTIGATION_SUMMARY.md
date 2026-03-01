@@ -1,4 +1,4 @@
-# PROJECT INVESTIGATION SUMMARY — Lead Engine CRE
+# PROJECT INVESTIGATION SUMMARY — LeadRTB
 
 > **Investigation Date:** 1 March 2026  
 > **Investigator:** Antigravity AI (Google DeepMind)  
@@ -9,7 +9,7 @@
 
 ## 1. Project Overview
 
-Lead Engine CRE is a **full-stack, on-chain marketplace for tokenized, privacy-preserving leads** on Base Sepolia, built for the **Chainlink Convergence Hackathon 2026**. The platform spans lead submission, CRE quality scoring, ACE-compliant NFT minting, sealed-bid auctions, atomic USDC settlement via PersonalEscrowVault, autonomous AI agent bidding (Kimi K2.5 + LangChain), winner-only PII decryption, and granular bounty pools.
+LeadRTB is a **full-stack, on-chain marketplace for tokenized, privacy-preserving leads** on Base Sepolia, built for the **Chainlink Convergence Hackathon 2026**. The platform spans lead submission, CRE quality scoring, ACE-compliant NFT minting, sealed-bid auctions, atomic USDC settlement via PersonalEscrowVault, autonomous AI agent bidding (Kimi K2.5 + LangChain), winner-only PII decryption, and granular bounty pools.
 
 **Version:** v0.9.6 (28 February 2026)  
 **FINAL_PROJECT_AUDIT score:** 8.2 / 10  
@@ -21,7 +21,7 @@ Lead Engine CRE is a **full-stack, on-chain marketplace for tokenized, privacy-p
 ## 2. Repository Structure
 
 ```
-Lead Engine CRE/
+LeadRTB/
 ├── backend/              # Express + Prisma + Socket.IO + LangChain
 │   ├── src/              # ~80 source files
 │   │   ├── routes/       # 16 route files (largest: demo-panel 104KB, marketplace 95KB)

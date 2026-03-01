@@ -1,10 +1,10 @@
-# MCP Agent Server — Lead Engine CRE
+# MCP Agent Server — LeadRTB
 
 ![Chainlink](https://img.shields.io/badge/Chainlink-CRE-brightgreen)
 ![Tools](https://img.shields.io/badge/Tools-13-blue)
 ![Protocol](https://img.shields.io/badge/Protocol-JSON--RPC%202.0-orange)
 
-The Lead Engine CRE MCP (Model Context Protocol) server exposes **13 tools** over JSON-RPC 2.0, enabling AI agents — including the Kimi/LangChain buyer agent — to search leads, subscribe to live live-streams, place sealed bids, manage auto-bid rules, configure CRM webhooks, query granular bounties, and suggest vertical classifications.
+The LeadRTB MCP (Model Context Protocol) server exposes **13 tools** over JSON-RPC 2.0, enabling AI agents — including the Kimi/LangChain buyer agent — to search leads, subscribe to live live-streams, place sealed bids, manage auto-bid rules, configure CRM webhooks, query granular bounties, and suggest vertical classifications.
 
 ---
 

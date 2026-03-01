@@ -1,8 +1,8 @@
-# Mainnet Migration Guide — Lead Engine CRE
+# Mainnet Migration Guide — LeadRTB
 
 ## Overview
 
-This guide covers migrating Lead Engine from **Sepolia/Base Sepolia** testnets to **Base mainnet** for production deployment.
+This guide covers migrating LeadRTB from **Sepolia/Base Sepolia** testnets to **Base mainnet** for production deployment.
 
 ---
 

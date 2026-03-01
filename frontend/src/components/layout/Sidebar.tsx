@@ -165,7 +165,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                             <div className="w-8 h-8 rounded-lg bg-[#375BD2] flex items-center justify-center mr-2.5">
                                 <span className="text-white font-bold text-sm">LE</span>
                             </div>
-                            <span className="text-lg font-semibold tracking-tight">Lead Engine</span>
+                            <span className="text-lg font-semibold tracking-tight">LeadRTB</span>
                         </div>
                         {sidebarContent}
                     </aside>

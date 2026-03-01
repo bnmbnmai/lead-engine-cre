@@ -10,7 +10,7 @@ import { API_BASE_URL } from '@/lib/api';
 // ── Python starter code for LangChain + MCP ──
 
 const PYTHON_STARTER = `"""
-LangChain Autonomous Bidding Agent — Lead Engine CRE
+LangChain Autonomous Bidding Agent — LeadRTB
 Connects to the MCP JSON-RPC server to discover, evaluate, and bid on leads.
 """
 import json, httpx

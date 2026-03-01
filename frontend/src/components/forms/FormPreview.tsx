@@ -552,7 +552,7 @@ export default function FormPreview({
                     <div style={{ textAlign: 'center', marginTop: compact ? '0.5rem' : '1.25rem' }}>
                         <p style={{ fontSize: compact ? '0.55rem' : '0.65rem', color: muted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
                             <Lock style={{ width: compact ? 8 : 10, height: compact ? 8 : 10, color: '#fbbf24' }} />
-                            Your data is encrypted and protected • Powered by Lead Engine
+                            Your data is encrypted and protected • Powered by LeadRTB
                         </p>
                     </div>
                 )}

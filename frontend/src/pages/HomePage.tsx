@@ -627,7 +627,7 @@ export function HomePage() {
                     </section>
                 )}
 
-                {/* Why Lead Engine — Trust Bar (guest only) */}
+                {/* Why LeadRTB — Trust Bar (guest only) */}
                 {!isAuthenticated && (
                     <section>
                         <div className="grid md:grid-cols-3 gap-5">

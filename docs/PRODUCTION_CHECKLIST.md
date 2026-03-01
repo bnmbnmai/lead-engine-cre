@@ -1,4 +1,4 @@
-# Production Readiness Checklist — Lead Engine CRE
+# Production Readiness Checklist — LeadRTB
 
 > Use this checklist before any production deployment or hackathon submission.
 

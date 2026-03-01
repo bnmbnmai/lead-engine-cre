@@ -99,7 +99,7 @@ export function SellerIntegrations() {
                 <div>
                     <h1 className="text-3xl font-bold">Integrations</h1>
                     <p className="text-muted-foreground">
-                        Connect your systems to the Lead Engine marketplace
+                        Connect your systems to the LeadRTB marketplace
                     </p>
                 </div>
 
