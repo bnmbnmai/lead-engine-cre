@@ -112,7 +112,7 @@ router.post('/evaluate', async (req: Request, res: Response) => {
         }
 
         // Trigger the CRE buyer-rules workflow
-        const result = await creService.triggerBuyerRulesWorkflow(leadId);
+        const result = await creService.verifyLead(leadId);
 
         res.json({
             leadId,
