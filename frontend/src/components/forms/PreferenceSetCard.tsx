@@ -62,17 +62,18 @@ function SectionGroup({
     title,
     tooltip,
     badge,
-    defaultOpen = false,
+    open,
+    onToggle,
     children,
 }: {
     icon: React.ReactNode;
     title: string;
     tooltip?: string;
     badge?: React.ReactNode;
-    defaultOpen?: boolean;
+    open: boolean;
+    onToggle: () => void;
     children: React.ReactNode;
 }) {
-    const [open, setOpen] = useState(defaultOpen);
     const [showTooltip, setShowTooltip] = useState(false);
 
     return (
@@ -83,7 +84,7 @@ function SectionGroup({
             <button
                 type="button"
                 className="w-full flex items-center justify-between px-4 py-3 text-left"
-                onClick={() => setOpen(!open)}
+                onClick={onToggle}
             >
                 <div className="flex items-center gap-2.5">
                     <span className="text-muted-foreground">{icon}</span>
@@ -202,6 +203,9 @@ export function PreferenceSetCard({
 }: PreferenceSetCardProps) {
     const [verticalFields, setVerticalFields] = useState<any[]>([]);
     const [loadingFields, setLoadingFields] = useState(false);
+    const [activeSection, setActiveSection] = useState<string | null>('geo');
+
+    const toggleSection = (id: string) => setActiveSection(prev => prev === id ? null : id);
 
     // Fetch vertical-specific form fields when vertical changes
     useEffect(() => {
@@ -329,7 +333,8 @@ export function PreferenceSetCard({
                                 {set.geoInclude.length} region{set.geoInclude.length > 1 ? 's' : ''}
                             </span>
                         ) : undefined}
-                        defaultOpen
+                        open={activeSection === 'geo'}
+                        onToggle={() => toggleSection('geo')}
                     >
                         <div>
                             <label className="text-xs font-medium text-muted-foreground mb-2 block">
@@ -375,7 +380,8 @@ export function PreferenceSetCard({
                                 ⚡ Auto
                             </span>
                         ) : undefined}
-                        defaultOpen
+                        open={activeSection === 'budget'}
+                        onToggle={() => toggleSection('budget')}
                     >
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -463,6 +469,8 @@ export function PreferenceSetCard({
                                 Verified only
                             </span>
                         ) : undefined}
+                        open={activeSection === 'quality'}
+                        onToggle={() => toggleSection('quality')}
                     >
                         <LabeledSwitch
                             label="Require CRE-Verified Leads"
@@ -614,6 +622,8 @@ export function PreferenceSetCard({
                                     {Object.keys(set.fieldFilters).length} active
                                 </span>
                             ) : undefined}
+                            open={activeSection === 'fields'}
+                            onToggle={() => toggleSection('fields')}
                         >
                             {loadingFields ? (
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
