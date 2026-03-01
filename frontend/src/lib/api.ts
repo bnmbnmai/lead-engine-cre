@@ -68,6 +68,12 @@ async function apiFetch<T>(
         (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
 
+    // Always include the demo bypass token so publicDemoBypass accepts
+    // calls from any persona (Buyer/Seller/Guest), not just ADMIN.
+    if (TEST_API_TOKEN) {
+        (headers as Record<string, string>)['X-Api-Token'] = TEST_API_TOKEN;
+    }
+
     try {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             ...options,
