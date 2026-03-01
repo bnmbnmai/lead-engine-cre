@@ -21,10 +21,10 @@ const router = Router();
 router.get('/status', async (_req: Request, res: Response) => {
     try {
         const creWorkflowEnabled = process.env.CRE_WORKFLOW_ENABLED === 'true';
-        const creNativeMode = await getConfig('creNativeModeEnabled').catch(() => false);
+        const creNativeMode = await getConfig('creNativeModeEnabled', 'false').catch(() => 'false');
 
         res.json({
-            creNativeMode: !!creNativeMode,
+            creNativeMode: creNativeMode === 'true',
             creWorkflowEnabled,
             subscriptionId: process.env.CRE_SUBSCRIPTION_ID || '581',
             network: 'Base Sepolia (chain ID 84532)',
