@@ -22,6 +22,7 @@ import {
     Unlock,
     Lock,
     Loader2,
+    ShieldCheck,
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -109,6 +110,31 @@ export function BuyerPortfolio() {
     const [csvExporting, setCsvExporting] = useState(false);
     const [decryptedPII, setDecryptedPII] = useState<Record<string, any>>({});
     const [decryptingId, setDecryptingId] = useState<string | null>(null);
+    const [permanentUnlocks, setPermanentUnlocks] = useState<Set<string>>(new Set());
+
+    // ── Permanent PII Unlock helpers ──
+    const STORAGE_KEY = 'leadEngine:permanentPII';
+
+    const loadPermanentPII = useCallback(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const stored: Record<string, any> = JSON.parse(raw);
+            const ids = new Set(Object.keys(stored));
+            setPermanentUnlocks(ids);
+            setDecryptedPII(prev => ({ ...prev, ...stored }));
+        } catch { /* ignore corrupt storage */ }
+    }, []);
+
+    const savePermanentPII = (leadId: string, pii: any) => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            const stored: Record<string, any> = raw ? JSON.parse(raw) : {};
+            stored[leadId] = pii;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+            setPermanentUnlocks(prev => new Set(prev).add(leadId));
+        } catch { /* storage full — degrade gracefully */ }
+    };
 
     const handleDecryptPII = async (leadId: string) => {
         setDecryptingId(leadId);
@@ -122,6 +148,13 @@ export function BuyerPortfolio() {
         } finally {
             setDecryptingId(null);
         }
+    };
+
+    const handlePermanentUnlock = (leadId: string) => {
+        const pii = decryptedPII[leadId];
+        if (!pii) return;
+        savePermanentPII(leadId, pii);
+        toast({ type: 'success', title: 'PII Permanently Unlocked', description: 'Lead PII is now stored in your buyer vault — no re-decryption needed.' });
     };
 
     const fetchPortfolio = useCallback(async () => {
@@ -139,7 +172,7 @@ export function BuyerPortfolio() {
         }
     }, []);
 
-    useEffect(() => { fetchPortfolio(); }, [fetchPortfolio]);
+    useEffect(() => { loadPermanentPII(); fetchPortfolio(); }, [fetchPortfolio, loadPermanentPII]);
 
     // Real-time updates
     useSocketEvents(
@@ -519,7 +552,11 @@ export function BuyerPortfolio() {
                                                         )}
                                                         {lead?.id && decryptedPII[lead.id] && (
                                                             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                                                                <Lock className="h-3 w-3" /> PII Unlocked
+                                                                {permanentUnlocks.has(lead.id) ? (
+                                                                    <><ShieldCheck className="h-3 w-3" /> Permanently Unlocked</>
+                                                                ) : (
+                                                                    <><Lock className="h-3 w-3" /> PII Unlocked</>
+                                                                )}
                                                             </span>
                                                         )}
                                                         <Button
@@ -536,6 +573,23 @@ export function BuyerPortfolio() {
                                                     </div>
                                                     {lead?.id && decryptedPII[lead.id] && (
                                                         <div className="mt-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5">
+                                                            <div className="flex items-center justify-between mb-0.5">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                                                                    {permanentUnlocks.has(lead.id) ? (
+                                                                        <><ShieldCheck className="h-3 w-3" /> Permanently Unlocked</>
+                                                                    ) : (
+                                                                        <><Lock className="h-3 w-3" /> Decrypted PII — CRE DON Attested</>
+                                                                    )}
+                                                                </span>
+                                                                {!permanentUnlocks.has(lead.id) && (
+                                                                    <button
+                                                                        onClick={() => handlePermanentUnlock(lead.id)}
+                                                                        className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition font-medium"
+                                                                    >
+                                                                        🔒 Permanently Unlock
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
                                                                 <span className="text-muted-foreground">Name</span>
                                                                 <span className="text-foreground font-medium">{decryptedPII[lead.id].firstName} {decryptedPII[lead.id].lastName}</span>
@@ -661,9 +715,22 @@ export function BuyerPortfolio() {
                                         </div>
                                         {lead?.id && decryptedPII[lead.id] && (
                                             <div className="mt-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
-                                                <div className="flex items-center gap-1.5 mb-1">
-                                                    <Lock className="h-3 w-3 text-emerald-400" />
-                                                    <span className="text-[10px] font-bold text-emerald-400">Decrypted PII — CRE DON Attested</span>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
+                                                        {permanentUnlocks.has(lead.id) ? (
+                                                            <><ShieldCheck className="h-3 w-3" /> Permanently Unlocked — Buyer Vault</>
+                                                        ) : (
+                                                            <><Lock className="h-3 w-3" /> Decrypted PII — CRE DON Attested</>
+                                                        )}
+                                                    </span>
+                                                    {!permanentUnlocks.has(lead.id) && (
+                                                        <button
+                                                            onClick={() => handlePermanentUnlock(lead.id)}
+                                                            className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition font-medium"
+                                                        >
+                                                            🔒 Permanently Unlock
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
                                                     <span className="text-muted-foreground">Name</span>
