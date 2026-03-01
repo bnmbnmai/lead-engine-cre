@@ -7,6 +7,8 @@
  *   - recycleTransfer: sends all USDC from a demo wallet back to deployer
  *   - recycleVaultWithdraw: withdraws a buyer/seller's free vault balance
  *   - recycleTokens: full post-run USDC recovery (background phase)
+ *     - R3.5: scans BidLocked/BidSettled/BidRefunded events to find and
+ *       refund orphaned vault locks, preventing deployer USDC depletion
  *   - withRecycleTimeout: wraps recycleTokens with a hard 4-minute timeout guard
  */
 
@@ -282,6 +284,109 @@ export async function recycleTokens(
             totalRecovered += recovered;
         } catch (err: any) {
             emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Seller recycle failed: ${err.message?.slice(0, 80)}` });
+        }
+
+        // R3.5 — Orphaned lock recovery (scan events, refund stale locks)
+        try {
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'step',
+                message: '🔍 Scanning for orphaned vault locks across demo wallets...',
+            });
+
+            const currentBlock = await provider.getBlockNumber();
+            // Scan last 5000 blocks (~2-3 hours on Base Sepolia)
+            const fromBlock = Math.max(0, currentBlock - 5000);
+
+            const demoWalletSet = new Set(DEMO_BUYER_WALLETS.map(a => a.toLowerCase()));
+
+            // Query BidLocked events for demo wallets
+            const lockedFilter = vault.filters.BidLocked();
+            const lockedEvents = await vault.queryFilter(lockedFilter, fromBlock, currentBlock);
+
+            // Query BidSettled and BidRefunded events to find which locks are already resolved
+            const settledFilter = vault.filters.BidSettled();
+            const refundedFilter = vault.filters.BidRefunded();
+            const [settledEvents, refundedEvents] = await Promise.all([
+                vault.queryFilter(settledFilter, fromBlock, currentBlock),
+                vault.queryFilter(refundedFilter, fromBlock, currentBlock),
+            ]);
+
+            const resolvedLockIds = new Set<string>();
+            for (const ev of settledEvents) {
+                const parsed = vault.interface.parseLog({ topics: ev.topics as string[], data: ev.data });
+                if (parsed) resolvedLockIds.add(parsed.args[0].toString());
+            }
+            for (const ev of refundedEvents) {
+                const parsed = vault.interface.parseLog({ topics: ev.topics as string[], data: ev.data });
+                if (parsed) resolvedLockIds.add(parsed.args[0].toString());
+            }
+
+            // Find orphaned locks: locked by demo wallets but not settled/refunded
+            const orphanedLocks: Array<{ lockId: string; user: string; amount: bigint }> = [];
+            for (const ev of lockedEvents) {
+                const parsed = vault.interface.parseLog({ topics: ev.topics as string[], data: ev.data });
+                if (!parsed) continue;
+                const lockId = parsed.args[0].toString();
+                const user = parsed.args[1].toLowerCase();
+                const amount = parsed.args[2] as bigint;
+                if (demoWalletSet.has(user) && !resolvedLockIds.has(lockId)) {
+                    orphanedLocks.push({ lockId, user, amount });
+                }
+            }
+
+            if (orphanedLocks.length > 0) {
+                let totalRefunded = 0n;
+                let refundCount = 0;
+
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'warn',
+                    message: `🔓 Found ${orphanedLocks.length} orphaned lock${orphanedLocks.length !== 1 ? 's' : ''} — refunding...`,
+                });
+
+                for (const lock of orphanedLocks) {
+                    if (recycleSignal.aborted || signal.aborted) break;
+                    try {
+                        const nonce = await getNextNonce();
+                        const tx = await vault.refundBid(BigInt(lock.lockId), { nonce });
+                        await tx.wait();
+                        totalRefunded += lock.amount;
+                        refundCount++;
+                        pendingLockIds.delete(Number(lock.lockId));
+                    } catch (refundErr: any) {
+                        // Lock may already be resolved on-chain (event scan race) — non-fatal
+                        const msg = refundErr.shortMessage ?? refundErr.message?.slice(0, 80) ?? 'unknown';
+                        emit(io, {
+                            ts: new Date().toISOString(),
+                            level: 'info',
+                            message: `ℹ️ Lock #${lock.lockId} refund skipped: ${msg}`,
+                        });
+                    }
+                }
+
+                if (refundCount > 0) {
+                    emit(io, {
+                        ts: new Date().toISOString(),
+                        level: 'success',
+                        message: `🔄 Refunded ${refundCount} orphaned lock${refundCount !== 1 ? 's' : ''} totaling $${ethers.formatUnits(totalRefunded, 6)}`,
+                    });
+                    totalRecovered += totalRefunded;
+                }
+            } else {
+                emit(io, {
+                    ts: new Date().toISOString(),
+                    level: 'info',
+                    message: '✅ No orphaned locks found — vault is clean',
+                });
+            }
+        } catch (orphanErr: any) {
+            // Never block demo flow — orphan recovery is best-effort
+            emit(io, {
+                ts: new Date().toISOString(),
+                level: 'warn',
+                message: `⚠️ Orphaned lock scan failed (non-fatal): ${orphanErr.message?.slice(0, 100)}`,
+            });
         }
 
         // R4 — All buyer wallets
