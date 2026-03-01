@@ -16,7 +16,6 @@ import {
     FlaskConical,
     X,
     Database,
-    Trash2,
     Zap,
     Gavel,
     BarChart3,
@@ -30,16 +29,9 @@ import {
     AlertCircle,
     AlertTriangle,
     Sparkles,
-    RefreshCw,
     Shield,
-    Layers,
-    Banknote,
     Sprout,
     Users,
-    Wallet,
-    Link2,
-    Lock,
-    Unlock,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -72,7 +64,6 @@ export function DemoPanel() {
     const [mockData, setMockData] = useState(() => localStorage.getItem('VITE_USE_MOCK_DATA') === 'true');
     const [expandedSection, setExpandedSection] = useState<string | null>('marketplace');
     const [demoBuyersEnabled, setDemoBuyersEnabled] = useState(true);
-    const [demoSellerAddress, setDemoSellerAddress] = useState<string | null>(null);
     const [demoComplete, setDemoComplete] = useState<{ runId: string; totalSettled: number; elapsedSec?: number } | null>(null);
     const [recyclePercent, setRecyclePercent] = useState<number | null>(null);
     const [isRecycling, setIsRecycling] = useState(false);
@@ -81,8 +72,6 @@ export function DemoPanel() {
     const [demoRunning, setDemoRunning] = useState(false);
     const [elapsedSec, setElapsedSec] = useState(0);
     const [creNativeMode, setCreNativeMode] = useState(false);
-    const [creEvalResult, setCreEvalResult] = useState<{ leadId: string; matchedSets: number; totalPreferenceSets: number } | null>(null);
-    const [decryptResult, setDecryptResult] = useState<{ pii: any; attestation: any; leadId: string } | null>(null);
     const demoStartRef = useRef<number | null>(null);
     const elapsedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -91,14 +80,11 @@ export function DemoPanel() {
     const { address } = useAccount();
 
     // Imperative guard: prevents rapid double-clicks from firing duplicate API calls
-    // (React batches setActions, so the ActionButton's disabled-while-loading check
-    //  can miss clicks that arrive before the re-render)
     const runningActionsRef = useRef<Set<string>>(new Set());
 
     // Track demo completion + recycle progress for in-panel notifications
     useEffect(() => {
         const unsubReady = socketClient.on('demo:results-ready', (data: any) => {
-            // Store result but defer banner until recycling completes
             demoCompleteRef.current = { runId: data.runId, totalSettled: data.totalSettled, elapsedSec: data.elapsedSec };
             setIsRecycling(true);
             setRecyclePercent(0);
@@ -111,17 +97,14 @@ export function DemoPanel() {
         const unsubComplete = socketClient.on('demo:recycle-complete', () => {
             setRecyclePercent(null);
             setIsRecycling(false);
-            // Now show the completion banner (deferred until recycling done)
             if (demoCompleteRef.current) {
                 setDemoComplete(demoCompleteRef.current);
                 demoCompleteRef.current = null;
             }
         });
-        // Live metrics pulse from emitLiveMetrics (every 30 s while demo runs)
         const unsubMetrics = socketClient.on('demo:metrics', (data: any) => {
             setDemoMetrics(data);
         });
-        // Track running state via demo:status events
         const unsubStatus = socketClient.on('demo:status', (data: any) => {
             const running = data?.running ?? false;
             setDemoRunning(running);
@@ -138,12 +121,7 @@ export function DemoPanel() {
                 setElapsedSec(0);
             }
         });
-        // CRE evaluation results from backend
-        const unsubCre = socketClient.on('demo:cre-evaluation', (data: any) => {
-            setCreEvalResult({ leadId: data.leadId, matchedSets: data.matchedSets, totalPreferenceSets: data.totalPreferenceSets });
-            setTimeout(() => setCreEvalResult(null), 3000);
-        });
-        return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); unsubCre(); };
+        return () => { unsubReady(); unsubProgress(); unsubComplete(); unsubMetrics(); unsubStatus(); };
     }, []);
 
     // Fetch demo status on open
@@ -168,15 +146,9 @@ export function DemoPanel() {
     useEffect(() => {
         if (isOpen) {
             refreshStatus();
-            // Fetch demo buyers toggle state
             api.demoBuyersStatus().then(({ data }) => {
                 if (data) setDemoBuyersEnabled(data.enabled);
             }).catch(() => { });
-            // Fetch demo seller address
-            api.demoWallets().then(({ data }) => {
-                if (data) setDemoSellerAddress(data.seller);
-            }).catch(() => { });
-            // Fetch CRE-Native mode status
             api.demoCreModeStatus().then(({ data }) => {
                 if (data) setCreNativeMode(data.enabled);
             }).catch(() => { });
@@ -210,7 +182,6 @@ export function DemoPanel() {
     // ============================================
 
     async function runAction(key: string, fn: () => Promise<string>) {
-        // Bail immediately if this action is already in-flight
         if (runningActionsRef.current.has(key)) return;
         runningActionsRef.current.add(key);
 
@@ -219,7 +190,6 @@ export function DemoPanel() {
             const message = await fn();
             setActions(prev => ({ ...prev, [key]: { state: 'success', message } }));
             refreshStatus();
-            // Reset after 3s
             setTimeout(() => setActions(prev => ({ ...prev, [key]: { state: 'idle' } })), 3000);
         } catch (err: any) {
             setActions(prev => ({ ...prev, [key]: { state: 'error', message: err?.message || 'Failed' } }));
@@ -239,49 +209,6 @@ export function DemoPanel() {
         });
     }
 
-    async function handleClear() {
-        await runAction('clear', async () => {
-            const { data, error } = await api.demoClear();
-            if (error) throw new Error(error.message || error.error);
-            const d = data?.deleted;
-            return `🗑️ Removed ${d?.leads} leads, ${d?.bids} bids, ${d?.asks} asks`;
-        });
-    }
-
-    async function handleReset() {
-        await runAction('reset', async () => {
-            const { data, error } = await api.demoReset();
-            if (error) throw new Error(error.message || error.error);
-            const b = (data as any)?.breakdown;
-            return `🔄 Cleared ${data?.cleared} leads (${b?.nonSoldLeads ?? '?'} non-sold + ${b?.demoSoldLeads ?? '?'} demo-sold). Real purchases preserved.`;
-        });
-    }
-
-    async function handleWipe() {
-        await runAction('wipe', async () => {
-            const { data, error } = await api.demoWipe();
-            if (error) throw new Error(error.message || error.error);
-            const d = data?.deleted;
-            return `☢️ Wiped all: ${d?.leads} leads, ${d?.bids} bids, ${d?.asks} asks, ${d?.transactions} transactions`;
-        });
-    }
-
-    async function handleSeedTemplates() {
-        await runAction('seedTemplates', async () => {
-            const { data, error } = await api.demoSeedTemplates();
-            if (error) throw new Error(error.message || error.error);
-            return `📋 Applied ${data?.templatesApplied}/${data?.totalTemplates} form templates across all verticals`;
-        });
-    }
-
-    async function handleSeedBounties() {
-        await runAction('seedBounties', async () => {
-            const { data, error } = await api.demoSeedBounties();
-            if (error) throw new Error(error.message || error.error);
-            return `🌱 Seeded ${data?.poolsCreated} bounty pools ($${data?.totalUSDC} USDC) — check Seller Dashboard`;
-        });
-    }
-
     async function handleInjectLead() {
         await runAction('inject', async () => {
             const { data, error } = await api.demoInjectLead();
@@ -290,6 +217,24 @@ export function DemoPanel() {
             const paramCount = data?.lead?.parameters ? Object.keys(data.lead.parameters).length : 0;
             const geo = data?.lead?.geo?.state ? ` — ${data.lead.geo.state}` : '';
             return `✅ Injected demo lead: ${title} (${paramCount} fields${geo})`;
+        });
+    }
+
+    async function handleSeedBounties() {
+        await runAction('seedBounties', async () => {
+            const { data, error } = await api.demoSeedBounties();
+            if (error) throw new Error(error.message || error.error);
+            return `Seeded ${data?.poolsCreated} bounty pools ($${data?.totalUSDC} USDC) — check Seller Dashboard`;
+        });
+    }
+
+    async function handleResetEverything() {
+        if (!window.confirm('⚠️ This will delete ALL marketplace data — leads, bids, transactions, asks, and auction rooms.\n\nThis cannot be undone. Continue?')) return;
+        await runAction('wipe', async () => {
+            const { data, error } = await api.demoWipe();
+            if (error) throw new Error(error.message || error.error);
+            const d = data?.deleted;
+            return `☢️ Wiped all: ${d?.leads} leads, ${d?.bids} bids, ${d?.asks} asks, ${d?.transactions} transactions`;
         });
     }
 
@@ -307,24 +252,24 @@ export function DemoPanel() {
         try {
             await api.demoBuyersToggle(next);
         } catch {
-            setDemoBuyersEnabled(!next); // revert on failure
+            setDemoBuyersEnabled(!next);
         }
     }
 
-    async function handleSettle() {
-        await runAction('settle', async () => {
-            const { data, error } = await api.demoSettle();
-            if (error) throw new Error(error.message || error.error);
-            const txInfo = data?.txHash ? ` (tx: ${data.txHash.slice(0, 10)}…)` : ' (off-chain)';
-            return `💰 Settled lead ${data?.leadId?.slice(0, 8)}… → $${data?.amount?.toFixed(2)} USDC${txInfo}\nPII now decrypted for buyer ${data?.buyerWallet?.slice(0, 10)}…`;
-        });
+    async function handleToggleCreMode() {
+        const next = !creNativeMode;
+        setCreNativeMode(next);
+        try {
+            await api.demoCreModeToggle(next);
+        } catch {
+            setCreNativeMode(!next);
+        }
     }
 
     function handleToggleMock() {
         const next = !mockData;
         setMockData(next);
         localStorage.setItem('VITE_USE_MOCK_DATA', next ? 'true' : 'false');
-        // Notify analytics pages to re-render instantly
         window.dispatchEvent(new CustomEvent('mockdata:toggle'));
         setActions(prev => ({
             ...prev,
@@ -333,8 +278,27 @@ export function DemoPanel() {
         setTimeout(() => setActions(prev => ({ ...prev, mock: { state: 'idle' } })), 2000);
     }
 
+    async function handleSimulateTrafficLead() {
+        await runAction('trafficLead', async () => {
+            const sampleRes = await fetch(`${API_BASE_URL}/api/v1/ingest/sample-payload`);
+            if (!sampleRes.ok) throw new Error('Failed to fetch sample payload');
+            const { payload } = await sampleRes.json();
+
+            const ingestRes = await fetch(`${API_BASE_URL}/api/v1/ingest/traffic-platform`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': 'demo-traffic-key' },
+                body: JSON.stringify(payload),
+            });
+            if (!ingestRes.ok) {
+                const err = await ingestRes.json().catch(() => ({}));
+                throw new Error(err.error || 'Ingestion failed');
+            }
+            const result = await ingestRes.json();
+            return `📡 ${result.lead.platform} lead → ${result.lead.vertical} (CRE ${result.lead.qualityScore ?? '?'}/100) — auction started`;
+        });
+    }
+
     async function handlePersonaSwitch(persona: 'buyer' | 'seller' | 'guest') {
-        // In dev/demo mode, obtain a real JWT from the demo-login endpoint
         const isDemoEnv = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
         const apiBase = API_BASE_URL;
 
@@ -350,13 +314,10 @@ export function DemoPanel() {
                 if (data.token) {
                     setAuthToken(data.token);
                     localStorage.setItem('le_auth_user', JSON.stringify(data.user));
-                    // Reconnect socket with new token — reconnect() reuses the same
-                    // socket instance so DevLogPanel raw-socket listeners stay alive
                     socketClient.reconnect(data.token);
                     if (import.meta.env.DEV) console.log(`[DemoPanel] Demo login success — ${role} persona set with real JWT`);
                 } else {
                     if (import.meta.env.DEV) console.warn('[DemoPanel] Demo login failed:', data.error);
-                    // Fall back to localStorage-only persona
                     localStorage.setItem('le_auth_user', JSON.stringify({
                         id: `demo-${persona}`,
                         walletAddress: persona === 'buyer' ? '0x424CaC929939377f221348af52d4cb1247fE4379' : '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',
@@ -370,13 +331,10 @@ export function DemoPanel() {
         } else if (persona === 'guest') {
             setAuthToken(null);
             localStorage.removeItem('le_auth_user');
-            // Use reconnect(undefined) — drops JWT from auth, backend downgrades to GUEST.
-            // Socket object is reused so DevLogPanel raw-socket listeners stay alive.
             socketClient.reconnect(undefined);
             if (import.meta.env.DEV) console.log('[DemoPanel] Guest persona — socket reconnected as GUEST role');
         }
 
-        // Force useAuth to re-read by dispatching a synthetic storage event
         window.dispatchEvent(new StorageEvent('storage', {
             key: 'le_auth_user',
             newValue: localStorage.getItem('le_auth_user'),
@@ -409,7 +367,6 @@ export function DemoPanel() {
             localStorage.setItem('le_auth_user', JSON.stringify(data.user));
             socketClient.reconnect(data.token);
 
-            // Dispatch storage event so useAuth re-reads immediately
             window.dispatchEvent(new StorageEvent('storage', {
                 key: 'le_auth_user',
                 newValue: JSON.stringify(data.user),
@@ -429,56 +386,6 @@ export function DemoPanel() {
             }));
             setTimeout(() => setActions(prev => ({ ...prev, adminLogin: { state: 'idle' } })), 4000);
         }
-    }
-
-    async function handleFundEth() {
-        await runAction('fundEth', async () => {
-            const { data, error } = await api.demoFundEth();
-            if (error) throw new Error(error.message || error.error);
-            const funded = data?.results?.filter(r => r.status === 'funded').length ?? 0;
-            const skipped = data?.results?.filter(r => r.status.startsWith('skipped')).length ?? 0;
-            return `⛽ Funded ${funded} wallets (${skipped} already funded). Sent ${data?.totalSent ?? '?'} ETH total. Deployer now has ${data?.deployerAfter ?? '?'} ETH.`;
-        });
-    }
-
-    async function handleFullReset() {
-        await runAction('fullReset', async () => {
-            const { data, error } = await api.demoFullE2EReset();
-            if (error) throw new Error(error.message || error.error);
-            return `🔄 ${data?.message || 'Full reset initiated — watch the Dev Log panel for progress.'}${data?.wasRunning ? ' (stopped active demo first)' : ''}`;
-        });
-    }
-
-    async function handleToggleCreMode() {
-        const next = !creNativeMode;
-        setCreNativeMode(next);
-        try {
-            await api.demoCreModeToggle(next);
-        } catch {
-            setCreNativeMode(!next); // revert on failure
-        }
-    }
-
-    async function handleSimulateTrafficLead() {
-        await runAction('trafficLead', async () => {
-            // Fetch a random sample payload from the backend
-            const sampleRes = await fetch(`${API_BASE_URL}/api/v1/ingest/sample-payload`);
-            if (!sampleRes.ok) throw new Error('Failed to fetch sample payload');
-            const { payload } = await sampleRes.json();
-
-            // Submit via the traffic platform endpoint
-            const ingestRes = await fetch(`${API_BASE_URL}/api/v1/ingest/traffic-platform`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-api-key': 'demo-traffic-key' },
-                body: JSON.stringify(payload),
-            });
-            if (!ingestRes.ok) {
-                const err = await ingestRes.json().catch(() => ({}));
-                throw new Error(err.error || 'Ingestion failed');
-            }
-            const result = await ingestRes.json();
-            return `📡 ${result.lead.platform} lead → ${result.lead.vertical} (CRE ${result.lead.qualityScore ?? '?'}/100) — auction started`;
-        });
     }
 
     // ============================================
@@ -564,7 +471,6 @@ export function DemoPanel() {
     // Render
     // ============================================
 
-    // Derive persona from actual session role (NOT from pathname)
     const sessionRole = user?.role;
     const currentPersona = sessionRole === 'BUYER'
         ? 'buyer'
@@ -630,7 +536,7 @@ export function DemoPanel() {
                     {/* Content */}
                     <div className="p-3 space-y-2">
 
-                        {/* Live Metrics Banner — emitted by emitLiveMetrics every 30 s while demo is running */}
+                        {/* Live Metrics Banner */}
                         {demoMetrics && (
                             <div className="rounded-xl border border-red-500/30 bg-red-500/[0.08] px-3 py-2 mb-1">
                                 <div className="flex items-center gap-2">
@@ -645,11 +551,10 @@ export function DemoPanel() {
                                 <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                                     Platform rev today: ~${demoMetrics.dailyRevenue.toLocaleString()}
                                 </p>
-                                {/* Demo running indicator — stop button removed per user request */}
                             </div>
                         )}
 
-                        {/* Demo running chip — shown while demo is running but before demoMetrics fires (first 30s) */}
+                        {/* Demo running chip */}
                         {demoRunning && !demoMetrics && (
                             <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-blue-500/30 bg-blue-500/[0.08] mb-1">
                                 <span className="relative flex h-2 w-2">
@@ -660,7 +565,7 @@ export function DemoPanel() {
                             </div>
                         )}
 
-                        {/* Recycling in progress banner */}
+                        {/* Recycling banner */}
                         {isRecycling && (
                             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
                                 <div className="flex items-center gap-2">
@@ -684,8 +589,7 @@ export function DemoPanel() {
                             </div>
                         )}
 
-                        {/* Demo Complete – Results Ready banner (shown after recycling finishes) */}
-
+                        {/* Demo Complete banner */}
                         {demoComplete && !isRecycling && (
                             <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2.5">
                                 <div className="flex items-center justify-between gap-2">
@@ -704,6 +608,7 @@ export function DemoPanel() {
                                 </div>
                             </div>
                         )}
+
                         {/* Section 1: Marketplace Data */}
                         <Section id="marketplace" title="Marketplace Data">
                             <ActionButton
@@ -715,48 +620,27 @@ export function DemoPanel() {
                                 disabled={status.seeded}
                             />
                             <ActionButton
-                                actionKey="clear"
-                                label="Clear Demo Data"
-                                icon={Trash2}
-                                onClick={handleClear}
-                                variant="danger"
-                                disabled={!status.seeded}
-                            />
-                            <ActionButton
                                 actionKey="inject"
                                 label="Inject Single Lead"
                                 icon={Zap}
                                 onClick={handleInjectLead}
                             />
                             <ActionButton
-                                actionKey="seedTemplates"
-                                label="Sync Form Templates"
-                                icon={Layers}
-                                onClick={handleSeedTemplates}
-                            />
-                            <ActionButton
                                 actionKey="seedBounties"
-                                label="🌱 Seed Demo Bounties"
+                                label="Seed Demo Bounties"
                                 icon={Sprout}
                                 onClick={handleSeedBounties}
                                 variant="accent"
                             />
                             <ActionButton
-                                actionKey="reset"
-                                label="Reset to Clean Demo State"
-                                icon={RefreshCw}
-                                onClick={handleReset}
-                                variant="danger"
-                            />
-                            <ActionButton
                                 actionKey="wipe"
-                                label="Clear All Marketplace Data"
+                                label="Reset Everything"
                                 icon={AlertTriangle}
-                                onClick={handleWipe}
+                                onClick={handleResetEverything}
                                 variant="danger"
                             />
                             <p className="text-[10px] text-red-400/70 pl-1">
-                                ⚠️ Wipe removes EVERYTHING — including real SOLD leads and transactions.
+                                ⚠️ Deletes ALL leads, bids, transactions, asks. Testnet data only.
                             </p>
                         </Section>
 
@@ -800,10 +684,9 @@ export function DemoPanel() {
                             <p className="text-[11px] text-muted-foreground pl-1">
                                 {demoBuyersEnabled ? 'Bot buyers will place bids during auctions.' : 'No bot bids — only real users can bid.'}
                             </p>
-
                         </Section>
 
-                        {/* Section: CRE Workflow Mode */}
+                        {/* Section 3: CRE Workflow Mode */}
                         <Section id="cre-workflow" title="⛓️ CRE Workflow Mode">
                             <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
                                 <div className="flex items-center gap-2">
@@ -832,156 +715,9 @@ export function DemoPanel() {
                                     <span>7-gate: vertical • geo • state • quality • off-site • verified • field filters</span>
                                 </div>
                             )}
-                            {creEvalResult && (
-                                <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 animate-in fade-in duration-300">
-                                    <div className="flex items-center gap-2">
-                                        <Shield className="h-3.5 w-3.5 text-purple-400" />
-                                        <span className="text-[11px] font-semibold text-purple-400">CRE DON Executed</span>
-                                    </div>
-                                    <p className="text-[10px] text-muted-foreground mt-1 pl-5">
-                                        Lead {creEvalResult.leadId.slice(0, 8)}… → {creEvalResult.matchedSets}/{creEvalResult.totalPreferenceSets} buyer rules matched
-                                    </p>
-                                    <div className="flex gap-2 mt-1.5 pl-5">
-                                        <a
-                                            href={`https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:underline"
-                                        >
-                                            <Link2 className="h-3 w-3" /> Basescan
-                                        </a>
-                                    </div>
-                                </div>
-                            )}
-                            {/* Winner-Only PII Decryption */}
-                            {creNativeMode && creEvalResult && (
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            const result = await api.demoDecryptPII(creEvalResult.leadId);
-                                            if ('data' in result && result.data?.success) {
-                                                setDecryptResult({ pii: result.data.pii, attestation: result.data.attestation, leadId: creEvalResult.leadId });
-                                            }
-                                        } catch (err) {
-                                            console.error('Decrypt PII failed:', err);
-                                        }
-                                    }}
-                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 text-purple-300 text-[11px] font-semibold hover:from-purple-600/30 hover:to-blue-600/30 transition-all"
-                                >
-                                    <Unlock className="h-3.5 w-3.5" /> Decrypt Lead Data (Winner-Only)
-                                </button>
-                            )}
-                            {decryptResult && (
-                                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Lock className="h-3.5 w-3.5 text-emerald-400" />
-                                        <span className="text-[11px] font-bold text-emerald-400">PII Decrypted — CRE DON Attested</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] pl-5">
-                                        <span className="text-muted-foreground">Name</span>
-                                        <span className="text-foreground font-medium">{decryptResult.pii.firstName} {decryptResult.pii.lastName}</span>
-                                        <span className="text-muted-foreground">Email</span>
-                                        <span className="text-foreground font-medium">{decryptResult.pii.email}</span>
-                                        <span className="text-muted-foreground">Phone</span>
-                                        <span className="text-foreground font-medium">{decryptResult.pii.phone}</span>
-                                        <span className="text-muted-foreground">Address</span>
-                                        <span className="text-foreground font-medium">{decryptResult.pii.address}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-2 pl-5">
-                                        <span className="inline-flex items-center gap-1 text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                                            <Shield className="h-2.5 w-2.5" /> {decryptResult.attestation.source}
-                                        </span>
-                                        <span className="text-[9px] text-muted-foreground">encryptOutput: true</span>
-                                        <a
-                                            href={`https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-[9px] text-blue-400 hover:underline"
-                                        >
-                                            <Link2 className="h-2.5 w-2.5" /> Proof
-                                        </a>
-                                    </div>
-                                </div>
-                            )}
                         </Section>
 
-                        {/* Section 2b: On-Chain Settlement */}
-                        <Section id="settlement" title="On-Chain Settlement">
-                            <ActionButton
-                                actionKey="settle"
-                                label="Complete Settlement on Testnet"
-                                icon={Banknote}
-                                onClick={handleSettle}
-                                variant="accent"
-                            />
-                            <p className="text-[10px] text-muted-foreground pl-1">
-                                Releases escrow on-chain for the most recent won auction. Refresh lead detail page to see decrypted PII.
-                            </p>
-
-                            {/* Demo Seller Address */}
-                            {demoSellerAddress && (
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
-                                    <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    <div className="min-w-0">
-                                        <span className="text-[10px] text-muted-foreground block">Demo Seller Address</span>
-                                        <span className="text-xs font-mono text-foreground truncate block">{demoSellerAddress}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </Section>
-
-                        {/* Section 2c: ETH Pre-Fund (Fund-Once Model) */}
-                        <Section id="ethfund" title="⛽ ETH Pre-Fund (Permanent)">
-                            <ActionButton
-                                actionKey="fundEth"
-                                label="Fund All Wallets (0.015 ETH each)"
-                                icon={Wallet}
-                                onClick={handleFundEth}
-                                variant="accent"
-                            />
-                            <p className="text-[10px] text-muted-foreground pl-1">
-                                Tops up all 11 demo wallets to 0.015 ETH from deployer. Run once before first demo or when balances run low.
-                            </p>
-                        </Section>
-
-                        {/* Section 2d: Full Reset & Recycle (judge-facing emergency button) */}
-                        <Section id="fullreset" title="🔄 Full Reset & Recycle">
-                            <button
-                                id="demo-full-reset-btn"
-                                onClick={handleFullReset}
-                                disabled={actions.fullReset?.state === 'loading'}
-                                title="Use this if the demo ever gets stuck or after a Render restart. Stops any running demo, refunds stranded locked funds, prunes stale DEMO leads, and emits ready status."
-                                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all shadow-md ${actions.fullReset?.state === 'loading'
-                                    ? 'bg-orange-500/40 text-orange-300 cursor-wait opacity-70'
-                                    : actions.fullReset?.state === 'success'
-                                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                        : actions.fullReset?.state === 'error'
-                                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                            : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 hover:shadow-orange-500/30'
-                                    }`}
-                            >
-                                {actions.fullReset?.state === 'loading' ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : actions.fullReset?.state === 'success' ? (
-                                    <Check className="h-4 w-4" />
-                                ) : actions.fullReset?.state === 'error' ? (
-                                    <AlertCircle className="h-4 w-4" />
-                                ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                )}
-                                🔄 Full Reset & Recycle Demo Environment
-                            </button>
-                            {actions.fullReset?.message && (
-                                <p className={`text-[11px] pl-1 mt-1 ${actions.fullReset.state === 'error' ? 'text-red-400' : 'text-muted-foreground'}`}>
-                                    {actions.fullReset.message}
-                                </p>
-                            )}
-                            <p className="text-[10px] text-muted-foreground pl-1">
-                                Use if demo gets stuck or after Render restart. Watch Dev Log for progress.
-                            </p>
-                        </Section>
-
-                        {/* Section 2e: Traffic Platform Ingestion (Stretch Feature) */}
+                        {/* Section 4: Traffic Platform Ingestion */}
                         <Section id="traffic" title="📡 Traffic Platform Ingestion">
                             <ActionButton
                                 actionKey="trafficLead"
@@ -991,15 +727,11 @@ export function DemoPanel() {
                                 variant="accent"
                             />
                             <p className="text-[10px] text-muted-foreground pl-1">
-                                Simulates a Google Ads / Facebook / TikTok / TTD webhook → CRE pipeline → live auction. Check Marketplace for the new lead.
+                                Simulates a Google Ads / Facebook / TikTok / TTD webhook → CRE pipeline → live auction.
                             </p>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400">
-                                <Layers className="h-3 w-3 shrink-0" />
-                                <span>Full pipeline: PII encrypt → CRE verify → buyer match → auction</span>
-                            </div>
                         </Section>
 
-                        {/* Section 3: Analytics */}
+                        {/* Section 5: Analytics Mock Data */}
                         <Section id="analytics" title="Analytics Mock Data">
                             <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.06] border border-border">
                                 <div className="flex items-center gap-2">
@@ -1069,7 +801,7 @@ export function DemoPanel() {
                             )}
                         </div>
 
-                        {/* Section 4b: Demo Admin Login */}
+                        {/* Admin Access */}
                         <Section id="admin" title="Admin Access">
                             <button
                                 onClick={handleDemoAdminLogin}
