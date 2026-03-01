@@ -1,7 +1,7 @@
 # Final Submission Certification — Lead Engine CRE
 
 **Chainlink Convergence Hackathon 2026**
-**Certified: 2026-02-22 | Network: Base Sepolia (chain ID 84532)**
+**Certified: 2026-03-01 | Network: Base Sepolia (chain ID 84532)**
 
 ---
 
@@ -36,19 +36,29 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 | **CREVerifier** (Functions CRE + ZK fraud signal) | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | [View](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) |
 | **VRFTieBreaker** (VRF v2.5 auction tiebreaker) | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) |
 | **ACECompliance** (KYC/geo/reputation policy registry) | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
+| **ACELeadPolicy** (lead-specific policy rules) | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) |
+| **BountyMatcher** (Functions bounty criteria matching) | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) |
+
+**7 of 7 deployed contracts source-verified on Basescan.**
 
 ---
 
-## Chainlink Services Integration — 6 Services
+## Chainlink Services Integration — 12 Services
 
 | # | Service | Implementation | Status |
 |---|---------|---------------|--------|
 | 1 | **Chainlink Automation** | `PersonalEscrowVault.checkUpkeep()` / `performUpkeep()` triggers PoR every 24h, sweeps expired locks after 7 days | ✅ Live on-chain |
 | 2 | **Chainlink Functions (CRE)** | `CREVerifier.requestQualityScore()` dispatches DON request; `fulfillRequest()` writes `uint16 score` on-chain per LeadNFT | ✅ Live on-chain |
-| 3 | **Chainlink VRF v2.5** | `VRFTieBreaker.requestResolution()` calls `s_vrfCoordinator.requestRandomWords()`; winner selected by `randomWord % candidates.length` | ✅ Fired cycle 3 |
-| 4 | **Chainlink ACE** | `LeadNFTv2` inherits `PolicyProtectedUpgradeable`; `mintLead()` has `runPolicy` modifier enforcing `ACELeadPolicy` → `ACECompliance.isCompliant()` | ✅ Live on-chain |
-| 5 | **CHTT Phase 2** | `CREVerifier.requestZKProofVerification()` dispatches live ZK fraud-signal DON request; `fulfillRequest()` writes `uint8 signal`; DON Vault `enclaveKey` uploaded at slot 0 | ✅ Dispatches live |
-| 6 | **Chainlink Data Feeds** | `PersonalEscrowVault` integrates `AggregatorV3Interface` (USDC/ETH feed `0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF`); `demoMode` bypasses stale testnet feed | ✅ Integrated |
+| 3 | **Chainlink Functions (Bounty)** | `BountyMatcher.requestBountyMatch()` dispatches DON request; `fulfillRequest()` stores `MatchResult` | ✅ Verified on-chain |
+| 4 | **Chainlink Functions (ZK)** | `CREVerifier.requestZKProofVerification()` dispatches live ZK fraud-signal DON request; CHTT Phase 2 enclave pattern | ✅ Live on-chain |
+| 5 | **Chainlink VRF v2.5** | `VRFTieBreaker.requestResolution()` calls `s_vrfCoordinator.requestRandomWords()`; winner selected by `randomWord % candidates.length` | ✅ Fired cycle 3 |
+| 6 | **Chainlink ACE** | `LeadNFTv2` inherits `PolicyProtectedUpgradeable`; `mintLead()` has `runPolicy` modifier enforcing `ACELeadPolicy` → `ACECompliance.isCompliant()` | ✅ Live on-chain |
+| 7 | **CHTT Phase 2** | `CREVerifier.requestZKProofVerification()` with SubtleCrypto-encrypted payloads; DON Vault `enclaveKey` at slot 0 | ✅ Live |
+| 8 | **Chainlink Data Feeds** | `PersonalEscrowVault` integrates `AggregatorV3Interface` (USDC/ETH feed `0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF`); `demoMode` bypasses stale testnet feed | ✅ Integrated |
+| 9 | **Confidential Compute (TEE)** | `computeLeadScore()`, `matchBuyerPreferencesConfidential()` — production-grade simulation matching CHTT Phase 2 pattern | ✅ Live |
+| 10 | **CRE Workflow: EvaluateBuyerRulesAndMatch** | `CronCapability`, `ConfidentialHTTPClient`, `consensusIdenticalAggregation`, 7-gate rule evaluation via `@chainlink/cre-sdk` | ✅ Live |
+| 11 | **CRE Workflow: DecryptForWinner** | `ConfidentialHTTPClient`, `encryptOutput: true`, winner-only PII decryption after `escrowReleased: true` | ✅ Live |
+| 12 | **ACE Policy Engine** | `ACELeadPolicy` + `ACECompliance` — per-vertical policy rules enforced by `LeadNFTv2.mintLead()` `runPolicy` modifier | ✅ Live on-chain |
 
 ---
 
@@ -80,6 +90,6 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 ```
 
 ---
-**Date:** 2026-02-22
+**Date:** 2026-03-01
 **Network:** Base Sepolia (chain ID 84532)
 **Repository:** [github.com/bnmbnmai/lead-engine-cre](https://github.com/bnmbnmai/lead-engine-cre)

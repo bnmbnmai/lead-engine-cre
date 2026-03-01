@@ -47,7 +47,7 @@
 
 | Evidence | Details |
 |---|---|
-| Feed address | `0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1` — ETH/USD, Base Sepolia |
+| Feed address | `0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF` — USDC/ETH, Base Sepolia |
 | Usage | `PersonalEscrowVault.sol` integrates `AggregatorV3Interface` for escrow deposit price guard |
 | Backend mirroring | `backend/src/services/data-feeds.service.ts` |
 | ABI | AggregatorV3Interface — `latestRoundData()` |

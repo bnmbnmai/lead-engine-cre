@@ -9,7 +9,7 @@
 **Lead Engine**
 *Decentralized Real-Time Bidding for the $200B+ Lead Marketplace*
 
-Built with Chainlink CRE + ACE + Functions + VRF + Data Feeds + DECO + Confidential HTTP
+Built with 12 Chainlink Service Integrations: CRE + ACE + Functions + VRF + Data Feeds + Confidential HTTP + CRE Workflows + Confidential Compute
 Chainlink Hackathon 2026 — Convergence
 
 ---
@@ -132,12 +132,12 @@ Chainlink Hackathon 2026 — Convergence
 |--------|-------|
 | Verticals | 10 (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial) |
 | Countries | 20+ (US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE) |
-| Chainlink Services | 7 (CRE, ACE, Functions, VRF, Data Feeds, DECO, Confidential HTTP) |
+| Chainlink Services | 12 (CRE, ACE, Functions ×3, VRF, Data Feeds, Confidential HTTP, Confidential Compute, CRE Workflows ×2, ACE Policy Engine) |
 | Security Sim | 29/29 tests passing (7 categories incl. off-site fraud, cross-border ACE) |
 | Load Test | 23+ scenarios, 10K peak concurrent users (Artillery) |
 | Testnet Sim | 500+ on-chain txs (mints, bids, escrows) via 10 HD wallets |
 | Cypress E2E | 82 UI tests (seller, buyer, stress, copy assertions) |
-| Smart Contracts | 10 (Base Sepolia) |
+| Smart Contracts | 7 (Base Sepolia, all source-verified on Basescan) |
 | Mock Data | 200+ seeded entries across all verticals/geos |
 | MCP Agent Tools | 12 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status, vertical-fields, suggest-bid, bounty) |
 
@@ -187,8 +187,8 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 
 | Criteria | Lead Engine |
 |----------|-------------|
-| **Innovation** | 7 Chainlink services + MCP agent server + CCIP-ready + atomic escrow settlement |
-| **Technical depth** | 10 smart contracts, ZK proofs, commit-reveal, TEE scoring, 10-gate auto-bid |
+| **Innovation** | 12 Chainlink service integrations + MCP agent server + CCIP-ready + atomic escrow settlement |
+| **Technical depth** | 7 smart contracts (verified), ZK proofs, commit-reveal, TEE scoring, 10-gate auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
 | **Traction** | 500+ testnet txs, 1,288+ tests passing, 10K concurrent users |
 | **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |
@@ -200,7 +200,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | Resource | URL |
 |---------|-----|
 | **Repo** | https://github.com/bnmbnmai/lead-engine-cre |
-| **Demo** | https://lead-engine-cre.vercel.app |
+| **Demo** | https://lead-engine-cre-frontend.vercel.app |
 | **API** | https://lead-engine-cre-api.onrender.com |
 | **Swagger** | https://lead-engine-cre-api.onrender.com/api/swagger |
 | **Video** | *[Loom URL — record before submission]* |

@@ -1,73 +1,77 @@
 # On-Chain Verification — Lead Engine CRE
 
-## Deployed Contracts (Sepolia)
+> **Network:** Base Sepolia (chain ID 84532)
+> **Last verified:** 2026-03-01 | **Source of truth:** [CONTRACTS.md](../CONTRACTS.md)
 
-| Contract | Address | Explorer |
-|----------|---------|----------|
-| **ACECompliance** | `0x746245858A5A5bCccfd0bdAa228b1489908b9546` | [Etherscan](https://sepolia.etherscan.io/address/0x746245858A5A5bCccfd0bdAa228b1489908b9546) |
-| **CREVerifier** | `0x00f1f1C16e1431FFaAc3d44c608EFb5F8Db257A4` | [Etherscan](https://sepolia.etherscan.io/address/0x00f1f1C16e1431FFaAc3d44c608EFb5F8Db257A4) |
-| **LeadNFTv2** | `0xB93A1Ff499BdEaf74710F760Eb2B6bc5b62f8546` | [Etherscan](https://sepolia.etherscan.io/address/0xB93A1Ff499BdEaf74710F760Eb2B6bc5b62f8546) |
-| **Marketplace** | `0x3b1bBb196e65BE66c2fB18DB70A3513c1dDeB288` | [Etherscan](https://sepolia.etherscan.io/address/0x3b1bBb196e65BE66c2fB18DB70A3513c1dDeB288) |
-| **RTBEscrow** | `0x19B7a082e93B096B0516FA46E67d4168DdCD9004` | [Etherscan](https://sepolia.etherscan.io/address/0x19B7a082e93B096B0516FA46E67d4168DdCD9004) |
+---
+
+## Deployed Contracts (Base Sepolia)
+
+| Contract | Address | Basescan | Txns |
+|----------|---------|----------|------|
+| **PersonalEscrowVault** | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | [View ↗](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | 1,477 |
+| **LeadNFTv2** | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | [View ↗](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | 26 |
+| **CREVerifier** | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | [View ↗](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | 20 |
+| **VRFTieBreaker** | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View ↗](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | 3 |
+| **ACECompliance** | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View ↗](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | 66 |
+| **ACELeadPolicy** | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View ↗](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | 0 |
+| **BountyMatcher** | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View ↗](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | 0 |
+
+**7 of 7 deployed contracts carry "Contract Source Code Verified (Exact Match)" on Basescan.**
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Query on-chain events (all contracts, last 10K blocks)
-npx ts-node scripts/query-events.ts --network sepolia
+# Deploy contracts (Base Sepolia)
+cd contracts
+npx hardhat run scripts/deploy-vault-only.ts --network baseSepolia
 
-# Query specific contract
-npx ts-node scripts/query-events.ts --contract LeadNFT --event LeadMinted
-
-# Run full E2E simulation on testnet
-npx hardhat run scripts/simulate-e2e.ts --network sepolia
-
-# Run E2E simulation locally
-npx hardhat run scripts/simulate-e2e.ts --network hardhat
+# Verify contract on Basescan
+npx hardhat verify --network baseSepolia <ADDRESS> <CONSTRUCTOR_ARGS>
 
 # Run Hardhat unit tests
 npx hardhat test
 
-# Deploy contracts (testnet)
-npx hardhat run contracts/scripts/deploy.ts --network sepolia
-
-# Verify contract on Etherscan
-npx hardhat verify --network sepolia <ADDRESS> <CONSTRUCTOR_ARGS>
+# Query on-chain events (all contracts, last 10K blocks)
+npx ts-node scripts/query-events.ts --network baseSepolia
 ```
 
 ---
 
 ## Key Events to Monitor
 
-### LeadNFT — Lead Lifecycle
+### LeadNFTv2 — Lead Lifecycle (ACE-Protected)
 
 | Event | Description | Indexed Fields |
 |-------|-------------|----------------|
-| `LeadMinted` | New lead submitted as NFT | `tokenId`, `seller` |
+| `LeadMinted` | New lead submitted as NFT (ACE `runPolicy` modifier enforced) | `tokenId`, `seller` |
 | `LeadSold` | Lead sold to buyer | `tokenId`, `buyer` |
-| `LeadVerified` | CRE quality score confirmed | `tokenId` |
-| `LeadExpired` | Lead TTL reached | `tokenId` |
+| `LeadVerified` | CRE quality score confirmed via Functions DON | `tokenId` |
 
-### Marketplace — Auction Flow
-
-| Event | Description | Indexed Fields |
-|-------|-------------|----------------|
-| `ListingCreated` | Seller lists lead for auction | `listingId`, `tokenId` |
-| `BidCommitted` | Sealed bid submitted | `listingId`, `bidder` |
-| `BidRevealed` | Bid amount revealed | `listingId`, `bidder` |
-| `AuctionResolved` | Winner determined | `listingId` |
-| `BuyNowExecuted` | Instant purchase | `listingId`, `buyer` |
-
-### RTBEscrow — Settlement
+### PersonalEscrowVault — Settlement + Automation
 
 | Event | Description | Indexed Fields |
 |-------|-------------|----------------|
-| `EscrowCreated` | USDC locked for trade | `escrowId`, `listingId` |
-| `EscrowReleased` | Seller paid | `escrowId` |
-| `EscrowRefunded` | Buyer refunded | `escrowId` |
-| `EscrowDisputed` | Dispute opened | `escrowId` |
+| `DepositReceived` | USDC locked for trade | `lockId`, `from` |
+| `Released` | Seller paid after settlement | `lockId` |
+| `Refunded` | Buyer refunded (expired or lost bid) | `lockId` |
+| `UpkeepPerformed` | Automation PoR check executed | `timestamp` |
+
+### CREVerifier — Quality Scoring + ZK
+
+| Event | Description | Indexed Fields |
+|-------|-------------|----------------|
+| `VerificationRequested` | `requestQualityScore()` dispatched to DON | `requestId`, `leadTokenId` |
+| `VerificationFulfilled` | DON callback with quality score | `requestId`, `score` |
+
+### VRFTieBreaker — Auction Fairness
+
+| Event | Description | Indexed Fields |
+|-------|-------------|----------------|
+| `ResolutionRequested` | VRF random words requested | `requestId`, `auctionId` |
+| `WinnerSelected` | Winner determined by `randomWord % candidates.length` | `auctionId`, `winner` |
 
 ### ACECompliance — KYC/AML
 
@@ -75,53 +79,51 @@ npx hardhat verify --network sepolia <ADDRESS> <CONSTRUCTOR_ARGS>
 |-------|-------------|----------------|
 | `UserVerified` | KYC approval | `user`, `jurisdiction` |
 | `UserBlacklisted` | Compliance block | `user` |
-| `JurisdictionUpdated` | Geo rule change | `jurisdiction` |
 
 ---
 
-## Edge Case Handling
+## Supporting Addresses
 
-| Edge Case | How Script Handles It |
-|-----------|-----------------------|
-| **Insufficient gas** | Pre-flight balance check, faucet URLs printed |
-| **Nonce conflict** | Diagnostic message + MetaMask reset instructions |
-| **Block reorg** | Reorg safety check (12 confirmations before trusting events) |
-| **Tx revert** | Receipt status check → error with tx hash for debugging |
-| **RPC rate limit** | Supports multiple providers (Alchemy, Base RPC, QuickNode) |
-| **Contract not deployed** | Address validation with descriptive error |
+| Role | Address |
+|------|---------|
+| USDC Token (Base Sepolia) | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+| USDC/ETH Data Feed | `0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF` |
+| CRE Subscription (Functions) | `581` |
+| VRF Subscription (VRF v2.5) | `113264743570594559…` |
+| Functions Router | `0xf9B8fc078197181C841c296C876945aaa425B278` |
+| DON ID | `fun-base-sepolia-1` |
 
 ---
 
 ## Example Transaction Lookups
 
-Once the simulation runs, you can look up transactions on Etherscan:
-
 ```
-# KYC Verification
-https://sepolia.etherscan.io/tx/<TX_HASH>#eventlog
-
-# Lead NFT Mint
-https://sepolia.etherscan.io/tx/<TX_HASH>#eventlog
+# LeadNFTv2 mint
+https://sepolia.basescan.org/tx/<TX_HASH>#eventlog
 → Look for LeadMinted(tokenId, seller, vertical, geo, dataHash)
 
-# Sealed Bid
-https://sepolia.etherscan.io/tx/<TX_HASH>#eventlog
-→ Look for BidCommitted(listingId, bidder, commitHash)
+# CRE Quality Score fulfillment
+https://sepolia.basescan.org/tx/<TX_HASH>#eventlog
+→ Look for VerificationFulfilled(requestId, leadTokenId, score)
 
 # Escrow Settlement
-https://sepolia.etherscan.io/tx/<TX_HASH>#eventlog
-→ Look for EscrowCreated → EscrowReleased sequence
+https://sepolia.basescan.org/tx/<TX_HASH>#eventlog
+→ Look for Released(lockId, amount, to)
 ```
 
 ---
 
-## Simulation Output
+## Edge Case Handling
 
-Both scripts print JSON reports to stdout:
+| Edge Case | How It's Handled |
+|-----------|------------------|
+| **Insufficient gas** | Pre-flight balance check, faucet URLs printed |
+| **Nonce conflict** | Diagnostic message + MetaMask reset instructions |
+| **Tx revert** | Receipt status check → error with tx hash for debugging |
+| **RPC rate limit** | Supports multiple providers (Base RPC, Alchemy, QuickNode) |
+| **Contract not deployed** | Address validation with descriptive error |
+| **DON timeout** | CRE retries once, then falls back to score 5000 |
 
-| Report | Contents |
-|--------|----------|
-| `on-chain-events.json` | All events found by `query-events.ts` |
-| `e2e-onchain-simulation.json` | Step-by-step simulation results |
+---
 
-Each report includes: chain ID, block numbers, tx hashes, gas usage, timestamps, and contract addresses.
+*All contracts, addresses, and subscription IDs defer to [CONTRACTS.md](../CONTRACTS.md) as the canonical source of truth.*

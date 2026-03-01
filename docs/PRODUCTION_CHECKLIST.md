@@ -42,7 +42,7 @@
 
 ## 📜 Smart Contracts
 
-- [ ] All 10 contracts deployed and verified on target network
+- [ ] All 7 contracts deployed and verified on target network
 - [ ] Constructor arguments documented
 - [ ] Contract addresses updated in backend `.env`
 - [ ] Chainlink CRE subscription funded (≥ 5 LINK)
