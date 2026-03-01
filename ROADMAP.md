@@ -2,7 +2,7 @@
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-Current version: **v1.0.0 (1 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, streamlined Demo Control Panel, and vault orphaned lock recovery.
+Current version: **v1.0.0 (1 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, streamlined Demo Control Panel, vault orphaned lock recovery, Admin Overview Dashboard with real-time CRE status, and comprehensive endpoint audit (~95 endpoints across 17 route files).
 
 ## Vision
 Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
@@ -47,6 +47,11 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - [x] **Final Documentation Sync** — All docs updated to 12 services, Base Sepolia addresses, correct demo URL — **COMPLETED 2026-03-01**
 - [x] **Archive Cleanup** — Audit/investigation files moved to `docs/archive/` — **COMPLETED 2026-03-01**
 - [x] **Official Agent Skills Integration** — `chainlink-agent-skills/cre-skills` + MCP tool registration — **COMPLETED 2026-03-01**
+- [x] **Admin Overview Dashboard** — `/admin` landing page with marketplace stats, system health, 12 Chainlink services with real-time CRE-Native Mode status, PersonalEscrowVault, deployed contracts, recent demo runs — **COMPLETED 2026-03-01**
+- [x] **Admin Navigation Cleanup** — Sidebar reordered to Overview → Form Builder → Verticals; NFT Admin removed; all redirects updated — **COMPLETED 2026-03-01**
+- [x] **Admin Dashboard CRE Status Fix** — CRE-Native Mode now reads from canonical `creNativeDemoMode` config key (same as DemoPanel toggle) — **COMPLETED 2026-03-01**
+- [x] **Comprehensive Endpoint Audit** — Documented all ~95 endpoints across 17 route files in `endpoint_audit.md`; fixed CRE config key mismatch (root cause of stale status) — **COMPLETED 2026-03-01**
+- [x] **Backend Build Fix** — Resolved TS2554 errors in `cre.routes.ts` for successful Render deployment — **COMPLETED 2026-03-01**
 
 ---
 
@@ -57,7 +62,7 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - Programmatic media buying integration (The Trade Desk / DV360) to auto-purchase lead inventory based on real-time CRE quality scores and auction pricing.
 - Budget pacing and spend caps via Chainlink Data Feeds.
 
-**Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)** ⬅️ _Next high-priority feature for March 8 submission_
+**Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)** ⬅️ _Next high-priority feature post-submission_
 - 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
 - **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action, reducing friction for high-volume buyers.
 - Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
@@ -142,7 +147,8 @@ The current architecture is designed for demo and early-production traffic. Scal
 - Data subscription bundles (encrypted lead cohorts).
 
 **Infrastructure & Observability**
-- **Expanded Admin Dashboard** — system health monitoring, audit logs, wallet balance overview, demo run history, and real-time CRE workflow status. Consolidates operational visibility for platform operators.
+- ✅ **Expanded Admin Dashboard** — system health monitoring, 12 Chainlink service statuses with real-time CRE-Native Mode, marketplace stats, PersonalEscrowVault status, deployed contracts table, and recent demo runs. **COMPLETED 2026-03-01**
+- ✅ **API Endpoint Audit** — documented all ~95 endpoints across 17 route files; eliminated config key mismatch causing stale CRE status. See `endpoint_audit.md`. **COMPLETED 2026-03-01**
 - **Comprehensive Test Suite** — unit tests for all services (ace, cre, vrf, vault, auction), integration tests for critical flows (demo run, settlement, PII decryption), frontend component tests, and E2E tests with Playwright. Target 80% coverage.
 
 ---
@@ -169,10 +175,10 @@ The current architecture is designed for demo and early-production traffic. Scal
 | ✅ Done  | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Privacy Track + institutions        |
 | ✅ Done  | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Mandatory for all tracks            |
 | ✅ Done  | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
-| 🔥 Next  | Permanent PII Unlock                 | CRE + Confidential Compute     | Medium   | Privacy Track + buyer experience    |
+| Next     | Permanent PII Unlock                 | CRE + Confidential Compute     | Medium   | Privacy Track + buyer experience    |
 | Deferred | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
 | Medium   | CCIP cross-chain + private tx        | CCIP Private                   | Medium   | Multi-chain RWA                     |
-| Medium   | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
+| ✅ Done  | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
 | Medium   | Marketplace bounty boost badges      | Functions                      | Low      | Seller engagement + fill rates      |
 | Medium   | Prediction market on conversion      | Functions + Streams            | Medium   | New asset class                     |
 | Low      | World ID sybil resistance            | World ID + CRE                 | Low      | Special track bonus                 |
@@ -193,4 +199,4 @@ With the extended deadline and the new Privacy + Agents tracks, Lead Engine CRE 
 
 ---
 
-*Last updated: 1 March 2026*
+*Last updated: 1 March 2026 (Phase 2 admin dashboard, endpoint audit, and documentation sync complete)*

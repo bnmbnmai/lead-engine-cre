@@ -60,7 +60,7 @@ Chainlink Hackathon 2026 — Convergence
 ┌───▼──────────┐  ┌─────▼───────────┐  ┌▼──────────────┐
 │  Chainlink   │  │  Smart Contracts│  │  MCP Server   │
 │  CRE + ACE   │  │  CREVerifier    │  │  :3002        │
-│  DECO        │  │  ACECompliance  │  │  12 Agent Tools│
+│  DECO        │  │  ACECompliance  │  │  15 Agent Tools│
 │  Data Feeds  │  │  Marketplace    │  │  CCIP-ready   │
 │  Confid HTTP │  │  RTBEscrow      │  │  JSON-RPC     │
 └──────────────┘  │  LeadNFTv2      │  └───────────────┘
@@ -139,7 +139,7 @@ Chainlink Hackathon 2026 — Convergence
 | Cypress E2E | 82 UI tests (seller, buyer, stress, copy assertions) |
 | Smart Contracts | 7 (Base Sepolia, all source-verified on Basescan) |
 | Mock Data | 200+ seeded entries across all verticals/geos |
-| MCP Agent Tools | 12 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status, vertical-fields, suggest-bid, bounty) |
+| MCP Agent Tools | 15 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status, vertical-fields, suggest-bid, bounty) |
 
 ---
 
