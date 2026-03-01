@@ -126,7 +126,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     ...(label !== 'Seller'
                         ? [{ href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-4 w-4" /> }]
                         : []),
-                    ...(label !== 'Admin' && user?.role === 'ADMIN'
+                    ...(label !== 'Admin' && (user?.role === 'ADMIN' || import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true')
                         ? [{ href: '/admin/nfts', label: 'Admin Panel', icon: <Shield className="h-4 w-4" /> }]
                         : []),
                 ].map((item) => (
