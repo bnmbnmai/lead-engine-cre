@@ -328,6 +328,7 @@ export const api = {
     demoWallets: () => apiFetch<{ seller: string; deployer: string; buyers: string[] }>('/api/v1/demo-panel/demo-wallets'),
     demoWipe: () => apiFetch<{ success: boolean; deleted: { leads: number; bids: number; transactions: number; auctionRooms: number; asks: number }; message: string }>('/api/v1/demo-panel/wipe', { method: 'POST', body: JSON.stringify({ confirm: true }) }),
     demoFundEth: () => apiFetch<{ totalSent: string; deployerBefore: string; deployerAfter: string; results: Array<{ label: string; addr: string; sent: string; status: string }> }>('/api/v1/demo-panel/fund-eth', { method: 'POST' }),
+    demoSeedBounties: () => apiFetch<{ success: boolean; poolsCreated: number; totalUSDC: number; message: string }>('/api/v1/demo-panel/seed-bounties', { method: 'POST' }),
 
     // CRE-Native Demo Mode
     demoCreModeStatus: () => apiFetch<{ enabled: boolean }>('/api/v1/demo-panel/cre-mode'),

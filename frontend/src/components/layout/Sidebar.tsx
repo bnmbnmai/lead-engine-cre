@@ -15,8 +15,10 @@ import {
     Zap,
     Briefcase,
     Plug,
+    Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import useAuth from '@/hooks/useAuth';
 
 interface SidebarItem {
     href: string;
@@ -66,6 +68,7 @@ function getContextItems(pathname: string) {
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     const location = useLocation();
+    const { user } = useAuth();
     const { label, items } = getContextItems(location.pathname);
 
     const sidebarContent = (
@@ -122,6 +125,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         : []),
                     ...(label !== 'Seller'
                         ? [{ href: '/seller', label: 'Seller Dashboard', icon: <Send className="h-4 w-4" /> }]
+                        : []),
+                    ...(label !== 'Admin' && user?.role === 'ADMIN'
+                        ? [{ href: '/admin/nfts', label: 'Admin Panel', icon: <Shield className="h-4 w-4" /> }]
                         : []),
                 ].map((item) => (
                     <Link

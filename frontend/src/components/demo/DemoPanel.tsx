@@ -34,6 +34,7 @@ import {
     Shield,
     Layers,
     Banknote,
+    Sprout,
     Users,
     Wallet,
     Link2,
@@ -273,6 +274,14 @@ export function DemoPanel() {
         });
     }
 
+    async function handleSeedBounties() {
+        await runAction('seedBounties', async () => {
+            const { data, error } = await api.demoSeedBounties();
+            if (error) throw new Error(error.message || error.error);
+            return `🌱 Seeded ${data?.poolsCreated} bounty pools ($${data?.totalUSDC} USDC) — check Seller Dashboard`;
+        });
+    }
+
     async function handleInjectLead() {
         await runAction('inject', async () => {
             const { data, error } = await api.demoInjectLead();
@@ -411,7 +420,7 @@ export function DemoPanel() {
                 adminLogin: { state: 'success', message: '🔐 Logged in as Demo Admin' },
             }));
             if (import.meta.env.DEV) console.log('[DemoPanel] Demo admin login success — ADMIN persona set with real JWT');
-            navigate('/admin/form-builder');
+            navigate('/admin/nfts');
             setTimeout(() => setActions(prev => ({ ...prev, adminLogin: { state: 'idle' } })), 3000);
         } catch (err: any) {
             setActions(prev => ({
@@ -724,6 +733,13 @@ export function DemoPanel() {
                                 label="Sync Form Templates"
                                 icon={Layers}
                                 onClick={handleSeedTemplates}
+                            />
+                            <ActionButton
+                                actionKey="seedBounties"
+                                label="🌱 Seed Demo Bounties"
+                                icon={Sprout}
+                                onClick={handleSeedBounties}
+                                variant="accent"
                             />
                             <ActionButton
                                 actionKey="reset"

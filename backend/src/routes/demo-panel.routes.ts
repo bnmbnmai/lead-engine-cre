@@ -1484,6 +1484,81 @@ router.post('/seed-templates', authMiddleware, publicDemoBypass, async (req: Req
 });
 
 // ============================================
+// POST /seed-bounties — Seed demo bounty pools for Seller Dashboard
+// ============================================
+router.post('/seed-bounties', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+    try {
+        const { bountyService } = await import('../services/bounty.service');
+
+        // Ensure verticals exist
+        await seedVerticals();
+
+        const DEMO_BOUNTY_POOLS = [
+            {
+                verticalSlug: 'solar',
+                amount: 350,
+                criteria: { minQualityScore: 7000, geoStates: ['CA', 'TX', 'AZ'], minCreditScore: 700, maxLeadAge: 48 },
+            },
+            {
+                verticalSlug: 'mortgage',
+                amount: 500,
+                criteria: { minQualityScore: 6500, geoStates: ['NY', 'FL', 'NJ'], minCreditScore: 720 },
+            },
+            {
+                verticalSlug: 'roofing',
+                amount: 200,
+                criteria: { minQualityScore: 5000, geoStates: ['TX', 'FL', 'GA'], maxLeadAge: 72 },
+            },
+            {
+                verticalSlug: 'insurance',
+                amount: 275,
+                criteria: { geoStates: ['CA', 'NY', 'IL'], minCreditScore: 680 },
+            },
+            {
+                verticalSlug: 'auto',
+                amount: 150,
+                criteria: { minQualityScore: 4000 },
+            },
+        ];
+
+        let poolsCreated = 0;
+        let totalUSDC = 0;
+
+        for (const pool of DEMO_BOUNTY_POOLS) {
+            const result = await bountyService.depositBounty(
+                'demo-buyer-bounty',
+                pool.verticalSlug,
+                pool.amount,
+                pool.criteria,
+                '0x424CaC929939377f221348af52d4cb1247fE4379' // demo buyer wallet
+            );
+            if (result.success) {
+                poolsCreated++;
+                totalUSDC += pool.amount;
+            } else {
+                console.warn(`[DEMO SEED-BOUNTIES] Failed to seed ${pool.verticalSlug}: ${result.error}`);
+            }
+        }
+
+        // Notify clients to refresh (Seller Dashboard bounty card)
+        const io = req.app.get('io');
+        if (io) io.emit('marketplace:refreshAll');
+
+        console.log(`[DEMO SEED-BOUNTIES] Seeded ${poolsCreated} bounty pools ($${totalUSDC} total)`);
+
+        res.json({
+            success: true,
+            poolsCreated,
+            totalUSDC,
+            message: `Seeded ${poolsCreated} bounty pools ($${totalUSDC} USDC) across ${poolsCreated} verticals.`,
+        });
+    } catch (error: any) {
+        console.error('Seed bounties error:', error);
+        res.status(500).json({ error: 'Failed to seed bounties', details: String(error) });
+    }
+});
+
+// ============================================
 // Settle (Escrow Release) — on-chain settlement
 // ============================================
 
