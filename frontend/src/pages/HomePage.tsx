@@ -616,9 +616,8 @@ export function HomePage() {
 
                             {/* Subtitle */}
                             <p className="text-center text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-                                Serving the <span className="text-foreground font-semibold">$200B</span> lead generation market with
-                                Chainlink-verified quality, real-time bidding, auto-bid automation, and instant on-chain
-                                USDC settlement &mdash; across <span className="text-foreground font-semibold">50+ verticals</span> in 20+ countries.
+                                The Chainlink-powered marketplace for tokenized, privacy-preserving leads. Real-time bidding,
+                                verifiable CRE quality scoring, atomic USDC settlement, and winner-only PII decryption &mdash; all on-chain.
                             </p>
 
                             {/* CTA */}
@@ -642,9 +641,8 @@ export function HomePage() {
                                     <h3 className="font-semibold text-sm text-foreground">Verified Lead Quality</h3>
                                 </div>
                                 <p className="text-sm leading-relaxed text-muted-foreground">
-                                    Every lead carries a Chainlink CRE quality score (0&ndash;100) that cryptographically
-                                    proves authenticity. No bots, no stuffed data, no junk &mdash; verified on-chain
-                                    before it reaches the marketplace.
+                                    Every lead carries a Chainlink CRE quality score (0&ndash;100) with on-chain attestation.
+                                    No bots, no stuffed data, no junk &mdash; verified before it reaches the marketplace.
                                 </p>
                             </div>
 
@@ -654,12 +652,12 @@ export function HomePage() {
                                     <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
                                         <Eye className="h-5 w-5 text-blue-400" />
                                     </div>
-                                    <h3 className="font-semibold text-sm text-foreground">Full Transparency</h3>
+                                    <h3 className="font-semibold text-sm text-foreground">Full Transparency &amp; Provenance</h3>
                                 </div>
                                 <p className="text-sm leading-relaxed text-muted-foreground">
-                                    On-chain USDC settlement and LeadNFT provenance give both sides perfect
-                                    auditability. Atomic payments &mdash; no net terms, no chargebacks. Ownership
-                                    history and quality proof travel with the NFT.
+                                    On-chain USDC settlement and LeadNFT provenance give both sides perfect auditability.
+                                    Atomic payments &mdash; no net terms, no chargebacks. Ownership history and quality
+                                    proof travel with the NFT.
                                 </p>
                             </div>
 
@@ -672,10 +670,9 @@ export function HomePage() {
                                     <h3 className="font-semibold text-sm text-foreground">Instant USDC Settlement</h3>
                                 </div>
                                 <p className="text-sm leading-relaxed text-muted-foreground">
-                                    PersonalEscrowVault holds USDC in smart-contract escrow and releases
-                                    instantly on auction win or Buy-It-Now purchase — with granular bounties
-                                    via Chainlink Functions rewarding high-quality matches. Sellers receive
-                                    funds in seconds, not weeks.
+                                    PersonalEscrowVault holds USDC in smart-contract escrow and releases instantly
+                                    on auction win or Buy-It-Now purchase. Granular bounties via Chainlink Functions
+                                    reward high-quality matches. Sellers receive funds in seconds, not weeks.
                                 </p>
                             </div>
                         </div>
