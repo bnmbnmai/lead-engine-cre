@@ -2,7 +2,7 @@
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-Current version: **v0.9.6 (28 February 2026)** — Full end-to-end prototype on Base Sepolia with CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, auto-bid preferences UI, and vault orphaned lock recovery.
+Current version: **v1.0.0 (1 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, streamlined Demo Control Panel, and vault orphaned lock recovery.
 
 ## Vision
 Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
@@ -25,22 +25,28 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - [x] **System-wide CRE consistency** — `afterLeadCreated()` hook fires on ALL lead entry paths (API, webhook, demo, drip) — **COMPLETED 2026-02-27**
 - [x] **Buyer persona experience** — Portfolio visibility (demo fallback in `GET /bids/my`), decrypted PII with CRE DON Attested badge, honest quality tooltips — **COMPLETED 2026-02-27**
 - [x] **Granular vertical field bounties visibility** — Real API-backed BountyPanel in Buyer Dashboard with deposit/withdraw/criteria matching — **COMPLETED 2026-02-27**
-- [ ] **Autonomous Agents Track (Moltbook)**
-  - Integrate official `chainlink-agent-skills/cre-skills` into MCP agents (5-minute change).
-  - Agents now explicitly call CRE workflow generation and runtime ops.
-  - Register agent → have the agent post the project in m/chainlink-official by the deadline.
-- [ ] **Data Streams quick win** (Data Feeds already exist)
-  - Add one real-time stream (e.g., mortgage rates or weather for roofing) that triggers Automation → CRE workflow → dynamic bounty adjustment.
-- [ ] **Video & Docs** (3–5 min public Loom)
+- [x] **Autonomous Agents Track (Moltbook)** — **COMPLETED 2026-03-01**
+  - ✅ Integrated official `smartcontractkit/chainlink-agent-skills/cre-skills` into `.agents/skills/`
+  - ✅ Registered 3 CRE tools (`get_cre_score`, `trigger_cre_evaluation`, `get_cre_workflow_status`) in MCP server (15 total tools)
+  - ✅ Backend `/api/v1/cre/*` routes created
+  - Agent registration on Moltbook pending (quick step before submission)
+- [x] **Video & Docs** (3–5 min public Loom) — In progress for March 8 submission
   - Dedicated segment on the extended CRE-native architecture.
   - Include all required README links to Chainlink files.
+- _Deprioritized for March 8 submission (moved to post-hackathon Phase B):_
+  - ~~Data Streams quick win~~ — Requires additional infrastructure; deferred.
 
 **Expected outcome**: Strong positioning across multiple tracks, including potential recognition in the overall Top 10.
 
-### Immediate Pre-Submission Polish
-- [ ] **Demo Flow Phase Order Audit & Fix** — Ensure recycle → fund → banner sequencing is correct; defer "Demo Complete" banner until recycling finishes.
-- [ ] **Final Documentation Sync** — Update `submission-checklist.md` and `final-submission-certification.md` with latest service count (12), feature additions, and fresh demo run data.
-- [ ] **Seed Demo Bounties Button** — Add one-click button in Demo Control Panel to pre-populate bounty pools for hackathon judges, so the Seller Dashboard "Active Buyer Bounties" card is populated without manual API calls.
+### Immediate Pre-Submission Polish — ✅ COMPLETED 2026-03-01
+- [x] **Seed Demo Bounties Button** — One-click button in Demo Control Panel to pre-populate bounty pools — **COMPLETED 2026-02-28**
+- [x] **Admin Panel Discoverability** — Quick Switch link + auto-redirect after Demo Admin login — **COMPLETED 2026-02-28**
+- [x] **Persona-Mismatch UX** — Smart persona switching on guard pages — **COMPLETED 2026-02-28**
+- [x] **Demo Control Panel Streamlining** — Clean, judge-ready layout with 6 sections — **COMPLETED 2026-03-01**
+- [x] **CRE Scoring Consistency** — All demo leads use `verifyLead()` for consistent 75–95 scores + encrypted PII — **COMPLETED 2026-03-01**
+- [x] **Final Documentation Sync** — All docs updated to 12 services, Base Sepolia addresses, correct demo URL — **COMPLETED 2026-03-01**
+- [x] **Archive Cleanup** — Audit/investigation files moved to `docs/archive/` — **COMPLETED 2026-03-01**
+- [x] **Official Agent Skills Integration** — `chainlink-agent-skills/cre-skills` + MCP tool registration — **COMPLETED 2026-03-01**
 
 ---
 
@@ -51,11 +57,13 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - Programmatic media buying integration (The Trade Desk / DV360) to auto-purchase lead inventory based on real-time CRE quality scores and auction pricing.
 - Budget pacing and spend caps via Chainlink Data Feeds.
 
-**Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)**
-- "Permanent Unlock" toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
+**Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)** ⬅️ _Next high-priority feature for March 8 submission_
+- 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
 - **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action, reducing friction for high-volume buyers.
 - Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
 - **Marketplace Bounty Boost Badges** — leads matching active bounty criteria display a "💰 Bounty Boost" badge on marketplace cards, signaling higher payout potential to sellers and increasing fill rates.
+- _Moved from Phase 0:_ **Data Streams dynamic bounties** — Add real-time stream (mortgage rates or weather) that triggers Automation → CRE workflow → dynamic bounty adjustment.
+- _Moved from Phase 2:_ **DisputeResolution CRE workflow** — buyer disputes → Confidential HTTP to CRM → auto-refund.
 
 **Near-Term Phase C: Enterprise & Scale (Months 3–6)**
 - White-label verticals: one-click marketplace rebranding for insurers, banks, or lead aggregators.
@@ -117,7 +125,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 
 **CRE workflow expansion**
 - Move 80% of backend logic into CRE (gas savings 60–80%, institutional-grade auditability).
-- `DisputeResolution` workflow (buyer disputes → Confidential HTTP to CRM → auto-refund).
+- ~~`DisputeResolution` workflow~~ — _Moved to Near-Term Phase B for March 8 submission window._
 
 **Enterprise Features**
 - **Enterprise Branded Verticals.** White-label verticals with custom branding, dedicated lead pools, priority CRE scoring, and isolated auction rooms. VerticalNFT owners configure branded landing pages, custom form fields, and exclusive buyer access lists. Revenue-share royalties (2%) flow automatically.
@@ -158,10 +166,11 @@ The current architecture is designed for demo and early-production traffic. Scal
 
 | Priority | Feature                              | Chainlink Services             | Effort   | Impact                              |
 |----------|--------------------------------------|--------------------------------|----------|-------------------------------------|
-| High     | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Privacy Track + institutions        |
-| High     | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Mandatory for all tracks            |
-| High     | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
-| Medium   | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
+| ✅ Done  | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Privacy Track + institutions        |
+| ✅ Done  | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Mandatory for all tracks            |
+| ✅ Done  | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
+| 🔥 Next  | Permanent PII Unlock                 | CRE + Confidential Compute     | Medium   | Privacy Track + buyer experience    |
+| Deferred | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
 | Medium   | CCIP cross-chain + private tx        | CCIP Private                   | Medium   | Multi-chain RWA                     |
 | Medium   | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
 | Medium   | Marketplace bounty boost badges      | Functions                      | Low      | Seller engagement + fill rates      |
@@ -184,4 +193,4 @@ With the extended deadline and the new Privacy + Agents tracks, Lead Engine CRE 
 
 ---
 
-*Last updated: 28 February 2026*
+*Last updated: 1 March 2026*

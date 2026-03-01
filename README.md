@@ -14,7 +14,7 @@
 
 Lead Engine CRE establishes an on-chain marketplace for tokenized, privacy-preserving leads on Base Sepolia. Sellers submit high-value leads that undergo verifiable quality scoring and fraud-signal enrichment via Chainlink Confidential Compute and Confidential HTTP. Leads are minted as ACE-compliant LeadNFTs and offered through sealed-bid auctions with atomic USDC settlement via PersonalEscrowVault.
 
-Autonomous MCP agents, powered by LangChain ReAct and 11 custom tools, execute continuous bidding according to buyer-configured rules for verticals, geography, quality thresholds, and budgets. The architecture integrates twelve Chainlink service integrations across the full lead lifecycle, delivering fraud resistance, instant payouts, verifiable provenance, and compliance enforcement through CRE orchestration and Confidential HTTP.
+Autonomous MCP agents, powered by LangChain ReAct and 15 custom tools, execute continuous bidding according to buyer-configured rules for verticals, geography, quality thresholds, and budgets. The architecture integrates twelve Chainlink service integrations across the full lead lifecycle, delivering fraud resistance, instant payouts, verifiable provenance, and compliance enforcement through CRE orchestration and Confidential HTTP.
 
 Built for Chainlink Convergence 2026, the platform positions sensitive lead data as institutional-grade private data RWAs and is eligible for the Privacy Track, CRE & AI Track, DeFi & Tokenization Track, and Autonomous Agents Track on Moltbook.
 
@@ -47,7 +47,7 @@ graph TD
 
 - **One-click end-to-end demo** with certified on-chain activity across the complete lifecycle (submission → CRE scoring → mint → sealed-bid auction → atomic settlement → Proof-of-Reserves verification and winner-only PII reveal).
 - **LeadNFTv2** supporting secondary-market royalties (2 %) and fractional ownership via ERC-3643 compliance.
-- **Autonomous AI Agent** powered by Kimi K2.5 (LLM) + LangChain ReAct with 12 custom MCP tools. Fully LLM-autonomous bidding, search, compliance checks, and navigation — distinct from the deterministic rule-based auto-bid engine that evaluates 7 gates per lead without LLM involvement.
+- **Autonomous AI Agent** powered by Kimi K2.5 (LLM) + LangChain ReAct with 15 custom MCP tools (incl. official chainlink-agent-skills/cre-skills). Fully LLM-autonomous bidding, search, compliance checks, and navigation — distinct from the deterministic rule-based auto-bid engine that evaluates 7 gates per lead without LLM involvement.
 - **Sealed-bid auctions** with commit-reveal privacy, VRF v2.5 fairness for tie resolution, and PersonalEscrowVault atomic USDC settlement.
 - **PersonalEscrowVault** with Chainlink Automation-driven daily Proof-of-Reserves checks and automatic refund of expired bid locks.
 - **Granular Vertical Field Bounty Hunting** — buyers post field-specific bounties (for example, “mortgage leads from ZIP code 90210 with good or excellent credit score”). The system automatically matches each submitted lead’s field values at ingestion, attaches matching bounty rewards to the auction, and settles the additional USDC payouts on close — creating direct, hyper-targeted demand signals.
@@ -161,7 +161,7 @@ Lead Engine CRE operates an intentional hybrid architecture. When `CRE_WORKFLOW_
 | **Frontend** | Vite + React + Tailwind + Zustand + Socket.IO |
 | **Backend** | Express + Prisma + Socket.IO + LangChain |
 | **Smart Contracts** | Solidity 0.8.27 + Hardhat (Base Sepolia) |
-| **AI Agent** | Kimi K2.5 (LLM) + LangChain ReAct + 12 MCP tools (autonomous). Separate deterministic auto-bid engine (7-gate rule evaluation, no LLM). |
+| **AI Agent** | Kimi K2.5 (LLM) + LangChain ReAct + 15 MCP tools (autonomous, incl. official chainlink-agent-skills/cre-skills). Separate deterministic auto-bid engine (7-gate rule evaluation, no LLM). |
 | **Oracles** | Chainlink CRE, ACE, Automation, VRF v2.5, Functions, Data Feeds |
 | **Database** | Render Postgres (with planned read replicas) |
 
