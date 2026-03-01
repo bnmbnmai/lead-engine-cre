@@ -21,7 +21,7 @@ const router = Router();
 router.get('/status', async (_req: Request, res: Response) => {
     try {
         const creWorkflowEnabled = process.env.CRE_WORKFLOW_ENABLED === 'true';
-        const creNativeMode = await getConfig('creNativeModeEnabled', 'false').catch(() => 'false');
+        const creNativeMode = await getConfig('creNativeDemoMode', 'false').catch(() => 'false');
 
         res.json({
             creNativeMode: creNativeMode === 'true',
