@@ -609,15 +609,14 @@ export function HomePage() {
 
                             {/* Main heading */}
                             <h1 className="text-center text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4">
-                                <span className="text-foreground">Own the Vertical.</span>
+                                <span className="text-foreground">Real-Time Bidding</span>
                                 <br />
-                                <span className="gradient-text">Trade the Leads.</span>
+                                <span className="gradient-text">for Verified Leads</span>
                             </h1>
 
                             {/* Subtitle */}
                             <p className="text-center text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-                                The Chainlink-powered marketplace for tokenized, privacy-preserving leads. Real-time bidding,
-                                verifiable CRE quality scoring, atomic USDC settlement, and winner-only PII decryption &mdash; all on-chain.
+                                <span className="text-foreground font-semibold">LeadRTB</span> &mdash; Chainlink CRE quality scoring, atomic USDC settlement, and winner-only PII decryption. The institutional marketplace for high-value leads.
                             </p>
 
                             {/* CTA */}
