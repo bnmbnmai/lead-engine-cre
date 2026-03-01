@@ -1,11 +1,11 @@
 ---
 name: lead-engine-cre-agent
-description: Programmatic lead bidding via MCP — search, bid, export with CCIP-ready architecture
+description: Programmatic lead bidding via MCP — search, bid, export with CCIP-ready architecture. Integrates official chainlink-agent-skills/cre-skills for CRE workflow capabilities.
 ---
 
 # Lead Engine CRE — Agent Skill
 
-Enables AI agents to programmatically discover, bid on, and export CRE leads via the MCP JSON-RPC server.
+Enables AI agents to programmatically discover, bid on, and export CRE leads via the MCP JSON-RPC server. Integrates official [chainlink-agent-skills/cre-skills](https://github.com/smartcontractkit/chainlink-agent-skills) for native CRE workflow evaluation, quality scoring, and DON status monitoring.
 
 ## Quick Start
 
@@ -23,7 +23,32 @@ curl -X POST http://localhost:3002/rpc \
   -d '{"method":"search_leads","params":{"vertical":"solar","state":"CA"}}'
 ```
 
-## Available Tools
+## Official Chainlink CRE Skills (15 total tools)
+
+The following 3 tools are powered by the official [chainlink-agent-skills/cre-skills](https://github.com/smartcontractkit/chainlink-agent-skills) integration (installed at `.agents/skills/cre-skills/`):
+
+### `get_cre_score`
+Get the CRE quality score for a lead (0–10,000) with DON attestation metadata.
+
+```json
+{ "method": "get_cre_score", "params": { "leadId": "lead_abc123" } }
+```
+
+### `trigger_cre_evaluation`
+Trigger the EvaluateBuyerRulesAndMatch CRE workflow (7-gate buyer-rules evaluation via Chainlink DON).
+
+```json
+{ "method": "trigger_cre_evaluation", "params": { "leadId": "lead_abc123" } }
+```
+
+### `get_cre_workflow_status`
+Get CRE workflow mode, DON status, subscription ID, and available capabilities.
+
+```json
+{ "method": "get_cre_workflow_status", "params": {} }
+```
+
+## Available Tools (Marketplace)
 
 ### `search_leads`
 Search and filter marketplace leads.

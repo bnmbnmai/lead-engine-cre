@@ -238,6 +238,47 @@ export const TOOLS: ToolDefinition[] = [
         handler: '/api/v1/mcp/subscribe',
         method: 'POST',
     },
+
+    // ── Official Chainlink CRE Skills (chainlink-agent-skills/cre-skills) ──
+    // These tools expose Chainlink CRE workflow capabilities to autonomous agents.
+    // Reference: .agents/skills/cre-skills/SKILL.md
+
+    {
+        name: 'get_cre_score',
+        description: 'Get the CRE (Chainlink Runtime Environment) quality score for a lead. Returns the on-chain verified score (0–10000), verification status, scoring breakdown, and DON attestation metadata. Powered by CREVerifier contract via Chainlink Functions.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                leadId: { type: 'string', description: 'The lead ID to retrieve CRE quality score for' },
+            },
+            required: ['leadId'],
+        },
+        handler: '/api/v1/cre/score',
+        method: 'GET',
+    },
+    {
+        name: 'trigger_cre_evaluation',
+        description: 'Trigger CRE buyer-rules workflow evaluation for a specific lead. Runs the EvaluateBuyerRulesAndMatch CRE workflow (7-gate deterministic evaluation: vertical, geo, quality, off-site, verified, field filters) via Chainlink DON with ConfidentialHTTPClient and consensusIdenticalAggregation. Returns matched buyer preference sets and suggested bid amounts.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                leadId: { type: 'string', description: 'The lead ID to evaluate against buyer preference rules' },
+            },
+            required: ['leadId'],
+        },
+        handler: '/api/v1/cre/evaluate',
+        method: 'POST',
+    },
+    {
+        name: 'get_cre_workflow_status',
+        description: 'Get the current CRE workflow mode status. Returns whether CRE-Native mode is enabled (DON-executed buyer matching), the CRE subscription ID, workflow health, and available CRE capabilities (quality scoring, buyer rules, winner decryption).',
+        inputSchema: {
+            type: 'object',
+            properties: {},
+        },
+        handler: '/api/v1/cre/status',
+        method: 'GET',
+    },
 ];
 
 // Build a lookup map
