@@ -39,11 +39,12 @@ export function AdminDashboard() {
         const fetchAll = async () => {
             try {
                 // Fetch marketplace overview stats
-                const [overviewRes, leadsRes, creStatusRes, healthRes] = await Promise.all([
+                const [overviewRes, leadsRes, creStatusRes, healthRes, creModeRes] = await Promise.all([
                     api.apiFetch<any>('/api/v1/analytics/overview'),
                     api.apiFetch<any>('/api/v1/leads?limit=1'),
                     api.apiFetch<any>('/api/v1/cre/status').catch(() => ({ data: null })),
                     api.apiFetch<any>('/api/health').catch(() => ({ data: null })),
+                    api.apiFetch<any>('/api/v1/demo-panel/cre-mode').catch(() => ({ data: null })),
                 ]);
 
                 setStats({
@@ -54,11 +55,14 @@ export function AdminDashboard() {
                     totalSpent: overviewRes.data?.stats?.totalSpent ?? 0,
                 });
 
+                // Use the demo-panel cre-mode endpoint (same source as DemoPanel toggle)
+                const creNativeEnabled = creModeRes.data?.enabled === true;
+
                 setSystemHealth({
                     api: healthRes.data?.status === 'ok',
                     database: healthRes.data?.database === 'connected',
                     socket: healthRes.data?.socket === 'active',
-                    cre: creStatusRes.data ?? null,
+                    cre: { ...creStatusRes.data, creNativeMode: creNativeEnabled },
                 });
 
                 // Fetch recent demo runs
