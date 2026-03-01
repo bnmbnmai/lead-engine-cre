@@ -79,11 +79,16 @@ function SectionGroup({
     return (
         <div className={cn(
             'rounded-xl border transition-all duration-200',
-            open ? 'border-border bg-white/[0.02]' : 'border-border/50 hover:border-border'
+            open
+                ? 'border-border border-l-2 border-l-emerald-500/60 bg-emerald-500/[0.02]'
+                : 'border-border/50 hover:border-border'
         )}>
             <button
                 type="button"
-                className="w-full flex items-center justify-between px-4 py-3 text-left"
+                className={cn(
+                    'w-full flex items-center justify-between px-4 py-3 text-left rounded-t-xl transition-colors',
+                    open && 'bg-emerald-500/[0.04]'
+                )}
                 onClick={onToggle}
             >
                 <div className="flex items-center gap-2.5">
