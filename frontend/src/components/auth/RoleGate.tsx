@@ -1,7 +1,10 @@
-import { Link } from 'react-router-dom';
-import { UserX, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { UserX, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { setAuthToken, API_BASE_URL } from '@/lib/api';
+import socketClient from '@/lib/socket';
 
 // ============================================
 // RoleGate — shown when user lacks required role
@@ -26,13 +29,64 @@ const ROLE_INFO: Record<string, { label: string; description: string; dashboardP
     ADMIN: {
         label: 'Admin',
         description: 'Admins can manage users, review flagged content, and access platform-wide analytics.',
-        dashboardPath: '/',
+        dashboardPath: '/admin/nfts',
     },
 };
 
 export function RoleGate({ requiredRole, currentRole }: RoleGateProps) {
     const required = ROLE_INFO[requiredRole] || ROLE_INFO.BUYER;
     const current = ROLE_INFO[currentRole] || { label: currentRole, dashboardPath: '/' };
+    const navigate = useNavigate();
+    const [isSwitching, setIsSwitching] = useState(false);
+
+    const isDemoEnv = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
+
+    async function handleSwitch() {
+        if (!isDemoEnv || isSwitching) return;
+        setIsSwitching(true);
+
+        try {
+            if (requiredRole === 'ADMIN') {
+                // Admin uses dedicated demo-admin-login endpoint
+                const resp = await fetch(`${API_BASE_URL}/api/v1/demo-panel/demo-admin-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'admin' }),
+                });
+                const data = await resp.json();
+                if (data.token) {
+                    setAuthToken(data.token);
+                    localStorage.setItem('le_auth_user', JSON.stringify(data.user));
+                    socketClient.reconnect(data.token);
+                }
+            } else {
+                // Buyer/Seller use demo-login endpoint
+                const resp = await fetch(`${API_BASE_URL}/api/v1/demo-panel/demo-login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: requiredRole }),
+                });
+                const data = await resp.json();
+                if (data.token) {
+                    setAuthToken(data.token);
+                    localStorage.setItem('le_auth_user', JSON.stringify(data.user));
+                    socketClient.reconnect(data.token);
+                }
+            }
+
+            // Trigger useAuth re-read
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: 'le_auth_user',
+                newValue: localStorage.getItem('le_auth_user'),
+            }));
+
+            navigate(required.dashboardPath);
+        } catch (err) {
+            console.error('[RoleGate] Persona switch failed:', err);
+        } finally {
+            setIsSwitching(false);
+        }
+    }
 
     return (
         <DashboardLayout>
@@ -66,12 +120,22 @@ export function RoleGate({ requiredRole, currentRole }: RoleGateProps) {
 
                     {/* Actions */}
                     <div className="flex flex-col gap-3">
-                        <Button asChild>
-                            <Link to={current.dashboardPath}>
-                                Go to {current.label} Dashboard
+                        {isDemoEnv ? (
+                            <Button onClick={handleSwitch} disabled={isSwitching}>
+                                {isSwitching ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : null}
+                                Switch to {required.label} Persona
                                 <ArrowRight className="h-4 w-4 ml-2" />
-                            </Link>
-                        </Button>
+                            </Button>
+                        ) : (
+                            <Button asChild>
+                                <Link to={current.dashboardPath}>
+                                    Go to {current.label} Dashboard
+                                    <ArrowRight className="h-4 w-4 ml-2" />
+                                </Link>
+                            </Button>
+                        )}
                         <Link
                             to="/"
                             className="text-sm text-muted-foreground hover:text-foreground transition"
