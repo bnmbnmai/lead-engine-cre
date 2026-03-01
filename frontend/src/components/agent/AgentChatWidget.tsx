@@ -72,7 +72,7 @@ export function AgentChatWidget() {
             if (!data.isAgentBid) return; // Filter: only persona/AI-agent bids
             const msg: ChatMessage = {
                 role: 'assistant',
-                content: `🤖 **Bid placed:** $${data.amount} on lead \`${data.leadId.slice(0, 8)}…\`\n\n[View on Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
+                content: `🤖 **Agent committed** $${data.amount} on lead \`${data.leadId.slice(0, 8)}…\`\n\n[View on Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
             };
             setMessages(prev => [...prev, msg]);
             if (!isOpen) setHasUnread(true);
@@ -80,7 +80,7 @@ export function AgentChatWidget() {
         const winHandler = (data: { leadId: string; amount: number; txHash: string }) => {
             const msg: ChatMessage = {
                 role: 'assistant',
-                content: `🏆 **Won lead** \`${data.leadId.slice(0, 8)}…\` for $${data.amount}! PII is now available.\n\n[View in Portfolio](/buyer/portfolio) · [Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
+                content: `🏆 **Agent won** lead \`${data.leadId.slice(0, 8)}…\` for $${data.amount}! PII is now available.\n\n[View in Portfolio](/buyer/portfolio) · [Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
             };
             setMessages(prev => [...prev, msg]);
             if (!isOpen) setHasUnread(true);
