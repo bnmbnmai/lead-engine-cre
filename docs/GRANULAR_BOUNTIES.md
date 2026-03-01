@@ -147,9 +147,13 @@ Agents (powered by the Kimi/LangChain MCP layer) can:
 
 ## Seller Dashboard Integration
 
-The seller dashboard and lander preview can call `GET /api/v1/bounties/available?vertical=<slug>` to:
-- Show "💰 $X bounty available for this vertical" in the lander CRO banner
-- Display per-criteria requirements so sellers know which leads qualify
+The Seller Dashboard includes an expandable **"Active Buyer Bounties"** card showing per-vertical USDC pools, criteria pills (geo, quality, credit), and a **"Target This Bounty"** button. Clicking "Target" opens a targeting modal with:
+- Full criteria breakdown
+- "Export Targeting JSON" (copy-paste ready for Google Ads / Facebook audience builder)
+- "Generate Tracking Link" (pre-filled UTM/webhook URL for programmatic media buying)
+- Estimated match rate
+
+The Submit Lead form independently auto-detects matching bounties on submission — bounties release automatically at settlement when a lead matches criteria, verified by Chainlink Functions. This architecture prevents gaming while giving sellers the data they need to optimize real ad spend.
 
 ```typescript
 // Example frontend call
@@ -182,4 +186,4 @@ BOUNTY_FUNCTIONS_ENABLED=true
 
 ---
 
-*Last updated: 2026-02-24 | BountyMatcher: `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | Subscription: 581*
+*Last updated: 2026-02-28 | BountyMatcher: `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | Subscription: 581*

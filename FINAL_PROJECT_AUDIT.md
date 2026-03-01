@@ -2,7 +2,7 @@
 
 > **Audit Date:** 28 February 2026  
 > **Auditor:** Antigravity AI (full codebase scan via Google Antigravity IDE)  
-> **Commit:** `79c7393` (latest on `main`)  
+> **Commit:** `8bdd397` (latest on `main`)  
 > **References:** [CHAINLINK_SERVICES_AUDIT.md](CHAINLINK_SERVICES_AUDIT.md), [PERSONA_PORTFOLIO_AUDIT.md](PERSONA_PORTFOLIO_AUDIT.md)
 
 ---
@@ -36,21 +36,9 @@ No critical issues remaining. All Chainlink integrations are live, Decrypt PII w
 
 ### 🟠 HIGH (4 issues)
 
-#### H-1: README Contains Stale/Incorrect Information
+#### H-1: ~~README Contains Stale/Incorrect Information~~ ✅ RESOLVED
 
-**File:** [README.md](README.md) — Lines 27, 133, 201, 206-208
-
-| Line | Issue |
-|---|---|
-| 9 | "Last Updated: 24 February 2026" — stale |
-| 27 | References "Winner-only decryption … targeted for completion by March 8" — **already completed** |
-| 133 | "Demo Portfolio Fallback: GET /bids/my automatically returns recent ACCEPTED demo bids" — **this fallback was REMOVED** per pure persona-wallet architecture |
-| 185 | Architecture diagram shows `demo fallback → Portfolio` — removed |
-| 201 | References `demo-polish-next-steps.md` — **file does not exist** |
-| 206 | References `PRIVACY_INTEGRATION_AUDIT.md` — **file does not exist** |
-| 208 | References `onchain-activation-checklist.md` — **file does not exist** |
-
-**Impact:** Judges reviewing README will see outdated claims and broken documentation links.
+All items fixed: date updated to 28 February 2026, stale references removed, broken links resolved, architecture diagram corrected.
 
 #### H-2: Three Dead Frontend Pages (~61KB of Dead Code)
 

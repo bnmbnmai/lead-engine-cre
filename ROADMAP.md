@@ -2,7 +2,7 @@
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-Current version: **v0.9.5 (27 February 2026)** — Full end-to-end prototype on Base Sepolia with CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, and winner-only PII decryption.
+Current version: **v0.9.6 (28 February 2026)** — Full end-to-end prototype on Base Sepolia with CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, auto-bid preferences UI, and vault orphaned lock recovery.
 
 ## Vision
 Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
@@ -170,4 +170,4 @@ With the extended deadline and the new Privacy + Agents tracks, Lead Engine CRE 
 
 ---
 
-*Last updated: 24 February 2026*
+*Last updated: 28 February 2026*
