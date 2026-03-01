@@ -16,7 +16,23 @@ import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
 import { nftService } from '../services/nft.service';
+import { privacyService } from '../services/privacy.service';
 import { computeCREQualityScore, type LeadScoringInput } from '../lib/chainlink/cre-quality-score';
+
+// Realistic demo PII pool — rotated across demo leads so winner-only
+// PII decryption always has something meaningful to show.
+const DEMO_PII_POOL = [
+    { firstName: 'Alex', lastName: 'Rivera', email: 'alex.rivera@example.com', phone: '(555) 123-4567' },
+    { firstName: 'Sarah', lastName: 'Chen', email: 'sarah.chen@example.com', phone: '(619) 555-0142' },
+    { firstName: 'James', lastName: 'Rodriguez', email: 'j.rodriguez@example.com', phone: '(512) 555-0198' },
+    { firstName: 'Maria', lastName: 'Santos', email: 'm.santos@example.com', phone: '(305) 555-0177' },
+    { firstName: 'Mike', lastName: 'Johnson', email: 'mike.j@example.com', phone: '(720) 555-0133' },
+    { firstName: 'Priya', lastName: 'Patel', email: 'priya.patel@example.com', phone: '(408) 555-0291' },
+    { firstName: 'David', lastName: 'Kim', email: 'david.kim@example.com', phone: '(213) 555-0384' },
+    { firstName: 'Emily', lastName: 'Thompson', email: 'emily.t@example.com', phone: '(312) 555-0456' },
+    { firstName: 'Carlos', lastName: 'Garcia', email: 'carlos.g@example.com', phone: '(786) 555-0512' },
+    { firstName: 'Jessica', lastName: 'Lee', email: 'jessica.lee@example.com', phone: '(646) 555-0678' },
+];
 
 const router = Router();
 
@@ -781,19 +797,11 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
             // Build non-PII parameters
             const params = buildVerticalDemoParams(vertical);
 
-            // Compute quality score (same algo as POST /lead — CREVerifier stub)
             const seedGeo = { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` };
-            const paramCount = params ? Object.keys(params).filter((k: string) => (params as any)[k] != null && (params as any)[k] !== '').length : 0;
-            const seedScoreInput: LeadScoringInput = {
-                tcpaConsentAt: now,
-                geo: { country: seedGeo.country, state: seedGeo.state, zip: seedGeo.zip },
-                hasEncryptedData: false,
-                encryptedDataValid: false,
-                parameterCount: paramCount,
-                source: 'PLATFORM',
-                zipMatchesState: false,
-            };
-            const qualityScore = computeCREQualityScore(seedScoreInput);
+
+            // Encrypt mock PII so the winner-only decryption demo works
+            const pii = DEMO_PII_POOL[i % DEMO_PII_POOL.length];
+            const piiResult = privacyService.encryptLeadPII(pii);
 
             // Determine seller: use session seller if provided, else rotate faucet wallets
             const leadSellerId = sessionSellerId || await (async () => {
@@ -831,15 +839,18 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
                     buyNowPrice: status === 'UNSOLD' ? Math.round(price * 1.2) : undefined,
                     expiresAt: status === 'UNSOLD' ? new Date(now.getTime() + 7 * 86400000) : undefined,
                     winningBid: status === 'SOLD' ? price * 1.2 : undefined,
-                    isVerified: true,
-                    qualityScore,
                     tcpaConsentAt: now,
                     auctionStartAt,
                     auctionEndAt,
                     soldAt: status === 'SOLD' ? new Date(now.getTime() - rand(1, 5) * 60_000) : undefined,
                     parameters: params as any,
+                    encryptedData: JSON.stringify(piiResult.encrypted) as any,
+                    dataHash: piiResult.dataHash,
                 },
             });
+
+            // Score via the full CRE pipeline (verifyLead → 7500 floor + PII bonus)
+            await creService.verifyLead(lead.id);
 
             // Create AuctionRoom for IN_AUCTION leads so the closure service can track phase
             if (status === 'IN_AUCTION' && auctionEndAt) {
@@ -983,20 +994,11 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
 
         // Build non-PII form parameters from vertical schema (randomized)
         const params = buildVerticalDemoParams(vertical);
-
-        // Compute quality score for demo lead using same algorithm as CREVerifier
-        const demoParamCount = params ? Object.keys(params).filter((k: string) => (params as any)[k] != null && (params as any)[k] !== '').length : 0;
         const demoGeo = { country: geo.country, state: geo.state, city: geo.city, zip: `${rand(10000, 99999)}` };
-        const demoScoreInput: LeadScoringInput = {
-            tcpaConsentAt: new Date(),
-            geo: { country: demoGeo.country, state: demoGeo.state, zip: demoGeo.zip },
-            hasEncryptedData: false,
-            encryptedDataValid: false,
-            parameterCount: demoParamCount,
-            source: 'PLATFORM',
-            zipMatchesState: false,
-        };
-        const demoScore = computeCREQualityScore(demoScoreInput);
+
+        // Encrypt mock PII so the winner-only decryption demo works
+        const pii = DEMO_PII_POOL[Math.floor(Math.random() * DEMO_PII_POOL.length)];
+        const piiResult = privacyService.encryptLeadPII(pii);
 
         const lead = await prisma.lead.create({
             data: {
@@ -1006,14 +1008,18 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
                 source: 'DEMO',
                 status: 'IN_AUCTION',
                 reservePrice: price,
-                isVerified: true,
-                qualityScore: demoScore,
                 tcpaConsentAt: new Date(),
                 auctionStartAt: new Date(),
                 auctionEndAt: new Date(Date.now() + LEAD_AUCTION_DURATION_SECS * 1000),
                 parameters: params as any,
+                encryptedData: JSON.stringify(piiResult.encrypted) as any,
+                dataHash: piiResult.dataHash,
             },
         });
+
+        // Score via the full CRE pipeline (verifyLead → 7500 floor + PII bonus)
+        const verification = await creService.verifyLead(lead.id);
+        const demoScore = verification.score ?? 0;
 
         // Create auction room so the auction monitor can resolve this lead
         creService.afterLeadCreated(lead.id);
@@ -1042,7 +1048,7 @@ router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res:
                     auctionStartAt: lead.auctionStartAt?.toISOString(),
                     auctionEndAt: lead.auctionEndAt?.toISOString(),
                     parameters: params,
-                    qualityScore: demoScore != null ? Math.floor(demoScore / 100) : null, // normalize 0-10000 → 0-100
+                    qualityScore: demoScore ? Math.floor(demoScore / 100) : null, // normalize 0-10000 → 0-100
                     _count: { bids: 0 },
                 },
             });
