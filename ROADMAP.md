@@ -148,7 +148,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 
 **Infrastructure & Observability**
 - ✅ **Expanded Admin Dashboard** — system health monitoring, 12 Chainlink service statuses with real-time CRE-Native Mode, marketplace stats, PersonalEscrowVault status, deployed contracts table, and recent demo runs. **COMPLETED 2026-03-01**
-- ✅ **API Endpoint Audit** — documented all ~95 endpoints across 17 route files; eliminated config key mismatch causing stale CRE status. See `endpoint_audit.md`. **COMPLETED 2026-03-01**
+- ✅ **API Endpoint Audit** — documented all ~95 endpoints across 17 route files; eliminated config key mismatch causing stale CRE status. See `docs/archive/endpoint_audit.md`. **COMPLETED 2026-03-01**
 - **Comprehensive Test Suite** — unit tests for all services (ace, cre, vrf, vault, auction), integration tests for critical flows (demo run, settlement, PII decryption), frontend component tests, and E2E tests with Playwright. Target 80% coverage.
 
 ---
