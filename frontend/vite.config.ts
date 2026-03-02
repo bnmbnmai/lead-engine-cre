@@ -8,7 +8,11 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
+            'valtio/vanilla': path.resolve(__dirname, 'node_modules/valtio/vanilla.js'),
         },
+    },
+    optimizeDeps: {
+        include: ['valtio', 'valtio/vanilla', 'derive-valtio'],
     },
     server: {
         port: 5173,
