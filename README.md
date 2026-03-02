@@ -1,6 +1,6 @@
-# LeadRTB
+﻿# LeadRTB
 
-[![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/ci.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions)
+[![LeadRTB CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/ci.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions)
 [![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE%20Native-375BD2)](https://docs.chain.link/cre)
 [![Base Sepolia](https://img.shields.io/badge/Base%20Sepolia-0052FF?logo=coinbase)](https://sepolia.basescan.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -22,16 +22,16 @@ Autonomous MCP agents, powered by LangChain ReAct with 15 custom tools (includin
 ## How a Lead Moves Through LeadRTB
 
 ```mermaid
-flowchart LR
-    A[Seller submits lead] --> B[CRE Quality Score 0-100]
-    B --> C[LeadNFT minted on Base]
-    C --> D[Sealed-bid auction 60s]
-    D --> E{Tie?}
-    E -- Yes --> F[VRF v2.5 tiebreaker]
-    E -- No --> G[Winner determined]
+flowchart TD
+    A["1. Seller Submits Lead"] --> B["2. CRE DON Quality Score (0-100)"]
+    B --> C["3. LeadNFTv2 Minted on Base Sepolia"]
+    C --> D["4. Sealed-Bid Auction (60s live window)"]
+    D --> E{"5. Tied Bids?"}
+    E -- Yes --> F["VRF v2.5 Tiebreaker"]
+    E -- No --> G["6. Winner Determined"]
     F --> G
-    G --> H[USDC settled atomically]
-    H --> I[Winner decrypts PII]
+    G --> H["7. USDC Settled Atomically via Vault"]
+    H --> I["8. Winner Decrypts PII (CRE Confidential)"]
 ```
 
 **End-to-end lifecycle in one click:** Seller submits a lead -> CRE DON scores it (7-gate evaluation) -> LeadNFTv2 minted on Base Sepolia -> sealed-bid auction runs for 60 seconds with real on-chain vault locks -> VRF v2.5 breaks any ties -> USDC settles atomically via PersonalEscrowVault -> only the verified winner can decrypt PII via CRE Confidential Compute.
@@ -44,6 +44,7 @@ flowchart LR
 - **Autonomous AI Bidding** -- Kimi K2.5 agent with 15 MCP tools bids alongside human buyers in real-time, using the same on-chain vault and rule engine.
 - **Granular Bounty Hunting** -- buyers post field-specific bounties ("solar leads in CA with 700+ credit score") that auto-match and settle additional USDC rewards.
 - **VRF v2.5 Fair Tiebreaking** -- provably random, verifiable on-chain tie resolution ensures no bidder has an unfair advantage.
+- **Production Technical Excellence** -- 21 integration tests covering full CRE lifecycle, lint-clean codebase, and BullMQ/Redis/WebSocket production scaling already implemented and live.
 
 ## Key Features
 
@@ -169,15 +170,15 @@ LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=
 
 > All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
 
-### Try the 1-Click Demo
+## Try the 1-Click Demo
 
-> **Live at [https://leadrtb.com](https://leadrtb.com)**
->
-> 1. Visit [leadrtb.com](https://leadrtb.com) and connect any wallet (Base Sepolia)
-> 2. Click **"Run Full On-Chain Demo"** (purple button) -- this seeds leads, runs CRE scoring, fires live auctions, settles USDC, and mints NFTs
-> 3. Switch to **Buyer** persona to see won leads, CRE Quality badges, and decrypt PII
-> 4. Open the **On-Chain Log** (Ctrl+Shift+L) to watch every tx with Basescan proof links
-> 5. Toggle **CRE Workflow Mode** in the Demo Control Panel to compare DON vs. classic paths
+**Live at [https://leadrtb.com](https://leadrtb.com)**
+
+1. **Connect** -- Visit [leadrtb.com](https://leadrtb.com) and connect any wallet on Base Sepolia
+2. **Run** -- Click the purple **"Run Full On-Chain Demo"** button (seeds leads, CRE scores, fires auctions, settles USDC, mints NFTs)
+3. **Explore** -- Switch to **Buyer** persona to see won leads, CRE Quality badges, and decrypt PII
+4. **Verify** -- Open the **On-Chain Log** (Ctrl+Shift+L) to watch every tx with Basescan proof links
+5. **Compare** -- Toggle **CRE Workflow Mode** in the Demo Control Panel to see DON vs. classic paths side-by-side
 
 ## Tech Stack
 
