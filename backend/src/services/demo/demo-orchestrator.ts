@@ -1087,6 +1087,15 @@ export async function runFullDemo(
             const lockIds: number[] = registryBids.map(r => r.lockId);
             const readyBuyers = registryBids.length;
 
+            // ── VRF Tie Guarantee (settlement-time) ─────────────────────
+            // On the 3rd settled cycle, force the top two confirmed bids to
+            // have the same amount. This is deterministic (operates on bids
+            // that already landed on-chain) and immune to nonce contention.
+            const VRF_TIE_FORCE_ON_CYCLE = 3;
+            if (settlementCycle === VRF_TIE_FORCE_ON_CYCLE && sortedBids.length >= 2) {
+                sortedBids[1].amount = sortedBids[0].amount;
+            }
+
             // Detect tiebreaker (two bids at the same max amount)
             const hadTiebreaker = sortedBids.length >= 2 && sortedBids[0].amount === sortedBids[1].amount;
             if (hadTiebreaker) {
@@ -1187,6 +1196,44 @@ export async function runFullDemo(
                             data: { status: 'SOLD', winningBid: bidAmount, soldAt: new Date() },
                         });
                         emit(io, { ts: new Date().toISOString(), level: 'info', message: `📝 DB bid record created for ${normalizedWallet.slice(0, 10)}… (userId: ${winnerUser.id.slice(0, 8)}…) → Portfolio visible` });
+
+                        // ── Demo Bounty Match + Release ──────────────────────
+                        // Check if any seeded bounty pools match this settled lead
+                        // and release the bounty to the seller if matched.
+                        try {
+                            const { bountyService } = await import('../bounty.service');
+                            const settledLead = await prisma.lead.findUnique({
+                                where: { id: demoLeadId },
+                                select: { id: true, vertical: true, qualityScore: true, reservePrice: true, createdAt: true, parameters: true, geo: true },
+                            });
+                            if (settledLead) {
+                                // Demo leads store geo in dedicated `geo` column ({country, state, city}), not in `parameters`
+                                const leadGeo = (settledLead as any).geo;
+                                const matches = await bountyService.matchBounties({
+                                    id: settledLead.id,
+                                    vertical: settledLead.vertical ?? undefined,
+                                    qualityScore: settledLead.qualityScore,
+                                    state: leadGeo?.state || (settledLead.parameters as any)?.state,
+                                    country: leadGeo?.country,
+                                    reservePrice: settledLead.reservePrice ? Number(settledLead.reservePrice) : undefined,
+                                }, bidAmount);
+                                for (const m of matches) {
+                                    const releaseResult = await bountyService.releaseBounty(
+                                        m.poolId, demoLeadId, DEMO_SELLER_WALLET, m.amount, m.verticalSlug,
+                                    );
+                                    if (releaseResult.success) {
+                                        totalBountyRewards += m.amount;
+                                        emit(io, {
+                                            ts: new Date().toISOString(), level: 'success',
+                                            message: `🎁 Bounty released: $${m.amount} from ${m.verticalSlug} pool → seller (${releaseResult.txHash ? 'on-chain' : 'off-chain'})`,
+                                            cycle: settlementCycle, totalCycles: 0,
+                                        });
+                                    }
+                                }
+                            }
+                        } catch (bountyErr: any) {
+                            console.warn('[DEMO] Bounty match/release error (non-fatal):', bountyErr.message?.slice(0, 100));
+                        }
                         // Track persona wallet wins for deterministic guarantee
                         if (normalizedWallet === BUYER_PERSONA_WALLET) {
                             _buyerPersonaHasWon = true;
