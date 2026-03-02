@@ -1367,19 +1367,35 @@ function DemoButtonBanner() {
                                 </button>
                                 <button
                                     onClick={() => startDemo(DEMO_CYCLES)}
-                                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
+                                    disabled={isRecycling}
+                                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm transition ${isRecycling
+                                        ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60 border border-border'
+                                        : 'bg-muted hover:bg-muted/80'
+                                        }`}
+                                    title={isRecycling ? 'Recycling tokens — please wait ~30s' : undefined}
                                 >
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                    Run Again
+                                    {isRecycling ? (
+                                        <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Recycling…</>
+                                    ) : (
+                                        <><RotateCcw className="h-3.5 w-3.5" /> Run Again</>
+                                    )}
                                 </button>
                             </>
                         ) : (
                             <button
                                 onClick={() => startDemo(DEMO_CYCLES)}
-                                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:scale-[1.02]"
+                                disabled={isRecycling}
+                                className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold shadow-lg transition-all ${isRecycling
+                                    ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-60 border border-border shadow-none'
+                                    : 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02]'
+                                    }`}
+                                title={isRecycling ? 'Recycling tokens — please wait ~30s' : undefined}
                             >
-                                <Rocket className="h-4 w-4" />
-                                🚀 Run Full On-Chain Demo (Testnet)
+                                {isRecycling ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin" /> Recycling…</>
+                                ) : (
+                                    <><Rocket className="h-4 w-4" /> 🚀 Run Full On-Chain Demo (Testnet)</>
+                                )}
                             </button>
                         )}
                     </div>
