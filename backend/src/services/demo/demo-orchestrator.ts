@@ -97,6 +97,13 @@ let currentAbort: AbortController | null = null;
 // one lead this run. Reset at the start of every runFullDemo.
 let _buyerPersonaHasWon = false;
 
+// ── VRF Tie Guarantee ──────────────────────────────
+// Tracks how many leads have had bids scheduled this run.
+// On the 3rd lead, two non-persona buyers are forced to bid the
+// same amount, guaranteeing at least one natural VRF tiebreaker.
+let _leadsScheduledCount = 0;
+const VRF_TIE_FORCE_ON_LEAD = 3; // force tie on 3rd scheduled lead
+
 // ── Per-Lead Lock Registry ─────────────────────────
 // Maps leadId → array of confirmed on-chain lockIds from scheduled buyer bids.
 // The settlement monitor reads this at expiry to settle winner + refund losers.
@@ -125,6 +132,8 @@ export function scheduleBidsForLead(
     signal: AbortSignal,
 ): void {
     if (!VAULT_ADDRESS) return;
+    _leadsScheduledCount++;
+    const isForcetieLead = _leadsScheduledCount === VRF_TIE_FORCE_ON_LEAD;
 
     const now = Date.now();
     const windowMs = auctionEndMs - now;
@@ -165,6 +174,9 @@ export function scheduleBidsForLead(
         message: `🎯 Scheduling ${numBuyers} bids for lead ${leadId.slice(0, 8)}… over ${Math.round(windowMs / 1000)}s window`,
     });
 
+    // For the force-tie lead, capture idx 1's bid so idx 2 can copy it
+    let forceTieBidAmount: number | null = null;
+
     buyers.forEach((buyerAddr, idx) => {
         const variance = Math.round(reservePrice * 0.20);
         let bidAmount = Math.max(10, reservePrice + (idx === 0 ? 0 : rand(-variance, variance)));
@@ -172,6 +184,17 @@ export function scheduleBidsForLead(
         // Persona wallet always bids highest until it has won once
         if (needsPersonaGuarantee && buyerAddr === BUYER_PERSONA_WALLET) {
             bidAmount = Math.max(bidAmount, Math.round(reservePrice * 1.3));
+        }
+
+        // VRF Tie Guarantee: on the designated lead, force buyers at idx 1 & 2
+        // to bid the same amount. Persona (idx 0) still bids highest, so their
+        // win guarantee is unaffected. This creates 1 natural-looking tie per run.
+        if (isForcetieLead && buyerAddr !== BUYER_PERSONA_WALLET) {
+            if (forceTieBidAmount === null) {
+                forceTieBidAmount = bidAmount; // capture first non-persona bid
+            } else if (forceTieBidAmount !== null && idx === 2) {
+                bidAmount = forceTieBidAmount; // copy → guaranteed tie
+            }
         }
         const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
 
@@ -572,6 +595,7 @@ export async function runFullDemo(
     });
 
     _buyerPersonaHasWon = false; // reset for each demo run
+    _leadsScheduledCount = 0;   // reset VRF tie-force counter
     isRunning = true;
     currentAbort = new AbortController();
     const signal = currentAbort.signal;
