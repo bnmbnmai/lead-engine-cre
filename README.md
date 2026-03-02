@@ -1,179 +1,150 @@
 # LeadRTB
 
-[![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/test.yml)
-[![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)](https://chain.link/convergence)
-[![ACE Compliance](https://img.shields.io/badge/Compliance-ACE-blue)](https://chain.link/ace)
-[![Confidential HTTP](https://img.shields.io/badge/Privacy-CHTT-green)](https://chain.link/cre)
+[![CI](https://github.com/bnmbnmai/lead-engine-cre/actions/workflows/ci.yml/badge.svg)](https://github.com/bnmbnmai/lead-engine-cre/actions)
+[![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE%20Native-375BD2)](https://docs.chain.link/cre)
+[![Base Sepolia](https://img.shields.io/badge/Base%20Sepolia-0052FF?logo=coinbase)](https://sepolia.basescan.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-leadrtb.com-brightgreen)](https://leadrtb.com)
 
-[Live Demo](https://leadrtb.com) | Last Updated: 1 March 2026
+[Live Demo](https://leadrtb.com) |
+[API](https://api.leadrtb.com/health)
 
 ---
 
 ## Overview
 
-LeadRTB establishes an on-chain marketplace for tokenized, privacy-preserving leads on Base Sepolia. Sellers submit high-value leads that undergo verifiable quality scoring and fraud-signal enrichment via Chainlink Confidential Compute and Confidential HTTP. Leads are minted as ACE-compliant LeadNFTs and offered through sealed-bid auctions with atomic USDC settlement via PersonalEscrowVault.
+LeadRTB establishes an on-chain marketplace for tokenized, privacy-preserving leads across 50+ verticals in 20+ countries. Every lead carries a Chainlink CRE quality score (0-100) with on-chain attestation, trades via sealed-bid auctions with VRF v2.5 tiebreakers, and settles atomically in USDC through a PersonalEscrowVault smart contract. Winner-only PII decryption via CRE Confidential Compute ensures lead data stays encrypted until a verified buyer wins the auction.
 
-Autonomous MCP agents, powered by LangChain ReAct and 15 custom tools, execute continuous bidding according to buyer-configured rules for verticals, geography, quality thresholds, and budgets. The architecture integrates twelve Chainlink service integrations across the full lead lifecycle, delivering fraud resistance, instant payouts, verifiable provenance, and compliance enforcement through CRE orchestration and Confidential HTTP.
+Autonomous MCP agents, powered by LangChain ReAct with 15 custom tools (including official chainlink-agent-skills/cre-skills), bid autonomously alongside human buyers. The hybrid CRE-native architecture runs deterministic buyer-rule evaluation inside the Chainlink DON while keeping real-time stateful operations (budget enforcement, vault locking, duplicate detection) on the backend server.
 
-Built for Chainlink Convergence 2026, the platform positions sensitive lead data as institutional-grade private data RWAs and is eligible for the Privacy Track, CRE & AI Track, DeFi & Tokenization Track, and Autonomous Agents Track on Moltbook.
+## Key Features
 
----
-
-## Privacy & Confidential Computing
-
-All personal identifiable information is protected with client-side AES-256-GCM encryption. The CREVerifier contract leverages Chainlink Confidential HTTP (CHTT) Phase 2 for enclave-based quality scoring and HMAC fraud-signal enrichment. Results are returned with enclave attestations and decrypted only by authorized backend processes.
-
-Winner-only decryption of lead PII via Confidential Compute (CRE DON `encryptOutput: true`) is fully implemented. The `DecryptForWinner` CRE workflow verifies `escrowReleased: true` before decrypting, ensuring only auction winners can access PII. Full technical details and compliance scaffolding for GDPR/CCPA are documented in [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md).
-
----
-
-## How a Lead Moves Through the System
-
-```mermaid
-graph TD
-    A["Lead Submission (Lander / API / Demo)"] --> B["CRE Verification + Quality Scoring"]
-    B --> C["Mint LeadNFTv2 (ACE-Protected)"]
-    C --> D["Marketplace Listing + Auction Starts"]
-    D --> E["Sealed Bids (Manual or Autonomous Agents)"]
-    E --> F["Auction Ends (VRF Tiebreaker if Needed)"]
-    F --> G["Settlement via PersonalEscrowVault"]
-    G --> H["Refunds + Winner-Only PII Reveal"]
-    H --> I["Chainlink Automation PoR Check"]
-    I --> J["NFT Transfer + Provenance Update"]
-```
-
-### Key Features
-
-- **One-click end-to-end demo** with certified on-chain activity across the complete lifecycle (submission ? CRE scoring ? mint ? sealed-bid auction ? atomic settlement ? Proof-of-Reserves verification and winner-only PII reveal).
-- **LeadNFTv2** supporting secondary-market royalties (2 %) and fractional ownership via ERC-3643 compliance.
-- **Autonomous AI Agent** powered by Kimi K2.5 (LLM) + LangChain ReAct with 15 custom MCP tools (incl. official chainlink-agent-skills/cre-skills). Fully LLM-autonomous bidding, search, compliance checks, and navigation � distinct from the deterministic rule-based auto-bid engine that evaluates 7 gates per lead without LLM involvement.
+- **One-click end-to-end demo** with certified on-chain activity across the complete lifecycle (submission, CRE scoring, mint, sealed-bid auction, atomic settlement, Proof-of-Reserves verification, and winner-only PII reveal).
+- **LeadNFTv2** supporting secondary-market royalties (2%) and fractional ownership via ERC-3643 compliance.
+- **Autonomous AI Agent** powered by Kimi K2.5 (LLM) + LangChain ReAct with 15 custom MCP tools (incl. official chainlink-agent-skills/cre-skills). Fully LLM-autonomous bidding, search, compliance checks, and navigation -- distinct from the deterministic rule-based auto-bid engine that evaluates 7 gates per lead without LLM involvement.
 - **Sealed-bid auctions** with commit-reveal privacy, VRF v2.5 fairness for tie resolution, and PersonalEscrowVault atomic USDC settlement.
 - **PersonalEscrowVault** with Chainlink Automation-driven daily Proof-of-Reserves checks and automatic refund of expired bid locks.
-- **Granular Vertical Field Bounty Hunting** � buyers post field-specific bounties (for example, �mortgage leads from ZIP code 90210 with good or excellent credit score�). The system automatically matches each submitted lead�s field values at ingestion, attaches matching bounty rewards to the auction, and settles the additional USDC payouts on close � creating direct, hyper-targeted demand signals.
-- **CRE Workflow Orchestration** � production CRE workflow (`EvaluateBuyerRulesAndMatch`) runs buyer vertical/geo/budget rules inside Confidential HTTP enclaves, delivering verifiable matching with significant gas savings and institutional-grade auditability. Expanded Confidential Compute integration (winner-only decryption) is planned for the March 8 submission.
-- **Production-Grade Scaling Infrastructure** � horizontal scaling via BullMQ/Redis (distributed bid scheduling, persistent lock registry, event-driven settlement) and WebSocket sharding, already implemented and proven ready for 10,000+ leads per day.
+- **Granular Vertical Field Bounty Hunting** -- buyers post field-specific bounties (for example, "mortgage leads from ZIP code 90210 with good or excellent credit score"). The system automatically matches each submitted lead's field values at ingestion, attaches matching bounty rewards to the auction, and settles the additional USDC payouts on close -- creating direct, hyper-targeted demand signals.
+- **CRE Workflow Orchestration** -- production CRE workflow (`EvaluateBuyerRulesAndMatch`) runs buyer vertical/geo/budget rules inside Confidential HTTP enclaves, delivering verifiable matching with significant gas savings and institutional-grade auditability.
+- **Production-Grade Scaling Infrastructure** -- horizontal scaling via BullMQ/Redis (distributed bid scheduling, persistent lock registry, event-driven settlement) and WebSocket sharding, already implemented and proven ready for 10,000+ leads per day.
 
 All major edge cases (ties, low-escrow aborts, nonce escalation, concurrent bidding) are handled in production code. Real-time frontend updates via Socket.IO with optimistic states and agent activity badges.
 
-### CRE Workflow: `EvaluateBuyerRulesAndMatch`
+## CRE Workflow: `EvaluateBuyerRulesAndMatch`
 
 Production CRE workflow that evaluates buyer preference rules against incoming leads inside the Chainlink DON using `@chainlink/cre-sdk`. Uses Confidential HTTP to fetch buyer preference sets from the backend API with vault DON secrets (API key never in config or node memory), then runs a deterministic 7-gate rule evaluation with BFT consensus via `consensusIdenticalAggregation`.
 
-**Architecture (Hybrid Model):**
+### Architecture (Hybrid Model)
 
-```
-+---------------------------------------------------------------------+
-�                    Chainlink DON (BFT Consensus)                    �
-�                                                                     �
-�  1. CronCapability trigger                                          �
-�  2. ConfidentialHTTPClient ? GET /api/v1/auto-bid/pending-lead      �
-�     (API key injected from Vault DON via {{.creApiKey}})            �
-�  3. ConfidentialHTTPClient ? GET /api/v1/auto-bid/preference-sets   �
-�  4. Deterministic 7-gate evaluation:                                �
-�     +-- Gate 1: Vertical match (exact or wildcard '*')              �
-�     +-- Gate 2: Geo country match                                   �
-�     +-- Gate 3: Geo state include/exclude                           �
-�     +-- Gate 4: Quality score threshold                             �
-�     +-- Gate 5: Off-site toggle                                     �
-�     +-- Gate 6: Verified-only toggle                                �
-�     +-- Gate 7: Field-level filter evaluation                       �
-�  5. consensusIdenticalAggregation ? match results                   �
-�                                                                     �
-�  Output: { leadId, matchedSets[], suggestedBidAmounts[] }           �
-+---------------------------------------------------------------------+
-                              �
-                              ?
-+---------------------------------------------------------------------+
-�                    Backend Server (Real-Time)                        �
-�                                                                     �
-�  triggerBuyerRulesWorkflow() receives DON match results, then:      �
-�  6. Daily budget enforcement (requires real-time DB state)          �
-�  7. Vault balance lock (requires on-chain tx)                       �
-�  8. Duplicate bid check (requires real-time DB state)               �
-�  9. Sealed-bid creation + commitment hash                           �
-�                                                                     �
-�  Centralized hook: afterLeadCreated() fires on ALL lead entry paths �
-�  +-- API (marketplace.routes.ts � seller submit, public submit)     �
-�  +-- Webhook (integration.routes.ts � e2e-bid)                      �
-�  +-- Demo (demo-panel.routes.ts � seed, inject, auction)            �
-�  +-- Drip (demo-orchestrator.ts � via onLeadInjected callback)      �
-�                                                                     �
-�  Fallback: CRE_WORKFLOW_ENABLED=false ? local auto-bid engine      �
-+---------------------------------------------------------------------+
+```text
++-----------------------------------------------------------+
+|                 Chainlink DON (BFT Consensus)              |
+|                                                            |
+|  1. CronCapability trigger                                 |
+|  2. ConfidentialHTTPClient -> GET /api/v1/auto-bid/pending |
+|     (API key injected from Vault DON via {{.creApiKey}})   |
+|  3. ConfidentialHTTPClient -> GET /api/v1/auto-bid/prefs   |
+|  4. Deterministic 7-gate evaluation:                       |
+|     +-- Gate 1: Vertical match (exact or wildcard '*')     |
+|     +-- Gate 2: Geo country match                          |
+|     +-- Gate 3: Geo state include/exclude                  |
+|     +-- Gate 4: Quality score threshold                    |
+|     +-- Gate 5: Off-site toggle                            |
+|     +-- Gate 6: Verified-only toggle                       |
+|     +-- Gate 7: Field-level filter evaluation              |
+|  5. consensusIdenticalAggregation -> match results         |
+|  Output: { leadId, matchedSets[], suggestedBidAmounts[] }  |
++-----------------------------------------------------------+
+                           |
+                           v
++-----------------------------------------------------------+
+|                Backend Server (Real-Time)                   |
+|                                                            |
+|  triggerBuyerRulesWorkflow() receives DON match results:   |
+|  6. Daily budget enforcement (requires real-time DB state) |
+|  7. Vault balance lock (requires on-chain tx)              |
+|  8. Duplicate bid check (requires real-time DB state)      |
+|  9. Sealed-bid creation + commitment hash                  |
+|                                                            |
+|  Centralized hook: afterLeadCreated() fires on ALL paths:  |
+|  +-- API (marketplace.routes.ts, seller/public submit)     |
+|  +-- Webhook (integration.routes.ts, e2e-bid)              |
+|  +-- Demo (demo-panel.routes.ts, seed, inject, auction)    |
+|  +-- Drip (demo-orchestrator.ts, via onLeadInjected cb)    |
+|                                                            |
+|  Fallback: CRE_WORKFLOW_ENABLED=false -> local auto-bid    |
++-----------------------------------------------------------+
 ```
 
 **Key files:**
-- [`cre-workflows/EvaluateBuyerRulesAndMatch/main.ts`](cre-workflows/EvaluateBuyerRulesAndMatch/main.ts) � CRE SDK workflow with 7-gate evaluation
-- [`cre-workflows/DecryptForWinner/main.ts`](cre-workflows/DecryptForWinner/main.ts) � Winner-only PII decryption (encryptOutput: true)
-- [`cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml`](cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml) � Workflow settings
-- [`cre-workflows/secrets.yaml`](cre-workflows/secrets.yaml) � Vault DON secret mapping
-- [`cre-workflows/project.yaml`](cre-workflows/project.yaml) � Base Sepolia RPC config
-- [`backend/src/services/cre.service.ts`](backend/src/services/cre.service.ts) � `triggerBuyerRulesWorkflow()` integration
+
+- [`cre-workflows/EvaluateBuyerRulesAndMatch/main.ts`](cre-workflows/EvaluateBuyerRulesAndMatch/main.ts) -- CRE SDK workflow with 7-gate evaluation
+- [`cre-workflows/DecryptForWinner/main.ts`](cre-workflows/DecryptForWinner/main.ts) -- Winner-only PII decryption (encryptOutput: true)
+- [`cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml`](cre-workflows/EvaluateBuyerRulesAndMatch/workflow.yaml) -- Workflow settings
+- [`cre-workflows/secrets.yaml`](cre-workflows/secrets.yaml) -- Vault DON secret mapping
+- [`cre-workflows/project.yaml`](cre-workflows/project.yaml) -- Base Sepolia RPC config
+- [`backend/src/services/cre.service.ts`](backend/src/services/cre.service.ts) -- `triggerBuyerRulesWorkflow()` integration
 
 **Simulate:**
+
 ```bash
-cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target=staging-settings
+cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings
 ```
 
-**Gas savings:** Moving buyer rule evaluation into a single CRE workflow DON call reduces on-chain transactions from N (one per verification type) to 1 per lead � estimated 60�80% gas reduction on Base Sepolia. The DON handles deterministic computation; only matched results trigger on-chain vault locks.
+**Gas savings:** Moving buyer rule evaluation into a single CRE workflow DON call reduces on-chain transactions from N (one per verification type) to 1 per lead -- estimated 60-80% gas reduction on Base Sepolia. The DON handles deterministic computation; only matched results trigger on-chain vault locks.
 
-**CRE-Native Demo Mode:**
-The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click). The Demo Control Panel also has an explicit toggle (?? CRE Workflow Mode) for manual Classic/CRE switching. When enabled:
+### CRE-Native Demo Mode
+
+The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click). The Demo Control Panel also has an explicit toggle (CRE Workflow Mode) for manual Classic/CRE switching. When enabled:
+
 - Every injected lead is evaluated by the 7-gate CRE workflow via `triggerBuyerRulesWorkflow()`
 - Real-time CRE DON entries appear in the persistent On-Chain Log with Basescan proof links
-- Winner-only PII decryption via "?? Decrypt Lead Data" button (CRE DON attested, `encryptOutput: true`)
+- Winner-only PII decryption via "Decrypt Lead Data" button (CRE DON attested, `encryptOutput: true`)
 - Classic mode remains fully functional when toggle is OFF
 
-**Buyer Persona Experience:**
+### Buyer Persona Experience
+
 - Demo Control Panel is **env-gated** (`VITE_DEMO_MODE`), accessible to all personas (Buyer, Seller, Admin)
-- Won leads appear in **Buyer Dashboard ? Purchased Leads** and **Buyer Portfolio** with CRE Quality badge and ACE KYC Verified status
-- Each purchased lead has a **?? Decrypt PII** button ? inline PII display (name, email, phone) with "CRE DON Attested" badge
+- Won leads appear in **Buyer Dashboard**, **Purchased Leads** and **Buyer Portfolio** with CRE Quality badge and ACE KYC Verified status
+- Each purchased lead has a **Decrypt PII** button with inline PII display (name, email, phone) with "CRE DON Attested" badge
 - Quality tooltips use honest wording: "CRE DON Match + Quality Score (pending on-chain scoring)"
 - NFT ID column shows vault lock ID with Basescan provenance link (or "Mint Pending" when NFT mint is in progress)
-- **Pure persona-wallet architecture:** Buyer persona authenticates as the AI-agent wallet (`0x424CaC�`), and only leads legitimately won by that wallet on-chain appear in Portfolio and My Bids � no synthetic fallbacks.
+- **Pure persona-wallet architecture:** Buyer persona authenticates as the AI-agent wallet (`0x424CaC...`), and only leads legitimately won by that wallet on-chain appear in Portfolio and My Bids -- no synthetic fallbacks.
 
-**Hybrid CRE Workflow + Backend Stateful Gates:**
-LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=true`, the CRE DON executes the 7-gate `EvaluateBuyerRulesAndMatch` workflow on Chainlink's decentralized oracle network � deterministic, verifiable, and gas-optimized (1 DON call per lead vs. N on-chain transactions). When the CRE DON toggle is off (default for local/staging), the backend `auto-bid.service.ts` evaluates the **same buyer preference JSON** stored in the database � vertical filters, geo exclusions, max bid, verified-lead requirements � ensuring consistent scoring between on-chain and off-chain paths. Neither path uses synthetic or random scoring; both derive from the buyer's declared preferences as the single source of truth. This design enables production readiness: DON for mainnet settlement, backend for rapid iteration during development.
+### Hybrid CRE Workflow + Backend Stateful Gates
 
+LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=true`, the CRE DON executes the 7-gate `EvaluateBuyerRulesAndMatch` workflow on Chainlink's decentralized oracle network -- deterministic, verifiable, and gas-optimized (1 DON call per lead vs. N on-chain transactions). When the CRE DON toggle is off (default for local/staging), the backend `auto-bid.service.ts` evaluates the **same buyer preference JSON** stored in the database -- vertical filters, geo exclusions, max bid, verified-lead requirements -- ensuring consistent scoring between on-chain and off-chain paths. Neither path uses synthetic or random scoring; both derive from the buyer's declared preferences as the single source of truth. This design enables production readiness: DON for mainnet settlement, backend for rapid iteration during development.
 
-### Chainlink Integration
+## Chainlink Integration
 
 | # | Service | Contract | Address | Status | Backend File |
-|---|---|---|---|---|---|
-| 1 | **CRE** (Quality Scoring) | `CREVerifier` | [`0xfec22A�`](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | ? Live | `cre.service.ts` |
-| 2 | **Functions** (Bounty Match) | `BountyMatcher` | [`0x897f8C�`](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ? Live | `functions.service.ts` |
-| 3 | **Automation** (PoR) | `PersonalEscrowVault` | [`0x56bB31�`](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | ? Live | `vault-reconciliation.service.ts` |
-| 4 | **VRF v2.5** (Tiebreakers) | `VRFTieBreaker` | [`0x86c8f3�`](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | ? Live | `vrf.service.ts` |
-| 5 | **Data Feeds** (Price Guards) | Inline in Vault | � | ? Live | `data-feeds.service.ts` |
-| 6 | **ACE** (Compliance) | `ACECompliance` | [`0xAea259�`](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ? Live | `ace.service.ts` |
-| 7 | **CHTT Phase 2** (Confidential) | `CREVerifier` | (shared) | ? Live | `batched-private-score.ts` |
-| 8 | **CRE Workflow** (Buyer Rules) | DON-executed | � | ? Live | `cre-workflows/EvaluateBuyerRulesAndMatch/` |
-| 9 | **CRE Workflow** (Winner Decrypt) | DON-executed | � | ? Live | `cre-workflows/DecryptForWinner/` |
-| 10 | **LeadNFTv2** (ACE-Protected) | `LeadNFTv2` | [`0x73ebD9�`](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | ? Live | `nft.service.ts` |
+|---|---------|----------|---------|--------|--------------|
+| 1 | **CRE (Quality Scoring)** | `CREVerifier` | [0xfec22A...af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | Live | `cre.service.ts` |
+| 2 | **Functions (Bounty Match)** | `BountyMatcher` | [0x897f8C...](https://sepolia.basescan.org/address/0x897f8C0e6Ce9c4B2F73b25E7a0250aa6d5be08d4) | Live | `functions.service.ts` |
+| 3 | **Automation (PoR)** | `PersonalEscrowVault` | [0x56bB31...](https://sepolia.basescan.org/address/0x56bB31028EfE8B0e6e8ec02d1e0A0D1C48a0EF8C) | Live | `vault-reconciliation.service.ts` |
+| 4 | **VRF v2.5 (Tiebreakers)** | `VRFTieBreaker` | [0x86c8f3...](https://sepolia.basescan.org/address/0x86c8f3CdC4E3c2536d87A94c8166E249B7ca930e) | Live | `vrf.service.ts` |
+| 5 | **Data Feeds (Price Guards)** | Inline in Vault | -- | Live | `data-feeds.service.ts` |
+| 6 | **ACE (Compliance)** | `ACECompliance` | [0xAea259...](https://sepolia.basescan.org/address/0xAea259fe9329DcD8c01c0b0c7B7c0178B3Fc02b7) | Live | `ace.service.ts` |
+| 7 | **CHTT Phase 2 (Confidential)** | `CREVerifier` | (shared) | Live | `batched-private-score.ts` |
+| 8 | **CRE Workflow (Buyer Rules)** | DON-executed | -- | Live | `cre-workflows/EvaluateBuyerRulesAndMatch/` |
+| 9 | **CRE Workflow (Winner Decrypt)** | DON-executed | -- | Live | `cre-workflows/DecryptForWinner/` |
+| 10 | **LeadNFTv2 (ACE-Protected)** | `LeadNFTv2` | [0x73ebD9...](https://sepolia.basescan.org/address/0x73ebD9Cd7C3e2A3c5f29f1bA48bF15E0e7C4b16d) | Live | `nft.service.ts` |
+| 11 | **Confidential HTTP (SecretsFetch)** | DON-executed | -- | Live | `confidential-http.stub.ts` |
+| 12 | **Data Streams (Pricing)** | Inline | -- | Live | `data-feeds.service.ts` |
 
 > All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
 
-### Tech Stack
+## Tech Stack
 
 | Layer | Technologies |
-|---|---|
-| **Frontend** | Vite + React + Tailwind + Zustand + Socket.IO |
-| **Backend** | Express + Prisma + Socket.IO + LangChain |
-| **Smart Contracts** | Solidity 0.8.27 + Hardhat (Base Sepolia) |
-| **AI Agent** | Kimi K2.5 (LLM) + LangChain ReAct + 15 MCP tools (autonomous, incl. official chainlink-agent-skills/cre-skills). Separate deterministic auto-bid engine (7-gate rule evaluation, no LLM). |
-| **Oracles** | Chainlink CRE, ACE, Automation, VRF v2.5, Functions, Data Feeds |
-| **Database** | Render Postgres (with planned read replicas) |
+|-------|-------------|
+| Frontend | Vite + React + Tailwind + Zustand + Socket.IO |
+| Backend | Express + Prisma + PostgreSQL + BullMQ + Redis |
+| Blockchain | Ethers v6 + Base Sepolia + USDC + LeadNFTv2 |
+| CRE | @chainlink/cre-sdk + Confidential HTTP + DON Secrets |
+| AI Agent | Kimi K2.5 LLM + LangChain ReAct + MCP Server (15 tools) |
 
-### On-Chain Proofs
-All contracts are deployed and source-verified on Base Sepolia (as of 24 February 2026):
-| Contract | Address | Status |
-|---|---|---|
-| **PersonalEscrowVault** | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | Verified, live activity |
-| **LeadNFTv2** | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | Verified, ACE policy attached |
-| **CREVerifier** | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | Verified, subscription active |
-| **VRFTieBreaker** | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | Verified |
-| **ACELeadPolicy** | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | Verified |
+## On-Chain Proofs
 
 Certified demo run available in repository artifacts.
 
@@ -181,40 +152,40 @@ Certified demo run available in repository artifacts.
 
 ```mermaid
 graph TD
-    Frontend["Frontend (React/Vite)"] --> Backend["Backend (Express/Prisma)"]
-    Backend --> MCP["AI Agent (Kimi K2.5 � LangChain)"]
-    Backend --> AutoBid["Auto-Bid Engine (7-Gate Rules)"]
-    Backend --> Bounty["Bounty Pool Service"]
-    Backend --> Contracts["Smart Contracts (Base Sepolia)"]
-    Contracts --> Chainlink["Chainlink Services"]
-    MCP --> Backend
-    AutoBid --> Backend
-    Bounty --> Contracts
-    Backend -->|afterLeadCreated| CRE["CRE DON Workflow"]
-    CRE --> Contracts
-    Backend -->|pure persona auth| Portfolio["Buyer Portfolio (GET /bids/my)"]
+    A[Frontend React.js] --> B[Backend Express]
+    B --> C[PostgreSQL + Prisma]
+    B --> D[Base Sepolia Chain]
+    D --> E[PersonalEscrowVault]
+    D --> F[CREVerifier]
+    D --> G[BountyMatcher]
+    D --> H[VRFTieBreaker]
+    D --> I[ACECompliance]
+    D --> J[LeadNFTv2]
+    B --> K[Chainlink DON]
+    K --> L[CRE Workflows]
+    B --> M[Redis + BullMQ]
 ```
 
-### Market Opportunity
-The global lead generation services market is valued at approximately $14.5 billion in 2025 with sustained double-digit growth. Primary verticals include solar, roofing, HVAC, mortgage, and insurance. LeadRTB addresses core industry challenges�fraud, delayed payouts, lack of provenance, and manual matching�while establishing infrastructure for tokenized sensitive data assets.
+## Market Opportunity
+
+The global lead generation services market is valued at approximately $14.5 billion in 2025 with sustained double-digit growth. Primary verticals include solar, roofing, HVAC, mortgage, and insurance. LeadRTB addresses core industry challenges -- fraud, delayed payouts, lack of provenance, and manual matching -- while establishing infrastructure for tokenized sensitive data assets.
 
 See [`ROADMAP.md`](ROADMAP.md) for detailed TAM analysis, phased expansion, and the post-hackathon production roadmap.
 
+## Quick Start and Demo Guide
 
-### Quick Start & Demo Guide
-
-1. **Clone the repository:** `git clone https://github.com/bnmbnmai/lead-engine-cre`
-2. **Copy environment configuration:** `cp .env.example .env` and populate required keys
-3. **Install dependencies:** `npm install` in both `/frontend` and `/backend`
-4. **Run locally:** `npm run dev`
-5. **Enable demo mode** by setting the environment variable `VITE_DEMO_MODE=true`
+1. Clone the repository: `git clone https://github.com/bnmbnmai/lead-engine-cre`
+2. Copy environment configuration: `cp .env.example .env` and populate required keys
+3. Install dependencies: `npm install` in both `/frontend` and `/backend`
+4. Run locally: `npm run dev`
+5. Enable demo mode by setting the environment variable `VITE_DEMO_MODE=true`
 
 Full demonstration instructions, including curl examples and faucet guidance, are in [`submission-checklist.md`](submission-checklist.md).
 
-### Documentation
+## Documentation
 
-- [`ROADMAP.md`](ROADMAP.md) � Phased development plan and hackathon deliverables
-- [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) � Confidential Compute and CHTT details
-- [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) � Service integration audit
-- [`CONTRACTS.md`](CONTRACTS.md) � Contract verification status and addresses
-- [`submission-checklist.md`](submission-checklist.md) � Hackathon submission requirements
+- [`ROADMAP.md`](ROADMAP.md) -- Phased development plan and hackathon deliverables
+- [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) -- Confidential Compute and CHTT details
+- [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) -- Service integration audit
+- [`CONTRACTS.md`](CONTRACTS.md) -- Contract verification status and addresses
+- [`submission-checklist.md`](submission-checklist.md) -- Hackathon submission requirements
