@@ -239,3 +239,101 @@ Env var name matches `functions.service.ts:17` (`process.env.BOUNTY_MATCHER_ADDR
 | ROADMAP.md PII Unlock status annotated | ✅ Fixed |
 | BountyMatcher in `backend/.env` | ✅ Added |
 | FINAL_VERIFICATION_LOG.md Post-Fix section | ✅ This section |
+
+---
+
+## 7. VRFTieBreaker Address Provenance Investigation (2 March 2026)
+
+### Question
+Is `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` actually a VRFTieBreaker, or is it a CREVerifier being mislabeled?
+
+### Evidence Collected
+
+**Contract source**: `contracts/contracts/VRFTieBreaker.sol:22` — `contract VRFTieBreaker is VRFConsumerBaseV2Plus` (line 4 imports `@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol`). Has `requestResolution()` (line 130) and `fulfillRandomWords()` (line 195). **This is a real VRF v2.5 consumer contract.**
+
+**Deploy script**: `contracts/scripts/deploy-vrf.ts:31-36` — deploys `VRFTieBreaker` with `VRF_COORDINATOR`, `subscriptionId`, `KEY_HASH`. Outputs dynamic address (line 39). The script prints `VRF_TIE_BREAKER_ADDRESS=${address}` as a post-deploy instruction (line 56). **No hardcoded address in this script.**
+
+**Stale CRE references to same address**:
+
+| File | Line | Content | Interpretation |
+|---|---|---|---|
+| `upgrade-cre-base-sepolia.ts` | 30 | `const OLD_CRE = "0x86C8f348d816c35Fc0bd364e4A9Fa8a1E0fd930e"` | This address was the **previous CREVerifier** before being replaced by `0xfec22A...af8` |
+| `set-cre-subscription.ts` | 7 | Comment: `CREVerifier address: 0x86C8f348...` | **Stale comment** — this script still references the old CRE address |
+| `set-cre-subscription.ts` | 13 | `const CRE_VERIFIER_ADDRESS = "0x86C8f348..."` | **Stale hardcoded address** — calls `setChainlinkSubscription()` which is a CREVerifier method |
+| `set-cre-subscription.ts` | 24 | `ethers.getContractAt("CREVerifier", CRE_VERIFIER_ADDRESS)` | **Confirms**: this script treats `0x86c8f3...` as CREVerifier, not VRFTieBreaker |
+
+**Conclusion on address reuse**: The address `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` was deployed **twice** on Base Sepolia:
+1. **First deployment**: As `CREVerifier` (the old one, now replaced by `0xfec22A...af8`)
+2. **Second deployment**: As `VRFTieBreaker` — at the same address (possible via CREATE2 or simply a new deployment that happened to land at the same address on a testnet)
+
+**Basescan** says "Contract Source Code Verified (Exact Match)" for `VRFTieBreaker` at this address (per `CONTRACTS.md:15`), confirming the **current** deployment is VRFTieBreaker.
+
+**Production code path**: `vrf.service.ts:17` reads `process.env.VRF_TIE_BREAKER_ADDRESS`. `vrf.service.ts:108` creates `ethers.Contract(VRF_TIE_BREAKER_ADDRESS, VRF_TIE_BREAKER_ABI, signer)` and calls `requestResolution()`. This is the only backend consumer of the VRFTieBreaker contract.
+
+### 🐛 CRITICAL BUG FOUND: Env Var Name Mismatch
+
+| What | Value |
+|---|---|
+| `vrf.service.ts:17` reads | `process.env.VRF_TIE_BREAKER_ADDRESS` |
+| `backend/.env:47` sets | `VRF_TIEBREAKER_CONTRACT_ADDRESS_BASE_SEPOLIA=0x86c8f348...` |
+| `deploy-vrf.ts:56` outputs | `VRF_TIE_BREAKER_ADDRESS=${address}` |
+
+**The env var names don't match.** `vrf.service.ts` reads `VRF_TIE_BREAKER_ADDRESS` (with underscores). The `.env` file had `VRF_TIEBREAKER_CONTRACT_ADDRESS_BASE_SEPOLIA` (no underscores, different suffix). Result: **`isVrfConfigured()` always returned `false`**, and VRF tie-breaking was silently disabled in production.
+
+### Fix Applied
+
+Added `VRF_TIE_BREAKER_ADDRESS=0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` to `backend/.env:50` (the var name that `vrf.service.ts:17` actually reads). Both vars now coexist for backward compatibility.
+
+### Files Updated
+
+| File | Change |
+|---|---|
+| `CONTRACTS.md:15` | Added provenance note to VRFTieBreaker row |
+| `README.md:160` | Added "addr reused from old CRE; Basescan-verified as VRFTieBreaker" to status |
+| `backend/.env:48-50` | Added `VRF_TIE_BREAKER_ADDRESS` with correct address + comment explaining the name mismatch |
+
+---
+
+## 8. VRFTieBreaker Redeploy — 2 March 2026
+
+### Rationale
+Address `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` was originally deployed as the old CREVerifier. While it was later overwritten with VRFTieBreaker bytecode and verified on Basescan, the on-chain deployment history was ambiguous. A fresh deploy ensures clean provenance with "VRFTieBreaker" as the contract name from genesis.
+
+### Deployment Details
+
+| Item | Value |
+|---|---|
+| **Old address** | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` |
+| **New address** | `0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8` |
+| **Deployer** | `0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70` |
+| **Network** | Base Sepolia (chain 84532) |
+| **VRF Coordinator** | `0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE` |
+| **Key Hash** | `0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71` |
+| **Subscription ID** | `113264743570594559564982314341877976588830746108914258805903844389838314926501` |
+| **Deploy script** | `contracts/scripts/deploy-vrf.ts` |
+| **Deploy command** | `npx hardhat run scripts/deploy-vrf.ts --network baseSepolia` |
+| **Basescan verification** | ✅ `Successfully submitted source code for contract contracts/VRFTieBreaker.sol:VRFTieBreaker` — exit code 0 |
+| **Basescan link** | [View ↗](https://sepolia.basescan.org/address/0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8#code) |
+
+### ⚠️ Post-Deploy Action Required
+
+> [!IMPORTANT]
+> **Add the new consumer to the VRF subscription** at [vrf.chain.link](https://vrf.chain.link).
+> Consumer address to add: `0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8`
+> Without this step, `requestResolution()` calls will revert with "consumer not registered".
+
+### Env Var Fix Confirmation
+
+`vrf.service.ts:17` reads `process.env.VRF_TIE_BREAKER_ADDRESS`. After this fix:
+- `backend/.env:49` now sets `VRF_TIE_BREAKER_ADDRESS=0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8`
+- `isVrfConfigured()` will return `true` (previously always `false` due to env var name mismatch)
+- VRF tie-breaking is now **fully enabled** for the first time in production
+
+### Files Updated
+
+| File | Change |
+|---|---|
+| `backend/.env:46-50` | New address for both `VRF_TIEBREAKER_CONTRACT_ADDRESS_BASE_SEPOLIA` and `VRF_TIE_BREAKER_ADDRESS` |
+| `CONTRACTS.md:15` | New address + fresh redeploy note |
+| `README.md:160` | New address + "fresh redeploy March 2 2026 — correct on-chain name" status |
+| `FINAL_VERIFICATION_LOG.md` | This section |
