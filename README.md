@@ -11,11 +11,39 @@
 
 ---
 
+The $200B+ lead generation market is broken: buyers cannot verify quality before purchase, sellers wait weeks for payment, and sensitive PII is exposed during bidding. LeadRTB solves this with Chainlink CRE quality attestation, atomic USDC settlement, and winner-only PII decryption -- all on-chain.
+
 ## Overview
 
 LeadRTB establishes an on-chain marketplace for tokenized, privacy-preserving leads across 50+ verticals in 20+ countries. Every lead carries a Chainlink CRE quality score (0-100) with on-chain attestation, trades via sealed-bid auctions with VRF v2.5 tiebreakers, and settles atomically in USDC through a PersonalEscrowVault smart contract. Winner-only PII decryption via CRE Confidential Compute ensures lead data stays encrypted until a verified buyer wins the auction.
 
 Autonomous MCP agents, powered by LangChain ReAct with 15 custom tools (including official chainlink-agent-skills/cre-skills), bid autonomously alongside human buyers. The hybrid CRE-native architecture runs deterministic buyer-rule evaluation inside the Chainlink DON while keeping real-time stateful operations (budget enforcement, vault locking, duplicate detection) on the backend server.
+
+## How a Lead Moves Through LeadRTB
+
+```mermaid
+flowchart LR
+    A[Seller submits lead] --> B[CRE Quality Score 0-100]
+    B --> C[LeadNFT minted on Base]
+    C --> D[Sealed-bid auction 60s]
+    D --> E{Tie?}
+    E -- Yes --> F[VRF v2.5 tiebreaker]
+    E -- No --> G[Winner determined]
+    F --> G
+    G --> H[USDC settled atomically]
+    H --> I[Winner decrypts PII]
+```
+
+**End-to-end lifecycle in one click:** Seller submits a lead -> CRE DON scores it (7-gate evaluation) -> LeadNFTv2 minted on Base Sepolia -> sealed-bid auction runs for 60 seconds with real on-chain vault locks -> VRF v2.5 breaks any ties -> USDC settles atomically via PersonalEscrowVault -> only the verified winner can decrypt PII via CRE Confidential Compute.
+
+### Key Differentiators
+
+- **Chainlink CRE-Native Scoring** -- every lead scored inside the DON with 7-gate deterministic evaluation and BFT consensus. No off-chain trust assumptions.
+- **Atomic USDC Settlement** -- PersonalEscrowVault locks funds on-chain at bid time and releases instantly on auction close. No net terms, no chargebacks.
+- **Winner-Only PII Decryption** -- lead data encrypted at rest; only the auction winner can decrypt via CRE Confidential Compute (`encryptOutput: true`).
+- **Autonomous AI Bidding** -- Kimi K2.5 agent with 15 MCP tools bids alongside human buyers in real-time, using the same on-chain vault and rule engine.
+- **Granular Bounty Hunting** -- buyers post field-specific bounties ("solar leads in CA with 700+ credit score") that auto-match and settle additional USDC rewards.
+- **VRF v2.5 Fair Tiebreaking** -- provably random, verifiable on-chain tie resolution ensures no bidder has an unfair advantage.
 
 ## Key Features
 
@@ -117,6 +145,13 @@ LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=
 
 ## Chainlink Integration
 
+### Hackathon Track Eligibility
+
+- **Privacy Track** -- Winner-only PII decryption via CRE Confidential Compute; encrypted lead data at rest; CHTT Phase 2 SubtleCrypto pattern.
+- **CRE & AI Track** -- Production CRE workflow (`EvaluateBuyerRulesAndMatch`) with 7-gate DON evaluation; `DecryptForWinner` confidential output.
+- **DeFi & Tokenization Track** -- LeadNFTv2 (ERC-3643 with 2% royalties); PersonalEscrowVault atomic USDC settlement; Chainlink Automation PoR.
+- **Autonomous Agents Track** -- Kimi K2.5 LLM + LangChain ReAct + 15 MCP tools (incl. official chainlink-agent-skills/cre-skills); fully autonomous bidding.
+
 | # | Service | Contract | Address | Status | Backend File |
 |---|---------|----------|---------|--------|--------------|
 | 1 | **CRE (Quality Scoring)** | `CREVerifier` | [0xfec22A...af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | Live | `cre.service.ts` |
@@ -133,6 +168,16 @@ LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=
 | 12 | **Data Streams (Pricing)** | Inline | -- | Live | `data-feeds.service.ts` |
 
 > All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
+
+### Try the 1-Click Demo
+
+> **Live at [https://leadrtb.com](https://leadrtb.com)**
+>
+> 1. Visit [leadrtb.com](https://leadrtb.com) and connect any wallet (Base Sepolia)
+> 2. Click **"Run Full On-Chain Demo"** (purple button) -- this seeds leads, runs CRE scoring, fires live auctions, settles USDC, and mints NFTs
+> 3. Switch to **Buyer** persona to see won leads, CRE Quality badges, and decrypt PII
+> 4. Open the **On-Chain Log** (Ctrl+Shift+L) to watch every tx with Basescan proof links
+> 5. Toggle **CRE Workflow Mode** in the Demo Control Panel to compare DON vs. classic paths
 
 ## Tech Stack
 
