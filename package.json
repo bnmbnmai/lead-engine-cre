@@ -35,6 +35,9 @@
     "db:seed": "npm run db:seed --workspace=backend",
     "db:clear-mock": "npm run db:clear-mock --workspace=backend"
   },
+  "dependencies": {
+    "valtio": "^1.13.2"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "rimraf": "^5.0.5"
