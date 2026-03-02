@@ -4,9 +4,9 @@
 [![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-brightgreen)](https://chain.link/convergence)
 [![ACE Compliance](https://img.shields.io/badge/Compliance-ACE-blue)](https://chain.link/ace)
 [![Confidential HTTP](https://img.shields.io/badge/Privacy-CHTT-green)](https://chain.link/cre)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-leadrtb.com-brightgreen)](https://lead-engine-cre-frontend.leadrtb.com)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-leadrtb.com-brightgreen)](https://leadrtb.com)
 
-[Live Demo](https://lead-engine-cre-frontend.leadrtb.com) | Last Updated: 1 March 2026
+[Live Demo](https://leadrtb.com) | Last Updated: 1 March 2026
 
 ---
 
@@ -201,23 +201,13 @@ The global lead generation services market is valued at approximately $14.5 bill
 See [`ROADMAP.md`](ROADMAP.md) for detailed TAM analysis, phased expansion, and the post-hackathon production roadmap.
 
 
-**Traffic Platform Lead Ingestion** � A production-ready webhook endpoint (`POST /api/v1/ingest/traffic-platform`) simulates how real-world ad platforms (Google Ads, Facebook Lead Ads, TikTok Lead Gen, The Trade Desk / DV360) push leads directly into the CRE pipeline. Each ingested lead runs the full on-chain pipeline: PII encryption ? CRE quality scoring ? buyer preference matching via `afterLeadCreated()` ? live marketplace auction with socket.IO broadcast.
-
-The Demo Control Panel includes a **"Simulate Traffic Lead"** button that calls the endpoint with a randomized sample payload from one of four supported platforms. This demonstrates:
-
-- **Programmatic media buying integration** � budget pacing and spend caps can be enforced via Chainlink Data Feeds on the bid side
-- **Multi-source attribution** � each lead carries `_trafficPlatform` and `_campaignId` metadata for ROI tracking
-- **Horizontal scalability** � the stateless webhook pattern supports thousands of concurrent ingestion events with CRE verification at the gate
-
-**Granular Bounties � Production Targeting Workflow** � The Seller Dashboard shows an expandable "Active Buyer Bounties" card with per-vertical USDC pools, criteria pills, and a "Target This Bounty" button. Instead of pre-filling a submit form (which risks fake leads), clicking "Target" opens a targeting modal with full criteria breakdown, "Export Targeting JSON" (copy-paste ready for Google Ads/Facebook Lead Ads audience builder), "Generate Tracking Link" (pre-filled UTM/webhook URL for programmatic media buying), and an estimated match rate. The Submit Lead form independently auto-detects matching bounties and shows an info banner � bounties release automatically at settlement when a lead matches criteria, verified by Chainlink Functions. This architecture prevents gaming while giving sellers the data they need to optimize real ad spend.
-
 ### Quick Start & Demo Guide
 
 1. **Clone the repository:** `git clone https://github.com/bnmbnmai/lead-engine-cre`
 2. **Copy environment configuration:** `cp .env.example .env` and populate required keys
 3. **Install dependencies:** `npm install` in both `/frontend` and `/backend`
 4. **Run locally:** `npm run dev`
-5. **Enable demo mode** on Vercel by setting the environment variable `VITE_DEMO_MODE=true`
+5. **Enable demo mode** by setting the environment variable `VITE_DEMO_MODE=true`
 
 Full demonstration instructions, including curl examples and faucet guidance, are in [`submission-checklist.md`](submission-checklist.md).
 
