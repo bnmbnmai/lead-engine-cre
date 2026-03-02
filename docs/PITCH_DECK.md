@@ -47,7 +47,7 @@ Chainlink Hackathon 2026 — Convergence
 ## Slide 4: Architecture
 
 ```
-┌──────────── Frontend (Vercel) ─────────────┐
+┌──────────── Frontend (Cloudflare) ─────────────┐
 │  React + wagmi + vanilla CSS · WalletConnect │
 └────────────────┬───────────────────────────┘
                  │
@@ -200,8 +200,8 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | Resource | URL |
 |---------|-----|
 | **Repo** | https://github.com/bnmbnmai/lead-engine-cre |
-| **Demo** | https://lead-engine-cre-frontend.vercel.app |
-| **API** | https://lead-engine-cre-api.onrender.com |
-| **Swagger** | https://lead-engine-cre-api.onrender.com/api/swagger |
+| **Demo** | https://leadrtb.com |
+| **API** | https://api.leadrtb.com |
+| **Swagger** | https://api.leadrtb.com/api/swagger |
 | **Video** | *[Loom URL — record before submission]* |
 | **Contracts** | *[Sepolia Etherscan — verify before submission]* |
