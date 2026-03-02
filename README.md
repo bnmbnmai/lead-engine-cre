@@ -152,18 +152,20 @@ LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=
 - **DeFi & Tokenization Track** -- LeadNFTv2 (ERC-3643 with 2% royalties); PersonalEscrowVault atomic USDC settlement; Chainlink Automation PoR.
 - **Autonomous Agents Track** -- Kimi K2.5 LLM + LangChain ReAct + 15 MCP tools (incl. official chainlink-agent-skills/cre-skills); fully autonomous bidding.
 
-| # | Service | Contract | Address | Status | Backend File | Basescan |
-|---|---------|----------|---------|--------|--------------|----------|
-| 1 | **CRE (Quality Scoring + CHTT)** | `CREVerifier` | [0xfec22A5159E077d7016AAb5fC3E91e0124393af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | ✅ Live & Verified | `cre.service.ts` | ✅ |
-| 2 | **Functions (Bounty Match)** | `BountyMatcher` | [0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ✅ Live & Verified | `functions.service.ts` | ✅ |
-| 3 | **Automation (PoR + Refunds)** | `PersonalEscrowVault` | [0x56bB31bE214C54ebeCA55cd86d86512b94310F8C](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | ✅ Live & Verified | `vault-reconciliation.service.ts` | ✅ |
-| 4 | **VRF v2.5 (Tiebreakers)** | `VRFTieBreaker` | [0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | ✅ Live & Verified | `vrf.service.ts` | ✅ |
-| 5 | **ACE Compliance** | `ACECompliance` | [0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ✅ Live & Verified | `ace.service.ts` | ✅ |
-| 6 | **ACE Lead Policy** | `ACELeadPolicy` | [0x013f3219012030aC32cc293fB51a92eBf82a566F](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ✅ Live & Verified | `nft.service.ts` | ✅ |
-| 7 | **LeadNFTv2 (ERC-3643 + Royalties)** | `LeadNFTv2` | [0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | ✅ Live & Verified | `nft.service.ts` | ✅ |
-| 8–12 | **CRE Workflows, Confidential HTTP, Data Feeds** | DON / Inline | — | ✅ Live | `cre-workflows/` & services | ✅ |
+| # | Service | Contract | Address | Status | Backend File | Basescan | Tenderly |
+|---|---------|----------|---------|--------|--------------|----------|----------|
+| 1 | **CRE (Quality Scoring + CHTT)** | `CREVerifier` | [0xfec22A5159E077d7016AAb5fC3E91e0124393af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | ✅ Live & Verified | `cre.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 2 | **Functions (Bounty Match)** | `BountyMatcher` | [0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ✅ Live & Verified | `functions.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 3 | **Automation (PoR + Refunds)** | `PersonalEscrowVault` | [0x56bB31bE214C54ebeCA55cd86d86512b94310F8C](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | ✅ Live & Verified | `vault-reconciliation.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 4 | **VRF v2.5 (Tiebreakers)** | `VRFTieBreaker` | [0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | ✅ Live & Verified | `vrf.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 5 | **ACE Compliance** | `ACECompliance` | [0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ✅ Live & Verified | `ace.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 6 | **ACE Lead Policy** | `ACELeadPolicy` | [0x013f3219012030aC32cc293fB51a92eBf82a566F](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ✅ Live & Verified | `nft.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 7 | **LeadNFTv2 (ERC-3643 + Royalties)** | `LeadNFTv2` | [0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | ✅ Live & Verified | `nft.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
+| 8–12 | **CRE Workflows, Confidential HTTP, Data Feeds** | DON / Inline | — | ✅ Live | `cre-workflows/` & services | ✅ | [CRE Workflow Simulations](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
 
 > All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CONTRACTS.md`](CONTRACTS.md) for canonical addresses and [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
+
+Tenderly Virtual TestNet (Base Sepolia fork, full source code visibility) with live CRE workflow + contract transaction history — satisfies mandatory hackathon requirement and qualifies for the dedicated $5k Tenderly + CRE prize track. See `certified-runs/March-2-2026/tenderly/` for traces, screenshots, and simulation links.
 
 ### For Judges (1-Click Verification)
 
