@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-03-02T19:58:50.549Z",
+  "vnetId": "5ce481f4-3d52-4c72-ba73-1c978a7d20ba",
+  "explorerUrl": "https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions",
+  "network": "Base Sepolia (Tenderly VNet fork)",
+  "chainId": 84532,
+  "contracts": {
+    "PersonalEscrowVault": "0x56bB31bE214C54ebeCA55cd86d86512b94310F8C",
+    "CREVerifier": "0xfec22A5159E077d7016AAb5fC3E91e0124393af8",
+    "LeadNFTv2": "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155",
+    "VRFTieBreaker": "0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8",
+    "ACECompliance": "0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6",
+    "BountyMatcher": "0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D",
+    "USDC": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "simulations": [
+    {
+      "id": 1,
+      "name": "PersonalEscrowVault.lockForBid",
+      "description": "Lock 25 USDC + $1 convenience fee for buyer bid. Uses Chainlink Data Feeds price gate.",
+      "chainlinkService": "Automation + Data Feeds",
+      "txHash": "0xe360aae5fb2ba66d74c80047c59e82543f46ddfaa5fb011bc7e77adcbf66636a",
+      "status": "success",
+      "gasUsed": "189581",
+      "contract": "0x56bB31bE214C54ebeCA55cd86d86512b94310F8C"
+    },
+    {
+      "id": 2,
+      "name": "CREVerifier.computeQualityScoreFromParams",
+      "description": "On-chain 7-gate CRE quality scoring: TCPA freshness + geo + data integrity + params + source",
+      "chainlinkService": "Functions CRE",
+      "qualityScore": 9600,
+      "qualityScorePercent": "96.0%",
+      "status": "success",
+      "contract": "0xfec22A5159E077d7016AAb5fC3E91e0124393af8",
+      "note": "Pure view call — no gas consumed. Score breakdown: TCPA(3000) + Geo(2000) + DataIntegrity(2000) + Params(1600) + Source(1000) = 9600/10000"
+    },
+    {
+      "id": 3,
+      "name": "LeadNFTv2.mintLead",
+      "description": "Mint Lead NFT with full metadata. Protected by ACE runPolicy modifier (PolicyEngine checks compliance before execution).",
+      "chainlinkService": "ACE (PolicyProtectedUpgradeable)",
+      "txHash": "0x1d35414ebfdded5a2d49a266458fdf7d7d504a676011563c616de3ba61e90a1d",
+      "status": "reverted",
+      "gasUsed": "42906",
+      "contract": "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155"
+    },
+    {
+      "id": 4,
+      "name": "VRFTieBreaker.requestResolution",
+      "description": "Request VRF v2.5 randomness to break a 3-way auction tie. Winner = randomWord % 3.",
+      "chainlinkService": "VRF v2.5",
+      "txHash": "0x21ef3388f9814fe77009d5fd0036ddacbcca648b36545d90fc5f0337f7808212",
+      "candidates": [
+        "0xa75d76b27fF9511354c78Cb915cFc106c6b23Dd9",
+        "0x55190CE8A38079d8415A1Ba15d001BC1a52718eC",
+        "0x88DDA5D4b22FA15EDAF94b7a97508ad7693BDc58"
+      ],
+      "status": "reverted",
+      "gasUsed": "184177",
+      "contract": "0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8",
+      "note": "On VNet, VRF coordinator may not deliver callback (requires live VRF subscription). Request is recorded on-chain."
+    },
+    {
+      "id": 5,
+      "name": "PersonalEscrowVault.performUpkeep",
+      "description": "Chainlink Automation upkeep: Proof-of-Reserves verification + sweep expired bid locks (>7 days). Action type 3 = both.",
+      "chainlinkService": "Automation",
+      "txHash": "0x461e5a94253b6cde4068c8b65691f62b27ea2e309c1d8be50034a68eeeac5523",
+      "status": "reverted",
+      "gasUsed": "2000000",
+      "contract": "0x56bB31bE214C54ebeCA55cd86d86512b94310F8C"
+    },
+    {
+      "id": 6,
+      "name": "BountyMatcher.requestBountyMatch",
+      "description": "Request Chainlink Functions DON to evaluate bounty pool criteria against lead attributes.",
+      "chainlinkService": "Functions",
+      "txHash": "0x4d9816da225775bcb7ba863be181662865179f6fff5496e2663e080c542dafc1",
+      "status": "success",
+      "gasUsed": "346587",
+      "contract": "0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D",
+      "note": "On VNet, Functions router may not deliver callback. Request is recorded on-chain."
+    },
+    {
+      "id": 7,
+      "name": "ACECompliance.getUserCompliance + verifyKYC",
+      "description": "ACE compliance registry: verify KYC for buyer, then read on-chain compliance status.",
+      "chainlinkService": "ACE",
+      "kycVerifyTxHash": "0x1d38506a5a58759fcda29efff3eb2d8938274de0d126627fe5be217ab6e4a41d",
+      "complianceResult": {
+        "kycStatus": "APPROVED",
+        "kycExpiresAt": "1970-01-01T00:00:00.000Z",
+        "lastChecked": "1970-01-01T00:00:00.000Z",
+        "reputationScore": 60408,
+        "isBlacklisted": true,
+        "isKYCValid": true
+      },
+      "status": "success",
+      "contract": "0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6"
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "success": 4,
+    "reverted": 3,
+    "expectedRevert": 0,
+    "errors": 0
+  }
+}
