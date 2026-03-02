@@ -18,7 +18,7 @@ import * as path from 'path';
 import { ethers } from 'ethers';
 import { prisma } from '../../lib/prisma';
 import { redisClient } from '../../lib/redis';
-import { computeCREQualityScore, type LeadScoringInput } from '../../lib/chainlink/cre-quality-score';
+
 import { checkVrfSubscriptionBalance } from '../vrf.service';
 import {
     DEMO_SELLER_WALLET,

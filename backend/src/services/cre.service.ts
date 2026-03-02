@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import { zkService } from './zk.service';
 import { isValidRegion, getAllCountryCodes, isValidPostalCode, getStateForZip } from '../lib/geo-registry';
-import { computeCREQualityScore, LeadScoringInput } from '../lib/chainlink/cre-quality-score';
+import { LeadScoringInput } from '../lib/chainlink/cre-quality-score';
 import { executeQualityScoreWorkflow } from '../lib/chainlink/quality-score-workflow';
 import { executeBatchedPrivateScore } from '../lib/chainlink/batched-private-score';
 import { confidentialService } from './confidential.service';

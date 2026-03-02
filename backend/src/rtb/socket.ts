@@ -10,7 +10,7 @@ import {
 } from '../services/holder-perks.service';
 import { SPAM_THRESHOLD_BIDS_PER_MINUTE } from '../config/perks.env';
 import { setHolderNotifyOptIn } from '../services/notification.service';
-import { resolveExpiredAuctions, resolveStuckAuctions, resolveExpiredBuyNow } from '../services/auction-closure.service';
+
 import * as vaultService from '../services/vault.service';
 import { initQueues } from '../lib/queues';
 
