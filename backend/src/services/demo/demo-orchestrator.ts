@@ -174,7 +174,7 @@ export function scheduleBidsForLead(
         message: `🎯 Scheduling ${numBuyers} bids for lead ${leadId.slice(0, 8)}… over ${Math.round(windowMs / 1000)}s window`,
     });
 
-    // For the force-tie lead, capture idx 1's bid so idx 2 can copy it
+    // For the force-tie lead, capture the first buyer's bid so the second can copy it
     let forceTieBidAmount: number | null = null;
 
     buyers.forEach((buyerAddr, idx) => {
@@ -182,18 +182,20 @@ export function scheduleBidsForLead(
         let bidAmount = Math.max(10, reservePrice + (idx === 0 ? 0 : rand(-variance, variance)));
 
         // Persona wallet always bids highest until it has won once
-        if (needsPersonaGuarantee && buyerAddr === BUYER_PERSONA_WALLET) {
+        // EXCEPTION: skip the premium on the force-tie lead so two top bids can match
+        if (needsPersonaGuarantee && buyerAddr === BUYER_PERSONA_WALLET && !isForcetieLead) {
             bidAmount = Math.max(bidAmount, Math.round(reservePrice * 1.3));
         }
 
-        // VRF Tie Guarantee: on the designated lead, force buyers at idx 1 & 2
-        // to bid the same amount. Persona (idx 0) still bids highest, so their
-        // win guarantee is unaffected. This creates 1 natural-looking tie per run.
-        if (isForcetieLead && buyerAddr !== BUYER_PERSONA_WALLET) {
-            if (forceTieBidAmount === null) {
-                forceTieBidAmount = bidAmount; // capture first non-persona bid
-            } else if (forceTieBidAmount !== null && idx === 2) {
-                bidAmount = forceTieBidAmount; // copy → guaranteed tie
+        // VRF Tie Guarantee: on the designated lead, force the first two buyers
+        // (idx 0 and idx 1) to bid the exact same amount. Since these are the
+        // top two bids, the settlement monitor detects sortedBids[0] === sortedBids[1]
+        // and triggers hadTiebreaker = true → VRF requestResolution.
+        if (isForcetieLead) {
+            if (idx === 0) {
+                forceTieBidAmount = bidAmount; // capture first bid
+            } else if (idx === 1 && forceTieBidAmount !== null) {
+                bidAmount = forceTieBidAmount; // copy → guaranteed tie at top
             }
         }
         const bidAmountUnits = ethers.parseUnits(String(bidAmount), 6);
@@ -843,12 +845,22 @@ export async function runFullDemo(
         // LeadCards and bounty release events in the On-Chain Log.
         try {
             const { bountyService } = await import('../bounty.service');
+            const BOUNTY_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'auto'];
+            // Ensure verticals exist in DB (upsert) before depositing bounties
+            for (let i = 0; i < BOUNTY_VERTICALS.length; i++) {
+                const slug = BOUNTY_VERTICALS[i];
+                await prisma.vertical.upsert({
+                    where: { slug },
+                    update: {},
+                    create: { slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), depth: 0, sortOrder: i, status: 'ACTIVE', aliases: [], restrictedGeos: [] },
+                });
+            }
             const DEMO_BOUNTY_POOLS = [
-                { verticalSlug: 'solar', amount: 350, criteria: { minQualityScore: 5000, geoStates: ['CA', 'TX', 'AZ'] } },
-                { verticalSlug: 'mortgage', amount: 500, criteria: { minQualityScore: 5000, geoStates: ['NY', 'FL', 'NJ'] } },
-                { verticalSlug: 'roofing', amount: 200, criteria: { minQualityScore: 4000, geoStates: ['TX', 'FL', 'GA'] } },
+                { verticalSlug: 'solar', amount: 350, criteria: { geoStates: ['CA', 'TX', 'AZ'] } },
+                { verticalSlug: 'mortgage', amount: 500, criteria: { geoStates: ['NY', 'FL', 'NJ'] } },
+                { verticalSlug: 'roofing', amount: 200, criteria: { geoStates: ['TX', 'FL', 'GA'] } },
                 { verticalSlug: 'insurance', amount: 275, criteria: { geoStates: ['CA', 'NY', 'IL'] } },
-                { verticalSlug: 'auto', amount: 150, criteria: { minQualityScore: 3000 } },
+                { verticalSlug: 'auto', amount: 150, criteria: {} },
             ];
             let bountyPoolsCreated = 0;
             let bountyTotal = 0;
@@ -857,13 +869,15 @@ export async function runFullDemo(
                     'demo-buyer-bounty', pool.verticalSlug, pool.amount, pool.criteria, BUYER_PERSONA_WALLET,
                 );
                 if (result.success) { bountyPoolsCreated++; bountyTotal += pool.amount; }
+                else { console.warn(`[DEMO BOUNTY] ${pool.verticalSlug} failed: ${result.error}`); }
             }
             emit(io, {
                 ts: new Date().toISOString(), level: bountyPoolsCreated > 0 ? 'step' : 'warn',
                 message: `💰 Demo bounties seeded: ${bountyPoolsCreated} pools ($${bountyTotal} USDC) — badges visible on matching LeadCards`,
             });
         } catch (bountyErr: any) {
-            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Demo bounty seeding skipped (non-fatal): ${bountyErr.message?.slice(0, 80)}` });
+            console.error('[DEMO BOUNTY] Seeding error:', bountyErr);
+            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Demo bounty seeding skipped (non-fatal): ${bountyErr.message?.slice(0, 120)}` });
         }
 
         // Replenishment watchdog — runs every 15s independently of the drip loop.
@@ -1378,7 +1392,7 @@ export async function runFullDemo(
             message: `
 ╔══════════════════════════════════════════════════════════╗
 ║  ✅  DEMO COMPLETE                                      ║
-║  Cycles:    ${String(cycles).padEnd(44)}║
+║  Cycles:    ${String(settlementCycle).padEnd(44)}║
 ║  Settled:   $${String(totalSettled).padEnd(43)}║
 ║  Revenue:   $${String(totalPlatformIncome.toFixed(2)).padEnd(43)}║
 ║  Tiebreaks: ${String(totalTiebreakers).padEnd(44)}║
