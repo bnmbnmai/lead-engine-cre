@@ -57,13 +57,9 @@ export function Navbar() {
                     )}
 
                     {/* Logo */}
-                    <Link to="/" className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-lg bg-[#375BD2] flex items-center justify-center">
-                            <span className="text-white font-bold text-base tracking-tight">LE</span>
-                        </div>
-                        <span className="text-lg font-semibold text-foreground hidden sm:inline tracking-tight">
-                            LeadRTB
-                        </span>
+                    <Link to="/" className="flex items-center gap-0">
+                        <span className="text-xl font-bold text-foreground tracking-tight">Lead</span>
+                        <span className="text-xl font-bold text-[#375BD2] tracking-tight">RTB</span>
                     </Link>
                 </div>
 
