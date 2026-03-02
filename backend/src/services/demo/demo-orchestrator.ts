@@ -584,6 +584,7 @@ export async function runFullDemo(
     let totalSettled = 0;
     let totalPlatformIncome = 0;
     let totalTiebreakers = 0;
+    let totalBountyRewards = 0;
     const vrfProofLinks: string[] = [];
 
     // Build wallet→key lookup from env-loaded DEMO_BUYER_KEYS (single source of truth).
@@ -836,6 +837,34 @@ export async function runFullDemo(
             level: preFundedCount > 0 ? 'success' : 'warn',
             message: `${preFundedCount > 0 ? '🚀' : '⚠️'} ${preFundedCount}/${DEMO_BUYER_WALLETS.length} buyers pre-funded to $${PRE_FUND_TARGET} — natural auction flow starting!`,
         });
+
+        // ── Auto-Seed Demo Bounties ────────────────────────────────────────
+        // Seeds 5 vertical bounty pools so the judge sees bounty badges on
+        // LeadCards and bounty release events in the On-Chain Log.
+        try {
+            const { bountyService } = await import('../bounty.service');
+            const DEMO_BOUNTY_POOLS = [
+                { verticalSlug: 'solar', amount: 350, criteria: { minQualityScore: 5000, geoStates: ['CA', 'TX', 'AZ'] } },
+                { verticalSlug: 'mortgage', amount: 500, criteria: { minQualityScore: 5000, geoStates: ['NY', 'FL', 'NJ'] } },
+                { verticalSlug: 'roofing', amount: 200, criteria: { minQualityScore: 4000, geoStates: ['TX', 'FL', 'GA'] } },
+                { verticalSlug: 'insurance', amount: 275, criteria: { geoStates: ['CA', 'NY', 'IL'] } },
+                { verticalSlug: 'auto', amount: 150, criteria: { minQualityScore: 3000 } },
+            ];
+            let bountyPoolsCreated = 0;
+            let bountyTotal = 0;
+            for (const pool of DEMO_BOUNTY_POOLS) {
+                const result = await bountyService.depositBounty(
+                    'demo-buyer-bounty', pool.verticalSlug, pool.amount, pool.criteria, BUYER_PERSONA_WALLET,
+                );
+                if (result.success) { bountyPoolsCreated++; bountyTotal += pool.amount; }
+            }
+            emit(io, {
+                ts: new Date().toISOString(), level: bountyPoolsCreated > 0 ? 'step' : 'warn',
+                message: `💰 Demo bounties seeded: ${bountyPoolsCreated} pools ($${bountyTotal} USDC) — badges visible on matching LeadCards`,
+            });
+        } catch (bountyErr: any) {
+            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Demo bounty seeding skipped (non-fatal): ${bountyErr.message?.slice(0, 80)}` });
+        }
 
         // Replenishment watchdog — runs every 15s independently of the drip loop.
         // emits `leads:updated` so all tabs re-poll the API, and logs the gap.
@@ -1353,12 +1382,13 @@ export async function runFullDemo(
 ║  Settled:   $${String(totalSettled).padEnd(43)}║
 ║  Revenue:   $${String(totalPlatformIncome.toFixed(2)).padEnd(43)}║
 ║  Tiebreaks: ${String(totalTiebreakers).padEnd(44)}║
+║  Bounties:  $${String(totalBountyRewards.toFixed(2)).padEnd(43)}║
 ║  Total Gas: ${totalGas.toString().padEnd(44)}║
 ║  Status:    All cycles SOLVENT                           ║
 ╚══════════════════════════════════════════════════════════╝`,
-            data: { runId, cycles, totalSettled, totalGas: totalGas.toString() },
+            data: { runId, cycles, totalSettled, totalGas: totalGas.toString(), totalBountyRewards },
         });
-        emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Total platform revenue: $${totalPlatformIncome.toFixed(2)} | Tiebreakers triggered: ${totalTiebreakers} | VRF proofs: ${vrfProofLinks.length > 0 ? vrfProofLinks.join(', ') : 'none'}` });
+        emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Total platform revenue: $${totalPlatformIncome.toFixed(2)} | Bounty rewards paid: $${totalBountyRewards.toFixed(2)} | Tiebreakers triggered: ${totalTiebreakers} | VRF proofs: ${vrfProofLinks.length > 0 ? vrfProofLinks.join(', ') : 'none'}` });
 
         console.log(`[DEMO] Demo run completed in ${elapsedSec}s | Deployer ETH spent: 0 (fund-once active)`);
 
