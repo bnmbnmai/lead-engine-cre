@@ -173,6 +173,7 @@ Tenderly Virtual TestNet (Base Sepolia fork, full source code visibility) with l
 - **Live demo**: [https://leadrtb.com](https://leadrtb.com) (connect any Sepolia wallet).
 - **CRE Workflow simulation**: `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`.
 - **Full certified demo artifacts**: `certified-runs/March-2-2026/`.
+- **Tenderly simulations** are fully programmatic — run `./scripts/tenderly-simulate.sh` to repopulate the VNet with fresh CRE + VRF + Vault + ACE + BountyMatcher transaction history ([Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions)).
 - See [`FINAL_VERIFICATION_LOG.md`](FINAL_VERIFICATION_LOG.md) for March 2 zero-assumption audit.
 
 ## Try the 1-Click Demo
