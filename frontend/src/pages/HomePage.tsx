@@ -1292,7 +1292,7 @@ export function HomePage() {
 function DemoButtonBanner() {
     const { isRunning, isComplete, startDemo, progress, completedRunId } = useDemo();
     const { isRunning: isGlobalRunning, isRecycling, currentCycle, totalCycles, percent } = useDemoStatus();
-    const [selectedCycles, setSelectedCycles] = useState(5);
+    const DEMO_CYCLES = 5; // Hardcoded for judge simplicity
     const navigate = useNavigate();
 
     // The button is blocked when the global server-state says a demo is active,
@@ -1366,7 +1366,7 @@ function DemoButtonBanner() {
                                     📊 View Results
                                 </button>
                                 <button
-                                    onClick={() => startDemo(selectedCycles)}
+                                    onClick={() => startDemo(DEMO_CYCLES)}
                                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-sm transition"
                                 >
                                     <RotateCcw className="h-3.5 w-3.5" />
@@ -1374,31 +1374,13 @@ function DemoButtonBanner() {
                                 </button>
                             </>
                         ) : (
-                            <>
-                                {/* Cycle selector */}
-                                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-                                    {[5, 8, 12].map(n => (
-                                        <button
-                                            key={n}
-                                            onClick={() => setSelectedCycles(n)}
-                                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${selectedCycles === n
-                                                ? 'bg-blue-600 text-white shadow-sm'
-                                                : 'text-muted-foreground hover:text-foreground'
-                                                }`}
-                                        >
-                                            {n}
-                                        </button>
-                                    ))}
-                                    <span className="text-xs text-muted-foreground px-1">cycles</span>
-                                </div>
-                                <button
-                                    onClick={() => startDemo(selectedCycles)}
-                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:scale-[1.02]"
-                                >
-                                    <Rocket className="h-4 w-4" />
-                                    🚀 Run Full On-Chain Demo (Testnet)
-                                </button>
-                            </>
+                            <button
+                                onClick={() => startDemo(DEMO_CYCLES)}
+                                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-bold shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40 hover:scale-[1.02]"
+                            >
+                                <Rocket className="h-4 w-4" />
+                                🚀 Run Full On-Chain Demo (Testnet)
+                            </button>
                         )}
                     </div>
                 </div>
