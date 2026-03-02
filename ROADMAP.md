@@ -63,7 +63,7 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - Budget pacing and spend caps via Chainlink Data Feeds.
 
 **Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)** ⬅️ _Next high-priority feature post-submission_
-- 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected).
+- 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). _Status: Demo-grade one-time decrypt implemented (`DecryptForWinner` CRE workflow + `demo-panel.routes.ts`); persistent buyer vault storage not yet built._
 - **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action, reducing friction for high-volume buyers.
 - Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
 - **Marketplace Bounty Boost Badges** — leads matching active bounty criteria display a "💰 Bounty Boost" badge on marketplace cards, signaling higher payout potential to sellers and increasing fill rates.
@@ -98,25 +98,25 @@ All current features (CRE workflow, ACE KYC, PersonalEscrowVault PoR, VRF tiebre
 - ACE policies extended to health/KYC verticals.
 
 ### High-Volume Scaling Considerations
-The current architecture is designed for demo and early-production traffic. Scaling to 10,000+ leads per day across 50+ verticals requires the following infrastructure changes (several already implemented):
+The current architecture is designed for demo and early-production traffic. Scaling to 10,000+ leads per day across 50+ verticals requires the following infrastructure changes (status annotated per March 2026 audit):
 
-**Cursor-Based Pagination & Read Replicas.** Replace offset-based pagination with cursor-based pagination on `(createdAt, id)` composite indexes. Introduce a PostgreSQL read replica behind PgBouncer for all marketplace list queries (`GET /leads`, `/asks`, `/buyNow`) to keep write latency unaffected by read load.
+**Cursor-Based Pagination & Read Replicas.** _(Planned)_ Replace offset-based pagination with cursor-based pagination on `(createdAt, id)` composite indexes. Introduce a PostgreSQL read replica behind PgBouncer for all marketplace list queries (`GET /leads`, `/asks`, `/buyNow`) to keep write latency unaffected by read load.
 
-**Distributed Bid Scheduling.** Auction resolution and bid-queue management transitioned to a distributed **BullMQ** job queue backed by **Redis** (completed February 2026). BullMQ workers operate independently of the API process, enabling horizontal scaling without data loss.
+**Distributed Bid Scheduling.** _(Implemented)_ Auction resolution and bid-queue management transitioned to a distributed **BullMQ** job queue backed by **Redis** (February 2026). BullMQ workers operate independently of the API process, enabling horizontal scaling without data loss. Falls back to in-memory `setInterval` when `REDIS_URL` is not set. See `backend/src/lib/queues.ts`.
 
-**Persistent Lead Lock Registry.** Migrated from in-memory `Map` to a **Redis-backed persistent store** with TTL = auction end time (completed February 2026). Supports tens of thousands of concurrent leads.
+**Persistent Lead Lock Registry.** _(Partially implemented)_ BullMQ queues and optional Redis caching are in place, but the core `leadLockRegistry` in `demo-orchestrator.ts` remains an in-memory `Map`. Full migration to a Redis-backed persistent store with TTL = auction end time is pending.
 
-**Event-Driven Settlement.** Replace polling with contract event listeners (`BidLocked`, `AuctionClosed`) feeding a BullMQ queue. Each event enqueues exactly one settlement job.
+**Event-Driven Settlement.** _(Partially implemented)_ `BidLocked` events are parsed for post-hoc log scanning (`vault.service.ts`, `demo-orchestrator.ts`, `unlock-vault.ts`). However, real-time contract event listeners feeding a BullMQ queue are not yet wired — settlement still uses polling via `resolveExpiredAuctions()` on a 2-second BullMQ repeatable job.
 
-**Async Job Queue.** Convert lead ingestion, CRE scoring, NFT minting, escrow settlement, and bounty matching into independent BullMQ workers with retry logic, dead-letter queues, and per-vertical concurrency limits.
+**Async Job Queue.** _(Partially implemented)_ BullMQ is used for auction resolution only (`queues.ts`). Lead ingestion, CRE scoring, NFT minting, escrow settlement, and bounty matching still run synchronously in request handlers. Dead-letter queues and per-vertical concurrency limits are not yet implemented.
 
-**Batch Minting, Bid Batching & Gas Management.** Aggregate mints and `lockForBid` calls into multicall batches of 20–50. Use a nonce-managed hot wallet pool (5–10 wallets) and EIP-1559 dynamic gas escalation for 1–3+ TPS sustained throughput.
+**Batch Minting, Bid Batching & Gas Management.** _(Partially implemented)_ Nonce management exists via `getNextNonce()` in `demo-shared.ts` (single-wallet serialization queue). Multicall batch aggregation and hot wallet pool (5–10 wallets) are not yet implemented.
 
-**WebSocket Sharding.** Add Redis adapter (`@socket.io/redis-adapter`) and per-vertical rooms for 1,000–5,000+ concurrent connections with ≤50ms p95 latency.
+**WebSocket Sharding.** _(Planned)_ Add Redis adapter (`@socket.io/redis-adapter`) and per-vertical rooms for 1,000–5,000+ concurrent connections with ≤50ms p95 latency.
 
-**Rate Limiting & Ingestion Throttling.** Deploy Redis-backed sliding-window rate limiting (`rate-limiter-flexible`) with per-seller, per-vertical caps (default 500 leads/day/vertical).
+**Rate Limiting & Ingestion Throttling.** _(Planned)_ Deploy Redis-backed sliding-window rate limiting (`rate-limiter-flexible`) with per-seller, per-vertical caps. Basic in-code bid spam prevention exists via `checkActivityThreshold` in `socket.ts`.
 
-**Observability & Alerting.** Add correlation IDs across flows. Track key metrics (auction-close latency, CRE round-trip, settlement queue depth) via Prometheus. Alert on fill-rate drops >10%, CRE failures, or queue lag >30s.
+**Observability & Alerting.** _(Planned)_ Add correlation IDs across flows. Track key metrics (auction-close latency, CRE round-trip, settlement queue depth) via Prometheus. Alert on fill-rate drops >10%, CRE failures, or queue lag >30s.
 
 ---
 
@@ -199,4 +199,4 @@ With the extended deadline and the new Privacy + Agents tracks, LeadRTB is posit
 
 ---
 
-*Last updated: 1 March 2026 (Phase 2 complete, LeadRTB rebrand, final audit)*
+*Last updated: 2 March 2026 (scaling section accuracy audit, PII unlock status annotation)*

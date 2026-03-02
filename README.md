@@ -43,7 +43,7 @@ flowchart TD
 - **Autonomous AI Bidding** -- Kimi K2.5 agent with 15 MCP tools bids alongside human buyers in real-time, using the same on-chain vault and rule engine.
 - **Granular Bounty Hunting** -- buyers post field-specific bounties ("solar leads in CA with 700+ credit score") that auto-match and settle additional USDC rewards.
 - **VRF v2.5 Fair Tiebreaking** -- provably random, verifiable on-chain tie resolution ensures no bidder has an unfair advantage.
-- **Production Technical Excellence** -- 21 integration tests covering full CRE lifecycle, lint-clean codebase, and BullMQ/Redis/WebSocket production scaling already implemented and live.
+- **Production Technical Excellence** -- 41 comprehensive test files covering full CRE lifecycle, lint-clean codebase, and BullMQ/Redis/WebSocket production scaling already implemented and live.
 
 ## Key Features
 
@@ -152,22 +152,26 @@ LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=
 - **DeFi & Tokenization Track** -- LeadNFTv2 (ERC-3643 with 2% royalties); PersonalEscrowVault atomic USDC settlement; Chainlink Automation PoR.
 - **Autonomous Agents Track** -- Kimi K2.5 LLM + LangChain ReAct + 15 MCP tools (incl. official chainlink-agent-skills/cre-skills); fully autonomous bidding.
 
-| # | Service | Contract | Address | Status | Backend File |
-|---|---------|----------|---------|--------|--------------|
-| 1 | **CRE (Quality Scoring)** | `CREVerifier` | [0xfec22A...af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | Live | `cre.service.ts` |
-| 2 | **Functions (Bounty Match)** | `BountyMatcher` | [0x897f8C...](https://sepolia.basescan.org/address/0x897f8C0e6Ce9c4B2F73b25E7a0250aa6d5be08d4) | Live | `functions.service.ts` |
-| 3 | **Automation (PoR)** | `PersonalEscrowVault` | [0x56bB31...](https://sepolia.basescan.org/address/0x56bB31028EfE8B0e6e8ec02d1e0A0D1C48a0EF8C) | Live | `vault-reconciliation.service.ts` |
-| 4 | **VRF v2.5 (Tiebreakers)** | `VRFTieBreaker` | [0x86c8f3...](https://sepolia.basescan.org/address/0x86c8f3CdC4E3c2536d87A94c8166E249B7ca930e) | Live | `vrf.service.ts` |
-| 5 | **Data Feeds (Price Guards)** | Inline in Vault | -- | Live | `data-feeds.service.ts` |
-| 6 | **ACE (Compliance)** | `ACECompliance` | [0xAea259...](https://sepolia.basescan.org/address/0xAea259fe9329DcD8c01c0b0c7B7c0178B3Fc02b7) | Live | `ace.service.ts` |
-| 7 | **CHTT Phase 2 (Confidential)** | `CREVerifier` | (shared) | Live | `batched-private-score.ts` |
-| 8 | **CRE Workflow (Buyer Rules)** | DON-executed | -- | Live | `cre-workflows/EvaluateBuyerRulesAndMatch/` |
-| 9 | **CRE Workflow (Winner Decrypt)** | DON-executed | -- | Live | `cre-workflows/DecryptForWinner/` |
-| 10 | **LeadNFTv2 (ACE-Protected)** | `LeadNFTv2` | [0x73ebD9...](https://sepolia.basescan.org/address/0x73ebD9Cd7C3e2A3c5f29f1bA48bF15E0e7C4b16d) | Live | `nft.service.ts` |
-| 11 | **Confidential HTTP (SecretsFetch)** | DON-executed | -- | Live | `confidential-http.stub.ts` |
-| 12 | **Data Streams (Pricing)** | Inline | -- | Live | `data-feeds.service.ts` |
+| # | Service | Contract | Address | Status | Backend File | Basescan |
+|---|---------|----------|---------|--------|--------------|----------|
+| 1 | **CRE (Quality Scoring + CHTT)** | `CREVerifier` | [0xfec22A5159E077d7016AAb5fC3E91e0124393af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | ✅ Live & Verified | `cre.service.ts` | ✅ |
+| 2 | **Functions (Bounty Match)** | `BountyMatcher` | [0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ✅ Live & Verified | `functions.service.ts` | ✅ |
+| 3 | **Automation (PoR + Refunds)** | `PersonalEscrowVault` | [0x56bB31bE214C54ebeCA55cd86d86512b94310F8C](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | ✅ Live & Verified | `vault-reconciliation.service.ts` | ✅ |
+| 4 | **VRF v2.5 (Tiebreakers)** | `VRFTieBreaker` | [0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | ✅ Live & Verified | `vrf.service.ts` | ✅ |
+| 5 | **ACE Compliance** | `ACECompliance` | [0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ✅ Live & Verified | `ace.service.ts` | ✅ |
+| 6 | **ACE Lead Policy** | `ACELeadPolicy` | [0x013f3219012030aC32cc293fB51a92eBf82a566F](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ✅ Live & Verified | `nft.service.ts` | ✅ |
+| 7 | **LeadNFTv2 (ERC-3643 + Royalties)** | `LeadNFTv2` | [0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | ✅ Live & Verified | `nft.service.ts` | ✅ |
+| 8–12 | **CRE Workflows, Confidential HTTP, Data Feeds** | DON / Inline | — | ✅ Live | `cre-workflows/` & services | ✅ |
 
-> All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
+> All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CONTRACTS.md`](CONTRACTS.md) for canonical addresses and [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
+
+### For Judges (1-Click Verification)
+
+- **All contracts verified "Exact Match"** on Basescan (see [`CONTRACTS.md`](CONTRACTS.md)).
+- **Live demo**: [https://leadrtb.com](https://leadrtb.com) (connect any Sepolia wallet).
+- **CRE Workflow simulation**: `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`.
+- **Full certified demo artifacts**: `certified-runs/March-2-2026/`.
+- See [`FINAL_VERIFICATION_LOG.md`](FINAL_VERIFICATION_LOG.md) for March 2 zero-assumption audit.
 
 ## Try the 1-Click Demo
 
