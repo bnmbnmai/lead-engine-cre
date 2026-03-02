@@ -121,6 +121,8 @@ cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-
 
 **Gas savings:** Moving buyer rule evaluation into a single CRE workflow DON call reduces on-chain transactions from N (one per verification type) to 1 per lead -- estimated 60-80% gas reduction on Base Sepolia. The DON handles deterministic computation; only matched results trigger on-chain vault locks.
 
+> **Note:** CRE workflows use local simulation + hybrid fallback (full DON deployment pending Early Access approval — see [FINAL_VERIFICATION_LOG.md](FINAL_VERIFICATION_LOG.md) for details).
+
 ### CRE-Native Demo Mode
 
 The purple "Run Full On-Chain Demo" button auto-enables CRE-Native mode (1-click). The Demo Control Panel also has an explicit toggle (CRE Workflow Mode) for manual Classic/CRE switching. When enabled:

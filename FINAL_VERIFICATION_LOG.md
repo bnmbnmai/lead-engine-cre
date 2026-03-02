@@ -292,6 +292,8 @@ Added `VRF_TIE_BREAKER_ADDRESS=0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` to `b
 | `README.md:160` | Added "addr reused from old CRE; Basescan-verified as VRFTieBreaker" to status |
 | `backend/.env:48-50` | Added `VRF_TIE_BREAKER_ADDRESS` with correct address + comment explaining the name mismatch |
 
+> **Note:** CRE workflows use local simulation + hybrid fallback (full DON deployment pending Early Access approval — see FINAL_VERIFICATION_LOG.md for details).
+
 ---
 
 ## 8. VRFTieBreaker Redeploy — 2 March 2026
