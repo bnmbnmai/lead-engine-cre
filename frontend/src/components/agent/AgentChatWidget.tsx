@@ -264,7 +264,7 @@ export function AgentChatWidget() {
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                         🧠 Kimi K2.5 · LangChain
                                     </span>
-                                    <span className="text-[10px] text-muted-foreground">12 MCP tools</span>
+                                    <span className="text-[10px] text-muted-foreground">15 MCP tools</span>
                                 </div>
                             </div>
                         </div>

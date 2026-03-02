@@ -11,7 +11,7 @@ import { calculateFees, type BidSourceType } from '../lib/fees';
 import { getConfig, setConfig } from '../lib/config';
 import { LEAD_AUCTION_DURATION_SECS } from '../config/perks.env';
 import { clearAllCaches } from '../lib/cache';
-import { generateToken, authMiddleware, requireAdmin, AuthenticatedRequest } from '../middleware/auth';
+import { generateToken, authMiddleware, optionalAuthMiddleware, requireAdmin, AuthenticatedRequest } from '../middleware/auth';
 import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
@@ -1941,7 +1941,7 @@ function publicDemoBypass(req: AuthenticatedRequest, res: Response, next: NextFu
     });
 }
 
-router.post('/full-e2e', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/full-e2e', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         if (isDemoRunning()) {
             res.status(409).json({ error: 'A demo is already running', running: true, recycling: false });
@@ -1996,7 +1996,7 @@ router.post('/full-e2e', authMiddleware, publicDemoBypass, async (req: Request, 
 // POST /full-e2e/stop — Abort running demo
 // ============================================
 
-router.post('/full-e2e/stop', authMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
+router.post('/full-e2e/stop', optionalAuthMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
     const wasRunning = isDemoRunning();
     const wasRecycling = isDemoRecycling();
     const stopped = stopDemo();
