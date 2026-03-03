@@ -224,7 +224,7 @@ export function BuyerPortfolio() {
     }, [filtered, sortKey, sortDir]);
 
     // Stats
-    const totalSpent = leads.reduce((sum, b) => sum + (b.amount || 0), 0);
+    const totalSpent = leads.reduce((sum, b) => sum + (parseFloat(String(b.amount)) || 0), 0);
     const verticals = [...new Set(leads.map((b) => b.lead?.vertical).filter(Boolean))];
 
     // Sort handler
