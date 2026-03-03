@@ -113,7 +113,7 @@ class BountyService {
         if (this._initDone) return false;                 // already tried & failed hard
 
         const poolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
-        const rpcUrl = process.env.BASE_SEPOLIA_RPC || process.env.RPC_URL || '';
+        const rpcUrl = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || process.env.RPC_URL || 'https://sepolia.base.org';
         const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || '';
 
         if (poolAddr && rpcUrl && deployerKey) {
