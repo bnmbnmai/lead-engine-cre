@@ -512,7 +512,7 @@ export const api = {
             '/api/v1/demo-panel/full-e2e/results/latest',
         ),
     demoFullE2EStatus: () =>
-        apiFetch<{ running: boolean; results: any[] }>(
+        apiFetch<{ running: boolean; recycling: boolean; results: any[] }>(
             '/api/v1/demo-panel/full-e2e/status',
         ),
     demoFullE2EReset: () =>

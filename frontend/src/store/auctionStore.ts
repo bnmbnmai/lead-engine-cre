@@ -395,7 +395,8 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         const result: LeadSlice[] = [];
         for (const id of leadOrder) {
             const lead = leads.get(id);
-            if (lead) result.push(lead);
+            // Never show closed leads in the marketplace grid — they're stale
+            if (lead && !lead.isClosed) result.push(lead);
         }
         return result;
     },

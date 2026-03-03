@@ -1032,7 +1032,7 @@ export function HomePage() {
                     </div>
                 </section>
 
-                <section className="relative z-0">
+                <section>
                     {isLoading ? (
                         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                             {[1, 2, 3, 4, 5, 6].map((i) => (

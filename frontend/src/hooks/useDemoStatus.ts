@@ -68,8 +68,13 @@ export function useDemoStatus(): DemoStatusState {
     useEffect(() => {
         api.demoFullE2EStatus()
             .then(({ data }) => {
-                if (data?.running) {
-                    setStatus(prev => ({ ...prev, isRunning: true }));
+                if (data?.running || data?.recycling) {
+                    setStatus(prev => ({
+                        ...prev,
+                        isRunning: Boolean(data.running),
+                        isRecycling: Boolean(data.recycling),
+                        phase: data.recycling ? 'recycling' : (data.running ? 'running' : prev.phase),
+                    }));
                 }
             })
             .catch(() => { /* ignore — backend may be asleep */ });
