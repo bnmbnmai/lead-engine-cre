@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Shield, Zap, Users, Wallet, Star, Eye, TrendingUp, ArrowRight } from 'lucide-react';
+import { MapPin, Shield, Zap, Users, Wallet, Star, Eye, TrendingUp } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -253,34 +253,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     )}
                 </div>
 
-                {/* Auction End Feedback tag — quiet, no flash */}
-                {auctionEndFeedback && (
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold mb-3 ${auctionEndFeedback === 'SOLD'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        }`}>
-                        <ArrowRight className="h-3 w-3" />
-                        {auctionEndFeedback === 'SOLD' ? (
-                            <>
-                                Sold
-                                {liveHighestBid != null && (
-                                    <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                                        ${liveHighestBid.toFixed(2)}
-                                    </span>
-                                )}
-                            </>
-                        ) : (
-                            <>Buy It Now</>
-                        )}
-                    </div>
-                )}
 
-                {/* 🔒 SEALED overlay — absolute so it doesn't push content down */}
-                {isLive && isSealed && (
-                    <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-t-xl bg-gradient-to-b from-orange-500/20 to-transparent text-orange-400 text-xs font-bold animate-pulse">
-                        🔒 Sealed — resolving…
-                    </div>
-                )}
 
                 {/* ── Header ──────────────────────────────────────────────────────── */}
                 <div className="flex items-start gap-3 mb-3 pr-24">
@@ -365,6 +338,24 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             <span>Started</span>
                             <span>{progress}% elapsed</span>
                         </div>
+                    </div>
+                )}
+
+                {/* Status strip — compact, no height change */}
+                {(auctionEndFeedback || (isLive && isSealed)) && (
+                    <div className={`flex items-center gap-1.5 text-[10px] font-semibold py-1 ${isLive && isSealed
+                        ? 'text-orange-400'
+                        : auctionEndFeedback === 'SOLD'
+                            ? 'text-emerald-400'
+                            : 'text-muted-foreground'
+                        }`}>
+                        {isLive && isSealed ? (
+                            <><span className="animate-pulse">🔒</span> Sealed — resolving…</>
+                        ) : auctionEndFeedback === 'SOLD' ? (
+                            <>✅ Sold{liveHighestBid != null && <span className="ml-0.5 font-bold">${liveHighestBid.toFixed(2)}</span>}</>
+                        ) : (
+                            <>← Buy It Now</>
+                        )}
                     </div>
                 )}
 
