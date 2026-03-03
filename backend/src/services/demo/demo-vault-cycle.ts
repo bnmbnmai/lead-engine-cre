@@ -312,14 +312,20 @@ export async function recycleTokens(
                 }
             }
 
-            // Off-chain: reset formConfig to prevent stale pool accumulation
+            // Off-chain: reset bounty pools but re-seed form config templates
+            // (Option A: DB is the single source of truth for field-level targeting)
+            const { FORM_CONFIG_TEMPLATES } = await import('../../data/form-config-templates');
             for (const slug of BOUNTY_SLUGS) {
+                const template = FORM_CONFIG_TEMPLATES[slug] || FORM_CONFIG_TEMPLATES[slug.split('.')[0]];
+                const freshConfig = template
+                    ? { fields: template.fields, steps: template.steps, gamification: template.gamification }
+                    : {};
                 await prisma.vertical.updateMany({
                     where: { slug },
-                    data: { formConfig: {} },
+                    data: { formConfig: freshConfig as any },
                 });
             }
-            console.log(`[DEMO BOUNTY RECYCLE] ✅ Reset formConfig on ${BOUNTY_SLUGS.length} verticals`);
+            console.log(`[DEMO BOUNTY RECYCLE] ✅ Reset bounty pools + re-seeded form config on ${BOUNTY_SLUGS.length} verticals`);
         } catch (bountyRecycleErr: any) {
             console.warn('[DEMO BOUNTY RECYCLE] ⚠️ Non-fatal:', bountyRecycleErr.message?.slice(0, 100));
         }

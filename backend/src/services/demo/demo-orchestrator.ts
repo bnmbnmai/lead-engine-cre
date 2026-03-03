@@ -63,6 +63,7 @@ import {
     DEMO_INITIAL_LEADS,
     DEMO_LEAD_DRIP_INTERVAL_MS,
 } from '../../config/perks.env';
+import { FORM_CONFIG_TEMPLATES } from '../../data/form-config-templates';
 import {
     clearAllBidTimers,
     emitLiveMetrics,
@@ -893,13 +894,18 @@ export async function runFullDemo(
                 }
             }
 
-            // ── STEP 2: Reset off-chain formConfig ───────────────────────────
+            // ── STEP 2: Reset off-chain bounty pools + re-seed form config templates ──
             for (let i = 0; i < BOUNTY_VERTICALS.length; i++) {
                 const slug = BOUNTY_VERTICALS[i];
+                // Merge: clear bountyPools but preserve form config templates
+                const template = FORM_CONFIG_TEMPLATES[slug] || FORM_CONFIG_TEMPLATES[slug.split('.')[0]];
+                const freshConfig = template
+                    ? { fields: template.fields, steps: template.steps, gamification: template.gamification }
+                    : {};
                 await prisma.vertical.upsert({
                     where: { slug },
-                    update: { formConfig: {} },
-                    create: { slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), depth: 0, sortOrder: i, status: 'ACTIVE', aliases: [], restrictedGeos: [] },
+                    update: { formConfig: freshConfig as any },
+                    create: { slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), depth: 0, sortOrder: i, status: 'ACTIVE', aliases: [], restrictedGeos: [], formConfig: freshConfig as any },
                 });
             }
 

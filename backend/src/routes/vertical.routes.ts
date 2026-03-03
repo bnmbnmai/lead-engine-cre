@@ -22,7 +22,6 @@ import { z } from 'zod';
 import { NFT_FEATURES_ENABLED } from '../config/perks.env';
 import { syncVerticalFields, FormConfigField } from '../services/vertical-field.service';
 import { bountyService, BountyDepositSchema } from '../services/bounty.service';
-import { FORM_CONFIG_TEMPLATES } from '../data/form-config-templates';
 
 const router = Router();
 
@@ -320,16 +319,8 @@ router.get('/:slug/form-config', authMiddleware, async (req: AuthenticatedReques
         const raw = (vertical.formConfig || {}) as Record<string, unknown>;
         const { croConfig, ...formConfig } = raw;
 
-        // Fallback to built-in template if no saved config exists
-        let resolvedFormConfig: any = Object.keys(formConfig).length > 0 ? formConfig : null;
-        if (!resolvedFormConfig) {
-            // Try exact slug, then parent slug (e.g. "solar" for "solar.residential")
-            const template = FORM_CONFIG_TEMPLATES[slug]
-                || FORM_CONFIG_TEMPLATES[slug.split('.')[0]];
-            if (template) {
-                resolvedFormConfig = { fields: template.fields, steps: template.steps, gamification: template.gamification };
-            }
-        }
+        // DB is the single source of truth for form config (seeded by demo orchestrator)
+        const resolvedFormConfig = Object.keys(formConfig).length > 0 ? formConfig : null;
 
         res.json({
             formConfig: resolvedFormConfig,

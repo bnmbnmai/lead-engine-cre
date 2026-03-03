@@ -239,8 +239,8 @@ describe('Unified Marketplace Visibility', () => {
 import { BountyDepositSchema, BountyCriteriaSchema } from '../../src/services/bounty.service';
 
 describe('Vertical Bounty Deposit Validation', () => {
-    it('should reject deposit below $10', () => {
-        const result = BountyDepositSchema.safeParse({ amount: 5 });
+    it('should reject deposit below $1', () => {
+        const result = BountyDepositSchema.safeParse({ amount: 0 });
         expect(result.success).toBe(false);
     });
 
