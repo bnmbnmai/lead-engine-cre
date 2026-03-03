@@ -18,14 +18,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     ExternalLink, ArrowLeft, Download, RotateCcw,
     CheckCircle2, XCircle, Loader2, Fuel, DollarSign,
-    Activity, Rocket, Clock, RefreshCw, TrendingUp, Zap, Shield, Gift
+    Activity, Rocket, Clock, TrendingUp, Zap, Shield, Gift,
+    ChevronDown
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import api from '@/lib/api';
 import { useDemo } from '@/hooks/useDemo';
 
 const BASESCAN_TX = 'https://sepolia.basescan.org/tx/';
-const BASESCAN_NFT = 'https://sepolia.basescan.org/nft/';
 // LeadNFT contract on Base Sepolia
 const LEAD_NFT_ADDR = import.meta.env.VITE_LEAD_NFT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
@@ -79,11 +79,12 @@ const RETRY_DELAYS = [800, 2000, 4000, 8000, 15000]; // ms
 export default function DemoResults() {
     const { runId: paramRunId } = useParams<{ runId: string }>();
     const navigate = useNavigate();
-    const { startDemo, partialResults, isRecycling, recyclePercent } = useDemo();
+    const { startDemo, partialResults, isRecycling } = useDemo();
     const [result, setResult] = useState<DemoResult | null>(null);
     const [loading, setLoading] = useState(() => !partialResults && !false); // skip loading if we have cached data
     const [error, setError] = useState<string | null>(null);
     const [showConfetti, setShowConfetti] = useState(false);
+    const [creExpanded, setCreExpanded] = useState(false);
     const hasInitRef = useRef(false);
 
     // ── Determine what to display ──────────────────────────────────────────────
@@ -252,17 +253,7 @@ export default function DemoResults() {
                     </div>
                 )}
 
-                {/* Non-blocking recycle progress badge — floats bottom-right */}
-                {isRecycling && (
-                    <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full
-                                    bg-amber-500/10 border border-amber-500/25 backdrop-blur-sm shadow-lg text-sm text-amber-300">
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        <span>Recycling wallets…</span>
-                        {recyclePercent > 0 && (
-                            <span className="ml-1 font-mono text-xs opacity-70">{recyclePercent}%</span>
-                        )}
-                    </div>
-                )}
+                {/* Bottom-right recycling badge removed — kept in header + On-Chain Log only */}
 
                 {/* Header */}
                 <div className="flex items-center justify-between flex-wrap gap-4">
@@ -445,45 +436,60 @@ export default function DemoResults() {
                     </div>
                 </div>
 
-                {/* CRE DON Proofs */}
-                <div className="glass rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-3">
+                {/* CRE DON Proofs — Collapsible Accordion */}
+                <div className="glass rounded-xl">
+                    <button
+                        onClick={() => setCreExpanded(prev => !prev)}
+                        className="w-full flex items-center justify-between p-5 text-left hover:bg-white/[0.02] transition rounded-xl"
+                    >
                         <div className="flex items-center gap-2">
                             <Shield className="h-5 w-5 text-purple-400" />
-                            <h3 className="text-sm font-bold text-purple-300">CRE DON Proofs</h3>
+                            <div>
+                                <h3 className="text-sm font-bold text-purple-300">CRE DON Proofs</h3>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    Confidential Compute workflows executed on Chainlink DON (7-gate buyer matching + winner-only decrypt)
+                                </p>
+                            </div>
                         </div>
-                        <span className="text-[10px] text-muted-foreground bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
-                            7-gate evaluation · encryptOutput: true
-                        </span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex flex-col gap-1">
-                            <span className="text-xs text-muted-foreground">CRE Deployer Contract</span>
-                            <a
-                                href="https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b"
-                                target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition font-mono"
-                            >
-                                0x6BBcf...e93b <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-xs text-muted-foreground">CREVerifier Contract</span>
-                            <a
-                                href="https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8"
-                                target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition font-mono"
-                            >
-                                0xfec22...af8 <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-xs text-muted-foreground">Workflows Executed</span>
-                            <span className="text-sm font-bold text-purple-300">
-                                {display.cycles.length} × EvaluateBuyerRulesAndMatch
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                                {display.cycles.length} workflows
                             </span>
+                            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${creExpanded ? 'rotate-180' : ''}`} />
                         </div>
-                    </div>
+                    </button>
+                    {creExpanded && (
+                        <div className="px-5 pb-5 pt-0">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-muted-foreground">CRE Deployer Contract</span>
+                                    <a
+                                        href="https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b"
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition font-mono"
+                                    >
+                                        0x6BBcf...e93b <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-muted-foreground">CREVerifier Contract</span>
+                                    <a
+                                        href="https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8"
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 transition font-mono"
+                                    >
+                                        0xfec22...af8 <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-muted-foreground">Workflows Executed</span>
+                                    <span className="text-sm font-bold text-purple-300">
+                                        {display.cycles.length} × EvaluateBuyerRulesAndMatch
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* History Tabs removed: we don't have functional backends for this right now */}
@@ -505,15 +511,16 @@ export default function DemoResults() {
                                     <th className="px-3 py-3 font-medium text-muted-foreground">NFT</th>
                                     <th className="px-3 py-3 font-medium text-muted-foreground">Refunds</th>
                                     <th className="px-3 py-3 font-medium text-muted-foreground">PoR / Status</th>
-                                    <th className="px-3 py-3 font-medium text-muted-foreground">Proof</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground" title="Batch Proof-of-Reserves — verifies all escrows are solvent">PoR Tx</th>
                                     <th className="px-3 py-3 font-medium text-muted-foreground">Gas / Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {display.cycles.map((cycle) => {
-                                    // Build NFT link: prefer explicit tokenId/mintTxHash, fall back to settle tx
+                                    // Build NFT link: prefer token page, fall back to mint tx, then settle tx
+                                    const nftMinted = cycle.nftTokenId != null || cycle.mintTxHash != null;
                                     const nftHref = cycle.nftTokenId != null
-                                        ? `${BASESCAN_NFT}${LEAD_NFT_ADDR}/${cycle.nftTokenId}`
+                                        ? `https://sepolia.basescan.org/token/${LEAD_NFT_ADDR}?a=${cycle.nftTokenId}`
                                         : cycle.mintTxHash
                                             ? `${BASESCAN_TX}${cycle.mintTxHash}`
                                             : `${BASESCAN_TX}${cycle.settleTxHash}`;
@@ -561,16 +568,30 @@ export default function DemoResults() {
                                                 </a>
                                             </td>
                                             <td className="px-3 py-3">
-                                                <a
-                                                    href={nftHref}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    title={cycle.nftTokenId != null ? `Token #${cycle.nftTokenId}` : 'View mint tx on Basescan'}
-                                                    className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 transition font-mono text-xs"
-                                                >
-                                                    {cycle.nftTokenId != null ? `#${cycle.nftTokenId}` : 'NFT ↗'}
-                                                    <ExternalLink className="h-3 w-3" />
-                                                </a>
+                                                {nftMinted ? (
+                                                    <a
+                                                        href={nftHref}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title={cycle.nftTokenId != null ? `LeadNFTv2 Token #${cycle.nftTokenId}` : 'View mint tx on Basescan'}
+                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:text-emerald-300 transition"
+                                                    >
+                                                        <CheckCircle2 className="h-3 w-3" />
+                                                        Minted ✓
+                                                        <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                ) : (
+                                                    <a
+                                                        href={nftHref}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="View settle tx on Basescan"
+                                                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-violet-400 transition font-mono text-xs"
+                                                    >
+                                                        NFT ↗
+                                                        <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                )}
                                             </td>
                                             <td className="px-3 py-3">
                                                 <div className="flex flex-col gap-0.5">
@@ -620,16 +641,16 @@ export default function DemoResults() {
                                                     >
                                                         Basescan <ExternalLink className="h-3 w-3" />
                                                     </a>
-                                                    {cycle.hadTiebreaker && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-[10px] font-medium">
-                                                            <Zap className="h-3 w-3" /> VRF
-                                                        </span>
-                                                    )}
-                                                    {cycle.vrfTxHash && (
+                                                    {cycle.hadTiebreaker && cycle.vrfTxHash && (
                                                         <a href={`${BASESCAN_TX}${cycle.vrfTxHash}`} target="_blank" rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition font-mono text-[10px]">
-                                                            {cycle.vrfTxHash.slice(0, 10)}… <ExternalLink className="h-3 w-3" />
+                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 hover:text-yellow-300 transition text-[10px] font-medium">
+                                                            <Zap className="h-3 w-3" /> VRF Tiebreaker Fulfillment <ExternalLink className="h-3 w-3" />
                                                         </a>
+                                                    )}
+                                                    {cycle.hadTiebreaker && !cycle.vrfTxHash && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-[10px] font-medium">
+                                                            <Zap className="h-3 w-3" /> VRF Tiebreaker
+                                                        </span>
                                                     )}
                                                 </div>
                                             </td>
