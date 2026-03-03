@@ -242,8 +242,8 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             {lead.aceCompliant != null && (
                                 <Tooltip content={`ACE Compliance: ${lead.aceCompliant ? 'passed' : 'failed'}`}>
                                     <span className={`px-1 py-px rounded text-[8px] font-semibold border cursor-help ${lead.aceCompliant
-                                            ? 'bg-emerald-500/8 text-emerald-400/60 border-emerald-500/15'
-                                            : 'bg-rose-500/8 text-rose-400/60 border-rose-500/15'
+                                        ? 'bg-emerald-500/8 text-emerald-400/60 border-emerald-500/15'
+                                        : 'bg-rose-500/8 text-rose-400/60 border-rose-500/15'
                                         }`}>
                                         ACE
                                     </span>
@@ -275,9 +275,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     </div>
                 )}
 
-                {/* 🔒 SEALED banner */}
+                {/* 🔒 SEALED overlay — absolute so it doesn't push content down */}
                 {isLive && isSealed && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-bold animate-pulse mb-3">
+                    <div className="absolute inset-x-0 top-0 z-30 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-t-xl bg-gradient-to-b from-orange-500/20 to-transparent text-orange-400 text-xs font-bold animate-pulse">
                         🔒 Sealed — resolving…
                     </div>
                 )}

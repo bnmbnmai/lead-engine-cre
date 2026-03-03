@@ -31,9 +31,9 @@ export function Tooltip({ content, children, side = 'top', className = '' }: Too
             {visible && (
                 <span
                     role="tooltip"
-                    className={`absolute z-50 px-2.5 py-1.5 text-xs font-medium text-foreground bg-popover border border-border rounded-lg shadow-xl whitespace-nowrap pointer-events-none animate-in fade-in-0 zoom-in-95 duration-150 ${side === 'top'
-                            ? 'bottom-full left-1/2 -translate-x-1/2 mb-2'
-                            : 'top-full left-1/2 -translate-x-1/2 mt-2'
+                    className={`absolute z-[100] px-2.5 py-1.5 text-xs font-medium text-white bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl max-w-[220px] whitespace-normal pointer-events-none animate-in fade-in-0 zoom-in-95 duration-150 ${side === 'top'
+                        ? 'bottom-full left-1/2 -translate-x-1/2 mb-2'
+                        : 'top-full left-1/2 -translate-x-1/2 mt-2'
                         }`}
                 >
                     {content}

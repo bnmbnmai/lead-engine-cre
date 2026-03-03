@@ -519,7 +519,6 @@ class BountyService {
         verticalSlug?: string
     ): Promise<BountyResult> {
         try {
-            // Lazy-init: try to connect if env vars are now available
             this.ensureContract();
             const poolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
 
@@ -527,28 +526,48 @@ class BountyService {
             const isOnChainPool = /^\d+$/.test(poolId);
             if (this.contract && this.signer && isOnChainPool) {
                 const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
-                const tx = await this.contract.releaseBounty(
-                    BigInt(poolId), recipientAddress, amountWei, leadId
-                );
-                const receipt = await tx.wait();
-                console.log(`[BountyService] Released $${amountUSDC} from pool ${poolId} to seller for lead ${leadId}`);
-                aceDevBus.emit('ace:dev-log', {
-                    ts: new Date().toISOString(),
-                    action: 'bounty:release',
-                    message: `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
-                    ' ': `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
-                    txHash: receipt.hash,
-                    contractAddress: poolAddr,
-                    amount: `$${amountUSDC}`,
-                    vertical: verticalSlug || '',
-                });
+                // Retry with backoff for nonce collisions ('replacement fee too low')
+                // The deployer wallet sends auction settlements + bounty releases concurrently
+                const MAX_RETRIES = 3;
+                let lastErr: any;
+                for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                    try {
+                        const nonce = await this.signer!.getNonce('pending');
+                        const tx = await this.contract!.releaseBounty(
+                            BigInt(poolId), recipientAddress, amountWei, leadId,
+                            { nonce }
+                        );
+                        const receipt = await tx.wait();
+                        console.log(`[BountyService] Released $${amountUSDC} from pool ${poolId} to seller for lead ${leadId}`);
+                        aceDevBus.emit('ace:dev-log', {
+                            ts: new Date().toISOString(),
+                            action: 'bounty:release',
+                            message: `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
+                            ' ': `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
+                            txHash: receipt.hash,
+                            contractAddress: poolAddr,
+                            amount: `$${amountUSDC}`,
+                            vertical: verticalSlug || '',
+                        });
 
-                // Update off-chain tracking
-                if (verticalSlug) {
-                    await this.updatePoolReleased(verticalSlug, poolId, amountUSDC);
+                        // Update off-chain tracking
+                        if (verticalSlug) {
+                            await this.updatePoolReleased(verticalSlug, poolId, amountUSDC);
+                        }
+
+                        return { success: true, txHash: receipt.hash };
+                    } catch (retryErr: any) {
+                        lastErr = retryErr;
+                        const isNonceErr = retryErr?.code === 'REPLACEMENT_UNDERPRICED' || retryErr?.code === 'NONCE_EXPIRED'
+                            || retryErr?.message?.includes('replacement fee too low') || retryErr?.message?.includes('nonce');
+                        if (!isNonceErr || attempt === MAX_RETRIES - 1) break;
+                        console.warn(`[BountyService] ⚠️ releaseBounty nonce collision (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in 2s…`);
+                        await new Promise(r => setTimeout(r, 2_000));
+                    }
                 }
-
-                return { success: true, txHash: receipt.hash };
+                // All retries exhausted
+                console.error('[BountyService] releaseBounty failed after retries:', lastErr);
+                return { success: false, error: lastErr?.message || 'Release failed after retries' };
             }
 
             // Off-chain release
@@ -562,7 +581,6 @@ class BountyService {
                 vertical: verticalSlug || '',
             });
 
-            // Update off-chain tracking
             if (verticalSlug) {
                 await this.updatePoolReleased(verticalSlug, poolId, amountUSDC);
             }
