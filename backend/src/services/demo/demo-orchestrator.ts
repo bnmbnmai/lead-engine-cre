@@ -845,22 +845,29 @@ export async function runFullDemo(
         // LeadCards and bounty release events in the On-Chain Log.
         try {
             const { bountyService } = await import('../bounty.service');
-            const BOUNTY_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'auto'];
+            const BOUNTY_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'real_estate', 'hvac', 'legal', 'financial_services'];
             // Ensure verticals exist in DB (upsert) before depositing bounties
+            // Fix 1: reset formConfig so stale pools from prior runs don't accumulate
             for (let i = 0; i < BOUNTY_VERTICALS.length; i++) {
                 const slug = BOUNTY_VERTICALS[i];
                 await prisma.vertical.upsert({
                     where: { slug },
-                    update: {},
+                    update: { formConfig: {} },
                     create: { slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), depth: 0, sortOrder: i, status: 'ACTIVE', aliases: [], restrictedGeos: [] },
                 });
             }
+            // Fix 2+3: bounty pools for ALL 8 demo verticals with empty criteria
+            // (empty criteria = universal match on any geo/quality — guarantees bounty
+            // release events appear in every demo run regardless of random lead geos)
             const DEMO_BOUNTY_POOLS = [
-                { verticalSlug: 'solar', amount: 350, criteria: { geoStates: ['CA', 'TX', 'AZ'] } },
-                { verticalSlug: 'mortgage', amount: 500, criteria: { geoStates: ['NY', 'FL', 'NJ'] } },
-                { verticalSlug: 'roofing', amount: 200, criteria: { geoStates: ['TX', 'FL', 'GA'] } },
-                { verticalSlug: 'insurance', amount: 275, criteria: { geoStates: ['CA', 'NY', 'IL'] } },
-                { verticalSlug: 'auto', amount: 150, criteria: {} },
+                { verticalSlug: 'solar', amount: 350, criteria: {} },
+                { verticalSlug: 'mortgage', amount: 500, criteria: {} },
+                { verticalSlug: 'roofing', amount: 200, criteria: {} },
+                { verticalSlug: 'insurance', amount: 275, criteria: {} },
+                { verticalSlug: 'real_estate', amount: 300, criteria: {} },
+                { verticalSlug: 'hvac', amount: 175, criteria: {} },
+                { verticalSlug: 'legal', amount: 225, criteria: {} },
+                { verticalSlug: 'financial_services', amount: 400, criteria: {} },
             ];
             let bountyPoolsCreated = 0;
             let bountyTotal = 0;
@@ -1234,7 +1241,13 @@ export async function runFullDemo(
                                 }
                             }
                         } catch (bountyErr: any) {
-                            console.warn('[DEMO] Bounty match/release error (non-fatal):', bountyErr.message?.slice(0, 100));
+                            // Fix 4: surface bounty errors to DevLog so judges can see them
+                            console.warn('[DEMO] Bounty match/release error (non-fatal):', bountyErr.message?.slice(0, 200));
+                            emit(io, {
+                                ts: new Date().toISOString(), level: 'warn',
+                                message: `⚠️ Bounty match/release failed: ${bountyErr.message?.slice(0, 120)}`,
+                                cycle: settlementCycle, totalCycles: 0,
+                            });
                         }
                         // Track persona wallet wins for deterministic guarantee
                         if (normalizedWallet === BUYER_PERSONA_WALLET) {
