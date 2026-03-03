@@ -381,58 +381,50 @@ export default function DemoResults() {
                     </div>
                 </div>
 
-                {/* Platform Revenue + VRF Tiebreakers */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="glass rounded-xl p-4">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <TrendingUp className="h-4 w-4 text-emerald-400" />
-                            Platform Revenue
-                        </div>
-                        <p className="text-2xl font-bold text-emerald-400">
-                            {display.totalPlatformIncome != null ? `$${display.totalPlatformIncome.toFixed(2)}` : '—'}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">5% settle fee + $1/lead</p>
-                    </div>
-                    <div className="glass rounded-xl p-4">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <Zap className="h-4 w-4 text-yellow-400" />
-                            VRF Tiebreakers
-                        </div>
-                        <p className="text-2xl font-bold text-yellow-400">
-                            {display.totalTiebreakers ?? display.cycles.filter(c => c.hadTiebreaker).length}
-                        </p>
-                        {display.vrfProofLinks && display.vrfProofLinks.length > 0 && (
-                            <div className="flex flex-col gap-0.5 mt-1">
-                                {display.vrfProofLinks.map((link, i) => (
-                                    <a key={i} href={link} target="_blank" rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition font-mono text-xs">
-                                        VRF Proof {i + 1} <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                ))}
+                {/* Revenue + VRF + Bounty — compact horizontal stats bar */}
+                <div className="glass rounded-xl p-4">
+                    <div className="grid grid-cols-3 divide-x divide-border/30">
+                        <div className="px-4 first:pl-0">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                                <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                                Platform Revenue
                             </div>
-                        )}
-                    </div>
-                    <div className="glass rounded-xl p-4">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <Gift className="h-4 w-4 text-amber-400" />
-                            Bounty Rewards
+                            <p className="text-xl font-bold text-emerald-400">
+                                {display.totalPlatformIncome != null ? `$${display.totalPlatformIncome.toFixed(2)}` : '—'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">5% settle fee + $1/lead</p>
                         </div>
-                        <p className="text-2xl font-bold text-amber-400">
-                            {display.totalBountyRewards != null && display.totalBountyRewards > 0
-                                ? `$${display.totalBountyRewards.toFixed(2)}`
-                                : '$0'}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">On-chain bounty payouts to sellers</p>
-                        {display.cycles.some(c => c.bountyTxHashes?.length) && (
-                            <div className="flex flex-col gap-0.5 mt-1.5">
-                                {display.cycles.flatMap(c => c.bountyTxHashes ?? []).map((hash, i) => (
-                                    <a key={i} href={`${BASESCAN_TX}${hash}`} target="_blank" rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 transition font-mono text-xs">
-                                        {hash.slice(0, 10)}… <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                ))}
+                        <div className="px-4">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                                <Zap className="h-3.5 w-3.5 text-yellow-400" />
+                                VRF Tiebreakers
                             </div>
-                        )}
+                            <p className="text-xl font-bold text-yellow-400">
+                                {display.totalTiebreakers ?? display.cycles.filter(c => c.hadTiebreaker).length}
+                            </p>
+                            {display.cycles.some(c => c.hadTiebreaker && c.vrfTxHash) && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                    {display.cycles.filter(c => c.hadTiebreaker && c.vrfTxHash).map((c, i) => (
+                                        <a key={i} href={`${BASESCAN_TX}${c.vrfTxHash}`} target="_blank" rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-0.5 text-yellow-400 hover:text-yellow-300 transition font-mono text-[10px]">
+                                            C{c.cycle} <ExternalLink className="h-2.5 w-2.5" />
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="px-4">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                                <Gift className="h-3.5 w-3.5 text-amber-400" />
+                                Bounty Rewards
+                            </div>
+                            <p className="text-xl font-bold text-amber-400">
+                                {display.totalBountyRewards != null && display.totalBountyRewards > 0
+                                    ? `$${display.totalBountyRewards.toFixed(2)}`
+                                    : '$0'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">On-chain payouts to sellers</p>
+                        </div>
                     </div>
                 </div>
 
@@ -497,7 +489,7 @@ export default function DemoResults() {
                 {/* Results Table */}
                 <div className="glass rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm" style={{ minWidth: '900px' }}>
+                        <table className="w-full text-sm" style={{ minWidth: '860px' }}>
                             <thead>
                                 <tr className="border-b border-border/50 text-left">
                                     <th className="px-3 py-3 font-medium text-muted-foreground">Cycle</th>
@@ -510,29 +502,37 @@ export default function DemoResults() {
                                     <th className="px-3 py-3 font-medium text-muted-foreground">Settle Tx</th>
                                     <th className="px-3 py-3 font-medium text-muted-foreground">NFT</th>
                                     <th className="px-3 py-3 font-medium text-muted-foreground">Refunds</th>
-                                    <th className="px-3 py-3 font-medium text-muted-foreground">PoR / Status</th>
-                                    <th className="px-3 py-3 font-medium text-muted-foreground" title="Batch Proof-of-Reserves — verifies all escrows are solvent">PoR Tx</th>
-                                    <th className="px-3 py-3 font-medium text-muted-foreground">Gas / Revenue</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground"
+                                        title="Batch Proof-of-Reserves — verifies all escrows are solvent">
+                                        PoR
+                                    </th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Gas</th>
+                                    <th className="px-3 py-3 font-medium text-muted-foreground">Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {display.cycles.map((cycle) => {
-                                    // Build NFT link: prefer token page, fall back to mint tx, then settle tx
+                                    // Build NFT link: prefer token page, fall back to mint tx
                                     const nftMinted = cycle.nftTokenId != null || cycle.mintTxHash != null;
                                     const nftHref = cycle.nftTokenId != null
                                         ? `https://sepolia.basescan.org/token/${LEAD_NFT_ADDR}?a=${cycle.nftTokenId}`
                                         : cycle.mintTxHash
                                             ? `${BASESCAN_TX}${cycle.mintTxHash}`
-                                            : `${BASESCAN_TX}${cycle.settleTxHash}`;
+                                            : null;
 
                                     return (
                                         <tr key={cycle.cycle} className="border-b border-border/30 hover:bg-white/[0.02] transition">
+                                            {/* Cycle */}
                                             <td className="px-3 py-3 font-mono font-bold text-blue-400">#{cycle.cycle}</td>
+
+                                            {/* Vertical */}
                                             <td className="px-3 py-3">
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 text-xs font-medium capitalize">
                                                     {cycle.vertical.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
+
+                                            {/* CRE Quality */}
                                             <td className="px-3 py-3">
                                                 {display.creQualityScores?.[cycle.cycle] != null ? (
                                                     <span
@@ -552,10 +552,14 @@ export default function DemoResults() {
                                                     </span>
                                                 )}
                                             </td>
+
+                                            {/* Bid / Locks */}
                                             <td className="px-3 py-3">
                                                 <div className="font-mono text-emerald-400">${cycle.bidAmount}</div>
                                                 <div className="font-mono text-[10px] text-muted-foreground">[{cycle.lockIds.join(', ')}]</div>
                                             </td>
+
+                                            {/* Settle Tx + VRF indicator */}
                                             <td className="px-3 py-3">
                                                 <a
                                                     href={`${BASESCAN_TX}${cycle.settleTxHash}`}
@@ -566,33 +570,42 @@ export default function DemoResults() {
                                                     {cycle.settleTxHash.slice(0, 10)}…
                                                     <ExternalLink className="h-3 w-3" />
                                                 </a>
-                                            </td>
-                                            <td className="px-3 py-3">
-                                                {nftMinted ? (
+                                                {cycle.hadTiebreaker && (
                                                     <a
-                                                        href={nftHref}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title={cycle.nftTokenId != null ? `LeadNFTv2 Token #${cycle.nftTokenId}` : 'View mint tx on Basescan'}
-                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:text-emerald-300 transition"
+                                                        href={cycle.vrfTxHash ? `${BASESCAN_TX}${cycle.vrfTxHash}` : '#'}
+                                                        target="_blank" rel="noopener noreferrer"
+                                                        className="mt-0.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 hover:text-yellow-300 transition text-[10px] font-medium"
+                                                        title="Winner selected via Chainlink VRF tiebreaker"
                                                     >
-                                                        <CheckCircle2 className="h-3 w-3" />
-                                                        Minted ✓
-                                                        <ExternalLink className="h-3 w-3" />
-                                                    </a>
-                                                ) : (
-                                                    <a
-                                                        href={nftHref}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title="View settle tx on Basescan"
-                                                        className="inline-flex items-center gap-1 text-muted-foreground hover:text-violet-400 transition font-mono text-xs"
-                                                    >
-                                                        NFT ↗
-                                                        <ExternalLink className="h-3 w-3" />
+                                                        <Zap className="h-2.5 w-2.5" /> VRF
+                                                        {cycle.vrfTxHash && <ExternalLink className="h-2.5 w-2.5" />}
                                                     </a>
                                                 )}
                                             </td>
+
+                                            {/* NFT — consistent Minted ✓ badge or pending */}
+                                            <td className="px-3 py-3">
+                                                {nftMinted && nftHref ? (
+                                                    <a
+                                                        href={nftHref}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title={cycle.nftTokenId != null ? `LeadNFTv2 #${cycle.nftTokenId}` : 'View mint tx'}
+                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:text-emerald-300 transition"
+                                                    >
+                                                        <CheckCircle2 className="h-3 w-3" />
+                                                        Minted{cycle.nftTokenId != null ? ` #${cycle.nftTokenId}` : ''}
+                                                        <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-xs"
+                                                        title="NFT mint pending or not applicable">
+                                                        pending
+                                                    </span>
+                                                )}
+                                            </td>
+
+                                            {/* Refunds */}
                                             <td className="px-3 py-3">
                                                 <div className="flex flex-col gap-0.5">
                                                     {cycle.refundTxHashes.map((hash, i) => (
@@ -609,72 +622,59 @@ export default function DemoResults() {
                                                     ))}
                                                 </div>
                                             </td>
+
+                                            {/* PoR — single clean badge with tooltip, links to PoR tx */}
                                             <td className="px-3 py-3">
-                                                <div className="flex items-center gap-1.5">
-                                                    {cycle.porSolvent ? (
-                                                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                                    ) : (
-                                                        <XCircle className="h-4 w-4 text-red-400" />
-                                                    )}
-                                                    {cycle.porTxHash && (
-                                                        <a
-                                                            href={`${BASESCAN_TX}${cycle.porTxHash}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-muted-foreground hover:text-blue-400 transition"
-                                                        >
-                                                            <ExternalLink className="h-3 w-3" />
-                                                        </a>
-                                                    )}
-                                                </div>
-                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mt-1 ${(cycle.txStatus ?? 'confirmed') === 'confirmed' ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
-                                                    }`}>
-                                                    {cycle.txStatus ?? 'confirmed'}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-3">
-                                                <div className="flex flex-col gap-1">
+                                                {cycle.porTxHash ? (
                                                     <a
-                                                        href="https://sepolia.basescan.org/address/0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b"
-                                                        target="_blank" rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition"
+                                                        href={`${BASESCAN_TX}${cycle.porTxHash}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="Batch Proof-of-Reserves — verifies all escrows are solvent"
+                                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition ${cycle.porSolvent
+                                                                ? 'bg-emerald-500/10 text-emerald-400 hover:text-emerald-300'
+                                                                : 'bg-red-500/10 text-red-400 hover:text-red-300'
+                                                            }`}
                                                     >
-                                                        Basescan <ExternalLink className="h-3 w-3" />
+                                                        {cycle.porSolvent
+                                                            ? <CheckCircle2 className="h-3 w-3" />
+                                                            : <XCircle className="h-3 w-3" />
+                                                        }
+                                                        {cycle.porSolvent ? 'Solvent' : 'Issue'}
+                                                        <ExternalLink className="h-3 w-3" />
                                                     </a>
-                                                    {cycle.hadTiebreaker && cycle.vrfTxHash && (
-                                                        <a href={`${BASESCAN_TX}${cycle.vrfTxHash}`} target="_blank" rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 hover:text-yellow-300 transition text-[10px] font-medium">
-                                                            <Zap className="h-3 w-3" /> VRF Tiebreaker Fulfillment <ExternalLink className="h-3 w-3" />
-                                                        </a>
-                                                    )}
-                                                    {cycle.hadTiebreaker && !cycle.vrfTxHash && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-[10px] font-medium">
-                                                            <Zap className="h-3 w-3" /> VRF Tiebreaker
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                ) : (
+                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium ${cycle.porSolvent
+                                                            ? 'bg-emerald-500/10 text-emerald-400'
+                                                            : 'bg-red-500/10 text-red-400'
+                                                        }`} title="Batch Proof-of-Reserves — verifies all escrows are solvent">
+                                                        {cycle.porSolvent
+                                                            ? <CheckCircle2 className="h-3 w-3" />
+                                                            : <XCircle className="h-3 w-3" />
+                                                        }
+                                                        {cycle.porSolvent ? 'Solvent' : 'Issue'}
+                                                    </span>
+                                                )}
                                             </td>
+
+                                            {/* Gas */}
+                                            <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
+                                                {BigInt(cycle.gasUsed || '0').toLocaleString()}
+                                            </td>
+
+                                            {/* Revenue — platform income + bounty pill */}
                                             <td className="px-3 py-3">
-                                                <div className="font-mono text-xs text-muted-foreground">{BigInt(cycle.gasUsed || '0').toLocaleString()}</div>
                                                 <div className="font-mono text-xs text-emerald-400">
                                                     {cycle.platformIncome != null ? `$${cycle.platformIncome.toFixed(2)}` : '—'}
                                                 </div>
                                                 {cycle.bountyAmount != null && cycle.bountyAmount > 0 && (
-                                                    <div className="flex items-center gap-1">
-                                                        {cycle.bountyTxHashes?.length ? (
-                                                            cycle.bountyTxHashes.map((hash, i) => (
-                                                                <a key={i} href={`${BASESCAN_TX}${hash}`} target="_blank" rel="noopener noreferrer"
-                                                                    className="font-mono text-xs text-amber-400 hover:text-amber-300 transition"
-                                                                    title={`Bounty release tx: ${hash}`}>
-                                                                    +${cycle.bountyAmount} 🎯
-                                                                </a>
-                                                            ))
-                                                        ) : (
-                                                            <span className="font-mono text-xs text-amber-400" title="Bounty released to seller">
-                                                                +${cycle.bountyAmount} 🎯
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    <span
+                                                        className="inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-medium"
+                                                        title={cycle.bountyTxHashes?.length ? `Bounty tx: ${cycle.bountyTxHashes[0].slice(0, 12)}…` : 'Bounty released to seller'}
+                                                    >
+                                                        <Gift className="h-2.5 w-2.5" />
+                                                        +${cycle.bountyAmount}
+                                                    </span>
                                                 )}
                                             </td>
                                         </tr>
