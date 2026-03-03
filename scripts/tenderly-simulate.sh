@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════════════════
-# tenderly-simulate.sh — Run 7 Chainlink contract simulations on Tenderly VNet
+# tenderly-simulate.sh — Run 8 Chainlink contract simulations on Tenderly VNet
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # Usage:
@@ -18,6 +18,7 @@
 #   5. PersonalEscrowVault.performUpkeep — Automation PoR + refund sweep
 #   6. BountyMatcher.requestBountyMatch  — Functions bounty matching
 #   7. ACECompliance.getUserCompliance   — ACE KYC/reputation check
+#   8. VerticalBountyPool.depositBounty  — On-chain bounty pool deposit
 #
 # Output: certified-runs/March-2-2026/tenderly/simulations.json
 # ═══════════════════════════════════════════════════════════════════════════════

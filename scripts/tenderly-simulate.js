@@ -2,7 +2,7 @@
 /**
  * tenderly-simulate.js — Tenderly Virtual TestNet Contract Simulations
  * ===================================================================
- * Runs 7 meaningful on-chain simulations against the Lead Engine CRE contracts
+ * Runs 8 meaningful on-chain simulations against the Lead Engine CRE contracts
  * deployed on the Tenderly Virtual TestNet (Base Sepolia fork).
  *
  * Each simulation exercises a different Chainlink service integration:
@@ -13,6 +13,7 @@
  *   5. PersonalEscrowVault.performUpkeep — Automation PoR + expired-lock refunds
  *   6. BountyMatcher.requestBountyMatch  — Functions bounty criteria matching
  *   7. ACECompliance.getUserCompliance   — ACE KYC/reputation registry (view)
+ *   8. VerticalBountyPool.depositBounty  — On-chain bounty pool deposit
  *
  * Usage:
  *   node scripts/tenderly-simulate.js [VNET_RPC_URL]
@@ -42,6 +43,7 @@ const CONTRACTS = {
     VRFTieBreaker: '0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8',
     ACECompliance: '0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6',
     BountyMatcher: '0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D',
+    VerticalBountyPool: '0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2',
     USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
 };
 
@@ -97,6 +99,13 @@ const BOUNTY_ABI = [
     'function requestBountyMatch(bytes32 leadIdHash, string[] args) external returns (bytes32)',
     'function getMatchResult(bytes32 leadIdHash) external view returns (tuple(bytes32, string[], bool, uint8, uint40, uint40))',
     'function setSourceCode(string source) external',
+    'function owner() view returns (address)',
+];
+
+const BOUNTY_POOL_ABI = [
+    'function depositBounty(bytes32 verticalSlugHash, uint256 amount) external returns (uint256)',
+    'function availableBalance(uint256 poolId) external view returns (uint256)',
+    'function totalVerticalBounty(bytes32 verticalSlugHash) external view returns (uint256)',
     'function owner() view returns (address)',
 ];
 
@@ -174,7 +183,7 @@ async function main() {
     // Chainlink service: Automation (PoR) + Data Feeds (USDC/ETH price gate)
     // Locks 25 USDC + $1 convenience fee for a buyer's bid
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('🔒 [1/7] PersonalEscrowVault.lockForBid — USDC bid lock ($25 + $1 fee)'));
+    console.log(ts('🔒 [1/8] PersonalEscrowVault.lockForBid — USDC bid lock ($25 + $1 fee)'));
     try {
         const vaultIface = new ethers.Interface(VAULT_ABI);
 
@@ -224,7 +233,7 @@ async function main() {
     // Chainlink service: Functions CRE — on-chain quality scoring logic
     // Computes a 7-gate quality score for a sample lead
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('📊 [2/7] CREVerifier.computeQualityScoreFromParams — 7-gate quality scoring'));
+    console.log(ts('📊 [2/8] CREVerifier.computeQualityScoreFromParams — 7-gate quality scoring'));
     try {
         const cre = new ethers.Contract(CONTRACTS.CREVerifier, CRE_ABI, provider);
 
@@ -262,7 +271,7 @@ async function main() {
     // Chainlink service: ACE (PolicyProtectedUpgradeable; runPolicy modifier)
     // Mints a new Lead NFT with full metadata
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('🎨 [3/7] LeadNFTv2.mintLead — ACE-gated NFT mint'));
+    console.log(ts('🎨 [3/8] LeadNFTv2.mintLead — ACE-gated NFT mint'));
     try {
         const nftIface = new ethers.Interface(NFT_ABI);
         const nftOwner = await new ethers.Contract(CONTRACTS.LeadNFTv2, NFT_ABI, provider).owner();
@@ -308,7 +317,7 @@ async function main() {
     // Chainlink service: VRF v2.5 (requestRandomWords → winner = random % N)
     // Resolves a 3-way auction tie between BUYER_1, BUYER_2, BUYER_3
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('🎲 [4/7] VRFTieBreaker.requestResolution — VRF v2.5 tie-break (3 candidates)'));
+    console.log(ts('🎲 [4/8] VRFTieBreaker.requestResolution — VRF v2.5 tie-break (3 candidates)'));
     try {
         const vrfIface = new ethers.Interface(VRF_ABI);
         const vrfOwner = await new ethers.Contract(CONTRACTS.VRFTieBreaker, VRF_ABI, provider).owner();
@@ -349,7 +358,7 @@ async function main() {
     // Chainlink service: Automation (PoR verification + expired lock sweep)
     // Action type 3 = PoR + refund expired locks
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('🔄 [5/7] PersonalEscrowVault.performUpkeep — PoR + expired-lock sweep'));
+    console.log(ts('🔄 [5/8] PersonalEscrowVault.performUpkeep — PoR + expired-lock sweep'));
     try {
         const vaultIface = new ethers.Interface(VAULT_ABI);
 
@@ -379,7 +388,7 @@ async function main() {
     // Chainlink service: Functions (off-chain DON criteria evaluation)
     // Matches a lead against bounty pool criteria
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('🎯 [6/7] BountyMatcher.requestBountyMatch — DON bounty criteria matching'));
+    console.log(ts('🎯 [6/8] BountyMatcher.requestBountyMatch — DON bounty criteria matching'));
     try {
         const bountyIface = new ethers.Interface(BOUNTY_ABI);
         const bountyOwner = await new ethers.Contract(CONTRACTS.BountyMatcher, BOUNTY_ABI, provider).owner();
@@ -432,7 +441,7 @@ async function main() {
     // Chainlink service: ACE (compliance registry)
     // Reads compliance status for a sample wallet
     // ────────────────────────────────────────────────────────────────────────────
-    console.log(ts('🛡️  [7/7] ACECompliance.getUserCompliance — ACE KYC/reputation check'));
+    console.log(ts('🛡️  [7/8] ACECompliance.getUserCompliance — ACE KYC/reputation check'));
     try {
         const ace = new ethers.Contract(CONTRACTS.ACECompliance, ACE_ABI, provider);
         const aceOwner = await ace.owner();
@@ -472,6 +481,41 @@ async function main() {
     } catch (err) {
         console.log(`   ❌ Error: ${err.message?.slice(0, 120)}`);
         results.push({ id: 7, name: 'ACECompliance.getUserCompliance', status: 'error', error: err.message?.slice(0, 200) });
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // Simulation 8: VerticalBountyPool.depositBounty — On-chain bounty deposit
+    // Per-vertical USDC bounty pool for seller bonuses on matching leads
+    // ────────────────────────────────────────────────────────────────────────────
+    console.log(ts('💰 [8/8] VerticalBountyPool.depositBounty — USDC bounty pool deposit'));
+    try {
+        const poolIface = new ethers.Interface(BOUNTY_POOL_ABI);
+        const erc20Iface = new ethers.Interface(ERC20_ABI);
+
+        // Approve USDC for the bounty pool
+        const approveAmt = ethers.parseUnits('50', 6); // 50 USDC
+        const approveData = encode(erc20Iface, 'approve', [CONTRACTS.VerticalBountyPool, approveAmt]);
+        await sendImpersonated(DEPLOYER, CONTRACTS.USDC, approveData);
+
+        // Deposit into solar vertical bounty pool
+        const solarSlugHash = ethers.keccak256(ethers.toUtf8Bytes('solar'));
+        const depositData = encode(poolIface, 'depositBounty', [solarSlugHash, approveAmt]);
+        const { txHash, receipt } = await sendImpersonated(DEPLOYER, CONTRACTS.VerticalBountyPool, depositData);
+
+        results.push({
+            id: 8,
+            name: 'VerticalBountyPool.depositBounty',
+            description: 'Deposit 50 USDC into the solar vertical bounty pool. Sellers receive bounty bonuses when matching leads are won at auction.',
+            chainlinkService: 'Functions (via BountyMatcher criteria matching)',
+            txHash,
+            status: receipt?.status === 1 ? 'success' : (receipt ? 'reverted' : 'pending'),
+            gasUsed: receipt?.gasUsed?.toString() || 'N/A',
+            contract: CONTRACTS.VerticalBountyPool,
+        });
+        console.log(`   ✅ txHash: ${txHash} | gas: ${receipt?.gasUsed || 'N/A'}`);
+    } catch (err) {
+        console.log(`   ❌ Error: ${err.message?.slice(0, 120)}`);
+        results.push({ id: 8, name: 'VerticalBountyPool.depositBounty', status: 'error', error: err.message?.slice(0, 200) });
     }
 
     // ─── Save Results ─────────────────────────────────────────────────────────────
