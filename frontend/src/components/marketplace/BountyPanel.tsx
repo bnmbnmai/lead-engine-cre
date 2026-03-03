@@ -229,7 +229,7 @@ export function BountyPanel({ className = '' }: BountyPanelProps) {
                             Fund New Bounty Pool
                         </Button>
                     ) : (
-                        <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-3 animate-in fade-in-0 slide-in-from-top-2">
+                        <div className="relative z-20 p-4 rounded-xl border border-border bg-muted/30 space-y-3 animate-in fade-in-0 slide-in-from-top-2">
                             <h4 className="text-sm font-medium">New Bounty Deposit</h4>
 
                             <div className="space-y-2">
@@ -297,7 +297,7 @@ export function BountyPanel({ className = '' }: BountyPanelProps) {
                     )}
 
                     {/* ── Pool Viewer (select vertical to see your pools) ── */}
-                    <div className="space-y-2">
+                    <div className="relative z-10 space-y-2">
                         <label className="text-xs text-muted-foreground font-medium">View My Pools</label>
                         <NestedVerticalSelect
                             value={poolVertical}
