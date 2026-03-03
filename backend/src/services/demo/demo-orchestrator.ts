@@ -1182,6 +1182,7 @@ export async function runFullDemo(
             let cyclePlatformIncome = 0;
             let vrfTxHashForCycle: string | undefined;
             let cycleBountyAmount = 0;
+            const cycleBountyTxHashes: string[] = [];
 
             try {
                 emit(io, { ts: new Date().toISOString(), level: 'info', message: `📋 Lock IDs: [${lockIds.join(', ')}]`, cycle: settlementCycle, totalCycles: 0, data: { lockIds } });
@@ -1300,6 +1301,7 @@ export async function runFullDemo(
                                     if (releaseResult.success) {
                                         totalBountyRewards += m.amount;
                                         cycleBountyAmount += m.amount;
+                                        if (releaseResult.txHash) cycleBountyTxHashes.push(releaseResult.txHash);
                                         emit(io, {
                                             ts: new Date().toISOString(), level: 'success',
                                             message: `🎁 Bounty released: $${m.amount} from ${m.verticalSlug} pool → seller (${releaseResult.txHash ? 'on-chain' : 'off-chain'})`,
@@ -1488,6 +1490,7 @@ export async function runFullDemo(
                 vrfTxHash: vrfTxHashForCycle,
                 txStatus: settleReceiptHash ? 'confirmed' : 'pending',
                 bountyAmount: cycleBountyAmount > 0 ? cycleBountyAmount : undefined,
+                bountyTxHashes: cycleBountyTxHashes.length > 0 ? cycleBountyTxHashes : undefined,
             });
 
             await sleep(1000);

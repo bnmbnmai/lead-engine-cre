@@ -51,6 +51,7 @@ interface CycleResult {
     hadTiebreaker?: boolean;
     vrfTxHash?: string;
     bountyAmount?: number;
+    bountyTxHashes?: string[];
 }
 
 interface DemoResult {
@@ -431,6 +432,16 @@ export default function DemoResults() {
                                 : '$0'}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">On-chain bounty payouts to sellers</p>
+                        {display.cycles.some(c => c.bountyTxHashes?.length) && (
+                            <div className="flex flex-col gap-0.5 mt-1.5">
+                                {display.cycles.flatMap(c => c.bountyTxHashes ?? []).map((hash, i) => (
+                                    <a key={i} href={`${BASESCAN_TX}${hash}`} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 transition font-mono text-xs">
+                                        {hash.slice(0, 10)}… <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -628,8 +639,20 @@ export default function DemoResults() {
                                                     {cycle.platformIncome != null ? `$${cycle.platformIncome.toFixed(2)}` : '—'}
                                                 </div>
                                                 {cycle.bountyAmount != null && cycle.bountyAmount > 0 && (
-                                                    <div className="font-mono text-xs text-amber-400" title="Bounty released to seller">
-                                                        +${cycle.bountyAmount} 🎯
+                                                    <div className="flex items-center gap-1">
+                                                        {cycle.bountyTxHashes?.length ? (
+                                                            cycle.bountyTxHashes.map((hash, i) => (
+                                                                <a key={i} href={`${BASESCAN_TX}${hash}`} target="_blank" rel="noopener noreferrer"
+                                                                    className="font-mono text-xs text-amber-400 hover:text-amber-300 transition"
+                                                                    title={`Bounty release tx: ${hash}`}>
+                                                                    +${cycle.bountyAmount} 🎯
+                                                                </a>
+                                                            ))
+                                                        ) : (
+                                                            <span className="font-mono text-xs text-amber-400" title="Bounty released to seller">
+                                                                +${cycle.bountyAmount} 🎯
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </td>

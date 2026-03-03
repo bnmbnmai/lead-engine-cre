@@ -152,6 +152,7 @@ export interface CycleResult {
     mintTxHash?: string;       // NFT mint tx hash
     txStatus?: string;         // 'confirmed' | 'pending'
     bountyAmount?: number;     // bounty reward released to seller for this cycle
+    bountyTxHashes?: string[]; // on-chain bounty release tx hashes
 }
 
 export interface DemoResult {
