@@ -179,7 +179,15 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 pointerEvents: isFadingOut ? 'none' : undefined,
             } : undefined}
         >
-            <CardContent className="p-6">
+            <CardContent className="p-6 relative overflow-hidden">
+                {/* 💰 Bounty Boost corner ribbon — absolute so it doesn't crowd inline badges */}
+                {(lead.parameters?._bountyTotal ?? 0) > 0 && (
+                    <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
+                        <span className="absolute top-0 right-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-bl-lg text-[11px] font-bold bg-amber-500/20 text-amber-400 border-b border-l border-amber-500/30 cursor-help z-10 backdrop-blur-sm">
+                            💰 Bounty Boost
+                        </span>
+                    </Tooltip>
+                )}
                 {/* Auction End Feedback tag — quiet, no flash */}
                 {auctionEndFeedback && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 ${auctionEndFeedback === 'SOLD'
@@ -315,13 +323,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 </span>
                             </Tooltip>
                         )}
-                        {(lead.parameters?._bountyTotal ?? 0) > 0 && (
-                            <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold border bg-amber-500/15 text-amber-400 border-amber-500/30 cursor-help animate-pulse">
-                                    💰 Bounty Boost
-                                </span>
-                            </Tooltip>
-                        )}
+
                     </div>
                 </div>
 
