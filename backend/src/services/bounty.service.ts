@@ -72,6 +72,9 @@ const BOUNTY_POOL_ABI = [
     'function getVerticalPoolIds(bytes32 verticalSlugHash) view returns (uint256[])',
     'function totalVerticalBounty(bytes32 verticalSlugHash) view returns (uint256)',
     'function pools(uint256) view returns (address buyer, bytes32 verticalSlugHash, uint256 totalDeposited, uint256 totalReleased, uint40 createdAt, bool active)',
+    // Events — needed to parse pool ID from deposit receipts
+    'event BountyDeposited(uint256 indexed poolId, address indexed buyer, bytes32 indexed verticalSlugHash, uint256 amount, uint256 newBalance)',
+    'event BountyReleased(uint256 indexed poolId, address indexed recipient, uint256 sellerAmount, uint256 platformCut, string leadId)',
 ];
 
 // ============================================
@@ -170,9 +173,39 @@ class BountyService {
 
             if (this.contract && this.signer) {
                 const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
+
+                // Ensure USDC approval for the bounty pool contract
+                const usdcContract = new ethers.Contract(
+                    process.env.USDC_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+                    ['function approve(address spender, uint256 amount) returns (bool)',
+                        'function allowance(address owner, address spender) view returns (uint256)'],
+                    this.signer,
+                );
+                const allowance = await usdcContract.allowance(this.signer.address, poolAddr);
+                if (BigInt(allowance) < amountWei) {
+                    console.log(`[BountyService] Approving USDC spend for bounty pool...`);
+                    const approveTx = await usdcContract.approve(poolAddr, ethers.MaxUint256);
+                    await approveTx.wait();
+                }
+
                 const tx = await this.contract.depositBounty(slugHash, amountWei);
                 const receipt = await tx.wait();
-                poolId = receipt.logs?.[0]?.args?.[0]?.toString() || '0';
+
+                // Parse pool ID from BountyDeposited event (NOT logs[0] — that's the USDC Transfer)
+                poolId = '0'; // fallback
+                for (const log of (receipt.logs || [])) {
+                    try {
+                        const parsed = this.contract.interface.parseLog({
+                            topics: [...(log as any).topics],
+                            data: (log as any).data,
+                        });
+                        if (parsed?.name === 'BountyDeposited') {
+                            poolId = parsed.args[0].toString(); // poolId is first indexed arg
+                            break;
+                        }
+                    } catch { /* skip non-matching logs (e.g. USDC Transfer) */ }
+                }
+
                 txHash = receipt.hash;
                 console.log(`[BountyService] Buyer deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${txHash}`);
                 aceDevBus.emit('ace:dev-log', {
