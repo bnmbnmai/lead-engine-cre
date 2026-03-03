@@ -155,14 +155,24 @@ class NFTService {
                 // [CRE-DISPATCH] — log before on-chain mint so Render always shows this
                 console.log(`[CRE-DISPATCH] mintLeadNFT starting — leadId=${leadId} seller=${sellerAddress} contract=${LEAD_NFT_ADDRESS.slice(0, 10)}…`);
 
-                // Mint with dynamic gas + up to 4 retries (+4 gwei each) to avoid
-                // "replacement fee too low" on Base Sepolia during consecutive runs.
+                // Mint with retry: handles both NONCE_EXPIRED (stale nonce)
+                // and REPLACEMENT_UNDERPRICED (gas too low) — matches releaseBounty pattern.
                 let tx: any;
                 const feeData = await this.provider.getFeeData().catch(() => null);
                 const baseMaxFee = feeData?.maxFeePerGas ?? ethers.parseUnits('15', 'gwei');
-                for (let attempt = 0; attempt < 4; attempt++) {
+                const MAX_RETRIES = 3;
+                for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
                     const maxFeePerGas = baseMaxFee + ethers.parseUnits(String(attempt * 4), 'gwei');
                     try {
+                        // On retry, fetch the pending nonce to avoid stale cache
+                        const overrides: Record<string, any> = { gasLimit: 500_000, maxFeePerGas };
+                        if (attempt > 0) {
+                            const freshNonce = await this.provider.getTransactionCount(
+                                await this.signer!.getAddress(), 'pending'
+                            );
+                            overrides.nonce = freshNonce;
+                            console.log(`[NFT MINT] Retry #${attempt} with fresh nonce=${freshNonce}, maxFee=${maxFeePerGas}`);
+                        }
                         tx = await this.contract!.mintLead(
                             sellerAddress,
                             platformLeadId,
@@ -174,15 +184,19 @@ class NFTService {
                             sourceEnum,
                             tcpaConsent,
                             uri,
-                            { gasLimit: 500_000, maxFeePerGas }
+                            overrides
                         );
                         break; // success
                     } catch (retryErr: any) {
+                        const isNonce = retryErr?.code === 'NONCE_EXPIRED' ||
+                            retryErr?.message?.includes('nonce too low') ||
+                            retryErr?.message?.includes('nonce has already been used');
                         const isReplacement = retryErr?.message?.includes('replacement fee too low') ||
                             retryErr?.code === 'REPLACEMENT_UNDERPRICED';
-                        if (!isReplacement || attempt >= 3) throw retryErr;
-                        console.warn(`[NFT MINT] Attempt ${attempt + 1} replacement fee too low — retrying with +4 gwei`);
-                        await new Promise(r => setTimeout(r, 500));
+                        if ((!isNonce && !isReplacement) || attempt >= MAX_RETRIES - 1) throw retryErr;
+                        const backoffMs = isNonce ? 1500 * (attempt + 1) : 500;
+                        console.warn(`[NFT MINT] ⚠️ Attempt ${attempt + 1}/${MAX_RETRIES} ${isNonce ? 'nonce collision' : 'replacement fee too low'} — retrying in ${backoffMs}ms`);
+                        await new Promise(r => setTimeout(r, backoffMs));
                     }
                 }
                 console.log('[NFT MINT] Tx sent:', tx.hash);

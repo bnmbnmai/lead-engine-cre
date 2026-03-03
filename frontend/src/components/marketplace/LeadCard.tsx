@@ -183,7 +183,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                      Compact vertical pills. z-20 prevents clipping on any width.
                      Priority order: Bounty (eye-catching) → CRE → Verified
                      ────────────────────────────────────────────────────────────── */}
-                <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1">
+                <div className="absolute top-3 right-3 z-20 hover:z-50 flex flex-col items-end gap-1">
                     {/* 1. Bounty — warm gold, only when > 0 — most eye-catching badge */}
                     {(lead.parameters?._bountyTotal ?? 0) > 0 && (
                         <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>

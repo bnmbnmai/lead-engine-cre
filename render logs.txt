@@ -1,0 +1,362 @@
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=100&offset=0 clientIP="74.244.110.235" requestID="61a43d5e-c235-431e" responseTimeMS=546 responseBytes=971 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[KimiAgent] ✅ Auto-bid rules active — profile cmlzv8rzs0008v66sqt2zakzc, 8 verticals, $45 base bid, $75 cap
+[VRF] checkVrfSubscriptionBalance failed: bad address checksum (argument="address", value="0x5C210eF41CD1a72de73bF76eC39637bB0d3d4BEE", code=INVALID_ARGUMENT, version=6.16.0)
+[NFT MINT] Pre-flight — Is Authorized Minter: true (deployer=0x6BBcf283…)
+[DEMO] Pre-flight ETH balances:
+┌────────────────────┬────────────────────────────┐
+│ (index)            │ Values                     │
+├────────────────────┼────────────────────────────┤
+│ Deployer           │ '1.974730883086056779 ETH' │
+│ Wallet 1  (buyer)  │ '0.30730710398274158 ETH'  │
+│ Wallet 2  (buyer)  │ '0.314392176511123606 ETH' │
+│ Wallet 3  (buyer)  │ '0.314385463276651829 ETH' │
+│ Wallet 4  (buyer)  │ '0.411386187605457695 ETH' │
+│ Wallet 5  (buyer)  │ '0.313397252172517146 ETH' │
+│ Wallet 6  (buyer)  │ '0.311391342118198765 ETH' │
+│ Wallet 7  (buyer)  │ '0.31439363352076295 ETH'  │
+│ Wallet 8  (buyer)  │ '0.312395537073129144 ETH' │
+│ Wallet 9  (buyer)  │ '0.31139949290936439 ETH'  │
+│ Wallet 10 (buyer)  │ '0.312398868801339 ETH'    │
+│ Wallet 11 (seller) │ '0.305513397611856242 ETH' │
+└────────────────────┴────────────────────────────┘
+[CRE-DISPATCH] mintLeadNFT starting — leadId=cmmb2fwnv003spvgl4y2bio9h seller=0x9bb15f98982715e33a2113a35662036528ee0a36 contract=0x73ebD921…
+[NFT MINT] ❌ On-chain mint FAILED: Error: nonce has already been used (transaction="0x02f901d483014a34821b64830f424083a7d8c08307a1209473ebd9218ade497c9ceed04e5ccbd06a00ba715580b90164618d109c0000000000000000000000009bb15f98982715e33a2113a35662036528ee0a3601bd332ef83cbfb895fb9715c26963dc169dc715834dd72e263a921337d4e045585f0ffac4590ed956ef7d99c1177e00c7f240a28094f8eaffb94c5a559815a343232fb829ac8b628bef407ea5c59cc6b88b412b91595ee50843207c2a6323ef703c1f9a402710d93468e6b71cf46d0721e7aa1eb50f30aa86dc8cc7d71d14e600000000000000000000000000000000000000000000000000000000022551000000000000000000000000000000000000000000000000000000000069b080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000000c080a0ed7a0b62266f7cacdcce5b9fc0ba397d32e019abefbded58e44a5f44876c58aaa03e758ea546769097501a46554542994385624197ba0e2057466f7832a05eb12f", info={ "error": { "code": -32000, "message": "nonce too low: next nonce 7013, tx nonce 7012" } }, code=NONCE_EXPIRED, version=6.16.0)
+    at makeError (/opt/render/project/src/node_modules/ethers/lib.commonjs/utils/errors.js:137:21)
+    at JsonRpcProvider.getRpcError (/opt/render/project/src/node_modules/ethers/lib.commonjs/providers/provider-jsonrpc.js:726:49)
+    at /opt/render/project/src/node_modules/ethers/lib.commonjs/providers/provider-jsonrpc.js:302:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'NONCE_EXPIRED',
+  transaction: '0x02f901d483014a34821b64830f424083a7d8c08307a1209473ebd9218ade497c9ceed04e5ccbd06a00ba715580b90164618d109c0000000000000000000000009bb15f98982715e33a2113a35662036528ee0a3601bd332ef83cbfb895fb9715c26963dc169dc715834dd72e263a921337d4e045585f0ffac4590ed956ef7d99c1177e00c7f240a28094f8eaffb94c5a559815a343232fb829ac8b628bef407ea5c59cc6b88b412b91595ee50843207c2a6323ef703c1f9a402710d93468e6b71cf46d0721e7aa1eb50f30aa86dc8cc7d71d14e600000000000000000000000000000000000000000000000000000000022551000000000000000000000000000000000000000000000000000000000069b080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000000c080a0ed7a0b62266f7cacdcce5b9fc0ba397d32e019abefbded58e44a5f44876c58aaa03e758ea546769097501a46554542994385624197ba0e2057466f7832a05eb12f',
+  info: {
+    error: {
+      code: -32000,
+      message: 'nonce too low: next nonce 7013, tx nonce 7012'
+    }
+  },
+  shortMessage: 'nonce has already been used'
+}
+[DEMO-REVERT] mintLeadNFT FAILED — reason="(no reason)" data="(no data)" code=NONCE_EXPIRED msg="nonce has already been used (transaction="0x02f901d483014a34821b64830f424083a7d8c08307a1209473ebd9218ade497c9ceed04e5ccbd06a00ba715580b90164618d109c000000000000"
+[NFT MINT] Error details: {
+  "message": "nonce has already been used (transaction=\"0x02f901d483014a34821b64830f424083a7d8c08307a1209473ebd9218ade497c9ceed04e5ccbd06a00ba715580b90164618d109c0000000000000000000000009bb15f98982715e33a2113a35662036528ee0a3601bd332ef83cbfb895fb9715c26963dc169dc715834dd72e263a921337d4e045585f0ffac4590ed956ef7d99c1177e00c7f240a28094f8eaffb94c5a559815a343232fb829ac8b628bef407ea5c59cc6b88b412b91595ee50843207c2a6323ef703c1f9a402710d93468e6b71cf46d0721e7aa1eb50f30aa86dc8cc7d71d14e600000000000000000000000000000000000000000000000000000000022551000000000000000000000000000000000000000000000000000000000069b080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000000c080a0ed7a0b62266f7cacdcce5b9fc0ba397d32e019abefbded58e44a5f44876c58aaa03e758ea546769097501a46554542994385624197ba0e2057466f7832a05eb12f\", info={ \"error\": { \"code\": -32000, \"message\": \"nonce too low: next nonce 7013, tx nonce 7012\" } }, code=NONCE_EXPIRED, version=6.16.0)",
+  "code": "NONCE_EXPIRED",
+  "transaction": "0x02f901d483014a34821b64830f424083a7d8c08307a1209473ebd9218ade497c9ceed04e5ccbd06a00ba715580b90164618d109c0000000000000000000000009bb15f98982715e33a2113a35662036528ee0a3601bd332ef83cbfb895fb9715c26963dc169dc715834dd72e263a921337d4e045585f0ffac4590ed956ef7d99c1177e00c7f240a28094f8eaffb94c5a559815a343232fb829ac8b628bef407ea5c59cc6b88b412b91595ee50843207c2a6323ef703c1f9a402710d93468e6b71cf46d0721e7aa1eb50f30aa86dc8cc7d71d14e600000000000000000000000000000000000000000000000000000000022551000000000000000000000000000000000000000000000000000000000069b080800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000000c080a0ed7a0b62266f7cacdcce5b9fc0ba397d32e019abefbded58e44a5f44876c58aaa03e758ea546769097501a46554542994385624197ba0e2057466f7832a05eb12f",
+  "info": {
+    "error": {
+      "code": -32000,
+      "message": "nonce too low: next nonce 7013, tx nonce 7012"
+    }
+  }
+}
+[CRE-DISPATCH] BuyItNow mint returned no tokenId — skipping CRE
+[AUCTION-CLOSED] leadId=cmmb2fwnv003spvgl4y2bio9h status=UNSOLD (BuyItNow fallback)
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="8da52fcb-02ff-4473" responseTimeMS=107 responseBytes=1591 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="da8d8d41-455f-4a0a" responseTimeMS=113 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2fwnv003spvgl4y2bio9h clientIP="74.244.110.235" requestID="a1f15e53-d28e-4297" responseTimeMS=9 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2fwnv003spvgl4y2bio9h clientIP="74.244.110.235" requestID="9f88f2ce-d907-4c1e" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AuctionClosure] Auction for lead cmmb2g90x003wpvglt358lmht closed after full 60 s (age: 2s)
+[AUCTION-CLOSED] leadId=cmmb2g90x003wpvglt358lmht status=UNSOLD buyNowPrice=15.6
+[AuctionClosure] cmmb2g90x003wpvglt358lmht → UNSOLD (Buy It Now: $15.60)
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2g90x003wpvglt358lmht clientIP="74.244.110.235" requestID="594e6b84-f5e4-483b" responseTimeMS=6 responseBytes=1777 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2g90x003wpvglt358lmht clientIP="74.244.110.235" requestID="a0d1a941-46c9-404e" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2g90x003wpvglt358lmht clientIP="74.244.110.235" requestID="4ad4092d-dd7a-446b" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2g90x003wpvglt358lmht clientIP="74.244.110.235" requestID="0c763f4d-fb8b-4315" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="5b349b10-4e85-4e67" responseTimeMS=172 responseBytes=1532 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="37ee6e7d-079a-4114" responseTimeMS=136 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="3dc73cbf-961c-4d1b" responseTimeMS=116 responseBytes=1587 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="eb9d7be0-d66e-44a1" responseTimeMS=127 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AUTO-BID] Skipped for lead cmmb2hyt0004epvgloq5kizy9 — demo buyers disabled
+[AUTO-BID] Skipped for lead cmmb2hyt0004epvgloq5kizy9 — demo buyers disabled
+[AuctionClosure] Auction for lead cmmb2gt3s0043pvglnftuhzia closed after full 60 s (age: 2s)
+[AUCTION-CLOSED] leadId=cmmb2gt3s0043pvglnftuhzia status=UNSOLD buyNowPrice=30
+[AuctionClosure] cmmb2gt3s0043pvglnftuhzia → UNSOLD (Buy It Now: $30.00)
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2gt3s0043pvglnftuhzia clientIP="74.244.110.235" requestID="3f070cfc-0508-4f5b" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2gt3s0043pvglnftuhzia clientIP="74.244.110.235" requestID="09592324-806d-45c0" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2gt3s0043pvglnftuhzia clientIP="74.244.110.235" requestID="bd22732b-add1-4a3f" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2gt3s0043pvglnftuhzia clientIP="74.244.110.235" requestID="1fca496f-4cc6-4f55" responseTimeMS=6 responseBytes=1837 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="e9344b0a-2e9f-44fc" responseTimeMS=135 responseBytes=1526 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="8307550c-bdf0-4ba6" responseTimeMS=123 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[DEMO BOUNTY] 🔍 Matching bounties for lead cmmb2h68k0… (vertical=solar, state=TX, qs=6900, bid=$16)
+[CONFIDENTIAL TEE] matchBuyerPreferences: solar vs solar
+[DEMO BOUNTY] 🔍 matchBounties returned 1 match(es) for solar
+[DEMO BOUNTY] 💰 Releasing $15 from pool 69 (solar) to seller
+[BountyService] ⚠️ releaseBounty nonce collision (attempt 1/3), retrying in 2s…
+[AUTO-BID] Skipped for lead cmmb2imqq004lpvglo4gx185p — demo buyers disabled
+[AUTO-BID] Skipped for lead cmmb2imqq004lpvglo4gx185p — demo buyers disabled
+[AUTO-BID] Skipped for lead cmmb2imr1004ppvgljzocqfhm — demo buyers disabled
+[AUTO-BID] Skipped for lead cmmb2imr1004ppvgljzocqfhm — demo buyers disabled
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="ba6d78dd-84e7-40b6" responseTimeMS=130 responseBytes=1583 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="6b74eb80-5d4b-455f" responseTimeMS=132 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="c68abb3c-2dcd-4357" responseTimeMS=149 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="1d2f31d3-0bcb-4788" responseTimeMS=125 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[BountyService] Released $15 from pool 69 to seller for lead cmmb2h68k0048pvgljn3zzqc8
+[AUCTION-CLOSED] leadId=cmmb2h68k0048pvgljn3zzqc8 winner=0xa75d76b27ff9511354c78cb915cfc106c6b23dd9 amount=16 tx=0x9149c89b2e5b3cbd1d4f419c3907a4e3c5a1af6adcbd1aff33edffcd235c2f15
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="ebcf66a4-f603-4324" responseTimeMS=123 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="c8b84bb1-fb80-483f" responseTimeMS=111 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2h68k0048pvgljn3zzqc8 clientIP="74.244.110.235" requestID="df7b4623-42ba-4eee" responseTimeMS=91 responseBytes=1814 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2h68k0048pvgljn3zzqc8 clientIP="74.244.110.235" requestID="86bea137-a817-46aa" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AUTO-BID] Skipped for lead cmmb2iykb004tpvglmtf3bua1 — demo buyers disabled
+[AUTO-BID] Skipped for lead cmmb2iykb004tpvglmtf3bua1 — demo buyers disabled
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="7dfbc886-1b5a-4cac" responseTimeMS=141 responseBytes=1634 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="ee7a7542-b1af-4e80" responseTimeMS=115 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2hyt0004epvgloq5kizy9 clientIP="74.244.110.235" requestID="2f7ce9e4-c509-4cc8" responseTimeMS=7 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2hyt0004epvgloq5kizy9 clientIP="74.244.110.235" requestID="f74c551a-792c-4ca3" responseTimeMS=7 responseBytes=1752 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2hyt0004epvgloq5kizy9 clientIP="74.244.110.235" requestID="c69e7878-9b2b-496c" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2hyt0004epvgloq5kizy9 clientIP="74.244.110.235" requestID="73397b7f-8d54-42e4" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AuctionClosure] Auction for lead cmmb2hyt0004epvgloq5kizy9 closed after full 60 s (age: 4s)
+[AUCTION-CLOSED] leadId=cmmb2hyt0004epvgloq5kizy9 status=UNSOLD buyNowPrice=25.2
+[AuctionClosure] cmmb2hyt0004epvgloq5kizy9 → UNSOLD (Buy It Now: $25.20)
+[AUTO-BID] Skipped for lead cmmb2jesl004ypvglovi1k9ma — demo buyers disabled
+[AUTO-BID] Skipped for lead cmmb2jesl004ypvglovi1k9ma — demo buyers disabled
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="392e9d03-3a59-4716" responseTimeMS=312 responseBytes=1629 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="fff76e0e-6001-4abd" responseTimeMS=133 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imr1004ppvgljzocqfhm clientIP="74.244.110.235" requestID="0afb451e-85fc-46f8" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imqq004lpvglo4gx185p clientIP="74.244.110.235" requestID="77c2a210-ba1f-4da4" responseTimeMS=9 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imqq004lpvglo4gx185p clientIP="74.244.110.235" requestID="562974be-294d-46c0" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imr1004ppvgljzocqfhm clientIP="74.244.110.235" requestID="b79ff12b-277e-453e" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imqq004lpvglo4gx185p clientIP="74.244.110.235" requestID="282d31fa-d266-4baf" responseTimeMS=11 responseBytes=1807 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imr1004ppvgljzocqfhm clientIP="74.244.110.235" requestID="dc141859-3068-44dd" responseTimeMS=8 responseBytes=1804 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imr1004ppvgljzocqfhm clientIP="74.244.110.235" requestID="754f5fe5-16d9-4542" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2imqq004lpvglo4gx185p clientIP="74.244.110.235" requestID="a5bd8064-67e7-4fa0" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AuctionClosure] Auction for lead cmmb2imqq004lpvglo4gx185p closed after full 60 s (age: 3s)
+[AUCTION-CLOSED] leadId=cmmb2imqq004lpvglo4gx185p status=UNSOLD buyNowPrice=21.599999999999998
+[AuctionClosure] cmmb2imqq004lpvglo4gx185p → UNSOLD (Buy It Now: $21.60)
+[AuctionClosure] Auction for lead cmmb2imr1004ppvgljzocqfhm closed after full 60 s (age: 3s)
+[AUCTION-CLOSED] leadId=cmmb2imr1004ppvgljzocqfhm status=UNSOLD buyNowPrice=32.4
+[AuctionClosure] cmmb2imr1004ppvgljzocqfhm → UNSOLD (Buy It Now: $32.40)
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="8b3c31b6-ef21-4d2c" responseTimeMS=137 responseBytes=1523 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="cf911ce0-993d-47c5" responseTimeMS=108 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2iykb004tpvglmtf3bua1 clientIP="74.244.110.235" requestID="ac3b3aa8-4108-4a87" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2iykb004tpvglmtf3bua1 clientIP="74.244.110.235" requestID="5fc58fb8-2e69-4c90" responseTimeMS=22 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2iykb004tpvglmtf3bua1 clientIP="74.244.110.235" requestID="04b7f03a-ce42-4fb1" responseTimeMS=9 responseBytes=1708 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2iykb004tpvglmtf3bua1 clientIP="74.244.110.235" requestID="5a3b3c9f-bc2f-4852" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="df9adb13-3d26-491d" responseTimeMS=151 responseBytes=1460 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="e10c9828-e1bd-46ba" responseTimeMS=126 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AuctionClosure] Auction for lead cmmb2iykb004tpvglmtf3bua1 closed after full 60 s (age: 4s)
+[AUCTION-CLOSED] leadId=cmmb2iykb004tpvglmtf3bua1 status=UNSOLD buyNowPrice=54
+[AuctionClosure] cmmb2iykb004tpvglmtf3bua1 → UNSOLD (Buy It Now: $54.00)
+[DEMO BOUNTY] 🔍 Matching bounties for lead cmmb2iykb0… (vertical=hvac, state=AZ, qs=6500, bid=$54)
+[CONFIDENTIAL TEE] matchBuyerPreferences: hvac vs hvac
+[DEMO BOUNTY] 🔍 matchBounties returned 1 match(es) for hvac
+[DEMO BOUNTY] 💰 Releasing $10 from pool 73 (hvac) to seller
+[BountyService] ⚠️ releaseBounty nonce collision (attempt 1/3), retrying in 2s…
+[BountyService] Released $10 from pool 73 to seller for lead cmmb2iykb004tpvglmtf3bua1
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="fedd2849-d167-4a8b" responseTimeMS=144 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="ebcb9a49-bfa4-4b61" responseTimeMS=161 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AuctionClosure] Auction for lead cmmb2jesl004ypvglovi1k9ma closed after full 60 s (age: 3s)
+[AUCTION-CLOSED] leadId=cmmb2jesl004ypvglovi1k9ma status=UNSOLD buyNowPrice=28.799999999999997
+[AuctionClosure] cmmb2jesl004ypvglovi1k9ma → UNSOLD (Buy It Now: $28.80)
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2jesl004ypvglovi1k9ma clientIP="74.244.110.235" requestID="d2d4559e-efff-4f3e" responseTimeMS=7 responseBytes=1745 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2jesl004ypvglovi1k9ma clientIP="74.244.110.235" requestID="d7b63c5b-1c9c-4770" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2jesl004ypvglovi1k9ma clientIP="74.244.110.235" requestID="45356e9c-4d35-4ecd" responseTimeMS=8 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2jesl004ypvglovi1k9ma clientIP="74.244.110.235" requestID="18823572-effc-448b" responseTimeMS=5 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[AUCTION-CLOSED] leadId=cmmb2iykb004tpvglmtf3bua1 winner=0xc92a0a5080077fb8c2b756f8f52419cb76d99afe amount=54 tx=0x84efc9c9ff28f11c8c7959c3cc74a01a4b01e3ff9d7bf526f6f55e14b5899345
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="218e2eeb-e964-440d" responseTimeMS=7 responseBytes=1134 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="68dba646-df47-404c" responseTimeMS=5 responseBytes=971 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2iykb004tpvglmtf3bua1 clientIP="74.244.110.235" requestID="b543fae4-9a70-41cb" responseTimeMS=12 responseBytes=1703 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads/cmmb2iykb004tpvglmtf3bua1 clientIP="74.244.110.235" requestID="6ef3c6dc-54c2-450a" responseTimeMS=6 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="845d878e-ec4a-4ade" responseTimeMS=5 responseBytes=971 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=50 clientIP="74.244.110.235" requestID="c0cab499-842b-4d50" responseTimeMS=6 responseBytes=971 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[DEMO] Demo run completed in 378s | Deployer ETH spent: 0 (fund-once active)
+[CRE-DISPATCH] demo fallback mint — leadId=cmmb2jesl004ypvglovi1k9ma
+[NFT MINT] ──── PRE-FLIGHT ────
+[NFT MINT] Contract: 0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155
+[NFT MINT] Signer: 0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70
+[NFT MINT] Contract Owner: 0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70
+[NFT MINT] Is Authorized Minter: true
+[NFT MINT] Is Owner: true
+[NFT MINT] Params: {
+  "to": "0x9bb15f98982715e33a2113a35662036528ee0a36",
+  "platformLeadId": "0xfb95d4ebc75a5936b3b43848b871cd023011d70c6ce977945d62d068728e9d19",
+  "vertical": "0x585f0ffac4590ed956ef7d99c1177e00c7f240a28094f8eaffb94c5a559815a3",
+  "geoHash": "0x43232fb829ac8b628bef407ea5c59cc6b88b412b91595ee50843207c2a6323ef",
+  "piiHash": "0xe2bac80b637b98964d848a8495a5040be5ed33a455223c42a2d10325ae3e5356",
+  "reservePrice": 24000000,
+  "expiresAt": 1773175076,
+  "source": 0,
+  "tcpaConsent": true,
+  "uri": ""
+}
+[CRE-DISPATCH] mintLeadNFT starting — leadId=cmmb2jesl004ypvglovi1k9ma seller=0x9bb15f98982715e33a2113a35662036528ee0a36 contract=0x73ebD921…
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/status clientIP="74.244.110.235" requestID="bf97a96f-dd86-40c1" responseTimeMS=2 responseBytes=1498 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/status clientIP="74.244.110.235" requestID="bff16507-74b5-46bd" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[NFT MINT] Tx sent: 0x20eb284188ad3a0bb80e6216b45c29c8f9fbb63ab075c1a204cbea13af4309fc
+[NFT MINT] ❌ On-chain mint FAILED: Error: transaction execution reverted (action="sendTransaction", data=null, reason=null, invocation=null, revert=null, transaction={ "data": "", "from": "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70", "to": "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155" }, receipt={ "_type": "TransactionReceipt", "blobGasPrice": null, "blobGasUsed": "31414", "blockHash": "0x0000000000000000000000000000000000000000000000000000000000000000", "blockNumber": 38401003, "contractAddress": null, "cumulativeGasUsed": "2749885", "from": "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70", "gasPrice": "6000000", "gasUsed": "42083", "hash": "0x20eb284188ad3a0bb80e6216b45c29c8f9fbb63ab075c1a204cbea13af4309fc", "index": 25, "logs": [  ], "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "root": null, "status": 0, "to": "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155" }, code=CALL_EXCEPTION, version=6.16.0)
+    at makeError (/opt/render/project/src/node_modules/ethers/lib.commonjs/utils/errors.js:137:21)
+    at assert (/opt/render/project/src/node_modules/ethers/lib.commonjs/utils/errors.js:157:15)
+    at checkReceipt (/opt/render/project/src/node_modules/ethers/lib.commonjs/providers/provider.js:1138:35)
+    at ContractTransactionResponse.wait (/opt/render/project/src/node_modules/ethers/lib.commonjs/providers/provider.js:1154:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ContractTransactionResponse.wait (/opt/render/project/src/node_modules/ethers/lib.commonjs/contract/wrappers.js:115:25)
+    at async NFTService.mintLeadNFT (/opt/render/project/src/backend/dist/services/nft.service.js:144:33)
+    at async /opt/render/project/src/backend/dist/services/demo/demo-orchestrator.js:1425:44 {
+  code: 'CALL_EXCEPTION',
+  action: 'sendTransaction',
+  data: null,
+  reason: null,
+  invocation: null,
+  revert: null,
+  transaction: {
+    to: '0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155',
+    from: '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',
+    data: ''
+  },
+  receipt: TransactionReceipt {
+    provider: JsonRpcProvider {},
+    to: '0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155',
+    from: '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',
+    contractAddress: null,
+    hash: '0x20eb284188ad3a0bb80e6216b45c29c8f9fbb63ab075c1a204cbea13af4309fc',
+    index: 25,
+    blockHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    blockNumber: 38401003,
+    logsBloom: '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    gasUsed: 42083n,
+    blobGasUsed: 31414n,
+    cumulativeGasUsed: 2749885n,
+    gasPrice: 6000000n,
+    blobGasPrice: null,
+    type: 2,
+    status: 0,
+    root: undefined
+  },
+  shortMessage: 'transaction execution reverted'
+}
+[DEMO-REVERT] mintLeadNFT FAILED — reason="(no reason)" data="(no data)" code=CALL_EXCEPTION msg="transaction execution reverted (action="sendTransaction", data=null, reason=null, invocation=null, revert=null, transaction={ "data": "", "from": "0x6BBcf283847"
+[NFT MINT] Error details: {
+  "message": "transaction execution reverted (action=\"sendTransaction\", data=null, reason=null, invocation=null, revert=null, transaction={ \"data\": \"\", \"from\": \"0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70\", \"to\": \"0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155\" }, receipt={ \"_type\": \"TransactionReceipt\", \"blobGasPrice\": null, \"blobGasUsed\": \"31414\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000000\", \"blockNumber\": 38401003, \"contractAddress\": null, \"cumulativeGasUsed\": \"2749885\", \"from\": \"0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70\", \"gasPrice\": \"6000000\", \"gasUsed\": \"42083\", \"hash\": \"0x20eb284188ad3a0bb80e6216b45c29c8f9fbb63ab075c1a204cbea13af4309fc\", \"index\": 25, \"logs\": [  ], \"logsBloom\": \"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\", \"root\": null, \"status\": 0, \"to\": \"0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155\" }, code=CALL_EXCEPTION, version=6.16.0)",
+  "code": "CALL_EXCEPTION",
+  "reason": null,
+  "data": null,
+  "transaction": {
+    "to": "0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155",
+    "from": "0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70",
+    "data": ""
+  },
+  "revert": null
+}
+[CRE-DISPATCH] demo fallback mint failed: {"message":"transaction execution reverted (action=\"sendTransaction\", data=null, reason=null, invocation=null, revert=null, transaction={ \"data\": \"\", \"from\": \"0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70\", \"to\": \"0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155\" }, receipt={ \"_type\": \"TransactionReceipt\", \"blobGasPrice\": null, \"blobGasUsed\": \"31414\", \"blockHash\": \"0x0000000000000000000000000000000000000000000000000000000000000000\", \"blockNumber\": 38401003, \"contractAddress\": null, \"cumulativeGasUsed\": \"2749885\", \"from\": \"0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70\", \"gasPrice\": \"6000000\", \"gasUsed\": \"42083\", \"hash\": \"0x20eb284188ad3a0bb80e6216b45c29c8f9fbb63ab075c1a204cbea13af4309fc\", \"index\": 25, \"logs\": [  ], \"logsBloom\": \"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\", \"root\": null, \"status\": 0, \"to\": \"0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155\" }, code=CALL_EXCEPTION, version=6.16.0)","code":"CALL_EXCEPTION","reason":null,"data":null,"transaction":{"to":"0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155","from":"0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70","data":""},"revert":null}
+[DEMO BOUNTY RECYCLE] ✅ Withdrew $12.0 from insurance pool #71
+[DEMO BOUNTY RECYCLE] ✅ Withdrew $15.0 from real_estate pool #72
+[DEMO BOUNTY RECYCLE] ✅ Withdrew $10.0 from legal pool #74
+[DEMO BOUNTY RECYCLE] ✅ Reset bounty pools + re-seeded form config on 8 verticals
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e clientIP="74.244.110.235" requestID="515c55cc-b60e-4cfb" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=6 clientIP="74.244.110.235" requestID="844fc0c1-2506-45d3" responseTimeMS=6 responseBytes=971 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/verticals/hierarchy clientIP="74.244.110.235" requestID="8636a1c4-0eef-44c3" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/bids/my clientIP="74.244.110.235" requestID="2f7f192d-c97e-4063" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/analytics/overview clientIP="74.244.110.235" requestID="c032b6ec-4325-4824" responseTimeMS=0 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/verticals/hierarchy clientIP="74.244.110.235" requestID="e81c28c1-71e4-482b" responseTimeMS=10 responseBytes=973 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/bids/my clientIP="74.244.110.235" requestID="56463dc7-ef1d-469c" responseTimeMS=15 responseBytes=5604 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/buyer/vault clientIP="74.244.110.235" requestID="a519397b-7fc2-4daf" responseTimeMS=146 responseBytes=1239 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/leads?status=IN_AUCTION&limit=6 clientIP="74.244.110.235" requestID="71ac32b9-1aa6-47e5" responseTimeMS=2 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/analytics/overview clientIP="74.244.110.235" requestID="feb9b65e-028d-405b" responseTimeMS=113 responseBytes=1289 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/buyer/vault clientIP="74.244.110.235" requestID="a7cf99c0-f4eb-4734" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[POST]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e clientIP="74.244.110.235" requestID="f89fa523-5f15-4810" responseTimeMS=5 responseBytes=1167 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="701b9538-d013-424b" responseTimeMS=2 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/status clientIP="74.244.110.235" requestID="5304e1d0-f782-4954" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="f4cf5ce1-7f5e-4931" responseTimeMS=9 responseBytes=1168 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/status clientIP="74.244.110.235" requestID="fb381b6c-95e2-4704" responseTimeMS=3 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="e196e887-a810-49d4" responseTimeMS=2 responseBytes=1168 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="5ebab1a5-c733-42f0" responseTimeMS=1 responseBytes=1168 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="e15a31d8-0c99-4fc6" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="9316c36e-86b2-444a" responseTimeMS=1 responseBytes=1168 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[VaultRecon] Running scheduled reconciliation job...
+[VaultRecon] 2026-03-03T20:40:00.147Z — scanned=1 synced=1 drifted=0 errors=0 (140ms)
+Socket disconnected: qImfBlNzF2wJJflDAAAH
+[GET]
+lead-engine-api-0jdu.onrender.com/socket.io/?EIO=4&transport=websocket clientIP="74.244.110.235" requestID="" responseTimeMS=1129089 responseBytes=0 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/status clientIP="74.244.110.235" requestID="3d6f81ef-c892-44de" responseTimeMS=2 responseBytes=972 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+Socket connected: NvIgPt6vdnrGHUsaAAAJ (user: cmm5vyucf00007x5rl0kfzuje)
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/status clientIP="74.244.110.235" requestID="d56f9218-150d-4f03" responseTimeMS=2 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="735b1d31-16b5-477d" responseTimeMS=1 responseBytes=1168 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[OPTIONS]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="d67ba501-0416-44d5" responseTimeMS=1 responseBytes=1112 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+[GET]
+lead-engine-api-0jdu.onrender.com/api/v1/demo-panel/full-e2e/results/latest clientIP="74.244.110.235" requestID="be1f434e-4e4f-48e3" responseTimeMS=2 responseBytes=1168 userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"

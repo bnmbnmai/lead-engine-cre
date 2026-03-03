@@ -336,7 +336,7 @@ export default function DemoResults() {
                         >
                             {isRecycling ? (
                                 <>
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Recycling...
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Recycling demo…
                                 </>
                             ) : (
                                 <>

@@ -43,7 +43,7 @@ export function isVrfConfigured(): boolean {
     return !!(VRF_TIE_BREAKER_ADDRESS && DEPLOYER_KEY);
 }
 
-const VRF_COORDINATOR_ADDRESS = '0x5C210eF41CD1a72de73bF76eC39637bB0d3d4BEE';
+const VRF_COORDINATOR_ADDRESS = '0x5C210ef41cD1A72DE73bF76ec39637Bb0d3d4bEe';
 const VRF_COORDINATOR_ABI = [
     'function getSubscription(uint256 subId) external view returns (uint96 balance, uint96 nativeBalance, uint64 reqCount, address owner, address[] consumers)'
 ];
