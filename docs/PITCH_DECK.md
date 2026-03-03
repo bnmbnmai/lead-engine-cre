@@ -137,7 +137,7 @@ Chainlink Hackathon 2026 — Convergence
 | Load Test | 23+ scenarios, 10K peak concurrent users (Artillery) |
 | Testnet Sim | 500+ on-chain txs (mints, bids, escrows) via 10 HD wallets |
 | Cypress E2E | 82 UI tests (seller, buyer, stress, copy assertions) |
-| Smart Contracts | 7 (Base Sepolia, all source-verified on Basescan) |
+| Smart Contracts | 8 (Base Sepolia, all source-verified on Basescan) |
 | Mock Data | 200+ seeded entries across all verticals/geos |
 | MCP Agent Tools | 15 (search, bid, bid-floor, export, preferences, auto-bid, CRM, ping, lead-status, vertical-fields, suggest-bid, bounty) |
 
@@ -150,7 +150,7 @@ Chainlink Hackathon 2026 — Convergence
 - **Expansion:** Auto, insurance, real estate, B2B SaaS, legal, financial
 - **Global reach:** 20+ countries from day one — US, EU, APAC, LATAM, Africa
 - **Multi-chain:** Sepolia today → Base mainnet for low-cost production
-- **Revenue:** 2.5% platform fee on every transaction via `RTBEscrow.sol`
+- **Revenue:** 5% platform fee on every transaction via `PersonalEscrowVault.sol`
 - **Moat:** Atomic escrow settlement + 10-gate auto-bid + MCP agent server + CCIP = no competitor has this stack
 
 ---
@@ -188,7 +188,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | Criteria | LeadRTB |
 |----------|-------------|
 | **Innovation** | 12 Chainlink service integrations + MCP agent server + CCIP-ready + atomic escrow settlement |
-| **Technical depth** | 7 smart contracts (verified), ZK proofs, commit-reveal, TEE scoring, 10-gate auto-bid |
+| **Technical depth** | 8 smart contracts (verified), ZK proofs, commit-reveal, TEE scoring, 7-gate auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
 | **Traction** | 500+ testnet txs, 1,288+ tests passing, 10K concurrent users |
 | **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |

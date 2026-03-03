@@ -1,7 +1,7 @@
 # Final Submission Certification — LeadRTB
 
 **Chainlink Convergence Hackathon 2026**
-**Certified: 2026-03-01 | Network: Base Sepolia (chain ID 84532)**
+**Certified: 2026-03-03 | Network: Base Sepolia (chain ID 84532)**
 
 ---
 
@@ -34,7 +34,7 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 | **PersonalEscrowVault** (Automation + PoR + Data Feeds) | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | [View](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) |
 | **LeadNFTv2** (ERC-721 + ACE + ERC-2981) | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | [View](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) |
 | **CREVerifier** (Functions CRE + ZK fraud signal) | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | [View](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) |
-| **VRFTieBreaker** (VRF v2.5 auction tiebreaker) | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) |
+| **VRFTieBreaker** (VRF v2.5 auction tiebreaker) | `0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8` | [View](https://sepolia.basescan.org/address/0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8) |
 | **ACECompliance** (KYC/geo/reputation policy registry) | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
 | **ACELeadPolicy** (lead-specific policy rules) | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) |
 | **BountyMatcher** (Functions bounty criteria matching) | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) |
@@ -91,6 +91,6 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 ```
 
 ---
-**Date:** 2026-03-01
+**Date:** 2026-03-03
 **Network:** Base Sepolia (chain ID 84532)
 **Repository:** [github.com/bnmbnmai/lead-engine-cre](https://github.com/bnmbnmai/lead-engine-cre)

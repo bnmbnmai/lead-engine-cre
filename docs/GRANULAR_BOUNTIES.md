@@ -26,7 +26,7 @@ flowchart TD
 
     E -->|BOUNTY_FUNCTIONS_ENABLED=false\nor Functions timeout| J[In-Memory Criteria Matching\nfallback]
 
-    E -->|2+ pools tied on amount| K[VRFTieBreaker\n0x86c8f348...]
+    E -->|2+ pools tied on amount| K[VRFTieBreaker\n0x6DE9fd3A...]
     K -->|randomWord % candidates| E
 
     E -->|bounty stacking cap\n≤ 2× lead price| L[capped MatchedBounty list]
@@ -186,4 +186,4 @@ BOUNTY_FUNCTIONS_ENABLED=true
 
 ---
 
-*Last updated: 2026-02-28 | BountyMatcher: `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | Subscription: 581*
+*Last updated: 2026-03-03 | BountyMatcher: `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | Subscription: 581*

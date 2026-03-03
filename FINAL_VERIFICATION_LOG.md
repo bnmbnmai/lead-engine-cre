@@ -340,3 +340,40 @@ Address `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` was originally deployed as 
 | `CONTRACTS.md:15` | New address + fresh redeploy note |
 | `README.md:160` | New address + "fresh redeploy March 2 2026 — correct on-chain name" status |
 | `FINAL_VERIFICATION_LOG.md` | This section |
+
+---
+
+## 9. Post-Investigation Code Fixes & Documentation Consistency (3 March 2026)
+
+### Code Fixes Applied
+
+| Fix | Files Changed | Details |
+|-----|---------------|---------|
+| **Form Config DB Auto-Seeding** | `demo-orchestrator.ts`, `demo-vault-cycle.ts`, `vertical.routes.ts` | Bounty reset was wiping `formConfig` to `{}`. Both reset sites now re-seed `FORM_CONFIG_TEMPLATES`. Removed fallback from `vertical.routes.ts` — DB is single source of truth. |
+| **CI Test Fix** | `marketplace-visibility.test.ts` | `BountyDepositSchema` was relaxed from `min(10)` to `min(1)` but test still expected `amount: 5` to fail. Fixed to `amount: 0`. |
+| **Render.yaml Env Var Hygiene** | `render.yaml` | Added `VRF_TIE_BREAKER_ADDRESS`, `VRF_SUBSCRIPTION_ID`, `DEMO_MODE`, `PLATFORM_WALLET_ADDRESS` as `sync: false` placeholders. |
+| **Temp File Cleanup** | `deploy-bounty-pool-output.txt`, `deploy-vrf-output.txt` | Removed via `git rm`. |
+| **VRF Logging Enhancement** | `vrf.service.ts` | Added `aceDevBus.emit()` with Basescan links on `requestTieBreak()` and `startVrfResolutionWatcher()` for judge-visible On-Chain Log entries. |
+
+### Documentation Consistency Pass (12 files updated)
+
+| File | Changes |
+|------|---------|
+| `ROADMAP.md` | Version date → 3 March 2026; last-updated date |
+| `README.md` | Test count: 41 → 40 suites (994 tests) |
+| `CONTRACTS.md` | Last-verified date → 2026-03-03 |
+| `submission-checklist.md` | VRF address → `0x6DE9fd3A…` |
+| `final-submission-certification.md` | VRF address + date → 2026-03-03 |
+| `ENV_VARS.md` | Added `VITE_DEMO_MODE`; `VRF_TIE_BREAKER_ADDRESS` upgraded to ⚠️ Recommended |
+| `ON_CHAIN_VERIFICATION.md` | VRF address + last-verified date |
+| `GRANULAR_BOUNTIES.md` | VRF address in mermaid diagram + last-updated date |
+| `PRODUCTION_CHECKLIST.md` | 7→8 contracts; 12→15 MCP tools; URLs → `leadrtb.com`; checked done items |
+| `PITCH_DECK.md` | 7→8 contracts; 2.5%→5% fee; `RTBEscrow`→`PersonalEscrowVault` |
+| `PRIVACY_TRACK.md` | Audit date → 2026-03-03 |
+| `current-status.md` | Post-investigation findings appended (previous session) |
+
+### Test Verification
+
+- **994/994 tests pass locally** (40 suites, exit code 0)
+- Prisma Decimal sweep: clean
+- Grep for old VRF address `0x86c8f348` in active docs: 0 hits (only in `FINAL_VERIFICATION_LOG.md` historical sections)

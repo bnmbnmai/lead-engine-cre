@@ -1,7 +1,7 @@
 # On-Chain Verification — LeadRTB
 
 > **Network:** Base Sepolia (chain ID 84532)
-> **Last verified:** 2026-03-01 | **Source of truth:** [CONTRACTS.md](../CONTRACTS.md)
+> **Last verified:** 2026-03-03 | **Source of truth:** [CONTRACTS.md](../CONTRACTS.md)
 
 ---
 
@@ -12,7 +12,7 @@
 | **PersonalEscrowVault** | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | [View ↗](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | 1,477 |
 | **LeadNFTv2** | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | [View ↗](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | 26 |
 | **CREVerifier** | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | [View ↗](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | 20 |
-| **VRFTieBreaker** | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | [View ↗](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | 3 |
+| **VRFTieBreaker** | `0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8` | [View ↗](https://sepolia.basescan.org/address/0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8) | 0 |
 | **ACECompliance** | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View ↗](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | 66 |
 | **ACELeadPolicy** | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View ↗](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | 0 |
 | **BountyMatcher** | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View ↗](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | 0 |

@@ -43,7 +43,7 @@ flowchart TD
 - **Autonomous AI Bidding** -- Kimi K2.5 agent with 15 MCP tools bids alongside human buyers in real-time, using the same on-chain vault and rule engine.
 - **Granular Bounty Hunting** -- buyers post field-specific bounties ("solar leads in CA with 700+ credit score") that auto-match and settle additional USDC rewards.
 - **VRF v2.5 Fair Tiebreaking** -- provably random, verifiable on-chain tie resolution ensures no bidder has an unfair advantage.
-- **Production Technical Excellence** -- 41 comprehensive test files covering full CRE lifecycle, lint-clean codebase, and BullMQ/Redis/WebSocket production scaling already implemented and live.
+- **Production Technical Excellence** -- 40 test suites (994 tests) covering full CRE lifecycle, lint-clean codebase, and BullMQ/Redis/WebSocket production scaling already implemented and live.
 
 ## Key Features
 

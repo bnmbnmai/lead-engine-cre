@@ -38,7 +38,7 @@ All required and optional environment variables for LeadRTB.
 | `ACE_COMPLIANCE_ADDRESS` | ❌ | — | ACE compliance policy (alias) |
 | `VERTICAL_AUCTION_ADDRESS` | ❌ | — | VerticalAuction contract |
 | `VERTICAL_NFT_ADDRESS` | ❌ | — | VerticalNFT contract |
-| `VRF_TIE_BREAKER_ADDRESS` | ❌ | — | VRFTieBreaker contract |
+| `VRF_TIE_BREAKER_ADDRESS` | ⚠️ | — | VRFTieBreaker contract (`0x6DE9…ca8`) — required for VRF tiebreakers |
 
 ### Chainlink Services
 
@@ -91,6 +91,7 @@ All required and optional environment variables for LeadRTB.
 |---|---|---|---|
 | `VITE_API_URL` | ✅ | `http://localhost:3001` | Backend API base URL |
 | `VITE_WS_URL` | ❌ | same as API | WebSocket server URL |
+| `VITE_DEMO_MODE` | ❌ | `false` | Enables Demo Control Panel in the UI |
 
 ## Legend
 

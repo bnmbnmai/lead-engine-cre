@@ -26,7 +26,7 @@
 
 ## 🧪 Testing
 
-- [ ] Jest unit tests: all passing (`cd backend && npm test`)
+- [x] Jest unit tests: all passing (`cd backend && npm test`)
 - [ ] Security sim: 29/29 (`cd backend && npx jest tests/security-sim.test.ts`)
 - [ ] Artillery load: 23+ scenarios, 10K peak (`npx artillery run tests/load/*.yml`)
 - [ ] Cypress E2E: 53+ tests (`cd frontend && npx cypress run`)
@@ -34,15 +34,15 @@
 
 ## 🌐 Infrastructure
 
-- [ ] Backend deployed on Render (auto-deploy from `main`)
-- [ ] Frontend deployed on Vercel (auto-deploy from `main`)
-- [ ] PostgreSQL provisioned (Render managed)
+- [x] Backend deployed on Render (auto-deploy from `main`)
+- [x] Frontend deployed on Vercel (auto-deploy from `main`)
+- [x] PostgreSQL provisioned (Render managed)
 - [ ] Redis provisioned (for rate limiting + caching)
 - [ ] SSL/TLS: HTTPS enforced on all endpoints
 
 ## 📜 Smart Contracts
 
-- [ ] All 7 contracts deployed and verified on target network
+- [x] All 8 contracts deployed and verified on target network
 - [ ] Constructor arguments documented
 - [ ] Contract addresses updated in backend `.env`
 - [ ] Chainlink CRE subscription funded (≥ 5 LINK)
@@ -54,7 +54,7 @@
 - [ ] Alchemy RPC: API key valid, not rate-limited
 - [ ] WalletConnect: project ID configured
 - [ ] CRM webhooks: rate limiter + circuit breaker active
-- [ ] MCP server: 12 tools responding on port 3002
+- [ ] MCP server: 15 tools responding on port 3002
 - [ ] Socket.IO: WebSocket connections stable
 
 ## 🌍 i18n
@@ -76,7 +76,7 @@
 
 - [ ] `git status` clean (no uncommitted changes)
 - [ ] All CI checks passing
-- [ ] Demo URL accessible: https://lead-engine-cre.vercel.app
-- [ ] API URL accessible: https://lead-engine-cre-api.onrender.com/health
+- [ ] Demo URL accessible: https://leadrtb.com
+- [ ] API URL accessible: https://api.leadrtb.com/health
 - [ ] Loom video recorded and linked in PITCH_DECK
 - [ ] Submission form completed with all required fields

@@ -112,6 +112,22 @@ export async function requestTieBreak(
         const receipt = await tx.wait();
 
         console.log(`[VRF] Tie-break requested for ${leadId} (${candidates.length} candidates), tx: ${receipt.hash}`);
+
+        // Emit to On-Chain Log for judge visibility / easy Basescan screenshotting
+        import('./ace.service').then(({ aceDevBus }) => {
+            aceDevBus.emit('ace:dev-log', {
+                ts: new Date().toISOString(),
+                action: 'vrf:request',
+                level: 'success',
+                module: 'VRF',
+                message: `🎲 VRF Tiebreaker requested: ${candidates.length} tied bidders for lead ${leadId.slice(0, 12)}…`,
+                ' ': `🎲 VRF Tiebreaker requested: ${candidates.length} tied bidders`,
+                txHash: receipt.hash,
+                contractAddress: VRF_TIE_BREAKER_ADDRESS,
+                basescanUrl: `https://sepolia.basescan.org/tx/${receipt.hash}`,
+            });
+        }).catch(() => { });
+
         return receipt.hash;
     } catch (err: any) {
         console.error(`[VRF] requestTieBreak failed for ${leadId}:`, err.message);
@@ -240,6 +256,22 @@ export async function startVrfResolutionWatcher(
                     `[VRF] 🎲 BUG-09 watcher — lead=${leadId} VRF resolved.` +
                     ` winner=${vrfWinner} randomWord=${randomWord} requestId=${requestId}`
                 );
+
+                // Emit to On-Chain Log for judge visibility
+                import('./ace.service').then(({ aceDevBus }) => {
+                    aceDevBus.emit('ace:dev-log', {
+                        ts: new Date().toISOString(),
+                        action: 'vrf:resolved',
+                        level: 'success',
+                        module: 'VRF',
+                        message: `✅ VRF Winner selected: ${vrfWinner.slice(0, 10)}… (randomWord: ${randomWord})`,
+                        ' ': `✅ VRF Winner: ${vrfWinner.slice(0, 10)}…`,
+                        contractAddress: VRF_TIE_BREAKER_ADDRESS,
+                        vrfWinner,
+                        requestId: requestId.toString(),
+                        randomWord: randomWord.toString(),
+                    });
+                }).catch(() => { });
 
                 // Persist vrfWinner to AuctionRoom
                 try {

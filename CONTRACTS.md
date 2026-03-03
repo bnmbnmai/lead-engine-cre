@@ -1,6 +1,6 @@
 # CONTRACTS.md — Single Source of Truth
 > **Network:** Base Sepolia (chain ID 84532)  
-> **Last verified:** 2026-02-24 | **Verification method:** Live Basescan lookup  
+> **Last verified:** 2026-03-03 | **Verification method:** Live Basescan lookup  
 > **All deployed contracts are source-verified on Basescan.**
 
 ---

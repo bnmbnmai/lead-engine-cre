@@ -1,7 +1,7 @@
 # Privacy Track Code Path Walkthrough
 
 > **Network:** Base Sepolia (84532)  
-> **Audit Date:** 2026-02-24  
+> **Audit Date:** 2026-03-03  
 > **Track:** Chainlink Privacy Track (CHTT Phase 2 + AES-256-GCM PII Protection)
 
 ---

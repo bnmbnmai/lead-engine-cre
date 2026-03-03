@@ -2,7 +2,7 @@
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-Current version: **v1.0.0 (1 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, streamlined Demo Control Panel, vault orphaned lock recovery, Admin Overview Dashboard with real-time CRE status, and comprehensive endpoint audit (~95 endpoints across 17 route files).
+Current version: **v1.0.0 (3 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, streamlined Demo Control Panel, vault orphaned lock recovery, Admin Overview Dashboard with real-time CRE status, and comprehensive endpoint audit (~95 endpoints across 17 route files).
 
 ## Vision
 Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
@@ -199,4 +199,4 @@ With the extended deadline and the new Privacy + Agents tracks, LeadRTB is posit
 
 ---
 
-*Last updated: 2 March 2026 (scaling section accuracy audit, PII unlock status annotation)*
+*Last updated: 3 March 2026 (form config auto-seeding fix, CI test fix, render.yaml env var hygiene, documentation consistency pass)*

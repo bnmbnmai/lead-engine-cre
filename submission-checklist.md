@@ -28,7 +28,7 @@
 | Evidence | Details |
 |---|---|
 | Contract: VRFTieBreaker | `contracts/contracts/VRFTieBreaker.sol` — VRF v2.5 consumer |
-| Deployed at | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` (Base Sepolia, [verified](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e)) |
+| Deployed at | `0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8` (Base Sepolia, [verified](https://sepolia.basescan.org/address/0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8)) |
 | Tiebreaker logic | `requestResolution()` → `requestRandomWords()`; winner = `randomWord % candidates.length` |
 | Backend service | `backend/src/services/vrf.service.ts` — `requestTieBreak()` |
 | Proof links | VRF fulfillment tx hashes logged in demo results |
