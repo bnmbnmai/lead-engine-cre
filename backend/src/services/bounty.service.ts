@@ -88,32 +88,56 @@ const FUNCTIONS_MATCHING_ENABLED = process.env.BOUNTY_FUNCTIONS_ENABLED === 'tru
 // Service
 // ============================================
 
-const BOUNTY_POOL_ADDRESS = process.env.BOUNTY_POOL_ADDRESS || '';
-const RPC_URL = process.env.BASE_SEPOLIA_RPC || process.env.RPC_URL || '';
-const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
-
 class BountyService {
     private provider: ethers.JsonRpcProvider | null = null;
     private contract: ethers.Contract | null = null;
     private signer: ethers.Wallet | null = null;
+    private _initDone = false;
 
     // In-memory TTL cache for vertical bounty totals (key: slug, value: { total, expiresAt })
     private totalCache = new Map<string, { value: number; expiresAt: number }>();
     private readonly CACHE_TTL_MS = 60_000; // 60 seconds
 
     constructor() {
-        if (BOUNTY_POOL_ADDRESS && RPC_URL && DEPLOYER_KEY) {
+        // Attempt eagerly; ensureContract() retries lazily if env vars weren't ready.
+        this.ensureContract();
+    }
+
+    /**
+     * Lazy-init: (re-)read env vars and connect to the on-chain pool if not yet done.
+     * Called at construct time AND before every deposit/release so we pick up env vars
+     * even if the module loaded before dotenv ran.
+     */
+    private ensureContract(): boolean {
+        if (this.contract && this.signer) return true;   // already connected
+        if (this._initDone) return false;                 // already tried & failed hard
+
+        const poolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
+        const rpcUrl = process.env.BASE_SEPOLIA_RPC || process.env.RPC_URL || '';
+        const deployerKey = process.env.DEPLOYER_PRIVATE_KEY || '';
+
+        if (poolAddr && rpcUrl && deployerKey) {
             try {
-                this.provider = new ethers.JsonRpcProvider(RPC_URL);
-                this.signer = new ethers.Wallet(DEPLOYER_KEY, this.provider);
-                this.contract = new ethers.Contract(BOUNTY_POOL_ADDRESS, BOUNTY_POOL_ABI, this.signer);
-                console.log('[BountyService] Initialized with contract:', BOUNTY_POOL_ADDRESS);
+                this.provider = new ethers.JsonRpcProvider(rpcUrl);
+                this.signer = new ethers.Wallet(deployerKey, this.provider);
+                this.contract = new ethers.Contract(poolAddr, BOUNTY_POOL_ABI, this.signer);
+                this._initDone = true;
+                console.log(`[BountyService] ✅ BOUNTY_POOL_ADDRESS is set to ${poolAddr} — on-chain bounty mode ENABLED`);
+                return true;
             } catch (err) {
-                console.warn('[BountyService] Failed to initialize on-chain:', err);
+                this._initDone = true;
+                console.warn('[BountyService] ❌ Failed to initialize on-chain contract:', err);
+                return false;
             }
-        } else {
-            console.log('[BountyService] No BOUNTY_POOL_ADDRESS configured — off-chain fallback mode (set env var to enable on-chain)');
         }
+
+        // Log which vars are missing (don't set _initDone — allow retry on next call)
+        const missing: string[] = [];
+        if (!poolAddr) missing.push('BOUNTY_POOL_ADDRESS');
+        if (!rpcUrl) missing.push('BASE_SEPOLIA_RPC / RPC_URL');
+        if (!deployerKey) missing.push('DEPLOYER_PRIVATE_KEY');
+        console.log(`[BountyService] ⚠️ BOUNTY_POOL_ADDRESS not set — using OFF-CHAIN fallback (missing: ${missing.join(', ')})`);
+        return false;
     }
 
     // ============================================
@@ -138,6 +162,10 @@ class BountyService {
             let txHash: string | undefined;
             let offChain = false;
 
+            // Lazy-init: try to connect if env vars are now available
+            this.ensureContract();
+            const poolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
+
             if (this.contract && this.signer) {
                 const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
                 const tx = await this.contract.depositBounty(slugHash, amountWei);
@@ -151,7 +179,7 @@ class BountyService {
                     message: `💰 Bounty deposited: $${amountUSDC} into ${verticalSlug} pool`,
                     ' ': `💰 Bounty deposited: $${amountUSDC} into ${verticalSlug} pool`,
                     txHash,
-                    contractAddress: BOUNTY_POOL_ADDRESS,
+                    contractAddress: poolAddr,
                     amount: `$${amountUSDC}`,
                     vertical: verticalSlug,
                 });
@@ -448,6 +476,10 @@ class BountyService {
         verticalSlug?: string
     ): Promise<BountyResult> {
         try {
+            // Lazy-init: try to connect if env vars are now available
+            this.ensureContract();
+            const poolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
+
             // On-chain release (only for numeric pool IDs from the contract)
             const isOnChainPool = /^\d+$/.test(poolId);
             if (this.contract && this.signer && isOnChainPool) {
@@ -463,7 +495,7 @@ class BountyService {
                     message: `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
                     ' ': `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
                     txHash: receipt.hash,
-                    contractAddress: BOUNTY_POOL_ADDRESS,
+                    contractAddress: poolAddr,
                     amount: `$${amountUSDC}`,
                     vertical: verticalSlug || '',
                 });
