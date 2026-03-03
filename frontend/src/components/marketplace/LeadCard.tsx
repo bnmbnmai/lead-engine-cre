@@ -5,7 +5,6 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { ChainlinkBadge } from '@/components/ui/ChainlinkBadge';
 import { formatCurrency, formatMsRemaining, getPhaseLabel, formatVerticalTitle } from '@/lib/utils';
 import { useAuctionStore } from '@/store/auctionStore';
 
@@ -179,156 +178,156 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 pointerEvents: isFadingOut ? 'none' : undefined,
             } : undefined}
         >
-            <CardContent className="p-6">
+            <CardContent className="p-5 relative">
+                {/* ── Top-right badge stack ─────────────────────────────────────────
+                     Absolute-positioned vertical stack. z-20 ensures no clipping.
+                     Badges: CRE score → Bounty (conditional) → Verified (conditional)
+                     ────────────────────────────────────────────────────────────────── */}
+                <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5">
+                    {/* 1. CRE Quality Score — color-coded pill */}
+                    {lead.qualityScore != null ? (() => {
+                        const score = Math.floor(lead.qualityScore / 100);
+                        const colors = score >= 80
+                            ? 'bg-emerald-500/12 text-emerald-400 border-emerald-500/25'
+                            : score >= 50
+                                ? 'bg-amber-500/12 text-amber-400 border-amber-500/25'
+                                : 'bg-zinc-500/12 text-zinc-400 border-zinc-500/25';
+                        return (
+                            <Tooltip content={lead.qualityScore === 0
+                                ? 'CRE DON Match + Quality Score (pending on-chain scoring)'
+                                : lead.chttEnriched
+                                    ? `CRE Quality Score — enriched by Chainlink CHTT TEE (${score}/100)`
+                                    : `CRE Quality Score: ${score}/100 — confirmed on-chain after purchase`}
+                            >
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border backdrop-blur-sm cursor-help ${colors}`}>
+                                    <Shield className="h-2.5 w-2.5" />
+                                    CRE {score}
+                                    {lead.chttEnriched && <span className="opacity-60">🔒</span>}
+                                </span>
+                            </Tooltip>
+                        );
+                    })() : (lead.creRequestedAt && Date.now() - new Date(lead.creRequestedAt).getTime() > 2 * 60 * 1000) ? (
+                        <Tooltip content="Quality score pending from Chainlink DON">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20 backdrop-blur-sm cursor-help">
+                                <span className="animate-pulse text-[8px]">⏳</span> CRE …
+                            </span>
+                        </Tooltip>
+                    ) : (
+                        <Tooltip content="CRE DON Match + Quality Score (pending on-chain scoring)">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-zinc-500/8 text-zinc-500 border-zinc-500/20 backdrop-blur-sm cursor-help">
+                                <Shield className="h-2.5 w-2.5" /> CRE —
+                            </span>
+                        </Tooltip>
+                    )}
+
+                    {/* 2. Bounty — only when > 0 */}
+                    {(lead.parameters?._bountyTotal ?? 0) > 0 && (
+                        <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-amber-500/12 text-amber-300 border-amber-500/25 backdrop-blur-sm cursor-help">
+                                💰 ${lead.parameters!._bountyTotal!.toFixed(0)}
+                            </span>
+                        </Tooltip>
+                    )}
+
+                    {/* 3. Verified — subtle blue check */}
+                    {lead.isVerified && (
+                        <Tooltip content={lead.chttEnriched
+                            ? 'Verified on-chain via Chainlink CRE + CHTT TEE enrichment'
+                            : 'Verified on-chain via Chainlink CRE oracle network'}>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-blue-500/10 text-blue-400 border-blue-500/20 backdrop-blur-sm cursor-help">
+                                ✓ Verified
+                            </span>
+                        </Tooltip>
+                    )}
+
+                    {/* 4. TEE — only when CHTT enriched */}
+                    {lead.chttEnriched && (
+                        <Tooltip content="Quality score enriched by Chainlink Confidential HTTP inside a Trusted Execution Environment (TEE)">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-violet-500/15 text-violet-300 border-violet-500/30 backdrop-blur-sm cursor-help uppercase tracking-wider">
+                                🔒 TEE
+                            </span>
+                        </Tooltip>
+                    )}
+
+                    {/* 5. ACE Compliance — only when explicitly set */}
+                    {lead.aceCompliant != null && (
+                        <Tooltip content={lead.aceCompliant
+                            ? 'ACE Compliance: on-chain check passed'
+                            : 'ACE Compliance: on-chain check failed'}>
+                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-semibold border backdrop-blur-sm cursor-help ${lead.aceCompliant
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                }`}>
+                                {lead.aceCompliant ? '✓' : '✗'} ACE
+                            </span>
+                        </Tooltip>
+                    )}
+                </div>
+
                 {/* Auction End Feedback tag — quiet, no flash */}
                 {auctionEndFeedback && (
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 ${auctionEndFeedback === 'SOLD'
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold mb-3 ${auctionEndFeedback === 'SOLD'
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                         : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                         }`}>
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        <ArrowRight className="h-3 w-3" />
                         {auctionEndFeedback === 'SOLD' ? (
                             <>
-                                Auction ended → Sold
+                                Sold
                                 {liveHighestBid != null && (
-                                    // R-04: Show final winning price in emerald chip
-                                    <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">
+                                    <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
                                         ${liveHighestBid.toFixed(2)}
                                     </span>
                                 )}
                             </>
                         ) : (
-                            <>Auction ended → Buy It Now</>
+                            <>Buy It Now</>
                         )}
                     </div>
                 )}
-                {/* v9: closing-soon does NOT show a banner; card border signals urgency subtly. */}
-                {/* v9: closure is handled by card greying (className above) — no extra overlay. */}
-                {/* 🔒 SEALED banner — only shown while still live (resolving) */}
+
+                {/* 🔒 SEALED banner */}
                 {isLive && isSealed && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-bold animate-pulse mb-3">
-                        🔒 Sealed — resolving winner…
+                        🔒 Sealed — resolving…
                     </div>
                 )}
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${lead.isVerified ? 'bg-emerald-500/15 verified-glow' : 'bg-gray-500/20'
-                            }`}>
-                            {lead.isVerified ? (
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-emerald-500" aria-label="Chainlink Verified">
-                                    <path d="M12 1.5L3 7v10l9 5.5L21 17V7L12 1.5zM12 4.31l6 3.67v7.04l-6 3.67-6-3.67V7.98l6-3.67z" />
-                                    <path d="M12 8l-4 2.45v4.1L12 17l4-2.45v-4.1L12 8z" />
-                                </svg>
-                            ) : (
-                                <Shield className="h-6 w-6 text-gray-500" />
-                            )}
-                        </div>
-                        <div>
-                            <h3 className="font-semibold">{formatVerticalTitle(lead.vertical)}</h3>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <MapPin className="h-3 w-3" />
-                                {lead.geo.city ? `${lead.geo.city}, ` : ''}{lead.geo.state || 'Unknown'}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground/60 font-mono" title={lead.id}>
-                                ID: {lead.id.slice(0, 8)}…
-                            </div>
-                            {lead.seller?.companyName && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                    <Star className="h-3 w-3 text-amber-500" />
-                                    <span className="truncate max-w-[120px]">{lead.seller.companyName}</span>
-                                    <span className="text-[10px] opacity-70">
-                                        {(Number(lead.seller.reputationScore) / 100).toFixed(0)}%
-                                    </span>
-                                    {lead.seller.isVerified && (
-                                        <span className="text-emerald-500 text-[10px] font-semibold">✓</span>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {/* CRE Quality Score badge */}
-                        {lead.qualityScore != null ? (
-                            <Tooltip content={lead.qualityScore === 0
-                                ? 'CRE DON Match + Quality Score (pending on-chain scoring)'
-                                : lead.chttEnriched
-                                    ? `CRE Quality Score — enriched by Chainlink CHTT TEE (${Math.floor(lead.qualityScore / 100)}/100)`
-                                    : `CRE Quality Score: ${Math.floor(lead.qualityScore / 100)}/100 — confirmed on-chain after purchase`}
-                            >
-                                <span
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.qualityScore >= 7000
-                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                        : lead.qualityScore >= 5000
-                                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                            : 'bg-red-500/15 text-red-400 border-red-500/30'
-                                        }`}
-                                >
-                                    <Shield className="h-3 w-3" />
-                                    CRE {Math.floor(lead.qualityScore / 100)}/100
-                                    {lead.chttEnriched && <span className="ml-0.5 opacity-75">🔒</span>}
-                                </span>
-                            </Tooltip>
-                        ) : (lead.creRequestedAt && Date.now() - new Date(lead.creRequestedAt).getTime() > 2 * 60 * 1000) ? (
-                            <Tooltip content="Quality score pending from Chainlink DON">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-amber-500/15 text-amber-400 border-amber-500/30 cursor-help">
-                                    <span className="animate-pulse">⏳</span>
-                                    CRE Pending
-                                </span>
-                            </Tooltip>
-                        ) : (
-                            <Tooltip content="CRE DON Match + Quality Score (pending on-chain scoring)">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
-                                    <Shield className="h-3 w-3" />
-                                    CRE —
-                                </span>
-                            </Tooltip>
-                        )}
-                        {/* 💰 Bounty Boost inline badge — shown when a buyer bounty pool covers this vertical */}
-                        {(lead.parameters?._bountyTotal ?? 0) > 0 && (
-                            <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 cursor-help">
-                                    💰 +${lead.parameters!._bountyTotal!.toFixed(0)}
-                                </span>
-                            </Tooltip>
-                        )}
-                        {/* ACE Compliance badge */}
-                        {lead.aceCompliant != null ? (
-                            <Tooltip content={lead.aceCompliant
-                                ? 'ACE Compliance: on-chain check passed — caller is compliant with all active policies'
-                                : 'ACE Compliance: on-chain check failed — caller did not pass active policies'}
-                            >
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border cursor-help ${lead.aceCompliant
-                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                    : 'bg-red-500/15 text-red-400 border-red-500/30'
-                                    }`}>
-                                    {lead.aceCompliant ? '✓' : '✗'} ACE
-                                </span>
-                            </Tooltip>
-                        ) : null}
-                        {/* TEE badge */}
-                        {lead.chttEnriched && (
-                            <Tooltip content="Quality score enriched by Chainlink Confidential HTTP inside a Trusted Execution Environment (TEE). External fraud signals (phone validation, email hygiene, conversion propensity) processed securely in enclave without exposing any PII.">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-widest border bg-violet-500/25 text-violet-300 border-violet-500/50 cursor-help uppercase shadow-sm shadow-violet-500/20">
-                                    🔒 TEE
-                                </span>
-                            </Tooltip>
-                        )}
-                        {lead.isVerified && (
-                            <Tooltip content={lead.chttEnriched
-                                ? 'Lead data verified on-chain via Chainlink CRE oracle network + Confidential HTTP TEE enrichment.'
-                                : 'Lead data verified on-chain via Chainlink CRE oracle network.'}>
-                                <span className="cursor-help">
-                                    <ChainlinkBadge size="sm" />
-                                </span>
-                            </Tooltip>
-                        )}
 
+                {/* ── Header ──────────────────────────────────────────────────────── */}
+                <div className="flex items-start gap-3 mb-3 pr-24">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${lead.isVerified ? 'bg-emerald-500/12' : 'bg-zinc-500/15'
+                        }`}>
+                        {lead.isVerified ? (
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-emerald-500" aria-label="Chainlink Verified">
+                                <path d="M12 1.5L3 7v10l9 5.5L21 17V7L12 1.5zM12 4.31l6 3.67v7.04l-6 3.67-6-3.67V7.98l6-3.67z" />
+                                <path d="M12 8l-4 2.45v4.1L12 17l4-2.45v-4.1L12 8z" />
+                            </svg>
+                        ) : (
+                            <Shield className="h-5 w-5 text-zinc-500" />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="font-semibold text-[15px] leading-tight">{formatVerticalTitle(lead.vertical)}</h3>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{lead.geo.city ? `${lead.geo.city}, ` : ''}{lead.geo.state || 'Unknown'}</span>
+                        </div>
+                        {lead.seller?.companyName && (
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70 mt-0.5">
+                                <Star className="h-2.5 w-2.5 text-amber-500 shrink-0" />
+                                <span className="truncate max-w-[100px]">{lead.seller.companyName}</span>
+                                <span className="opacity-60">{(Number(lead.seller.reputationScore) / 100).toFixed(0)}%</span>
+                                {lead.seller.isVerified && <span className="text-emerald-500 font-semibold">✓</span>}
+                            </div>
+                        )}
+                        <div className="text-[9px] text-muted-foreground/40 font-mono mt-0.5" title={lead.id}>
+                            {lead.id.slice(0, 8)}…
+                        </div>
                     </div>
                 </div>
 
                 {/* Source & Stats */}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
                     {lead.source === 'OFFSITE' && (
                         <div className="flex items-center gap-1 text-yellow-500">
                             <Zap className="h-4 w-4" />
@@ -365,9 +364,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 </div>
 
                 {/* Auction Progress Bar */}
-                {isLive && progress !== null && (
+                {isLive && progress !== null && !isClosed && (
                     <div className="mb-4">
-                        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
                             <div
                                 className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-1000 ease-linear"
                                 style={{ width: `${Math.min(progress, 100)}%` }}
@@ -381,7 +380,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 )}
 
                 {/* Pricing & Action */}
-                <div className="flex items-center justify-between pt-4 border-t border-border">
+                <div className="flex items-center justify-between pt-3 border-t border-border/50">
                     <div>
                         <Tooltip content="Minimum bid amount accepted by the seller">
                             <span className="text-xs text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/40">Reserve</span>
