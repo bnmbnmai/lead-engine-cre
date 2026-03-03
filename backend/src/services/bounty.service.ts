@@ -112,7 +112,7 @@ class BountyService {
                 console.warn('[BountyService] Failed to initialize on-chain:', err);
             }
         } else {
-            console.log('[BountyService] No contract configured — off-chain mode');
+            console.log('[BountyService] No BOUNTY_POOL_ADDRESS configured — off-chain fallback mode (set env var to enable on-chain)');
         }
     }
 
@@ -148,6 +148,7 @@ class BountyService {
                 aceDevBus.emit('ace:dev-log', {
                     ts: new Date().toISOString(),
                     action: 'bounty:deposit',
+                    message: `💰 Bounty deposited: $${amountUSDC} into ${verticalSlug} pool`,
                     ' ': `💰 Bounty deposited: $${amountUSDC} into ${verticalSlug} pool`,
                     txHash,
                     contractAddress: BOUNTY_POOL_ADDRESS,
@@ -158,6 +159,14 @@ class BountyService {
                 poolId = randomUUID();
                 offChain = true;
                 console.log(`[BountyService] Buyer deposited (off-chain) $${amountUSDC} on ${verticalSlug}`);
+                aceDevBus.emit('ace:dev-log', {
+                    ts: new Date().toISOString(),
+                    action: 'bounty:deposit',
+                    message: `⚠️ Bounty deposited OFF-CHAIN: $${amountUSDC} into ${verticalSlug} (set BOUNTY_POOL_ADDRESS for on-chain)`,
+                    ' ': `⚠️ Bounty deposited OFF-CHAIN: $${amountUSDC} into ${verticalSlug} (set BOUNTY_POOL_ADDRESS for on-chain)`,
+                    amount: `$${amountUSDC}`,
+                    vertical: verticalSlug,
+                });
             }
 
             // Save bounty config in formConfig.bountyPools WITH poolId
@@ -451,6 +460,7 @@ class BountyService {
                 aceDevBus.emit('ace:dev-log', {
                     ts: new Date().toISOString(),
                     action: 'bounty:release',
+                    message: `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
                     ' ': `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
                     txHash: receipt.hash,
                     contractAddress: BOUNTY_POOL_ADDRESS,
@@ -468,6 +478,14 @@ class BountyService {
 
             // Off-chain release
             console.log(`[BountyService] Released (off-chain) $${amountUSDC} from pool ${poolId} for lead ${leadId}`);
+            aceDevBus.emit('ace:dev-log', {
+                ts: new Date().toISOString(),
+                action: 'bounty:release',
+                message: `⚠️ Bounty released OFF-CHAIN: $${amountUSDC} from pool ${poolId} (set BOUNTY_POOL_ADDRESS for on-chain)`,
+                ' ': `⚠️ Bounty released OFF-CHAIN: $${amountUSDC} from pool ${poolId} (set BOUNTY_POOL_ADDRESS for on-chain)`,
+                amount: `$${amountUSDC}`,
+                vertical: verticalSlug || '',
+            });
 
             // Update off-chain tracking
             if (verticalSlug) {
