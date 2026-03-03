@@ -561,7 +561,9 @@ class BountyService {
                         const isNonceErr = retryErr?.code === 'REPLACEMENT_UNDERPRICED' || retryErr?.code === 'NONCE_EXPIRED'
                             || retryErr?.message?.includes('replacement fee too low') || retryErr?.message?.includes('nonce');
                         if (!isNonceErr || attempt === MAX_RETRIES - 1) break;
-                        console.warn(`[BountyService] ⚠️ releaseBounty nonce collision (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in 2s…`);
+                        // First retry is expected during rapid demo runs — log quietly; only warn on 2nd+
+                        const logFn = attempt === 0 ? console.log : console.warn;
+                        logFn(`[BountyService] releaseBounty retry ${attempt + 1}/${MAX_RETRIES} (nonce collision), waiting 2s…`);
                         await new Promise(r => setTimeout(r, 2_000));
                     }
                 }

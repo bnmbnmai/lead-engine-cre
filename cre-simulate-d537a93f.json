@@ -32,7 +32,7 @@
     },
     {
       "cycle": 3,
-      "vertical": "roofing",
+      "vertical": "financial_services",
       "qualityScore": "pending",
       "gates": [
         "vertical",
@@ -46,7 +46,7 @@
     },
     {
       "cycle": 4,
-      "vertical": "legal",
+      "vertical": "insurance",
       "qualityScore": "pending",
       "gates": [
         "vertical",
@@ -60,35 +60,7 @@
     },
     {
       "cycle": 5,
-      "vertical": "solar",
-      "qualityScore": "pending",
-      "gates": [
-        "vertical",
-        "geo",
-        "state",
-        "quality",
-        "off-site",
-        "verified",
-        "field-filters"
-      ]
-    },
-    {
-      "cycle": 6,
       "vertical": "real_estate",
-      "qualityScore": "pending",
-      "gates": [
-        "vertical",
-        "geo",
-        "state",
-        "quality",
-        "off-site",
-        "verified",
-        "field-filters"
-      ]
-    },
-    {
-      "cycle": 7,
-      "vertical": "roofing",
       "qualityScore": "pending",
       "gates": [
         "vertical",
@@ -101,5 +73,5 @@
       ]
     }
   ],
-  "timestamp": "2026-03-03T21:02:34.408Z"
+  "timestamp": "2026-03-03T21:55:26.860Z"
 }

@@ -187,6 +187,11 @@ export function useDemo(): UseDemoReturn {
                 cycles: data.cycles ?? [],
             });
             setProgress(prev => ({ ...prev, percent: 100, phase: 'recycling' }));
+            // Add recycling start to On-Chain Log so the user sees it
+            setLogs(prev => [...prev, {
+                ts: new Date().toISOString(), level: 'info' as const,
+                message: '♻️ Recycling wallets + bounty pools in background…',
+            }]);
             toast({
                 type: 'success',
                 title: '⚡ Results Ready!',
@@ -205,6 +210,11 @@ export function useDemo(): UseDemoReturn {
             setIsRecycling(false);
             setRecyclePercent(100);
             setProgress(prev => ({ ...prev, phase: 'done' }));
+            // Add recycling complete to On-Chain Log
+            setLogs(prev => [...prev, {
+                ts: new Date().toISOString(), level: 'success' as const,
+                message: '✅ Wallets recycled — ready for next demo run',
+            }]);
         });
         return unsub;
     }, []);
@@ -219,14 +229,37 @@ export function useDemo(): UseDemoReturn {
         return unsub;
     }, []);
 
-    // Check initial status on mount
+    // Check initial status on mount — hydrate BOTH running and recycling
     useEffect(() => {
         api.demoFullE2EStatus().then(({ data }) => {
-            if (data?.running) {
-                setIsRunning(true);
+            if (data?.running || data?.recycling) {
+                setIsRunning(Boolean(data.running));
+                setIsRecycling(Boolean(data.recycling));
+                if (data.recycling) {
+                    setProgress(prev => ({ ...prev, phase: 'recycling' }));
+                }
             }
         }).catch(() => { /* ignore */ });
     }, []);
+
+    // Periodic sync while recycling — catches missed socket events (disconnect/reconnect)
+    useEffect(() => {
+        if (!isRecycling) return;
+        const interval = setInterval(() => {
+            api.demoFullE2EStatus().then(({ data }) => {
+                if (!data?.recycling) {
+                    setIsRecycling(false);
+                    setRecyclePercent(100);
+                    setProgress(prev => ({ ...prev, phase: 'done' }));
+                    setLogs(prev => [...prev, {
+                        ts: new Date().toISOString(), level: 'success' as const,
+                        message: '✅ Wallets recycled — ready for next demo run',
+                    }]);
+                }
+            }).catch(() => { });
+        }, 10_000);
+        return () => clearInterval(interval);
+    }, [isRecycling]);
 
     const startDemo = useCallback(async (cycles?: number) => {
         if (isRunning) return;
@@ -243,9 +276,17 @@ export function useDemo(): UseDemoReturn {
         try {
             const { data, error } = await api.demoFullE2EStart(cycles);
             if (error) {
-                toast({ type: 'error', title: 'Failed to start demo', description: String(error) });
+                // User-friendly message when server rejects because recycling is active
+                const errStr = typeof error === 'object' && 'error' in error ? (error as any).error : String(error);
+                const isRecyclingErr = errStr?.includes?.('redistribution') || errStr?.includes?.('recycling');
+                toast({
+                    type: isRecyclingErr ? 'info' : 'error',
+                    title: isRecyclingErr ? 'Wallets Still Recycling' : 'Failed to start demo',
+                    description: isRecyclingErr ? 'Please wait ~30s for wallet recycling to complete' : errStr,
+                });
                 setIsRunning(false);
-                setProgress(prev => ({ ...prev, phase: 'idle' }));
+                if (isRecyclingErr) setIsRecycling(true); // re-gate the button
+                setProgress(prev => ({ ...prev, phase: isRecyclingErr ? 'recycling' : 'idle' }));
                 return;
             }
             toast({

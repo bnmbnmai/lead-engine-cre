@@ -246,27 +246,12 @@ class NFTService {
                 console.log(`[NFT MINT] ✅ Success — tokenId=${tokenId}, txHash=${receipt?.hash}`);
                 return { success: true, tokenId, txHash: receipt?.hash };
             } catch (error: any) {
-                console.error('[NFT MINT] ❌ On-chain mint FAILED:', error);
-                // Surface the full error info
-                const errorDetails = {
-                    message: error.message,
-                    code: error.code,
-                    reason: error.reason,
-                    data: error.data,
-                    transaction: error.transaction,
-                    revert: error.revert,
-                    info: error.info,
-                };
-                // [DEMO-REVERT] — surface revert reason for Render log visibility
-                console.error(
-                    `[DEMO-REVERT] mintLeadNFT FAILED — ` +
-                    `reason="${error.reason || error.revert?.name || '(no reason)'}" ` +
-                    `data="${error.data || '(no data)'}" ` +
-                    `code=${error.code || ''} ` +
-                    `msg="${(error.message || '').slice(0, 160)}"`
-                );
-                console.error('[NFT MINT] Error details:', JSON.stringify(errorDetails, null, 2));
-                return { success: false, error: JSON.stringify(errorDetails) };
+                // Clean, concise error logging — no verbose stack/receipt dumps
+                const code = error.code || 'UNKNOWN';
+                const reason = error.reason || error.revert?.name || '(no reason)';
+                const shortMsg = (error.shortMessage || error.message || '').slice(0, 120);
+                console.warn(`[NFT MINT] ❌ Mint failed (non-fatal) — code=${code} reason="${reason}" ${shortMsg}`);
+                return { success: false, error: `${code}: ${reason} — ${shortMsg}` };
             }
         }
 

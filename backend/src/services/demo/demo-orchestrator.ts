@@ -1657,7 +1657,8 @@ export async function runFullDemo(
 
         await saveResultsToDB(result);
 
-        emitStatus(io, { running: false, phase: 'idle', totalCycles: cycleResults.length, currentCycle: cycleResults.length, percent: 100, runId });
+        // Fix: set recycling:true (not idle) — recycleTokens fires on error/abort path too
+        emitStatus(io, { running: false, recycling: true, phase: 'recycling', totalCycles: cycleResults.length, currentCycle: cycleResults.length, percent: 100, runId });
 
         try {
             safeEmit(io, 'demo:results-ready', { runId, status: result.status, totalCycles: cycleResults.length, totalSettled, elapsedSec: Math.round((Date.now() - new Date(startedAt).getTime()) / 1000), cycles: cycleResults });
