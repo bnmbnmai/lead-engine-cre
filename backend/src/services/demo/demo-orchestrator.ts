@@ -1553,47 +1553,46 @@ export async function runFullDemo(
 
         console.log(`[DEMO] Demo run completed in ${elapsedSec}s | Deployer ETH spent: 0 (fund-once active)`);
 
-        // ── Demo CRE Dispatch Fallback ─────────────────────────────
-        // Guarantee [CRE-DISPATCH] appears in every Render run by minting the NFT
-        // for the first settled lead and dispatching requestOnChainQualityScore.
-        // Non-blocking — errors are logged but do not affect the result object.
+        // ── Mint NFTs for ALL demo leads + CRE Dispatch ────────────
+        // Synchronous: mint before emitting results so the frontend sees nftTokenId/mintTxHash.
+        // Each lead is non-fatal — failures don't block other mints or the result.
         if (cycleResults.length > 0) {
-            void (async () => {
+            emit(io, { ts: new Date().toISOString(), level: 'step', message: `🔗 Minting LeadNFTs for ${cycleResults.length} settled leads…` });
+            let firstMintedTokenId: number | null = null;
+            let firstMintedLeadId: string | null = null;
+
+            for (const cr of cycleResults) {
+                if (!cr.leadId) continue;
                 try {
-                    // Find a DB lead created during this demo run that hasn't been minted yet.
-                    const demoLead = await prisma.lead.findFirst({
-                        where: { nftTokenId: null, nftMintFailed: false },
-                        orderBy: { createdAt: 'desc' },
-                    });
-
-                    if (demoLead) {
-                        console.log(`[CRE-DISPATCH] demo fallback mint — leadId=${demoLead.id}`);
-                        emit(io, { ts: new Date().toISOString(), level: 'step', message: `🔗 [CRE-DISPATCH] Minting Lead NFT for CRE dispatch fallback — leadId=${demoLead.id}` });
-
-                        const mintResult = await nftService.mintLeadNFT(demoLead.id);
-                        if (mintResult.success && mintResult.tokenId) {
-                            console.log(`[CRE-DISPATCH] demo fallback mint ✅ tokenId=${mintResult.tokenId}`);
-                            emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ [CRE-DISPATCH] NFT minted tokenId=${mintResult.tokenId} — dispatching CRE quality score…`, txHash: mintResult.txHash });
-
-                            const creResult = await creService.requestOnChainQualityScore(demoLead.id, Number(mintResult.tokenId), demoLead.id);
-                            if (creResult.submitted) {
-                                console.log(`[CRE-DISPATCH] demo fallback CRE submitted — requestId=${creResult.requestId}`);
-                                emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ [CRE-DISPATCH] Chainlink CRE quality score dispatched — requestId=${creResult.requestId}` });
-                            } else {
-                                console.warn(`[CRE-DISPATCH] demo fallback CRE skipped/failed: ${creResult.error}`);
-                                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ [CRE-DISPATCH] CRE skipped: ${creResult.error}` });
-                            }
-                        } else {
-                            console.warn(`[CRE-DISPATCH] demo fallback mint failed: ${mintResult.error}`);
-                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ [CRE-DISPATCH] NFT mint failed (non-fatal): ${mintResult.error?.slice(0, 120)}` });
+                    const mintResult = await nftService.mintLeadNFT(cr.leadId);
+                    if (mintResult.success && mintResult.tokenId) {
+                        cr.nftTokenId = Number(mintResult.tokenId);
+                        cr.mintTxHash = mintResult.txHash ?? undefined;
+                        console.log(`[NFT] Cycle ${cr.cycle} mint ✅ tokenId=${cr.nftTokenId} tx=${cr.mintTxHash?.slice(0, 16) ?? '—'}`);
+                        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ Cycle ${cr.cycle} NFT minted — tokenId=${cr.nftTokenId}`, txHash: cr.mintTxHash, cycle: cr.cycle, totalCycles: cycleResults.length });
+                        if (!firstMintedTokenId) {
+                            firstMintedTokenId = cr.nftTokenId;
+                            firstMintedLeadId = cr.leadId;
                         }
                     } else {
-                        console.log('[CRE-DISPATCH] demo fallback: no un-minted lead found in DB — skipping');
+                        console.warn(`[NFT] Cycle ${cr.cycle} mint failed (non-fatal): ${mintResult.error?.slice(0, 100)}`);
                     }
-                } catch (fbErr: any) {
-                    console.error(`[CRE-DISPATCH] demo fallback error (non-fatal): ${fbErr.message}`);
+                } catch (mintErr: any) {
+                    console.warn(`[NFT] Cycle ${cr.cycle} mint error (non-fatal): ${mintErr.message?.slice(0, 100)}`);
                 }
-            })();
+            }
+
+            // CRE dispatch for first successfully minted lead
+            if (firstMintedTokenId && firstMintedLeadId) {
+                try {
+                    const creResult = await creService.requestOnChainQualityScore(firstMintedLeadId, firstMintedTokenId, firstMintedLeadId);
+                    if (creResult.submitted) {
+                        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ [CRE-DISPATCH] CRE quality score dispatched — requestId=${creResult.requestId}` });
+                    }
+                } catch (creErr: any) {
+                    console.warn(`[CRE-DISPATCH] CRE dispatch error (non-fatal): ${creErr.message?.slice(0, 100)}`);
+                }
+            }
         }
 
         // Read real quality scores from DB for all settled leads
