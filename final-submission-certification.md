@@ -38,8 +38,9 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 | **ACECompliance** (KYC/geo/reputation policy registry) | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) |
 | **ACELeadPolicy** (lead-specific policy rules) | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) |
 | **BountyMatcher** (Functions bounty criteria matching) | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) |
+| **VerticalBountyPool** (Per-vertical USDC bounty pools) | `0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2` | [View](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) |
 
-**7 of 7 deployed contracts source-verified on Basescan.**
+**8 of 8 deployed contracts source-verified on Basescan.**
 
 ---
 

@@ -16,8 +16,9 @@
 | **ACECompliance** | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | [View ↗](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | ✅ Exact Match | ACE (isCompliant, KYC/geo/reputation policy registry) | 66 |
 | **ACELeadPolicy** | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View ↗](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ✅ Exact Match | ACE (lead-specific policy rules; enforced by LeadNFTv2 mintLead) | 0 |
 | **BountyMatcher** | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View ↗](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | ✅ Exact Match | Functions (granular bounty criteria matching in DON; fulfillRequest stores MatchResult) | 0 |
+| **VerticalBountyPool** | `0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2` | [View ↗](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | ✅ Exact Match | Per-vertical USDC bounty pools; depositBounty/releaseBounty with 5% platform cut | 0 |
 
-**7 of 7 deployed contracts source-verified on Basescan. Zero pending.**
+**8 of 8 deployed contracts source-verified on Basescan. Zero pending.**
 
 ---
 
@@ -26,7 +27,7 @@
 | Contract | File | Status | Notes |
 |---|---|---|---|
 | **BountyMatcher** | `contracts/contracts/BountyMatcher.sol` | 🔷 Reference | Complete implementation using Chainlink Functions for off-chain bounty matching. Deploy when `BOUNTY_FUNCTIONS_ENABLED=true` is needed in prod. |
-| **VerticalBountyPool** | `contracts/contracts/VerticalBountyPool.sol` | 🔷 Reference | Buyer USDC bounty pool contract. BountyMatcher depends on this. |
+| **VerticalBountyPool** | `contracts/contracts/VerticalBountyPool.sol` | ✅ Deployed | Buyer USDC bounty pool contract — deployed at `0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2`. BountyMatcher depends on this. |
 | **VerticalAuction** | `contracts/contracts/VerticalAuction.sol` | 🔷 Reference | Vertical-level auction variant. Not in primary auction flow. |
 | **VerticalNFT** | `contracts/contracts/VerticalNFT.sol` | 🔷 Reference | Vertical-specific NFT variant. Not in primary mint flow. |
 

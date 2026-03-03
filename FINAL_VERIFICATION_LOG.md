@@ -116,6 +116,7 @@ Replace README.md lines 155–168 with:
 | 8 | **CRE Workflow (Buyer Rules)** | DON-executed | -- | Live | `cre-workflows/EvaluateBuyerRulesAndMatch/` |
 | 9 | **CRE Workflow (Winner Decrypt)** | DON-executed | -- | Live | `cre-workflows/DecryptForWinner/` |
 | 10 | **LeadNFTv2 (ACE-Protected)** | `LeadNFTv2` | [0x73ebD9...155](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | Live | `nft.service.ts` |
+| 11 | **Bounty Pool (USDC)** | `VerticalBountyPool` | [0x9C2241...3c2](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | Live | `bounty.service.ts` |
 | 11 | **Confidential HTTP (SecretsFetch)** | DON-executed | -- | Live | `confidential-http.stub.ts` |
 | 12 | **Data Streams (Pricing)** | Inline | -- | Live | `data-feeds.service.ts` |
 ```
