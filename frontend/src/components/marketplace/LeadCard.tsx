@@ -186,7 +186,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1">
                     {/* 1. Bounty — warm gold, only when > 0 — most eye-catching badge */}
                     {(lead.parameters?._bountyTotal ?? 0) > 0 && (
-                        <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
+                        <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`} align="right">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-gradient-to-r from-amber-500/15 to-yellow-500/10 text-amber-300 border-amber-400/30 shadow-sm shadow-amber-500/10 cursor-help">
                                 💰 +${lead.parameters!._bountyTotal!.toFixed(0)}
                             </span>
@@ -203,7 +203,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 ? 'bg-amber-500/8 text-amber-400/70 border-amber-500/15'
                                 : 'bg-zinc-500/8 text-zinc-400/60 border-zinc-500/15';
                         return (
-                            <Tooltip content={score === 0
+                            <Tooltip align="right" content={score === 0
                                 ? 'CRE quality scoring in progress'
                                 : `CRE Quality Score: ${score}/100`}
                             >
@@ -213,7 +213,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             </Tooltip>
                         );
                     })() : (
-                        <Tooltip content="CRE quality scoring pending">
+                        <Tooltip content="CRE quality scoring pending" align="right">
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-medium border bg-zinc-500/5 text-zinc-500/50 border-zinc-500/10 cursor-help">
                                 CRE —
                             </span>
@@ -222,7 +222,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
 
                     {/* 3. Verified — tiny, subtle */}
                     {lead.isVerified && (
-                        <Tooltip content="Verified on-chain via Chainlink CRE oracle network">
+                        <Tooltip content="Verified on-chain via Chainlink CRE oracle network" align="right">
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-medium border bg-blue-500/8 text-blue-400/70 border-blue-500/15 cursor-help">
                                 ✓ Verified
                             </span>
@@ -233,14 +233,14 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                     {(lead.chttEnriched || lead.aceCompliant != null) && (
                         <div className="flex items-center gap-1">
                             {lead.chttEnriched && (
-                                <Tooltip content="Chainlink Confidential TEE enrichment">
+                                <Tooltip content="Chainlink Confidential TEE enrichment" align="right">
                                     <span className="px-1 py-px rounded text-[8px] font-bold border bg-violet-500/10 text-violet-400/60 border-violet-500/15 cursor-help">
                                         TEE
                                     </span>
                                 </Tooltip>
                             )}
                             {lead.aceCompliant != null && (
-                                <Tooltip content={`ACE Compliance: ${lead.aceCompliant ? 'passed' : 'failed'}`}>
+                                <Tooltip content={`ACE Compliance: ${lead.aceCompliant ? 'passed' : 'failed'}`} align="right">
                                     <span className={`px-1 py-px rounded text-[8px] font-semibold border cursor-help ${lead.aceCompliant
                                         ? 'bg-emerald-500/8 text-emerald-400/60 border-emerald-500/15'
                                         : 'bg-rose-500/8 text-rose-400/60 border-rose-500/15'
