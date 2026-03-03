@@ -841,13 +841,13 @@ export async function runFullDemo(
         });
 
         // ── Auto-Seed Demo Bounties ────────────────────────────────────────
-        // Seeds 5 vertical bounty pools so the judge sees bounty badges on
-        // LeadCards and bounty release events in the On-Chain Log.
+        // Seeds bounty pools for ALL 8 demo verticals so judges see bounty
+        // badges on LeadCards and bounty release events in the On-Chain Log.
+        // Amounts are kept realistic ($10-15) to avoid deployer drain.
         try {
             const { bountyService } = await import('../bounty.service');
             const BOUNTY_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'real_estate', 'hvac', 'legal', 'financial_services'];
-            // Ensure verticals exist in DB (upsert) before depositing bounties
-            // Fix 1: reset formConfig so stale pools from prior runs don't accumulate
+            // Reset formConfig so stale pools from prior runs don't accumulate
             for (let i = 0; i < BOUNTY_VERTICALS.length; i++) {
                 const slug = BOUNTY_VERTICALS[i];
                 await prisma.vertical.upsert({
@@ -856,34 +856,42 @@ export async function runFullDemo(
                     create: { slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), depth: 0, sortOrder: i, status: 'ACTIVE', aliases: [], restrictedGeos: [] },
                 });
             }
-            // Fix 2+3: bounty pools for ALL 8 demo verticals with empty criteria
-            // (empty criteria = universal match on any geo/quality — guarantees bounty
-            // release events appear in every demo run regardless of random lead geos)
+            // Bounty pools for ALL 8 demo verticals with empty criteria
+            // (empty criteria = universal match — guarantees bounty release
+            // events appear regardless of random lead geos)
             const DEMO_BOUNTY_POOLS = [
-                { verticalSlug: 'solar', amount: 350, criteria: {} },
-                { verticalSlug: 'mortgage', amount: 500, criteria: {} },
-                { verticalSlug: 'roofing', amount: 200, criteria: {} },
-                { verticalSlug: 'insurance', amount: 275, criteria: {} },
-                { verticalSlug: 'real_estate', amount: 300, criteria: {} },
-                { verticalSlug: 'hvac', amount: 175, criteria: {} },
-                { verticalSlug: 'legal', amount: 225, criteria: {} },
-                { verticalSlug: 'financial_services', amount: 400, criteria: {} },
+                { verticalSlug: 'solar', amount: 15, criteria: {} },
+                { verticalSlug: 'mortgage', amount: 15, criteria: {} },
+                { verticalSlug: 'roofing', amount: 12, criteria: {} },
+                { verticalSlug: 'insurance', amount: 12, criteria: {} },
+                { verticalSlug: 'real_estate', amount: 15, criteria: {} },
+                { verticalSlug: 'hvac', amount: 10, criteria: {} },
+                { verticalSlug: 'legal', amount: 10, criteria: {} },
+                { verticalSlug: 'financial_services', amount: 12, criteria: {} },
             ];
             let bountyPoolsCreated = 0;
             let bountyTotal = 0;
+            console.log(`[DEMO BOUNTY] 🔵 Starting bounty seeding for ${DEMO_BOUNTY_POOLS.length} verticals...`);
             for (const pool of DEMO_BOUNTY_POOLS) {
                 const result = await bountyService.depositBounty(
                     'demo-buyer-bounty', pool.verticalSlug, pool.amount, pool.criteria, BUYER_PERSONA_WALLET,
                 );
-                if (result.success) { bountyPoolsCreated++; bountyTotal += pool.amount; }
-                else { console.warn(`[DEMO BOUNTY] ${pool.verticalSlug} failed: ${result.error}`); }
+                if (result.success) {
+                    bountyPoolsCreated++;
+                    bountyTotal += pool.amount;
+                    console.log(`[DEMO BOUNTY] ✅ ${pool.verticalSlug}: $${pool.amount} deposited (poolId=${result.poolId}, offChain=${result.offChain ?? 'N/A'})`);
+                } else {
+                    console.error(`[DEMO BOUNTY] ❌ ${pool.verticalSlug} FAILED: ${result.error}`);
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `❌ Bounty deposit failed for ${pool.verticalSlug}: ${result.error}` });
+                }
             }
             emit(io, {
                 ts: new Date().toISOString(), level: bountyPoolsCreated > 0 ? 'step' : 'warn',
-                message: `💰 Demo bounties seeded: ${bountyPoolsCreated} pools ($${bountyTotal} USDC) — badges visible on matching LeadCards`,
+                message: `💰 Demo bounties seeded: ${bountyPoolsCreated}/${DEMO_BOUNTY_POOLS.length} pools ($${bountyTotal} USDC) — badges visible on matching LeadCards`,
             });
+            console.log(`[DEMO BOUNTY] 🔵 Seeding complete: ${bountyPoolsCreated}/${DEMO_BOUNTY_POOLS.length} pools, $${bountyTotal} total`);
         } catch (bountyErr: any) {
-            console.error('[DEMO BOUNTY] Seeding error:', bountyErr);
+            console.error('[DEMO BOUNTY] ❌ Seeding error:', bountyErr);
             emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Demo bounty seeding skipped (non-fatal): ${bountyErr.message?.slice(0, 120)}` });
         }
 
@@ -1217,15 +1225,26 @@ export async function runFullDemo(
                             if (settledLead) {
                                 // Demo leads store geo in dedicated `geo` column ({country, state, city}), not in `parameters`
                                 const leadGeo = (settledLead as any).geo;
+                                console.log(`[DEMO BOUNTY] 🔍 Matching bounties for lead ${demoLeadId.slice(0, 10)}… (vertical=${settledLead.vertical}, state=${leadGeo?.state}, qs=${settledLead.qualityScore}, bid=$${bidAmount})`);
                                 const matches = await bountyService.matchBounties({
                                     id: settledLead.id,
                                     vertical: settledLead.vertical ?? undefined,
                                     qualityScore: settledLead.qualityScore,
                                     state: leadGeo?.state || (settledLead.parameters as any)?.state,
                                     country: leadGeo?.country,
+                                    parameters: settledLead.parameters,
                                     reservePrice: settledLead.reservePrice ? Number(settledLead.reservePrice) : undefined,
                                 }, bidAmount);
+                                console.log(`[DEMO BOUNTY] 🔍 matchBounties returned ${matches.length} match(es) for ${settledLead.vertical}`);
+                                if (matches.length === 0) {
+                                    emit(io, {
+                                        ts: new Date().toISOString(), level: 'info',
+                                        message: `ℹ️ No bounty pools matched for ${settledLead.vertical} lead (state=${leadGeo?.state || 'N/A'})`,
+                                        cycle: settlementCycle, totalCycles: 0,
+                                    });
+                                }
                                 for (const m of matches) {
+                                    console.log(`[DEMO BOUNTY] 💰 Releasing $${m.amount} from pool ${m.poolId} (${m.verticalSlug}) to seller`);
                                     const releaseResult = await bountyService.releaseBounty(
                                         m.poolId, demoLeadId, DEMO_SELLER_WALLET, m.amount, m.verticalSlug,
                                     );
@@ -1237,12 +1256,19 @@ export async function runFullDemo(
                                             message: `🎁 Bounty released: $${m.amount} from ${m.verticalSlug} pool → seller (${releaseResult.txHash ? 'on-chain' : 'off-chain'})`,
                                             cycle: settlementCycle, totalCycles: 0,
                                         });
+                                    } else {
+                                        console.error(`[DEMO BOUNTY] ❌ releaseBounty FAILED for pool ${m.poolId}: ${releaseResult.error}`);
+                                        emit(io, {
+                                            ts: new Date().toISOString(), level: 'warn',
+                                            message: `⚠️ Bounty release failed for ${m.verticalSlug}: ${releaseResult.error}`,
+                                            cycle: settlementCycle, totalCycles: 0,
+                                        });
                                     }
                                 }
                             }
                         } catch (bountyErr: any) {
-                            // Fix 4: surface bounty errors to DevLog so judges can see them
-                            console.warn('[DEMO] Bounty match/release error (non-fatal):', bountyErr.message?.slice(0, 200));
+                            // Surface bounty errors to DevLog so judges can see them
+                            console.error('[DEMO BOUNTY] ❌ Bounty match/release error:', bountyErr.message?.slice(0, 200));
                             emit(io, {
                                 ts: new Date().toISOString(), level: 'warn',
                                 message: `⚠️ Bounty match/release failed: ${bountyErr.message?.slice(0, 120)}`,

@@ -179,11 +179,14 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 pointerEvents: isFadingOut ? 'none' : undefined,
             } : undefined}
         >
-            <CardContent className="p-6 relative overflow-hidden">
-                {/* 💰 Bounty Boost corner ribbon — absolute so it doesn't crowd inline badges */}
+            <CardContent className="p-6 relative">
+                {/* 💰 Bounty Boost corner ribbon — anchored top-right with explicit left:auto to prevent CSS resets */}
                 {(lead.parameters?._bountyTotal ?? 0) > 0 && (
                     <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
-                        <span className="absolute top-0 right-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-bl-lg text-[11px] font-bold bg-amber-500/20 text-amber-400 border-b border-l border-amber-500/30 cursor-help z-10 backdrop-blur-sm">
+                        <span
+                            style={{ position: 'absolute', top: 0, right: 0, left: 'auto', zIndex: 10 }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-bl-lg text-[11px] font-bold bg-amber-500/20 text-amber-400 border-b border-l border-amber-500/30 cursor-help backdrop-blur-sm"
+                        >
                             💰 Bounty Boost
                         </span>
                     </Tooltip>

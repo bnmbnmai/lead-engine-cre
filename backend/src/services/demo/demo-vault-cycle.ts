@@ -260,6 +260,25 @@ export async function recycleTokens(
             emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Deployer vault withdraw failed: ${err.message?.slice(0, 80)}` });
         }
 
+        // R2.5 — Reset bounty pool formConfig to prevent accumulation
+        try {
+            const { prisma } = await import('../../lib/prisma');
+            const BOUNTY_SLUGS = ['solar', 'mortgage', 'roofing', 'insurance', 'real_estate', 'hvac', 'legal', 'financial_services'];
+            for (const slug of BOUNTY_SLUGS) {
+                await prisma.vertical.updateMany({
+                    where: { slug },
+                    data: { formConfig: {} },
+                });
+            }
+            emit(io, {
+                ts: new Date().toISOString(), level: 'info',
+                message: `♻️ Bounty pools reset (${BOUNTY_SLUGS.length} verticals cleared) — no residual pool drain`,
+            });
+            console.log(`[DEMO BOUNTY RECYCLE] ✅ Reset formConfig on ${BOUNTY_SLUGS.length} verticals`);
+        } catch (bountyRecycleErr: any) {
+            console.warn('[DEMO BOUNTY RECYCLE] ⚠️ Non-fatal:', bountyRecycleErr.message?.slice(0, 100));
+        }
+
         // R3 — Seller vault withdraw + USDC transfer
         try {
             const sellerSigner = new ethers.Wallet(DEMO_SELLER_KEY, provider);

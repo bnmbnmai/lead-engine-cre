@@ -36,7 +36,7 @@ export const BountyCriteriaSchema = z.object({
 });
 
 export const BountyDepositSchema = z.object({
-    amount: z.number().min(10).max(10000),
+    amount: z.number().min(1).max(10000),
     criteria: BountyCriteriaSchema.optional(),
 });
 
@@ -122,7 +122,8 @@ class BountyService {
                 this.signer = new ethers.Wallet(deployerKey, this.provider);
                 this.contract = new ethers.Contract(poolAddr, BOUNTY_POOL_ABI, this.signer);
                 this._initDone = true;
-                console.log(`[BountyService] ✅ BOUNTY_POOL_ADDRESS is set to ${poolAddr} — on-chain bounty mode ENABLED`);
+                console.log(`[BountyService] ✅ BOUNTY_POOL_ADDRESS=${poolAddr} — ON-CHAIN bounty mode ENABLED (deployer=${this.signer.address})`);
+                aceDevBus.emit('ace:dev-log', { level: 'success', module: 'BountyService', message: `✅ On-chain bounty pool connected: ${poolAddr}` });
                 return true;
             } catch (err) {
                 this._initDone = true;
@@ -136,7 +137,8 @@ class BountyService {
         if (!poolAddr) missing.push('BOUNTY_POOL_ADDRESS');
         if (!rpcUrl) missing.push('BASE_SEPOLIA_RPC / RPC_URL');
         if (!deployerKey) missing.push('DEPLOYER_PRIVATE_KEY');
-        console.log(`[BountyService] ⚠️ BOUNTY_POOL_ADDRESS not set — using OFF-CHAIN fallback (missing: ${missing.join(', ')})`);
+        console.log(`[BountyService] ⚠️ OFF-CHAIN bounty mode (missing: ${missing.join(', ')}) — pools stored in Prisma formConfig`);
+        aceDevBus.emit('ace:dev-log', { level: 'warn', module: 'BountyService', message: `⚠️ Off-chain bounty mode — missing env: ${missing.join(', ')}` });
         return false;
     }
 
@@ -253,7 +255,10 @@ class BountyService {
         createdAt?: Date;
         reservePrice?: number | null;
     }, leadPrice?: number): Promise<MatchedBounty[]> {
-        if (!lead.vertical) return [];
+        if (!lead.vertical) {
+            console.log(`[BountyService] matchBounties: skipping — no vertical on lead ${lead.id}`);
+            return [];
+        }
 
         try {
             const vertical = await prisma.vertical.findUnique({
