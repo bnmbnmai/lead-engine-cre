@@ -174,6 +174,9 @@ class BountyService {
             if (this.contract && this.signer) {
                 const amountWei = ethers.parseUnits(amountUSDC.toString(), 6);
 
+                // Use explicit nonce management to prevent collisions in rapid sequential deposits
+                const currentNonce = await this.signer.getNonce('pending');
+
                 // Ensure USDC approval for the bounty pool contract
                 const usdcContract = new ethers.Contract(
                     process.env.USDC_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
@@ -181,14 +184,16 @@ class BountyService {
                         'function allowance(address owner, address spender) view returns (uint256)'],
                     this.signer,
                 );
+                let nonce = currentNonce;
                 const allowance = await usdcContract.allowance(this.signer.address, poolAddr);
                 if (BigInt(allowance) < amountWei) {
-                    console.log(`[BountyService] Approving USDC spend for bounty pool...`);
-                    const approveTx = await usdcContract.approve(poolAddr, ethers.MaxUint256);
+                    console.log(`[BountyService] Approving USDC spend for bounty pool (nonce=${nonce})...`);
+                    const approveTx = await usdcContract.approve(poolAddr, ethers.MaxUint256, { nonce });
                     await approveTx.wait();
+                    nonce++; // increment after approval consumed a nonce
                 }
 
-                const tx = await this.contract.depositBounty(slugHash, amountWei);
+                const tx = await this.contract.depositBounty(slugHash, amountWei, { nonce });
                 const receipt = await tx.wait();
 
                 // Parse pool ID from BountyDeposited event (NOT logs[0] — that's the USDC Transfer)
