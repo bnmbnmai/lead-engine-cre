@@ -116,3 +116,5 @@ redis_bin/
 
 # Log files
 *.log
+
+current-status.md

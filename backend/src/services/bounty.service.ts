@@ -21,6 +21,7 @@ import {
     waitForMatchResult,
 } from './functions.service';
 import { confidentialService } from './confidential.service';
+import { aceDevBus } from './ace.service';
 
 // ============================================
 // Types & Schemas
@@ -144,6 +145,15 @@ class BountyService {
                 poolId = receipt.logs?.[0]?.args?.[0]?.toString() || '0';
                 txHash = receipt.hash;
                 console.log(`[BountyService] Buyer deposited $${amountUSDC} on ${verticalSlug}, pool ${poolId}, tx: ${txHash}`);
+                aceDevBus.emit('ace:dev-log', {
+                    ts: new Date().toISOString(),
+                    action: 'bounty:deposit',
+                    ' ': `💰 Bounty deposited: $${amountUSDC} into ${verticalSlug} pool`,
+                    txHash,
+                    contractAddress: BOUNTY_POOL_ADDRESS,
+                    amount: `$${amountUSDC}`,
+                    vertical: verticalSlug,
+                });
             } else {
                 poolId = randomUUID();
                 offChain = true;
@@ -438,6 +448,15 @@ class BountyService {
                 );
                 const receipt = await tx.wait();
                 console.log(`[BountyService] Released $${amountUSDC} from pool ${poolId} to seller for lead ${leadId}`);
+                aceDevBus.emit('ace:dev-log', {
+                    ts: new Date().toISOString(),
+                    action: 'bounty:release',
+                    ' ': `💰 Bounty released: $${amountUSDC} to seller ${recipientAddress.slice(0, 10)}…`,
+                    txHash: receipt.hash,
+                    contractAddress: BOUNTY_POOL_ADDRESS,
+                    amount: `$${amountUSDC}`,
+                    vertical: verticalSlug || '',
+                });
 
                 // Update off-chain tracking
                 if (verticalSlug) {

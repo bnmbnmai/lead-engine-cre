@@ -947,13 +947,28 @@ router.get('/leads', optionalAuthMiddleware, async (req: AuthenticatedRequest, r
 
         // Map leads — normalize stored CRE quality score (0–10000 → 0–100) and
         // extract CHTT provenance from parameters._chtt JSONB.
+        // Also enrich with _bountyTotal from bounty service for Bounty Boost badges.
+        const verticalSlugs = [...new Set(rawLeads.map((l: any) => l.vertical))];
+        const bountyTotals: Record<string, number> = {};
+        try {
+            const { bountyService } = await import('../services/bounty.service');
+            await Promise.all(verticalSlugs.map(async (slug: string) => {
+                bountyTotals[slug] = await bountyService.getVerticalBountyTotal(slug);
+            }));
+        } catch { /* bounty enrichment is non-critical */ }
+
         const leads = rawLeads.map((lead: any) => {
             const chttMeta = (lead.parameters as any)?._chtt;
+            const bountyTotal = bountyTotals[lead.vertical] || 0;
             return {
                 ...lead,
                 qualityScore: lead.qualityScore != null ? Math.floor(lead.qualityScore / 100) : null,
                 chttEnriched: chttMeta?.enriched === true,
                 chttScore: chttMeta?.score != null ? Math.floor(chttMeta.score / 100) : null,
+                parameters: {
+                    ...(lead.parameters || {}),
+                    ...(bountyTotal > 0 ? { _bountyTotal: bountyTotal } : {}),
+                },
             };
         });
 

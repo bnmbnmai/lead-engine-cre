@@ -1117,6 +1117,7 @@ export async function runFullDemo(
             const refundTxHashes: string[] = [];
             let cyclePlatformIncome = 0;
             let vrfTxHashForCycle: string | undefined;
+            let cycleBountyAmount = 0;
 
             try {
                 emit(io, { ts: new Date().toISOString(), level: 'info', message: `📋 Lock IDs: [${lockIds.join(', ')}]`, cycle: settlementCycle, totalCycles: 0, data: { lockIds } });
@@ -1223,6 +1224,7 @@ export async function runFullDemo(
                                     );
                                     if (releaseResult.success) {
                                         totalBountyRewards += m.amount;
+                                        cycleBountyAmount += m.amount;
                                         emit(io, {
                                             ts: new Date().toISOString(), level: 'success',
                                             message: `🎁 Bounty released: $${m.amount} from ${m.verticalSlug} pool → seller (${releaseResult.txHash ? 'on-chain' : 'off-chain'})`,
@@ -1397,6 +1399,7 @@ export async function runFullDemo(
                 hadTiebreaker: cycleUsedBuyItNow ? false : hadTiebreaker,
                 vrfTxHash: vrfTxHashForCycle,
                 txStatus: settleReceiptHash ? 'confirmed' : 'pending',
+                bountyAmount: cycleBountyAmount > 0 ? cycleBountyAmount : undefined,
             });
 
             await sleep(1000);
@@ -1447,7 +1450,7 @@ export async function runFullDemo(
 ║  Total Gas: ${totalGas.toString().padEnd(44)}║
 ║  Status:    All cycles SOLVENT                           ║
 ╚══════════════════════════════════════════════════════════╝`,
-            data: { runId, cycles, totalSettled, totalGas: totalGas.toString(), totalBountyRewards },
+            data: { runId, cycles, totalSettled, totalGas: totalGas.toString(), totalBountyRewards, totalPlatformIncome },
         });
         emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Total platform revenue: $${totalPlatformIncome.toFixed(2)} | Bounty rewards paid: $${totalBountyRewards.toFixed(2)} | Tiebreakers triggered: ${totalTiebreakers} | VRF proofs: ${vrfProofLinks.length > 0 ? vrfProofLinks.join(', ') : 'none'}` });
 

@@ -18,7 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     ExternalLink, ArrowLeft, Download, RotateCcw,
     CheckCircle2, XCircle, Loader2, Fuel, DollarSign,
-    Activity, Rocket, Clock, RefreshCw, TrendingUp, Zap, Shield
+    Activity, Rocket, Clock, RefreshCw, TrendingUp, Zap, Shield, Gift
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import api from '@/lib/api';
@@ -50,6 +50,7 @@ interface CycleResult {
     platformIncome?: number;
     hadTiebreaker?: boolean;
     vrfTxHash?: string;
+    bountyAmount?: number;
 }
 
 interface DemoResult {
@@ -65,6 +66,7 @@ interface DemoResult {
     totalTiebreakers?: number;
     vrfProofLinks?: string[];
     creQualityScores?: Record<number, number>; // cycle → real CRE quality score (0-100)
+    totalBountyRewards?: number;
 }
 
 
@@ -99,6 +101,9 @@ export default function DemoResults() {
             (sum, c) => sum + (c.platformIncome ?? 0), 0
         ),
         totalTiebreakers: (partialResults.cycles as CycleResult[]).filter(c => c.hadTiebreaker).length,
+        totalBountyRewards: (partialResults.cycles as CycleResult[]).reduce(
+            (sum, c) => sum + (c.bountyAmount ?? 0), 0
+        ),
     } : null);
 
     const fetchResults = useCallback(async (specificRunId?: string) => {
@@ -415,6 +420,18 @@ export default function DemoResults() {
                             </div>
                         )}
                     </div>
+                    <div className="glass rounded-xl p-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <Gift className="h-4 w-4 text-amber-400" />
+                            Bounty Rewards
+                        </div>
+                        <p className="text-2xl font-bold text-amber-400">
+                            {display.totalBountyRewards != null && display.totalBountyRewards > 0
+                                ? `$${display.totalBountyRewards.toFixed(2)}`
+                                : '$0'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">On-chain bounty payouts to sellers</p>
+                    </div>
                 </div>
 
                 {/* CRE DON Proofs */}
@@ -610,6 +627,11 @@ export default function DemoResults() {
                                                 <div className="font-mono text-xs text-emerald-400">
                                                     {cycle.platformIncome != null ? `$${cycle.platformIncome.toFixed(2)}` : '—'}
                                                 </div>
+                                                {cycle.bountyAmount != null && cycle.bountyAmount > 0 && (
+                                                    <div className="font-mono text-xs text-amber-400" title="Bounty released to seller">
+                                                        +${cycle.bountyAmount} 🎯
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     );

@@ -151,6 +151,7 @@ export interface CycleResult {
     nftTokenId?: number;       // LeadNFT token ID (for Basescan link)
     mintTxHash?: string;       // NFT mint tx hash
     txStatus?: string;         // 'confirmed' | 'pending'
+    bountyAmount?: number;     // bounty reward released to seller for this cycle
 }
 
 export interface DemoResult {
@@ -166,6 +167,7 @@ export interface DemoResult {
     totalTiebreakers?: number;
     vrfProofLinks?: string[];
     creQualityScores?: Record<number, number>; // cycle → real CRE quality score (0-100)
+    totalBountyRewards?: number;
 }
 
 // ── Shared Deployer Provider + Nonce Queue ─────────

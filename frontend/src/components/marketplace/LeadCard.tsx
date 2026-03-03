@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Shield, Zap, Users, Wallet, Star, Eye, Gift, TrendingUp, ArrowRight } from 'lucide-react';
+import { MapPin, Shield, Zap, Users, Wallet, Star, Eye, TrendingUp, ArrowRight } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -316,10 +316,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                             </Tooltip>
                         )}
                         {(lead.parameters?._bountyTotal ?? 0) > 0 && (
-                            <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool on this vertical`}>
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold border bg-amber-500/15 text-amber-400 border-amber-500/30 cursor-help">
-                                    <Gift className="h-3 w-3" />
-                                    ${lead.parameters!._bountyTotal!.toFixed(0)}
+                            <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold border bg-amber-500/15 text-amber-400 border-amber-500/30 cursor-help animate-pulse">
+                                    💰 Bounty Boost
                                 </span>
                             </Tooltip>
                         )}

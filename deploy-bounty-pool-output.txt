@@ -1,0 +1,28 @@
+﻿Deploying VerticalBountyPool with account: 0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70
+Account balance: 2.003965372355105432 ETH
+
+Authorizing deployer as caller...
+node.exe : ProviderError: nonce too low: next nonce 5298, 
+tx nonce 5297
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ProviderError: 
+    ..., tx nonce 5297:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    at HttpProvider.request (C:\Users\Bruce\Projects\Lead 
+Engine CRE\contracts\node_modules\hardhat\src\internal\core\
+providers\http.ts:116:21)
+    at processTicksAndRejections 
+(node:internal/process/task_queues:105:5)
+    at async HardhatEthersSigner.sendTransaction 
+(C:\Users\Bruce\Projects\Lead Engine CRE\contracts\node_modu
+les\@nomicfoundation\hardhat-ethers\src\signers.ts:185:18)
+    at async send (C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\ethers\src.ts\contract\contract.ts:313:20)
+    at async Proxy.setAuthorizedCaller 
+(C:\Users\Bruce\Projects\Lead Engine 
+CRE\node_modules\ethers\src.ts\contract\contract.ts:352:16)
+    at async main (C:\Users\Bruce\Projects\Lead Engine 
+CRE\contracts\scripts\deploy-bounty-pool.ts:34:20)
