@@ -70,6 +70,7 @@ export function BuyerAnalytics() {
     const [period, setPeriod] = useState('30d');
     const [overview, setOverview] = useState<any>(null);
     const [liveByVertical, setLiveByVertical] = useState<any[] | null>(null);
+    const [liveBidHistory, setLiveBidHistory] = useState<any[]>([]);
     const [apiError, setApiError] = useState(false);
     const [fetchKey, setFetchKey] = useState(0);   // bump to re-fetch
 
@@ -77,14 +78,16 @@ export function BuyerAnalytics() {
     const [useMock] = useMockData();
 
     const days = period === '7d' ? 7 : period === '14d' ? 14 : 30;
-    const bidHistory = useMemo(() => useMock ? generateBidHistory(days) : [], [days, useMock]);
+    const mockBidHistory = useMemo(() => useMock ? generateBidHistory(days) : [], [days, useMock]);
+    const bidHistory = useMock ? mockBidHistory : liveBidHistory;
 
     const fetchData = useCallback(async () => {
         if (useMock) return; // skip API when mock mode is on
         try {
-            const [overviewRes, bidsRes] = await Promise.all([
+            const [overviewRes, bidsRes, myBidsRes] = await Promise.all([
                 api.getOverview('real'),
                 api.getBidAnalytics('real'),
+                api.getMyBids(),
             ]);
             if (overviewRes.data?.stats) setOverview(overviewRes.data.stats);
             if (bidsRes.data?.byVertical) {
@@ -92,9 +95,40 @@ export function BuyerAnalytics() {
                     vertical: v.vertical.charAt(0).toUpperCase() + v.vertical.slice(1).replace('_', ' '),
                     total: v.total,
                     won: v.won,
-                    avgAmount: Math.round(v.avgAmount),
+                    avgAmount: Math.round(parseFloat(String(v.avgAmount)) || 0),
                     color: PIE_COLORS[i % PIE_COLORS.length],
                 })));
+            }
+
+            // Build time-series chart data from real bids
+            if (myBidsRes.data?.bids) {
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+                const dateMap = new Map<string, { totalBids: number; wonBids: number; spent: number }>();
+
+                for (const bid of myBidsRes.data.bids) {
+                    const bidDate = new Date(bid.createdAt);
+                    if (bidDate < cutoff) continue;
+                    const key = bidDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const existing = dateMap.get(key) || { totalBids: 0, wonBids: 0, spent: 0 };
+                    existing.totalBids += 1;
+                    const amt = parseFloat(String(bid.amount)) || 0;
+                    if (bid.status === 'ACCEPTED' || bid.status === 'WON') {
+                        existing.wonBids += 1;
+                        existing.spent += amt;
+                    }
+                    dateMap.set(key, existing);
+                }
+
+                // Sort by date and convert to array
+                const entries = Array.from(dateMap.entries()).map(([date, data]) => ({ date, ...data }));
+                // Re-sort chronologically
+                entries.sort((a, b) => {
+                    const da = new Date(a.date + ', 2026');
+                    const db = new Date(b.date + ', 2026');
+                    return da.getTime() - db.getTime();
+                });
+                setLiveBidHistory(entries);
             }
         } catch {
             if (IS_PROD) {
@@ -102,7 +136,7 @@ export function BuyerAnalytics() {
             }
             // Dev: silent fallback to seeded mock
         }
-    }, [period, useMock]);
+    }, [period, days, useMock]);
 
     useEffect(() => { fetchData(); }, [fetchData, fetchKey]);
 
@@ -133,7 +167,7 @@ export function BuyerAnalytics() {
         { label: `Total Bids (${period})`, value: overview?.totalBids ?? totalBidsAgg, icon: Gavel, color: 'text-primary', trend: '+5%', trendUp: true },
         { label: 'Won Bids', value: overview?.wonBids ?? wonBidsAgg, icon: Target, color: 'text-emerald-500', trend: '+12%', trendUp: true },
         { label: 'Win Rate', value: `${overview?.winRate ?? winRateAgg}%`, icon: TrendingUp, color: 'text-amber-500', trend: '+3%', trendUp: true },
-        { label: `Total Spent (${period})`, value: formatCurrency(overview?.totalSpent ?? totalSpentAgg), icon: DollarSign, color: 'text-purple-500', trend: '', trendUp: true },
+        { label: `Total Spent (${period})`, value: formatCurrency(parseFloat(String(overview?.totalSpent ?? totalSpentAgg))), icon: DollarSign, color: 'text-purple-500', trend: '', trendUp: true },
     ];
 
     const handleExportCSV = () => {
