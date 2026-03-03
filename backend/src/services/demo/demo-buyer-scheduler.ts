@@ -27,6 +27,12 @@ import {
 } from './demo-shared';
 // wireScheduleBuyerBids removed — drip path no longer schedules bids (prevents dual-lock)
 
+// Lazy import to break circular dependency (orchestrator imports scheduler)
+async function checkDemoRunning(): Promise<boolean> {
+    const { isDemoRunning } = await import('./demo-orchestrator');
+    return isDemoRunning();
+}
+
 // ── Buyer Profiles ─────────────────────────────────
 
 export interface BuyerProfile {
@@ -171,6 +177,11 @@ export function scheduleBuyerBids(
         const buyerIdx = profile.index;
         const timer = setTimeout(async () => {
             try {
+                // Fix 3: Guard against ghost bids after demo completes.
+                // clearAllBidTimers() cancels pending timeouts, but callbacks
+                // already in-flight (setTimeout fired, async awaiting chain) still run.
+                if (!await checkDemoRunning()) return;
+
                 // Auction-closed guard: time-based
                 if (Date.now() >= auctionEndAt.getTime()) {
                     emit(io, {
@@ -326,6 +337,7 @@ export function scheduleBuyerBids(
 
             const fallbackTimer = setTimeout(async () => {
                 try {
+                    if (!await checkDemoRunning()) return; // Fix 3: prevent ghost bids after completion
                     if (Date.now() >= auctionEndAt.getTime()) return;
                     const currentLead = await prisma.lead.findUnique({ where: { id: leadId }, select: { status: true } });
                     if (currentLead?.status !== 'IN_AUCTION') return;

@@ -179,18 +179,7 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                 pointerEvents: isFadingOut ? 'none' : undefined,
             } : undefined}
         >
-            <CardContent className="p-6 relative">
-                {/* 💰 Bounty Boost corner ribbon — anchored top-right with explicit left:auto to prevent CSS resets */}
-                {(lead.parameters?._bountyTotal ?? 0) > 0 && (
-                    <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
-                        <span
-                            style={{ position: 'absolute', top: 0, right: 0, left: 'auto', zIndex: 10 }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-bl-lg text-[11px] font-bold bg-amber-500/20 text-amber-400 border-b border-l border-amber-500/30 cursor-help backdrop-blur-sm"
-                        >
-                            💰 Bounty Boost
-                        </span>
-                    </Tooltip>
-                )}
+            <CardContent className="p-6">
                 {/* Auction End Feedback tag — quiet, no flash */}
                 {auctionEndFeedback && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold mb-4 ${auctionEndFeedback === 'SOLD'
@@ -292,6 +281,14 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border bg-zinc-500/10 text-zinc-400 border-zinc-500/30 cursor-help">
                                     <Shield className="h-3 w-3" />
                                     CRE —
+                                </span>
+                            </Tooltip>
+                        )}
+                        {/* 💰 Bounty Boost inline badge — shown when a buyer bounty pool covers this vertical */}
+                        {(lead.parameters?._bountyTotal ?? 0) > 0 && (
+                            <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 cursor-help">
+                                    💰 +${lead.parameters!._bountyTotal!.toFixed(0)}
                                 </span>
                             </Tooltip>
                         )}

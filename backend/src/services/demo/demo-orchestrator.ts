@@ -1554,13 +1554,15 @@ export async function runFullDemo(
         const result: DemoResult = {
             runId, startedAt, completedAt: new Date().toISOString(),
             cycles: cycleResults, totalGas: totalGas.toString(), totalSettled,
-            status: 'completed', totalPlatformIncome, totalTiebreakers, vrfProofLinks,
+            status: 'completed', totalPlatformIncome, totalTiebreakers, vrfProofLinks, totalBountyRewards,
             creQualityScores: Object.keys(creQualityScores).length > 0 ? creQualityScores : undefined,
         };
 
         await saveResultsToDB(result);
 
-        emitStatus(io, { running: false, phase: 'idle', totalCycles: cycles, currentCycle: cycles, percent: 100, runId });
+        // Fix 2: Set phase to 'recycling' (not 'idle') so the frontend gates "Run Again"
+        // until demo:recycle-complete fires. Previously, 'idle' made the button clickable immediately.
+        emitStatus(io, { running: false, recycling: true, phase: 'recycling', totalCycles: cycles, currentCycle: cycles, percent: 100, runId });
 
         try {
             safeEmit(io, 'demo:results-ready', { runId, status: 'completed', totalCycles: cycleResults.length, totalSettled, elapsedSec, cycles: cycleResults });
