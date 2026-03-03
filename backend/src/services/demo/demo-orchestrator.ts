@@ -1609,11 +1609,16 @@ export async function runFullDemo(
 
         if (isAbort) {
             if (vault) {
-                void abortCleanup(io, vault).catch((e: Error) =>
-                    console.warn('[DEMO] abortCleanup failed (non-fatal):', e.message)
-                );
+                // P1 fix: abort path must also recycle vault + bounty funds
+                // Previously only abortCleanup ran (refunding in-flight pendingLockIds)
+                // while all vault balances and bounty pools stayed stranded
+                void abortCleanup(io, vault)
+                    .catch((e: Error) => console.warn('[DEMO] abortCleanup failed (non-fatal):', e.message))
+                    .then(() => withRecycleTimeout(io, recycleTokens(io, new AbortController().signal, BUYER_KEYS)));
             } else {
                 pendingLockIds.clear();
+                // Still recycle even without vault — bounty pools may need draining
+                void withRecycleTimeout(io, recycleTokens(io, new AbortController().signal, BUYER_KEYS));
             }
         } else {
             void withRecycleTimeout(io, recycleTokens(io, signal, BUYER_KEYS));

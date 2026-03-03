@@ -260,20 +260,65 @@ export async function recycleTokens(
             emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ Deployer vault withdraw failed: ${err.message?.slice(0, 80)}` });
         }
 
-        // R2.5 — Reset bounty pool formConfig to prevent accumulation
+        // R2.5 — Drain on-chain bounty pool contract + reset off-chain formConfig
+        // P0 fix: withdrawBounty() was never called, causing USDC to accumulate
+        // in the VerticalBountyPool contract across runs ($5,700 drained before fix)
         try {
             const { prisma } = await import('../../lib/prisma');
             const BOUNTY_SLUGS = ['solar', 'mortgage', 'roofing', 'insurance', 'real_estate', 'hvac', 'legal', 'financial_services'];
+            const bountyPoolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
+
+            // On-chain drain: withdraw all remaining pool funds back to deployer
+            if (bountyPoolAddr) {
+                const BOUNTY_POOL_ABI = [
+                    'function getVerticalPoolIds(bytes32 verticalSlugHash) view returns (uint256[])',
+                    'function availableBalance(uint256 poolId) view returns (uint256)',
+                    'function withdrawBounty(uint256 poolId, uint256 amount)',
+                ];
+                const bountyPool = new ethers.Contract(bountyPoolAddr, BOUNTY_POOL_ABI, signer);
+                let totalDrained = 0n;
+                let poolsDrained = 0;
+
+                for (const slug of BOUNTY_SLUGS) {
+                    try {
+                        const slugHash = ethers.keccak256(ethers.toUtf8Bytes(slug));
+                        const poolIds = await bountyPool.getVerticalPoolIds(slugHash);
+                        for (const pid of poolIds) {
+                            try {
+                                const avail = await bountyPool.availableBalance(pid);
+                                if (avail === 0n) continue;
+                                const tx = await bountyPool.withdrawBounty(pid, avail);
+                                await tx.wait();
+                                totalDrained += avail;
+                                poolsDrained++;
+                                console.log(`[DEMO BOUNTY RECYCLE] ✅ Withdrew $${ethers.formatUnits(avail, 6)} from ${slug} pool #${pid}`);
+                            } catch (wErr: any) {
+                                console.warn(`[DEMO BOUNTY RECYCLE] ⚠️ Pool #${pid} withdraw failed: ${wErr.message?.slice(0, 60)}`);
+                            }
+                        }
+                    } catch { /* getVerticalPoolIds may fail if slug never had pools — non-fatal */ }
+                }
+
+                if (totalDrained > 0n) {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'success',
+                        message: `♻️ Bounty pool drain: recovered $${ethers.formatUnits(totalDrained, 6)} from ${poolsDrained} on-chain pool(s)`,
+                    });
+                } else {
+                    emit(io, {
+                        ts: new Date().toISOString(), level: 'info',
+                        message: '♻️ No on-chain bounty pool funds to drain',
+                    });
+                }
+            }
+
+            // Off-chain: reset formConfig to prevent stale pool accumulation
             for (const slug of BOUNTY_SLUGS) {
                 await prisma.vertical.updateMany({
                     where: { slug },
                     data: { formConfig: {} },
                 });
             }
-            emit(io, {
-                ts: new Date().toISOString(), level: 'info',
-                message: `♻️ Bounty pools reset (${BOUNTY_SLUGS.length} verticals cleared) — no residual pool drain`,
-            });
             console.log(`[DEMO BOUNTY RECYCLE] ✅ Reset formConfig on ${BOUNTY_SLUGS.length} verticals`);
         } catch (bountyRecycleErr: any) {
             console.warn('[DEMO BOUNTY RECYCLE] ⚠️ Non-fatal:', bountyRecycleErr.message?.slice(0, 100));
@@ -607,7 +652,7 @@ export async function recycleTokens(
 
 // ── Recycle Timeout Guard ──────────────────────────
 
-const RECYCLE_TIMEOUT_MS = 240_000; // 4 minutes
+const RECYCLE_TIMEOUT_MS = 480_000; // 8 minutes (P2 fix: 4 min was too short for orphan lock scan)
 
 export async function withRecycleTimeout(io: SocketServer, recyclePromise: Promise<void>): Promise<void> {
     const timeoutPromise = new Promise<'timeout'>((resolve) =>
@@ -623,7 +668,7 @@ export async function withRecycleTimeout(io: SocketServer, recyclePromise: Promi
         emit(io, {
             ts: new Date().toISOString(),
             level: 'warn',
-            message: `⏰ Token recovery timed out after 240s — partial recovery. Some USDC may remain in demo wallets. Click "Full Reset & Recycle" to finish cleanup, or run another demo cycle.`,
+            message: `⏰ Token recovery timed out after 480s — partial recovery. Some USDC may remain in demo wallets. Click "Full Reset & Recycle" to finish cleanup, or run another demo cycle.`,
         });
         if (_moduleIo) {
             emitStatus(_moduleIo, { running: false, recycling: false, phase: 'idle' });
