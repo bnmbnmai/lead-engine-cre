@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown, CheckCircle2, Hourglass } from 'lucide-react';
+import { ArrowLeft, MapPin, Shield, Clock, Users, Star, ShoppingCart, Wallet, Loader2, AlertCircle, ExternalLink, ChevronDown, CheckCircle2, Unlock, ShieldCheck } from 'lucide-react';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -15,7 +15,7 @@ import { BidPanel } from '@/components/bidding/BidPanel';
 import { formatCurrency, getStatusColor, formatTimeRemaining } from '@/lib/utils';
 import { useAuction } from '@/hooks/useAuction';
 import useAuth from '@/hooks/useAuth';
-import { useEscrow, type EscrowStep } from '@/hooks/useEscrow';
+import { useEscrow } from '@/hooks/useEscrow';
 import api from '@/lib/api';
 import { toast } from '@/hooks/useToast';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
@@ -149,6 +149,11 @@ export default function LeadDetailPage() {
     const [previewOpen, setPreviewOpen] = useState(true);
     const [buyError, setBuyError] = useState<string | null>(null);
     const [purchased, setPurchased] = useState(false);
+
+    // PII Decryption state
+    const [decryptedPII, setDecryptedPII] = useState<Record<string, any> | null>(null);
+    const [decryptingPII, setDecryptingPII] = useState(false);
+    const [piiError, setPiiError] = useState<string | null>(null);
 
     // fetchLead must be declared before useEscrow so it can be passed as onSuccess
     const fetchLead = useCallback(() => {
@@ -827,60 +832,101 @@ export default function LeadDetailPage() {
                                     </Card>
                                 )}
 
-                                {/* ── SOLD: Settlement pending — buyer must sign escrow with MetaMask ── */}
+                                {/* ── SOLD: Settlement pending — buyer can decrypt PII ── */}
                                 {isSold && isSettlementPending && (
-                                    <Card className="border-amber-500/30">
+                                    <Card className="border-emerald-500/30">
                                         <CardContent className="p-6 space-y-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
-                                                    <Hourglass className="h-5 w-5 text-amber-500 animate-pulse" />
+                                                <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                                                 </div>
                                                 <div>
-                                                    <h2 className="text-lg font-bold text-amber-500">You Won — Fund Escrow</h2>
-                                                    <p className="text-xs text-muted-foreground">Sign with MetaMask to lock USDC in escrow</p>
+                                                    <h2 className="text-lg font-bold text-emerald-500">Lead Won — Decrypt PII</h2>
+                                                    <p className="text-xs text-muted-foreground">USDC settled via PersonalEscrowVault</p>
                                                 </div>
                                             </div>
 
-                                            {/* Step progress — single-signature flow */}
+                                            {/* Step progress — vault flow */}
                                             <div className="space-y-2">
                                                 <EscrowStepIndicator label="Auction won" done />
-                                                <EscrowStepIndicator label="USDC approval" done={(['funding', 'confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'approving'} />
-                                                <EscrowStepIndicator label="Fund escrow" done={(['confirming', 'done'] as EscrowStep[]).includes(escrow.step)} active={escrow.step === 'funding'} />
-                                                <EscrowStepIndicator label="Confirm on-chain" done={escrow.step === 'done'} active={escrow.step === 'confirming'} />
-                                                <EscrowStepIndicator label="PII decryption" done={escrow.step === 'done'} />
+                                                <EscrowStepIndicator label="USDC locked in vault" done />
+                                                <EscrowStepIndicator label="Settlement confirmed" done />
+                                                <EscrowStepIndicator label="PII decryption" done={!!decryptedPII} active={decryptingPII} />
                                             </div>
 
-                                            {escrow.error && (
+                                            {piiError && (
                                                 <div className="p-3 rounded-lg bg-red-500/10 text-red-400 text-xs">
-                                                    {escrow.error}
+                                                    {piiError}
                                                 </div>
                                             )}
 
-                                            {escrow.step === 'done' ? (
-                                                <div className="text-center py-2">
-                                                    <p className="text-sm font-semibold text-green-500">✓ Escrow Funded</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">Refreshing lead details…</p>
+                                            {decryptedPII ? (
+                                                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-3">
+                                                    <div className="flex items-center gap-1.5 mb-2">
+                                                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Decrypted PII — CRE DON Attested</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                                        {(decryptedPII.firstName || decryptedPII.contactName) && (
+                                                            <>
+                                                                <span className="text-xs text-muted-foreground">Name</span>
+                                                                <span className="font-medium">{decryptedPII.contactName || [decryptedPII.firstName, decryptedPII.lastName].filter(Boolean).join(' ')}</span>
+                                                            </>
+                                                        )}
+                                                        {(decryptedPII.email || decryptedPII.contactEmail) && (
+                                                            <>
+                                                                <span className="text-xs text-muted-foreground">Email</span>
+                                                                <a href={`mailto:${decryptedPII.email || decryptedPII.contactEmail}`} className="font-medium text-blue-400 hover:text-blue-300 transition">{decryptedPII.email || decryptedPII.contactEmail}</a>
+                                                            </>
+                                                        )}
+                                                        {(decryptedPII.phone || decryptedPII.contactPhone) && (
+                                                            <>
+                                                                <span className="text-xs text-muted-foreground">Phone</span>
+                                                                <a href={`tel:${decryptedPII.phone || decryptedPII.contactPhone}`} className="font-medium text-blue-400 hover:text-blue-300 transition">{decryptedPII.phone || decryptedPII.contactPhone}</a>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <Button
-                                                    className="w-full py-5 bg-amber-600 hover:bg-amber-700 text-base"
-                                                    disabled={escrow.step !== 'idle' && escrow.step !== 'error'}
-                                                    onClick={() => {
-                                                        escrow.reset();
-                                                        escrow.fundEscrow(lead.id);
+                                                    className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-base"
+                                                    disabled={decryptingPII}
+                                                    onClick={async () => {
+                                                        if (!lead) return;
+                                                        setDecryptingPII(true);
+                                                        setPiiError(null);
+                                                        try {
+                                                            const result = await api.demoDecryptPII(lead.id);
+                                                            if ('data' in result && result.data?.success) {
+                                                                setDecryptedPII(result.data.pii);
+                                                            } else {
+                                                                setPiiError('Decryption failed — please try again');
+                                                            }
+                                                        } catch (err) {
+                                                            setPiiError('Network error — please try again');
+                                                        } finally {
+                                                            setDecryptingPII(false);
+                                                        }
                                                     }}
                                                 >
-                                                    {escrow.step === 'idle' || escrow.step === 'error' ? (
-                                                        <><Wallet className="h-5 w-5 mr-2" /> Fund Escrow</>
+                                                    {decryptingPII ? (
+                                                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Decrypting…</>
                                                     ) : (
-                                                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Signing…</>
+                                                        <><Unlock className="h-5 w-5 mr-2" /> Decrypt PII</>
                                                     )}
                                                 </Button>
                                             )}
 
                                             <div className="pt-2 border-t border-border/50">
-                                                <p className="text-xs text-muted-foreground">Your MetaMask wallet will sign the USDC approval and escrow creation transactions. Contact details will be revealed after the escrow is confirmed on-chain.</p>
+                                                <p className="text-xs text-muted-foreground">Contact details are encrypted at rest and decrypted via the CRE DecryptForWinner workflow. Only the winning buyer can access PII.</p>
                                             </div>
+
+                                            <Link
+                                                to="/buyer/portfolio"
+                                                className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition"
+                                            >
+                                                View in Portfolio <ExternalLink className="h-3 w-3" />
+                                            </Link>
                                         </CardContent>
                                     </Card>
                                 )}
