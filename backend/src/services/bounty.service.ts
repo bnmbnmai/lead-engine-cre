@@ -692,6 +692,11 @@ class BountyService {
     invalidateCache(slug: string): void {
         this.totalCache.delete(slug);
     }
+
+    /** Clear all cached bounty totals — call after bulk seeding/draining */
+    clearCache(): void {
+        this.totalCache.clear();
+    }
 }
 
 export const bountyService = new BountyService();

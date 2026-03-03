@@ -847,7 +847,53 @@ export async function runFullDemo(
         try {
             const { bountyService } = await import('../bounty.service');
             const BOUNTY_VERTICALS = ['solar', 'mortgage', 'roofing', 'insurance', 'real_estate', 'hvac', 'legal', 'financial_services'];
-            // Reset formConfig so stale pools from prior runs don't accumulate
+
+            // ── STEP 1: Drain stale on-chain pools from prior runs ───────────
+            // This MUST happen BEFORE seeding to prevent stacking / USDC leakage.
+            // Each demo run previously leaked $20-70 when drain only ran at recycling.
+            const bountyPoolAddr = process.env.BOUNTY_POOL_ADDRESS || '';
+            if (bountyPoolAddr) {
+                try {
+                    const signer = getSigner();
+                    const drainABI = [
+                        'function getVerticalPoolIds(bytes32 verticalSlugHash) view returns (uint256[])',
+                        'function availableBalance(uint256 poolId) view returns (uint256)',
+                        'function withdrawBounty(uint256 poolId, uint256 amount)',
+                    ];
+                    const bountyPool = new ethers.Contract(bountyPoolAddr, drainABI, signer);
+                    let drainTotal = 0n;
+                    let drainCount = 0;
+                    let drainNonce = await signer.getNonce('pending');
+
+                    for (const slug of BOUNTY_VERTICALS) {
+                        try {
+                            const slugHash = ethers.keccak256(ethers.toUtf8Bytes(slug));
+                            const poolIds = await bountyPool.getVerticalPoolIds(slugHash);
+                            for (const pid of poolIds) {
+                                try {
+                                    const avail = await bountyPool.availableBalance(pid);
+                                    if (avail === 0n) continue;
+                                    const tx = await bountyPool.withdrawBounty(pid, avail, { nonce: drainNonce });
+                                    await tx.wait();
+                                    drainTotal += avail;
+                                    drainCount++;
+                                    drainNonce++;
+                                } catch { /* individual pool drain failure — non-fatal */ }
+                            }
+                        } catch { /* getVerticalPoolIds may revert for unknown slugs */ }
+                    }
+
+                    if (drainTotal > 0n) {
+                        const drainUSD = Number(ethers.formatUnits(drainTotal, 6));
+                        emit(io, { ts: new Date().toISOString(), level: 'info', message: `♻️ Pre-seed drain: recovered $${drainUSD.toFixed(2)} from ${drainCount} stale pool(s)` });
+                        console.log(`[DEMO BOUNTY] ♻️ Pre-seed drain: $${drainUSD.toFixed(2)} from ${drainCount} pools`);
+                    }
+                } catch (drainErr: any) {
+                    console.warn(`[DEMO BOUNTY] ⚠️ Pre-seed drain skipped: ${drainErr.message?.slice(0, 80)}`);
+                }
+            }
+
+            // ── STEP 2: Reset off-chain formConfig ───────────────────────────
             for (let i = 0; i < BOUNTY_VERTICALS.length; i++) {
                 const slug = BOUNTY_VERTICALS[i];
                 await prisma.vertical.upsert({
@@ -856,9 +902,8 @@ export async function runFullDemo(
                     create: { slug, name: slug.charAt(0).toUpperCase() + slug.slice(1), depth: 0, sortOrder: i, status: 'ACTIVE', aliases: [], restrictedGeos: [] },
                 });
             }
-            // Bounty pools for ALL 8 demo verticals with empty criteria
-            // (empty criteria = universal match — guarantees bounty release
-            // events appear regardless of random lead geos)
+
+            // ── STEP 3: Seed fresh bounty pools ──────────────────────────────
             const DEMO_BOUNTY_POOLS = [
                 { verticalSlug: 'solar', amount: 15, criteria: {} },
                 { verticalSlug: 'mortgage', amount: 15, criteria: {} },
@@ -885,6 +930,10 @@ export async function runFullDemo(
                     emit(io, { ts: new Date().toISOString(), level: 'warn', message: `❌ Bounty deposit failed for ${pool.verticalSlug}: ${result.error}` });
                 }
             }
+
+            // ── STEP 4: Invalidate bounty cache so badges show immediately ──
+            bountyService.clearCache();
+
             emit(io, {
                 ts: new Date().toISOString(), level: bountyPoolsCreated > 0 ? 'step' : 'warn',
                 message: `💰 Demo bounties seeded: ${bountyPoolsCreated}/${DEMO_BOUNTY_POOLS.length} pools ($${bountyTotal} USDC) — badges visible on matching LeadCards`,

@@ -179,88 +179,77 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
             } : undefined}
         >
             <CardContent className="p-5 relative">
-                {/* ── Top-right badge stack ─────────────────────────────────────────
-                     Absolute-positioned vertical stack. z-20 ensures no clipping.
-                     Badges: CRE score → Bounty (conditional) → Verified (conditional)
-                     ────────────────────────────────────────────────────────────────── */}
-                <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5">
-                    {/* 1. CRE Quality Score — color-coded pill */}
+                {/* ── Top-right badge stack ──────────────────────────────────────
+                     Compact vertical pills. z-20 prevents clipping on any width.
+                     Priority order: Bounty (eye-catching) → CRE → Verified
+                     ────────────────────────────────────────────────────────────── */}
+                <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1">
+                    {/* 1. Bounty — warm gold, only when > 0 — most eye-catching badge */}
+                    {(lead.parameters?._bountyTotal ?? 0) > 0 && (
+                        <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-gradient-to-r from-amber-500/15 to-yellow-500/10 text-amber-300 border-amber-400/30 shadow-sm shadow-amber-500/10 cursor-help">
+                                💰 +${lead.parameters!._bountyTotal!.toFixed(0)}
+                            </span>
+                        </Tooltip>
+                    )}
+
+                    {/* 2. CRE Quality Score — muted, informational
+                         NOTE: qualityScore arrives from API already as 0-100 (backend normalizes) */}
                     {lead.qualityScore != null ? (() => {
-                        const score = Math.floor(lead.qualityScore / 100);
+                        const score = lead.qualityScore; // already 0-100 from API
                         const colors = score >= 80
-                            ? 'bg-emerald-500/12 text-emerald-400 border-emerald-500/25'
+                            ? 'bg-emerald-500/10 text-emerald-400/80 border-emerald-500/20'
                             : score >= 50
-                                ? 'bg-amber-500/12 text-amber-400 border-amber-500/25'
-                                : 'bg-zinc-500/12 text-zinc-400 border-zinc-500/25';
+                                ? 'bg-amber-500/8 text-amber-400/70 border-amber-500/15'
+                                : 'bg-zinc-500/8 text-zinc-400/60 border-zinc-500/15';
                         return (
-                            <Tooltip content={lead.qualityScore === 0
-                                ? 'CRE DON Match + Quality Score (pending on-chain scoring)'
-                                : lead.chttEnriched
-                                    ? `CRE Quality Score — enriched by Chainlink CHTT TEE (${score}/100)`
-                                    : `CRE Quality Score: ${score}/100 — confirmed on-chain after purchase`}
+                            <Tooltip content={score === 0
+                                ? 'CRE quality scoring in progress'
+                                : `CRE Quality Score: ${score}/100`}
                             >
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border backdrop-blur-sm cursor-help ${colors}`}>
-                                    <Shield className="h-2.5 w-2.5" />
+                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-medium border cursor-help ${colors}`}>
                                     CRE {score}
-                                    {lead.chttEnriched && <span className="opacity-60">🔒</span>}
                                 </span>
                             </Tooltip>
                         );
-                    })() : (lead.creRequestedAt && Date.now() - new Date(lead.creRequestedAt).getTime() > 2 * 60 * 1000) ? (
-                        <Tooltip content="Quality score pending from Chainlink DON">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20 backdrop-blur-sm cursor-help">
-                                <span className="animate-pulse text-[8px]">⏳</span> CRE …
-                            </span>
-                        </Tooltip>
-                    ) : (
-                        <Tooltip content="CRE DON Match + Quality Score (pending on-chain scoring)">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-zinc-500/8 text-zinc-500 border-zinc-500/20 backdrop-blur-sm cursor-help">
-                                <Shield className="h-2.5 w-2.5" /> CRE —
+                    })() : (
+                        <Tooltip content="CRE quality scoring pending">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-medium border bg-zinc-500/5 text-zinc-500/50 border-zinc-500/10 cursor-help">
+                                CRE —
                             </span>
                         </Tooltip>
                     )}
 
-                    {/* 2. Bounty — only when > 0 */}
-                    {(lead.parameters?._bountyTotal ?? 0) > 0 && (
-                        <Tooltip content={`$${lead.parameters!._bountyTotal!.toFixed(0)} active bounty pool — seller earns a bonus on top of the winning bid`}>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-amber-500/12 text-amber-300 border-amber-500/25 backdrop-blur-sm cursor-help">
-                                💰 ${lead.parameters!._bountyTotal!.toFixed(0)}
-                            </span>
-                        </Tooltip>
-                    )}
-
-                    {/* 3. Verified — subtle blue check */}
+                    {/* 3. Verified — tiny, subtle */}
                     {lead.isVerified && (
-                        <Tooltip content={lead.chttEnriched
-                            ? 'Verified on-chain via Chainlink CRE + CHTT TEE enrichment'
-                            : 'Verified on-chain via Chainlink CRE oracle network'}>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border bg-blue-500/10 text-blue-400 border-blue-500/20 backdrop-blur-sm cursor-help">
+                        <Tooltip content="Verified on-chain via Chainlink CRE oracle network">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded text-[9px] font-medium border bg-blue-500/8 text-blue-400/70 border-blue-500/15 cursor-help">
                                 ✓ Verified
                             </span>
                         </Tooltip>
                     )}
 
-                    {/* 4. TEE — only when CHTT enriched */}
-                    {lead.chttEnriched && (
-                        <Tooltip content="Quality score enriched by Chainlink Confidential HTTP inside a Trusted Execution Environment (TEE)">
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-violet-500/15 text-violet-300 border-violet-500/30 backdrop-blur-sm cursor-help uppercase tracking-wider">
-                                🔒 TEE
-                            </span>
-                        </Tooltip>
-                    )}
-
-                    {/* 5. ACE Compliance — only when explicitly set */}
-                    {lead.aceCompliant != null && (
-                        <Tooltip content={lead.aceCompliant
-                            ? 'ACE Compliance: on-chain check passed'
-                            : 'ACE Compliance: on-chain check failed'}>
-                            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-semibold border backdrop-blur-sm cursor-help ${lead.aceCompliant
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                }`}>
-                                {lead.aceCompliant ? '✓' : '✗'} ACE
-                            </span>
-                        </Tooltip>
+                    {/* 4. TEE + ACE — micro-chips, only when present */}
+                    {(lead.chttEnriched || lead.aceCompliant != null) && (
+                        <div className="flex items-center gap-1">
+                            {lead.chttEnriched && (
+                                <Tooltip content="Chainlink Confidential TEE enrichment">
+                                    <span className="px-1 py-px rounded text-[8px] font-bold border bg-violet-500/10 text-violet-400/60 border-violet-500/15 cursor-help">
+                                        TEE
+                                    </span>
+                                </Tooltip>
+                            )}
+                            {lead.aceCompliant != null && (
+                                <Tooltip content={`ACE Compliance: ${lead.aceCompliant ? 'passed' : 'failed'}`}>
+                                    <span className={`px-1 py-px rounded text-[8px] font-semibold border cursor-help ${lead.aceCompliant
+                                            ? 'bg-emerald-500/8 text-emerald-400/60 border-emerald-500/15'
+                                            : 'bg-rose-500/8 text-rose-400/60 border-rose-500/15'
+                                        }`}>
+                                        ACE
+                                    </span>
+                                </Tooltip>
+                            )}
+                        </div>
                     )}
                 </div>
 
