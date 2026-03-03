@@ -164,7 +164,7 @@ LeadRTB operates an intentional hybrid architecture. When `CRE_WORKFLOW_ENABLED=
 | 6 | **ACE Lead Policy** | `ACELeadPolicy` | [0x013f3219012030aC32cc293fB51a92eBf82a566F](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ✅ Live & Verified | `nft.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
 | 7 | **LeadNFTv2 (ERC-3643 + Royalties)** | `LeadNFTv2` | [0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | ✅ Live & Verified | `nft.service.ts` | ✅ | [Virtual TestNet Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
 | 8–12 | **CRE Workflows, Confidential HTTP, Data Feeds** | DON / Inline | — | ✅ Live | `cre-workflows/` & services | ✅ | [CRE Workflow Simulations](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) |
-| — | **Functions (Bounty Pool)** | `VerticalBountyPool` | [0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | ✅ Live | `bounty.service.ts` | ✅ | — |
+| — | **Functions (Bounty Pool)** | `VerticalBountyPool` | [0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | ✅ Live & Verified | `bounty.service.ts` | ✅ | — |
 
 > All contracts carry **"Contract Source Code Verified (Exact Match)"** status on Basescan. See [`CONTRACTS.md`](CONTRACTS.md) for canonical addresses and [`CHAINLINK_SERVICES_AUDIT.md`](docs/archive/CHAINLINK_SERVICES_AUDIT.md) for full details.
 
