@@ -34,7 +34,7 @@ const BASESCAN_ADDR_URL = 'https://sepolia.basescan.org/address/';
 
 // Color-code actions by Chainlink service
 function getActionColor(action: string): string {
-    const a = action.toLowerCase();
+    const a = (action || '').toLowerCase();
     // AI Agent bids — vivid orange so they stand out immediately
     if (a.includes('agent:bid') || a.includes('agent_bid') || a.includes('agent:placed'))
         return '#fb923c'; // Agent — orange
@@ -68,6 +68,7 @@ function getActionColor(action: string): string {
 
 // Service badge for each log line
 function getServiceBadge(action: string): { label: string; color: string } | null {
+    if (!action) return null;
     const a = action.toLowerCase();
     // AI Agent bids — check before other patterns
     if (a.includes('agent:bid') || a.includes('agent_bid') || a.includes('agent:placed'))
@@ -348,7 +349,7 @@ export function DevLogPanel() {
     ];
     function isOnchainRelevant(entry: DevLogEntry): boolean {
         // Always show direct Chainlink service events (ace:dev-log, agent:bid:placed)
-        if (!entry.action.startsWith('demo:')) return true;
+        if (!entry.action || !entry.action.startsWith('demo:')) return true;
         const text = (String(entry[' '] ?? entry.action)).toLowerCase();
         if (NOISE_DENY.some(kw => text.includes(kw.toLowerCase()))) return false;
         return ONCHAIN_ALLOW.some(kw => text.includes(kw.toLowerCase()));
