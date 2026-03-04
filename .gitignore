@@ -113,8 +113,21 @@ redis.zip
 
 redis_bin/
 
-
-# Log files
-*.log
-
 current-status.md
+
+# Run artifacts (move to certified-runs/ for archival)
+cre-simulate-*.json
+demo-results-*.json
+
+# Investigation artifacts (internal debugging — not for submission)
+*-investigation.md
+*-deep-investigation.md
+
+# Render deployment logs
+render logs.txt
+
+# Sweep scripts (contain hardcoded testnet private keys)
+scripts/sweep-*.mjs
+
+# Hygiene audit (internal planning doc)
+final-submission-hygiene-audit.md
