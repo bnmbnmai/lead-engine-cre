@@ -22,18 +22,18 @@ Autonomous MCP agents, powered by LangChain ReAct with 15 custom tools (includin
 
 ```mermaid
 flowchart TD
-    A["1. Seller Submits Lead"] --> B["2. CRE DON Quality Score (0-100)"]
-    B --> C["3. LeadNFTv2 Minted on Base Sepolia"]
-    C --> D["4. Sealed-Bid Auction (60s live window)"]
-    D --> E{"5. Tied Bids?"}
-    E -- Yes --> F["VRF v2.5 Tiebreaker"]
-    E -- No --> G["6. Winner Determined"]
-    F --> G
-    G --> H["7. USDC Settled Atomically via Vault"]
+    A["1. Seller Submits Lead"] --> B["2. CRE DON Quality Score"]
+    B --> C["3. Sealed-Bid Auction (60s)"]
+    C --> D{"4. Tied Bids?"}
+    D -- Yes --> E["VRF v2.5 Tiebreaker"]
+    D -- No --> F["5. Winner Determined"]
+    E --> F
+    F --> G["6. USDC Settled Atomically"]
+    G --> H["7. LeadNFTv2 Minted on Base Sepolia (winner only)"]
     H --> I["8. Winner Decrypts PII (CRE Confidential)"]
 ```
 
-**End-to-end lifecycle in one click:** Seller submits a lead -> CRE DON scores it (7-gate evaluation) -> LeadNFTv2 minted on Base Sepolia -> sealed-bid auction runs for 60 seconds with real on-chain vault locks -> VRF v2.5 breaks any ties -> USDC settles atomically via PersonalEscrowVault -> only the verified winner can decrypt PII via CRE Confidential Compute.
+**End-to-end lifecycle in one click:** Seller submits a lead -> CRE DON scores it (7-gate evaluation) -> sealed-bid auction runs for 60 seconds with real on-chain vault locks -> VRF v2.5 breaks any ties -> USDC settles atomically via PersonalEscrowVault -> LeadNFTv2 minted on Base Sepolia for winners only -> only the verified winner can decrypt PII via CRE Confidential Compute. NFTs are minted only for won leads after atomic settlement — this is the purest design for winner-only ownership and privacy.
 
 ### Key Differentiators
 
@@ -47,7 +47,7 @@ flowchart TD
 
 ## Key Features
 
-- **One-click end-to-end demo** with certified on-chain activity across the complete lifecycle (submission, CRE scoring, mint, sealed-bid auction, atomic settlement, Proof-of-Reserves verification, and winner-only PII reveal).
+- **One-click end-to-end demo** with certified on-chain activity across the complete lifecycle (submission, CRE scoring, sealed-bid auction, atomic settlement, post-settlement LeadNFTv2 minting for winners only, Proof-of-Reserves verification, and winner-only PII reveal).
 - **LeadNFTv2** supporting secondary-market royalties (2%) and fractional ownership via ERC-3643 compliance.
 - **Autonomous AI Agent** powered by Kimi K2.5 (LLM) + LangChain ReAct with 15 custom MCP tools (incl. official chainlink-agent-skills/cre-skills). Fully LLM-autonomous bidding, search, compliance checks, and navigation -- distinct from the deterministic rule-based auto-bid engine that evaluates 7 gates per lead without LLM involvement.
 - **Sealed-bid auctions** with commit-reveal privacy, VRF v2.5 fairness for tie resolution, and PersonalEscrowVault atomic USDC settlement.
