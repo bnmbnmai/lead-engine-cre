@@ -5,7 +5,9 @@ node_modules/
 
 # Local-only scripts and files (never commit)
 scripts/sweep-usdc-to-deployer.mjs
+scripts/check-vrf-sub.mjs
 faucet-wallets.txt
+chainlink-subscription-audit.md
 docs-overhaul.md
 docs-pass.md
 docs/submission/current-status.md
