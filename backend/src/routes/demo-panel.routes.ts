@@ -1161,29 +1161,27 @@ router.post('/leads/:leadId/decrypt-pii', authMiddleware, async (req: Request, r
             }
         }
 
-        // Generate demo PII based on lead vertical/geo (deterministic from leadId)
-        const verticals: Record<string, { firstNames: string[]; lastNames: string[] }> = {
-            'solar': { firstNames: ['Marcus', 'Elena', 'David'], lastNames: ['Chen', 'Rodriguez', 'Kim'] },
-            'roofing': { firstNames: ['Sarah', 'James', 'Lisa'], lastNames: ['Johnson', 'Williams', 'Brown'] },
-            'insurance': { firstNames: ['Michael', 'Jennifer', 'Robert'], lastNames: ['Davis', 'Miller', 'Wilson'] },
-            'mortgage': { firstNames: ['Emily', 'Daniel', 'Rachel'], lastNames: ['Taylor', 'Anderson', 'Thomas'] },
-        };
-        const v = (lead.vertical || 'solar').toLowerCase();
-        const pool = verticals[v] || verticals['solar'];
-        const hash = leadId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-        const firstName = pool.firstNames[hash % pool.firstNames.length];
-        const lastName = pool.lastNames[(hash + 1) % pool.lastNames.length];
+        // ── Real PII Decryption (hosted lander / API leads) ─────────────
+        // If the lead has real encrypted PII, decrypt it and return the actual
+        // form data. Only fall back to synthetic demo PII for demo-drip leads
+        // that were created without encrypted data.
+        let pii: Record<string, any>;
 
-        const pii = {
-            firstName,
-            lastName,
-            email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
-            phone: `(555) ${String(100 + (hash % 900)).padStart(3, '0')}-${String(1000 + (hash % 9000)).padStart(4, '0')}`,
-            address: `${100 + (hash % 900)} ${['Oak', 'Maple', 'Cedar', 'Pine'][hash % 4]} Street`,
-            city: (lead as any).parameters?.geo?.state === 'CA' ? 'Los Angeles' : 'Austin',
-            state: (lead as any).parameters?.geo?.state || 'TX',
-            zip: String(10000 + (hash % 90000)),
-        };
+        if (lead.encryptedData) {
+            try {
+                const parsed = typeof lead.encryptedData === 'string'
+                    ? JSON.parse(lead.encryptedData)
+                    : lead.encryptedData;
+                pii = privacyService.decryptLeadPII(parsed);
+                console.log(`[DECRYPT-PII] Lead ${leadId}: decrypted real PII (${Object.keys(pii).length} fields)`);
+            } catch (decryptErr: any) {
+                console.warn(`[DECRYPT-PII] Lead ${leadId}: real decrypt failed, falling back to demo PII — ${decryptErr.message?.slice(0, 80)}`);
+                pii = generateDemoPii(leadId, lead.vertical);
+            }
+        } else {
+            // Demo-drip leads have no encrypted data — generate synthetic PII
+            pii = generateDemoPii(leadId, lead.vertical);
+        }
 
         // Emit to On-Chain Log
         const io = req.app.get('io');
@@ -1213,7 +1211,29 @@ router.post('/leads/:leadId/decrypt-pii', authMiddleware, async (req: Request, r
     }
 });
 
-// ============================================
+// ── Helper: synthetic PII for demo-drip leads (no encrypted data) ──
+function generateDemoPii(leadId: string, vertical: string | null): Record<string, any> {
+    const pools: Record<string, { firstNames: string[]; lastNames: string[] }> = {
+        'solar': { firstNames: ['Marcus', 'Elena', 'David'], lastNames: ['Chen', 'Rodriguez', 'Kim'] },
+        'roofing': { firstNames: ['Sarah', 'James', 'Lisa'], lastNames: ['Johnson', 'Williams', 'Brown'] },
+        'insurance': { firstNames: ['Michael', 'Jennifer', 'Robert'], lastNames: ['Davis', 'Miller', 'Wilson'] },
+        'mortgage': { firstNames: ['Emily', 'Daniel', 'Rachel'], lastNames: ['Taylor', 'Anderson', 'Thomas'] },
+    };
+    const v = (vertical || 'solar').toLowerCase();
+    const pool = pools[v] || pools['solar'];
+    const hash = leadId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const firstName = pool.firstNames[hash % pool.firstNames.length];
+    const lastName = pool.lastNames[(hash + 1) % pool.lastNames.length];
+    return {
+        firstName,
+        lastName,
+        email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+        phone: `(555) ${String(100 + (hash % 900)).padStart(3, '0')}-${String(1000 + (hash % 9000)).padStart(4, '0')}`,
+        address: `${100 + (hash % 900)} ${['Oak', 'Maple', 'Cedar', 'Pine'][hash % 4]} Street`,
+    };
+}
+
+
 // POST /auction — simulate live auction (create lead + bids over time)
 // ============================================
 router.post('/auction', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {

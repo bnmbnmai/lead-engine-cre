@@ -61,6 +61,7 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - Mock → production endpoints for traffic platforms (Google Ads, Facebook Lead Ads, TikTok Lead Gen).
 - Programmatic media buying integration (The Trade Desk / DV360) to auto-purchase lead inventory based on real-time CRE quality scores and auction pricing.
 - Budget pacing and spend caps via Chainlink Data Feeds.
+- **Shared Evaluator Module** — Extract the deterministic 7-gate evaluation logic into a shared evaluator module (e.g., `shared-evaluator.ts`) that is imported by both the local fallback in `auto-bid.service.ts` and the CRE workflow `EvaluateBuyerRulesAndMatch`. This eliminates any risk of logic drift and ensures 100% equivalence between the local pre-auction quality score and the DON workflow output.
 
 **Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)** ⬅️ _Next high-priority feature post-submission_
 - 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). _Status: Demo-grade one-time decrypt implemented (`DecryptForWinner` CRE workflow + `demo-panel.routes.ts`); persistent buyer vault storage not yet built._
