@@ -3,10 +3,11 @@ node_modules/
 .pnp/
 .pnp.js
 
-# Local-only scripts (contain private keys — never commit)
+# Local-only scripts and files (never commit)
 scripts/sweep-usdc-to-deployer.mjs
 faucet-wallets.txt
 docs-overhaul.md
+docs/submission/current-status.md
 
 # Environment files — NEVER commit secrets
 
