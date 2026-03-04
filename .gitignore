@@ -131,3 +131,14 @@ scripts/sweep-*.mjs
 
 # Hygiene audit (internal planning doc)
 final-submission-hygiene-audit.md
+
+# Tracked junk files (removed from git)
+backend/demo-results.json
+backend/jest_output.txt
+backend/jest_full.log
+backend/tsc_errors.log
+backend/tsc_errors_final.log
+contracts/verify-bounty-output.txt
+
+# Readiness audit (internal doc)
+submission-readiness-audit.md

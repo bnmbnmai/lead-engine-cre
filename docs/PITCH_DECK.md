@@ -39,7 +39,7 @@ Chainlink Hackathon 2026 — Convergence
 | No privacy | ZK proofs + encrypted commit-reveal bids + Confidential Compute |
 | No compliance | ACE automates KYC + jurisdiction + MiCA enforcement |
 | No transparency | NFT leads + USDC escrow with on-chain settlement |
-| No global infra | 10 verticals × 20+ countries out of the box |
+| No global infra | 50+ verticals × 20+ countries out of the box |
 | No automation | MCP agent server for programmatic bidding + CRM exports |
 
 ---
@@ -54,20 +54,20 @@ Chainlink Hackathon 2026 — Convergence
 ┌────────────────▼───────────────────────────┐
 │  Backend (Render) ─ Express + Prisma + WS  │
 │  RTB Engine · Privacy Suite · Escrow     │
-│  DECO Stub · Data Feeds · Confid HTTP  │
+│  Data Feeds · Confid HTTP · CRE Workflows│
 └───┬───────────────────┬───────────────┬────┘
     │                   │               │
 ┌───▼──────────┐  ┌─────▼───────────┐  ┌▼──────────────┐
 │  Chainlink   │  │  Smart Contracts│  │  MCP Server   │
 │  CRE + ACE   │  │  CREVerifier    │  │  :3002        │
-│  DECO        │  │  ACECompliance  │  │  15 Agent Tools│
+│  Functions   │  │  ACECompliance  │  │  15 Agent Tools│
 │  Data Feeds  │  │  Marketplace    │  │  CCIP-ready   │
-│  Confid HTTP │  │  RTBEscrow      │  │  JSON-RPC     │
+│  Confid HTTP │  │  PersonalEscrow │  │  JSON-RPC     │
 └──────────────┘  │  LeadNFTv2      │  └───────────────┘
                   └─────────────────┘
 ```
 
-**Stack:** React + Express + Prisma + Solidity + Chainlink (CRE + ACE + Functions + VRF + Data Feeds + DECO + Confidential HTTP)
+**Stack:** React + Express + Prisma + Solidity + Chainlink (CRE + ACE + Functions + VRF + Data Feeds + Confidential HTTP + CRE Workflows)
 
 ---
 
@@ -84,11 +84,11 @@ Chainlink Hackathon 2026 — Convergence
 - MiCA attestation for EU markets
 - On-chain reputation system (0–10000)
 
-### DECO + Data Feeds + Confidential HTTP
-- **DECO:** Web data attestation without content disclosure (e.g., solar subsidy proof)
-- **Data Feeds:** Real-time bid floor pricing — 10 verticals × 5 countries
-- **Confidential HTTP:** TEE-based lead scoring with privacy-preserving buyer matching
-- All three running as production-ready stubs with deterministic mocks and fallbacks
+### Data Feeds + Confidential HTTP + CRE Workflows
+- **Data Feeds:** USDC/ETH price guard for PersonalEscrowVault deposit validation
+- **Confidential HTTP:** TEE-based lead scoring with privacy-preserving buyer matching via CRE Confidential Compute
+- **CRE Workflows:** `EvaluateBuyerRulesAndMatch` (7-gate DON evaluation) + `DecryptForWinner` (winner-only PII decryption with `encryptOutput: true`)
+- Data Feeds live on-chain; Confidential HTTP and CRE Workflows production-ready with hybrid fallback
 
 ---
 
@@ -130,7 +130,7 @@ Chainlink Hackathon 2026 — Convergence
 
 | Metric | Value |
 |--------|-------|
-| Verticals | 10 (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial) |
+| Verticals | 50+ (mortgage, solar, roofing, insurance, auto, home services, B2B SaaS, real estate, legal, financial, HVAC, and more) |
 | Countries | 20+ (US, CA, GB, AU, DE, FR, BR, MX, AR, CL, IN, JP, KR, SG, ID, PH, AE, ZA, NG, KE) |
 | Chainlink Services | 12 (CRE, ACE, Functions ×3, VRF, Data Feeds, Confidential HTTP, Confidential Compute, CRE Workflows ×2, ACE Policy Engine) |
 | Security Sim | 29/29 tests passing (7 categories incl. off-site fraud, cross-border ACE) |
@@ -191,7 +191,7 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | **Technical depth** | 8 smart contracts (verified), ZK proofs, commit-reveal, TEE scoring, 7-gate auto-bid |
 | **Completeness** | Full-stack: frontend, backend, contracts, agent server, sim scripts |
 | **Traction** | 500+ testnet txs, 994 tests passing (40 suites), 10K concurrent users |
-| **Market** | $200B+ TAM, 10 verticals, 20+ countries, 2.5% revenue model |
+| **Market** | $200B+ TAM, 50+ verticals, 20+ countries, 5% revenue model |
 
 ---
 
@@ -203,5 +203,5 @@ The **core value proposition** is real-time lead bidding — not NFTs.
 | **Demo** | https://leadrtb.com |
 | **API** | https://api.leadrtb.com |
 | **Swagger** | https://api.leadrtb.com/api/swagger |
-| **Video** | *[Loom URL — record before submission]* |
-| **Contracts** | *[Sepolia Etherscan — verify before submission]* |
+| **Video** | *(Recording before submission — check README for latest link)* |
+| **Contracts** | [Basescan — All 8 Verified](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) |

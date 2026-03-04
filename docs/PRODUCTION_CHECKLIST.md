@@ -6,77 +6,64 @@
 
 ## 🔒 Security
 
+- [x] Private keys: NOT in Git, managed via env vars / GitHub Secrets
+- [x] PII encryption: AES-256-GCM for lead data at rest
+- [x] Commit-reveal: sealed bids verified on-chain
+- [x] ZK proofs: keccak256 commitment validation passing
 - [ ] Slither: no HIGH/MEDIUM findings (`scripts/run-slither.ps1`)
 - [ ] Snyk: no critical dependency vulnerabilities (`npm audit`)
-- [ ] Private keys: NOT in Git, managed via env vars / GitHub Secrets
 - [ ] CORS: restricted to production domain only
 - [ ] CSP: helmet configured with strict directives
-- [ ] Rate limiting: API endpoints protected (`middleware/rateLimit.ts`)
-- [ ] PII encryption: AES-256-GCM for lead data at rest
-- [ ] Commit-reveal: sealed bids verified on-chain
-- [ ] ZK proofs: keccak256 commitment validation passing
 
 ## 📊 Monitoring
 
+- [x] Health check: `/health` returns `status: ok`
 - [ ] Sentry DSN configured (backend + frontend)
-- [ ] Sentry PII scrubbing: passwords, SSN, private keys redacted
-- [ ] Health check: `/health` returns `status: ok`
 - [ ] Uptime monitoring: external probe on `/health` (UptimeRobot, Render)
-- [ ] Error alerting: Sentry alert rules for error rate > 1%
 
 ## 🧪 Testing
 
-- [x] Jest unit tests: all passing (`cd backend && npm test`)
-- [ ] Security sim: 29/29 (`cd backend && npx jest tests/security-sim.test.ts`)
-- [ ] Artillery load: 23+ scenarios, 10K peak (`npx artillery run tests/load/*.yml`)
-- [ ] Cypress E2E: 53+ tests (`cd frontend && npx cypress run`)
-- [ ] Contract tests: all passing (`npx hardhat test`)
+- [x] Jest unit tests: 994/994 passing, 40 suites (`cd backend && npm test`)
+- [x] Contract tests: Hardhat test suite passing (`npx hardhat test`)
+- [ ] Artillery load: 23+ scenarios configured (`tests/load/*.yml`)
+- [ ] Cypress E2E: configured (`cd frontend && npx cypress run`)
 
 ## 🌐 Infrastructure
 
 - [x] Backend deployed on Render (auto-deploy from `main`)
 - [x] Frontend deployed on Vercel (auto-deploy from `main`)
 - [x] PostgreSQL provisioned (Render managed)
-- [ ] Redis provisioned (for rate limiting + caching)
-- [ ] SSL/TLS: HTTPS enforced on all endpoints
+- [x] Custom domains: `leadrtb.com` (frontend), `api.leadrtb.com` (backend)
+- [ ] Redis provisioned (for rate limiting + caching) — currently in-memory fallback
 
 ## 📜 Smart Contracts
 
-- [x] All 8 contracts deployed and verified on target network
-- [ ] Constructor arguments documented
-- [ ] Contract addresses updated in backend `.env`
-- [ ] Chainlink CRE subscription funded (≥ 5 LINK)
-- [ ] ACE policies registered for all target jurisdictions
-- [ ] Escrow contract funded for test settlements
+- [x] All 8 contracts deployed and source-verified on Base Sepolia Basescan
+- [x] Contract addresses updated in backend `.env` and `CONTRACTS.md`
+- [x] Chainlink Functions subscription funded (sub ID 581)
+- [ ] Constructor arguments documented in `CONTRACTS.md`
+- [ ] VRF subscription consumer added for new VRFTieBreaker address
 
 ## 🔗 Integrations
 
+- [x] MCP server: 15 tools registered
+- [x] Socket.IO: WebSocket connections stable
 - [ ] Alchemy RPC: API key valid, not rate-limited
-- [ ] WalletConnect: project ID configured
 - [ ] CRM webhooks: rate limiter + circuit breaker active
-- [ ] MCP server: 15 tools responding on port 3002
-- [ ] Socket.IO: WebSocket connections stable
-
-## 🌍 i18n
-
-- [ ] 8 locales configured (en, es, pt, zh, ar, de, fr, ja)
-- [ ] Fallback to English working for untranslated keys
-- [ ] RTL support: Arabic layout tested (stub)
 
 ## 📄 Documentation
 
-- [ ] README.md: up to date with current metrics/features
-- [ ] README.md § Setup & Deployment: env vars, deploy steps, troubleshooting
+- [x] README.md: up to date with current metrics/features
+- [x] CONTRACTS.md: canonical address source, all 8 contracts
+- [x] PITCH_DECK.md: current numbers match README
+- [x] ENV_VARS.md: comprehensive env var reference
 - [ ] MAINNET_MIGRATION.md: ready for post-hackathon
-- [ ] BETA_PLAYBOOK.md: pilot plan documented
-- [ ] AB_TEST_PLAN.md: experiment specs ready
-- [ ] PITCH_DECK.md: current numbers match README
 
 ## 🚀 Final Pre-Submit
 
+- [x] Demo URL accessible: https://leadrtb.com
+- [x] API URL accessible: https://api.leadrtb.com/health
 - [ ] `git status` clean (no uncommitted changes)
 - [ ] All CI checks passing
-- [ ] Demo URL accessible: https://leadrtb.com
-- [ ] API URL accessible: https://api.leadrtb.com/health
-- [ ] Loom video recorded and linked in PITCH_DECK
+- [ ] Loom video recorded and linked in README
 - [ ] Submission form completed with all required fields

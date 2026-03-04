@@ -15,12 +15,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Run ID** | `05ad5f55-ae29-4569-9f00-8637f0e0746a` |
+| **Run ID** | `3d79fc40-1651-4ebb-bc51-5b263ad358d1` |
 | **Cycles completed** | 5 / 5 |
-| **Total USDC settled** | $239.00 |
-| **Platform revenue (5%)** | $32.95 |
-| **VRF tiebreaker fired** | Cycle 3 — on-chain confirmed |
-| **Proof of Reserves** | Passed all 5 cycles |
+| **Total USDC settled** | $132.00 |
+| **Platform revenue (5%)** | $11.60 |
+| **Bounties paid** | $30.00 (2 payouts × $15) |
+| **VRF tiebreaker fired** | Cycle 3 — mortgage, 3 tied bids |
+| **NFTs minted** | 5/5 — tokenIds 1–5 (all green badges) |
+| **Proof of Reserves** | SOLVENT on all 5 cycles |
 | **Verification source** | Independent Basescan transaction lookup |
 
 All transaction hashes in the demo run JSON are real Base Sepolia transactions, independently verifiable at [sepolia.basescan.org](https://sepolia.basescan.org).
@@ -87,7 +89,7 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 ✅ VRF subscription ID                   → 113264743570594559564982314341877976588830746108…
 ✅ CRE subscription ID                   → 581 (Chainlink Functions on Base Sepolia)
 ✅ USDC deployer balance                 → $4,346 (post-sweep)
-✅ Demo run confirmed on Basescan        → runId 05ad5f55-ae29-4569-9f00-8637f0e0746a
+✅ Demo run confirmed on Basescan        → runId 3d79fc40-1651-4ebb-bc51-5b263ad358d1
 ```
 
 ---
