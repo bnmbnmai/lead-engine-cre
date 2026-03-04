@@ -1,0 +1,174 @@
+{
+  "runId": "3d79fc40-1651-4ebb-bc51-5b263ad358d1",
+  "startedAt": "2026-03-04T01:13:10.824Z",
+  "completedAt": "2026-03-04T01:18:51.824Z",
+  "cycles": [
+    {
+      "cycle": 1,
+      "leadId": "cmmbcd7cp0009ylxwss72ys5w",
+      "vertical": "mortgage",
+      "buyerWallet": "0x424cac929939377f221348af52d4cb1247fe4379",
+      "buyerWallets": [
+        "0x424cac929939377f221348af52d4cb1247fe4379",
+        "0xa75d76b27ff9511354c78cb915cfc106c6b23dd9",
+        "0x55190ce8a38079d8415a1ba15d001bc1a52718ec",
+        "0x3a9a41078992734ab24dfb51761a327eeaac7b3d"
+      ],
+      "bidAmount": 27,
+      "lockIds": [
+        2191,
+        2193,
+        2197,
+        2198
+      ],
+      "winnerLockId": 2191,
+      "settleTxHash": "0xd4311e7b481e1194b3cc44c450d2d4e138406f9090ed9434cc539f28adc0c3f2",
+      "refundTxHashes": [
+        "0x8cbd98ccf7c2d4c66c2763da6162d6387113918f4155e0d32da5720f5a195945",
+        "0xf71388b5970af5097def55af1569e569293c03c6f502cb8cc4155fd7332f0f06",
+        "0x990af813a5a2294298973ba8415d50c57b41a70069b6bb9e7ec59b764ce5e7d6"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xfbce2c29f6bcc6a6d5aea97172bd6df202e0c0b28fac2159b07e870e2acb4c1d",
+      "gasUsed": "391178",
+      "platformIncome": 2.35,
+      "hadTiebreaker": false,
+      "txStatus": "confirmed",
+      "nftTokenId": 1,
+      "mintTxHash": "0x0f41fb394cd3e665562ffef978cd3e654c3008c41d3f5633f8ea9cd579a0585f"
+    },
+    {
+      "cycle": 2,
+      "leadId": "cmmbcfvbc0018ylxwjiv6s2bo",
+      "vertical": "financial_services",
+      "buyerWallet": "0xa75d76b27ff9511354c78cb915cfc106c6b23dd9",
+      "buyerWallets": [
+        "0x55190ce8a38079d8415a1ba15d001bc1a52718ec",
+        "0xa75d76b27ff9511354c78cb915cfc106c6b23dd9",
+        "0x88dda5d4b22fa15edaf94b7a97508ad7693bdc58"
+      ],
+      "bidAmount": 14,
+      "lockIds": [
+        2209,
+        2210,
+        2211
+      ],
+      "winnerLockId": 2210,
+      "settleTxHash": "0x132ad2b6328dbf52c0f8f250204eb38def0a66d506d2d823c33df7ae1db0122b",
+      "refundTxHashes": [
+        "0x566773f23104ed32c86fa55419168b24884c3457c97928494ea61eb97077a7f9",
+        "0x8b086986c7550932e9443f4766a0c8a968fc01d1c6ed07ba561c910225c4f993"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xfbce2c29f6bcc6a6d5aea97172bd6df202e0c0b28fac2159b07e870e2acb4c1d",
+      "gasUsed": "298926",
+      "platformIncome": 1.7,
+      "hadTiebreaker": false,
+      "txStatus": "confirmed",
+      "nftTokenId": 2,
+      "mintTxHash": "0x11a2eaa2523b0965a5b4e2e87ec72c7dab66631f9eca31356c9da685b01326e5"
+    },
+    {
+      "cycle": 3,
+      "leadId": "cmmbcgcb0001cylxw080v2ngq",
+      "vertical": "mortgage",
+      "buyerWallet": "0xb9edeeb25bf7f2db79c03e3175d71e715e5ee78c",
+      "buyerWallets": [
+        "0x7be5ce8824d5c1890bc09042837ceac57a55fdad",
+        "0xc92a0a5080077fb8c2b756f8f52419cb76d99afe",
+        "0xb9edeeb25bf7f2db79c03e3175d71e715e5ee78c"
+      ],
+      "bidAmount": 41,
+      "lockIds": [
+        2212,
+        2214,
+        2216
+      ],
+      "winnerLockId": 2216,
+      "settleTxHash": "0x9c0b6e6f4cd45e1b7d8826ac5be639b8bb673416a3914b10cac4aca65fd6a238",
+      "refundTxHashes": [
+        "0xc255a00f459a06fd4613dd81e5a8acb0e3c04a461edd2b3c8e2457d8bfa3c0a6",
+        "0x99396a90f6f958b0747c9b405e30b1eaea1b7a75295fd5728a1e592002baa912"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xfbce2c29f6bcc6a6d5aea97172bd6df202e0c0b28fac2159b07e870e2acb4c1d",
+      "gasUsed": "298926",
+      "platformIncome": 3.05,
+      "hadTiebreaker": true,
+      "vrfTxHash": "0x9c0b6e6f4cd45e1b7d8826ac5be639b8bb673416a3914b10cac4aca65fd6a238",
+      "txStatus": "confirmed",
+      "nftTokenId": 3,
+      "mintTxHash": "0x2a9ffaaf250bcf92aec3d0e1e2c22825abb45ff8f1c061f1a94260434ed22067"
+    },
+    {
+      "cycle": 4,
+      "leadId": "cmmbcgrr4001iylxwvnj6o3zy",
+      "vertical": "solar",
+      "buyerWallet": "0xe10a5ba5fe03adb833b8c01ff12cedc4422f0fdf",
+      "buyerWallets": [
+        "0xb9edeeb25bf7f2db79c03e3175d71e715e5ee78c",
+        "0xe10a5ba5fe03adb833b8c01ff12cedc4422f0fdf"
+      ],
+      "bidAmount": 21,
+      "lockIds": [
+        2213,
+        2215
+      ],
+      "winnerLockId": 2215,
+      "settleTxHash": "0x3437185900960093132abfbe5f62f73e949e76cd92a9ae69ca6c38fd8b26cb00",
+      "refundTxHashes": [
+        "0xe06deb190bd898dab15979237e0264426bfbbfca37cb44c1e896ae4989ba202f"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xfbce2c29f6bcc6a6d5aea97172bd6df202e0c0b28fac2159b07e870e2acb4c1d",
+      "gasUsed": "213155",
+      "platformIncome": 2.05,
+      "hadTiebreaker": false,
+      "txStatus": "confirmed",
+      "bountyAmount": 15,
+      "bountyTxHashes": [
+        "0x3ed9a637cca97e04fa2feee3d5d8ddd929c7fcb2c1a0c4d1cab121375e8eab4f"
+      ],
+      "nftTokenId": 4,
+      "mintTxHash": "0xaa19424da67cbc85ba818d26cbc64d4874d5122ecd35c92062ab6aca200ba9cb"
+    },
+    {
+      "cycle": 5,
+      "leadId": "cmmbci23m001wylxwvilyntiz",
+      "vertical": "real_estate",
+      "buyerWallet": "0xe10a5ba5fe03adb833b8c01ff12cedc4422f0fdf",
+      "buyerWallets": [
+        "0xa75d76b27ff9511354c78cb915cfc106c6b23dd9",
+        "0xe10a5ba5fe03adb833b8c01ff12cedc4422f0fdf"
+      ],
+      "bidAmount": 29,
+      "lockIds": [
+        2221,
+        2222
+      ],
+      "winnerLockId": 2222,
+      "settleTxHash": "0x553cb85d63cfa3c5199d2a627671f83b365a215de698b2c431597af322c4d300",
+      "refundTxHashes": [
+        "0xf582e57da244898736bcaed497db0aeeb2b21f12233faaab6c07ae52711e3208"
+      ],
+      "porSolvent": true,
+      "porTxHash": "0xfbce2c29f6bcc6a6d5aea97172bd6df202e0c0b28fac2159b07e870e2acb4c1d",
+      "gasUsed": "213155",
+      "platformIncome": 2.45,
+      "hadTiebreaker": false,
+      "txStatus": "confirmed",
+      "bountyAmount": 15,
+      "bountyTxHashes": [
+        "0xe8e66f46539ca99c644bd472685e8fe3d0de04c1417aa997fb32967c1e4eb999"
+      ],
+      "nftTokenId": 5,
+      "mintTxHash": "0x5751b99d13b57d13f11f0889f4cc5ab277c24ab2216725ae069f1019366eca86"
+    }
+  ],
+  "totalGas": "1415340",
+  "totalSettled": 132,
+  "status": "completed",
+  "totalPlatformIncome": 11.599999999999998,
+  "totalTiebreakers": 1,
+  "totalBountyRewards": 30
+}
