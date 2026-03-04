@@ -2,7 +2,7 @@
 
 **Tokenized, Privacy-First, AI-Driven Lead Marketplace on Chainlink CRE**
 
-Current version: **v1.0.0 (3 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption, production bounty targeting workflow, streamlined Demo Control Panel, vault orphaned lock recovery, Admin Overview Dashboard with real-time CRE status, and comprehensive endpoint audit (~95 endpoints across 17 route files).
+Current version: **v1.0.1 (4 March 2026)** — Production-ready prototype on Base Sepolia with 12 Chainlink service integrations, CRE quality scoring, autonomous AI agent (Kimi K2.5 + LangChain + official chainlink-agent-skills), atomic USDC settlement via PersonalEscrowVault, Proof-of-Reserves automation, granular bounty pools, winner-only PII decryption (real encrypted data for hosted lander/API leads), unified CRE lead processing pipeline, production bounty targeting workflow, streamlined Demo Control Panel, vault orphaned lock recovery, Admin Overview Dashboard with real-time CRE status, and comprehensive endpoint audit (~95 endpoints across 17 route files).
 
 ## Vision
 Build the **institutional-grade infrastructure layer for private data RWAs** — turning high-value, sensitive leads (solar, roofing, HVAC, mortgage, insurance, health/KYC) into verifiable, tradable, privacy-preserving tokens with autonomous matching and derivatives.
@@ -30,9 +30,9 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
   - ✅ Registered 3 CRE tools (`get_cre_score`, `trigger_cre_evaluation`, `get_cre_workflow_status`) in MCP server (15 total tools)
   - ✅ Backend `/api/v1/cre/*` routes created
   - Agent registration on Moltbook pending (quick step before submission)
-- [x] **Video & Docs** (3–5 min public Loom) — In progress for March 8 submission
-  - Dedicated segment on the extended CRE-native architecture.
-  - Include all required README links to Chainlink files.
+- [x] **Video & Docs** — 5-minute YouTube demo + full README overhaul — **COMPLETED 2026-03-04**
+  - [Watch the Demo Video](https://youtu.be/0J2GWDbXsFs)
+  - Video-first README with benefit-driven opening, slim Chainlink table, judge-friendly structure
 - _Deprioritized for March 8 submission (moved to post-hackathon Phase B):_
   - ~~Data Streams quick win~~ — Requires additional infrastructure; deferred.
 
@@ -53,6 +53,12 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - [x] **Comprehensive Endpoint Audit** — Documented all ~95 endpoints across 17 route files in `endpoint_audit.md`; fixed CRE config key mismatch (root cause of stale status) — **COMPLETED 2026-03-01**
 - [x] **Backend Build Fix** — Resolved TS2554 errors in `cre.routes.ts` for successful Render deployment — **COMPLETED 2026-03-01**
 
+### Final Fixes — ✅ COMPLETED 2026-03-04
+- [x] **Documentation polish & YouTube video integration** — README overhaul (video-first hero, benefit-driven opening, slim Chainlink table), CONTRACTS.md cleanup, FINAL_VERIFICATION_LOG.md sync — **COMPLETED 2026-03-04**
+- [x] **Unified CRE lead processing pipeline** — `afterLeadCreated()` fires unconditionally on all lead paths (API, webhook, demo, drip). Every lead goes through CRE quality scoring regardless of entry point — **COMPLETED 2026-03-04** (commit `918aae6`)
+- [x] **Real PII decryption for hosted lander/API leads** — `POST /leads/:leadId/decrypt-pii` now decrypts actual `lead.encryptedData` via `privacyService.decryptLeadPII()`. Falls back to synthetic PII only for demo-drip leads — **COMPLETED 2026-03-04** (commit `0f640d7`)
+- [x] **NFT Basescan token links** — Fixed env var mismatch (`VITE_LEAD_NFT_ADDRESS` → `VITE_LEAD_NFT_ADDRESS_SEPOLIA`); removed zero-address fallback — **COMPLETED 2026-03-04** (commit `729abf1`)
+
 ---
 
 ### Post-Hackathon Roadmap — Production & Institutional Expansion
@@ -61,10 +67,12 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - Mock → production endpoints for traffic platforms (Google Ads, Facebook Lead Ads, TikTok Lead Gen).
 - Programmatic media buying integration (The Trade Desk / DV360) to auto-purchase lead inventory based on real-time CRE quality scores and auction pricing.
 - Budget pacing and spend caps via Chainlink Data Feeds.
-- **Shared Evaluator Module** — Extract the deterministic 7-gate evaluation logic into a shared evaluator module (e.g., `shared-evaluator.ts`) that is imported by both the local fallback in `auto-bid.service.ts` and the CRE workflow `EvaluateBuyerRulesAndMatch`. This eliminates any risk of logic drift and ensures 100% equivalence between the local pre-auction quality score and the DON workflow output.
+
+**Post-Hackathon Priority: Shared Evaluator Module**
+- Extract the deterministic 7-gate evaluation logic into `shared-evaluator.ts`, imported by both the local fallback in `auto-bid.service.ts` and the CRE workflow `EvaluateBuyerRulesAndMatch`. This eliminates logic drift risk and ensures 100% equivalence between the local pre-auction quality score and the DON workflow output. _Rationale: With the unified CRE pipeline now live (commit `918aae6`), both paths converge on the same `afterLeadCreated()` hook — a shared evaluator module is the next logical step to guarantee deterministic parity._
 
 **Near-Term Phase B: Permanent PII & Buyer Experience (Weeks 5–8)** ⬅️ _Next high-priority feature post-submission_
-- 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). _Status: Demo-grade one-time decrypt implemented (`DecryptForWinner` CRE workflow + `demo-panel.routes.ts`); persistent buyer vault storage not yet built._
+- 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). _Status: Winner-only PII decryption is **live and verified** (commit `0f640d7`) — real encrypted PII decrypted via `privacyService.decryptLeadPII()` for hosted lander/API leads, synthetic PII fallback for demo-drip only. Persistent buyer vault toggle UI remains post-hackathon._
 - **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action, reducing friction for high-volume buyers.
 - Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
 - **Marketplace Bounty Boost Badges** — leads matching active bounty criteria display a "💰 Bounty Boost" badge on marketplace cards, signaling higher payout potential to sellers and increasing fill rates.
@@ -73,8 +81,8 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 
 **Near-Term Phase C: Enterprise & Scale (Months 3–6)**
 - White-label verticals: one-click marketplace rebranding for insurers, banks, or lead aggregators.
-- Secondary NFT market for lead resale with 2% royalties.
-- Fractional ownership via ERC-3643 compliance.
+- Secondary NFT market for lead resale with 2% royalties. _Note: ERC-2981 royalty standard is on-chain in LeadNFTv2; secondary marketplace UI not yet built._
+- Fractional ownership via ERC-3643 compliance. _Note: No ERC-3643 code exists yet — roadmap only._
 - Cross-chain settlement via CCIP for multi-chain USDC.
 
 **Technical Foundations Already in Place:**
@@ -176,7 +184,9 @@ The current architecture is designed for demo and early-production traffic. Scal
 | ✅ Done  | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Privacy Track + institutions        |
 | ✅ Done  | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Mandatory for all tracks            |
 | ✅ Done  | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
-| Next     | Permanent PII Unlock                 | CRE + Confidential Compute     | Medium   | Privacy Track + buyer experience    |
+| ⚡ Partial | Permanent PII Unlock               | CRE + Confidential Compute     | Medium   | Privacy Track — decryption live, vault toggle pending |
+| ✅ Done  | Unified CRE lead processing          | CRE Workflow DON               | Low      | All lead paths use same pipeline    |
+| ✅ Done  | Real PII decryption (hosted lander)  | Privacy / Confidential         | Low      | Correct E2E decrypt for real leads  |
 | Deferred | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
 | Medium   | CCIP cross-chain + private tx        | CCIP Private                   | Medium   | Multi-chain RWA                     |
 | ✅ Done  | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
@@ -200,4 +210,4 @@ With the extended deadline and the new Privacy + Agents tracks, LeadRTB is posit
 
 ---
 
-*Last updated: 3 March 2026 (form config auto-seeding fix, CI test fix, render.yaml env var hygiene, documentation consistency pass)*
+*Last updated: 4 March 2026 (documentation polish, YouTube video integration, unified CRE pipeline, real PII decryption, NFT token link fix)*
