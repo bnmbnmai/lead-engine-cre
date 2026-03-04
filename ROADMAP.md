@@ -134,7 +134,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 **Privacy-first RWA data marketplace** (core asymmetric advantage)
 - Full winner-only threshold decryption using Confidential Compute.
 - Revocable encryption keys for GDPR “right to be forgotten”.
-- GLEIF vLEI + World ID integration for reusable KYC/AML proofs (bonus special track eligibility).
+- Reusable KYC/AML proof integration for institutional buyers (reducing onboarding friction for regulated verticals).
 - Private treasury & OTC settlement flows (institutional buyers value this).
 
 **CRE workflow expansion**
@@ -181,10 +181,10 @@ The current architecture is designed for demo and early-production traffic. Scal
 
 | Priority | Feature                              | Chainlink Services             | Effort   | Impact                              |
 |----------|--------------------------------------|--------------------------------|----------|-------------------------------------|
-| ✅ Done  | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Privacy Track + institutions        |
-| ✅ Done  | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Mandatory for all tracks            |
-| ✅ Done  | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous Agents Track             |
-| ⚡ Partial | Permanent PII Unlock               | CRE + Confidential Compute     | Medium   | Privacy Track — decryption live, vault toggle pending |
+| ✅ Done  | Confidential Compute winner decryption | CRE + Confidential HTTP       | Low      | Institutional buyer confidence      |
+| ✅ Done  | CRE `EvaluateBuyerRules` workflow    | CRE Workflow DON               | Low      | Core matching infrastructure        |
+| ✅ Done  | Official `cre-skills` integration    | chainlink-agent-skills         | Very Low | Autonomous agent capabilities       |
+| ⚡ Partial | Permanent PII Unlock               | CRE + Confidential Compute     | Medium   | Buyer retention — decryption live, vault toggle pending |
 | ✅ Done  | Unified CRE lead processing          | CRE Workflow DON               | Low      | All lead paths use same pipeline    |
 | ✅ Done  | Real PII decryption (hosted lander)  | Privacy / Confidential         | Low      | Correct E2E decrypt for real leads  |
 | Deferred | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
@@ -192,7 +192,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 | ✅ Done  | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
 | Medium   | Marketplace bounty boost badges      | Functions                      | Low      | Seller engagement + fill rates      |
 | Medium   | Prediction market on conversion      | Functions + Streams            | Medium   | New asset class                     |
-| Low      | World ID sybil resistance            | World ID + CRE                 | Low      | Special track bonus                 |
+| Low      | Sybil resistance layer                | Identity verification          | Low      | Fraud prevention at scale           |
 
 ---
 
@@ -206,7 +206,7 @@ The current architecture is designed for demo and early-production traffic. Scal
 **We are not building another lead marketplace.**  
 We are building the **Chainlink-native, privacy-first protocol for the entire sensitive data economy**.  
 
-With the extended deadline and the new Privacy + Agents tracks, LeadRTB is positioned for competitive success in the hackathon and as foundational infrastructure thereafter.
+LeadRTB is production-ready infrastructure for the tokenized sensitive data economy, with a clear path from hackathon prototype to institutional-grade marketplace.
 
 ---
 

@@ -45,7 +45,7 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 
 ## Chainlink Integration Summary
 
-7 verified contracts + 2 CRE workflows deployed on Base Sepolia:
+8 verified contracts + 2 CRE workflows deployed on Base Sepolia:
 
 | Service | Contract | Verified |
 |---------|----------|----------|
@@ -56,6 +56,7 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 | ACE Compliance | `ACECompliance` | ✅ |
 | ACE Lead Policy | `ACELeadPolicy` | ✅ |
 | LeadNFTv2 | `LeadNFTv2` | ✅ |
+| Bounty Pool (USDC) | `VerticalBountyPool` | ✅ |
 
 > Full contract addresses, Basescan links, Tenderly traces, and backend file mappings → [`CONTRACTS.md`](CONTRACTS.md)
 
@@ -125,7 +126,7 @@ Production CRE workflow that evaluates buyer preference rules against incoming l
 - [`cre-workflows/DecryptForWinner/main.ts`](cre-workflows/DecryptForWinner/main.ts) — Winner-only PII decryption (`encryptOutput: true`)
 - [`backend/src/services/cre.service.ts`](backend/src/services/cre.service.ts) — `triggerBuyerRulesWorkflow()` integration
 
-> **Note:** CRE workflows use local simulation + hybrid fallback (full DON deployment pending Early Access approval — see [FINAL_VERIFICATION_LOG.md](FINAL_VERIFICATION_LOG.md)).
+> **Note:** CRE workflows use local simulation + hybrid fallback. The `afterLeadCreated()` hook fires unconditionally on all lead paths (API, webhook, demo, drip), ensuring every lead goes through the same CRE quality scoring pipeline.
 
 ## Try the 1-Click Demo
 
@@ -179,7 +180,7 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 
 ## For Judges
 
-- **All 7 contracts verified "Exact Match"** on Basescan — see [`CONTRACTS.md`](CONTRACTS.md)
+- **All 8 contracts verified "Exact Match"** on Basescan — see [`CONTRACTS.md`](CONTRACTS.md)
 - **Live demo:** [leadrtb.com](https://leadrtb.com) (connect any Base Sepolia wallet)
 - **CRE Workflow simulation:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
 - **Certified demo artifacts:** `certified-runs/March-2-2026/`
