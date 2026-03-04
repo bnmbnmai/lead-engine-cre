@@ -26,8 +26,8 @@ import api from '@/lib/api';
 import { useDemo } from '@/hooks/useDemo';
 
 const BASESCAN_TX = 'https://sepolia.basescan.org/tx/';
-// LeadNFT contract on Base Sepolia
-const LEAD_NFT_ADDR = import.meta.env.VITE_LEAD_NFT_ADDRESS || '0x0000000000000000000000000000000000000000';
+// LeadNFT contract on Base Sepolia — uses the same env var as wagmi.ts
+const LEAD_NFT_ADDR = import.meta.env.VITE_LEAD_NFT_ADDRESS_SEPOLIA || '';
 
 interface CycleResult {
     cycle: number;
