@@ -122,7 +122,7 @@ class NFTService {
             : Math.floor(Date.now() / 1000) + 3600;
         const sourceEnum = LEAD_SOURCE_MAP[lead.source] ?? 0;
         const tcpaConsent = !!lead.tcpaConsentAt;
-        const uri = ''; // no off-chain metadata URI for now
+        const uri = `https://leadrtb.com/api/v1/leads/${leadId}/metadata`;
 
         // On-chain mint
         if (this.contract && this.signer) {
@@ -172,6 +172,24 @@ class NFTService {
 
                 // [CRE-DISPATCH] — log before on-chain mint so Render always shows this
                 console.log(`[CRE-DISPATCH] mintLeadNFT starting — leadId=${leadId} seller=${sellerAddress} contract=${LEAD_NFT_ADDRESS.slice(0, 10)}…`);
+
+                // ── staticCall dry-run — capture exact revert reason before spending gas ──
+                try {
+                    await this.contract!.mintLead.staticCall(
+                        sellerAddress, platformLeadId, verticalHash, geoHash, piiHash,
+                        reservePrice, expiresAt, sourceEnum, tcpaConsent, uri
+                    );
+                    console.log('[NFT MINT] staticCall dry-run passed ✅');
+                } catch (dryRunErr: any) {
+                    const reason = dryRunErr.reason || dryRunErr.revert?.name || dryRunErr.shortMessage || dryRunErr.message || '';
+                    console.warn(`[NFT MINT] ⚠️ staticCall dry-run FAILED: ${reason.slice(0, 150)}`);
+                    // If it's a definitive contract error (not gas/nonce), skip the real tx entirely
+                    if (reason.includes('Already tokenized') || reason.includes('Invalid expiry') || reason.includes('Not authorized')) {
+                        console.warn(`[NFT MINT] ❌ Contract will reject this mint — skipping on-chain tx: ${reason}`);
+                        return { success: false, error: `staticCall rejected: ${reason.slice(0, 100)}` };
+                    }
+                    // Otherwise, proceed — some staticCall failures are transient (state not synced)
+                }
 
                 // Mint with retry: handles NONCE_EXPIRED, REPLACEMENT_UNDERPRICED, and CALL_EXCEPTION
                 // (transient on testnet). Always uses fresh pending nonce to avoid deployer nonce races.

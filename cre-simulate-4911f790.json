@@ -46,7 +46,7 @@
     },
     {
       "cycle": 4,
-      "vertical": "financial_services",
+      "vertical": "legal",
       "qualityScore": "pending",
       "gates": [
         "vertical",
@@ -60,7 +60,7 @@
     },
     {
       "cycle": 5,
-      "vertical": "solar",
+      "vertical": "financial_services",
       "qualityScore": "pending",
       "gates": [
         "vertical",
@@ -74,6 +74,20 @@
     },
     {
       "cycle": 6,
+      "vertical": "solar",
+      "qualityScore": "pending",
+      "gates": [
+        "vertical",
+        "geo",
+        "state",
+        "quality",
+        "off-site",
+        "verified",
+        "field-filters"
+      ]
+    },
+    {
+      "cycle": 7,
       "vertical": "real_estate",
       "qualityScore": "pending",
       "gates": [
@@ -87,5 +101,5 @@
       ]
     }
   ],
-  "timestamp": "2026-03-04T00:08:15.511Z"
+  "timestamp": "2026-03-04T00:56:21.357Z"
 }

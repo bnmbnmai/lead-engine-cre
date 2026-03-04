@@ -512,9 +512,10 @@ export default function DemoResults() {
                             </thead>
                             <tbody>
                                 {display.cycles.map((cycle) => {
-                                    // Build NFT link: prefer token page, fall back to mint tx
-                                    const nftMinted = cycle.nftTokenId != null || cycle.mintTxHash != null;
-                                    const nftHref = cycle.nftTokenId != null
+                                    // Build NFT link: green only for real tokenId, yellow for mint tx (even if failed)
+                                    const hasTokenId = cycle.nftTokenId != null;
+                                    const hasMintTx = !hasTokenId && cycle.mintTxHash != null;
+                                    const nftHref = hasTokenId
                                         ? `https://sepolia.basescan.org/token/${LEAD_NFT_ADDR}?a=${cycle.nftTokenId}`
                                         : cycle.mintTxHash
                                             ? `${BASESCAN_TX}${cycle.mintTxHash}`
@@ -585,20 +586,28 @@ export default function DemoResults() {
 
                                             {/* NFT — 3-state: green Minted #N / yellow Mint Tx / grey pending */}
                                             <td className="px-3 py-3">
-                                                {nftMinted && nftHref ? (
+                                                {hasTokenId && nftHref ? (
                                                     <a
                                                         href={nftHref}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        title={cycle.nftTokenId != null ? `LeadNFTv2 #${cycle.nftTokenId}` : 'View mint tx on Basescan'}
-                                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition ${cycle.nftTokenId != null
-                                                                ? 'bg-emerald-500/10 text-emerald-400 hover:text-emerald-300'
-                                                                : 'bg-yellow-500/10 text-yellow-400 hover:text-yellow-300'
-                                                            }`}
+                                                        title={`LeadNFTv2 #${cycle.nftTokenId}`}
+                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:text-emerald-300 transition"
                                                     >
                                                         <CheckCircle2 className="h-3 w-3" />
-                                                        {cycle.nftTokenId != null ? `Minted #${cycle.nftTokenId}` : 'NFT Mint Tx'}
+                                                        Minted #{cycle.nftTokenId}
                                                         <ExternalLink className="h-3 w-3" />
+                                                    </a>
+                                                ) : hasMintTx && nftHref ? (
+                                                    <a
+                                                        href={nftHref}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        title="View NFT mint transaction on Basescan"
+                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-yellow-500/10 text-yellow-400 text-xs font-medium hover:text-yellow-300 transition"
+                                                    >
+                                                        <ExternalLink className="h-3 w-3" />
+                                                        NFT Mint Tx
                                                     </a>
                                                 ) : (
                                                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground text-xs"
