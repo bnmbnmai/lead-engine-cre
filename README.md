@@ -59,6 +59,8 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 | Bounty Pool (USDC) | `VerticalBountyPool` | ✅ |
 
 > Full contract addresses, Basescan links, Tenderly traces, and backend file mappings → [`CONTRACTS.md`](CONTRACTS.md)
+>
+> All 8 contracts receive **real on-chain transactions** during the 1-click demo — including VRFTieBreaker (real `requestResolution()` call on every forced tie).
 
 ---
 

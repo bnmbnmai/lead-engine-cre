@@ -19,7 +19,7 @@ import { ethers } from 'ethers';
 import { prisma } from '../../lib/prisma';
 import { redisClient } from '../../lib/redis';
 
-import { checkVrfSubscriptionBalance } from '../vrf.service';
+import { checkVrfSubscriptionBalance, requestTieBreak, waitForResolution, isVrfConfigured, ResolveType } from '../vrf.service';
 import {
     DEMO_SELLER_WALLET,
     DEMO_BUYER_WALLETS,
@@ -1146,14 +1146,14 @@ export async function runFullDemo(
                 leadLockRegistry.delete(demoLeadId);
             }
 
-            // Determine winner — highest amount wins; ties broken by first-lock-wins
-            // (consistent with VRF tie-break which already ran during lockForBid)
+            // Determine winner — highest amount wins; ties reordered by real VRF below
             const sortedBids = [...registryBids].sort((a, b) => b.amount - a.amount);
-            const winnerEntry = sortedBids[0];
-            const loserEntries = sortedBids.slice(1);
+            // winnerEntry and loserEntries are set AFTER potential VRF reorder (see below)
+            let winnerEntry = sortedBids[0];
+            let loserEntries = sortedBids.slice(1);
 
-            const buyerWallet = winnerEntry?.addr ?? DEMO_BUYER_WALLETS[0];
-            const bidAmount = winnerEntry?.amount ?? Number(baseBid ?? 35);
+            let buyerWallet = winnerEntry?.addr ?? DEMO_BUYER_WALLETS[0];
+            let bidAmount = winnerEntry?.amount ?? Number(baseBid ?? 35);
             const lockIds: number[] = registryBids.map(r => r.lockId);
             const readyBuyers = registryBids.length;
 
@@ -1168,9 +1168,52 @@ export async function runFullDemo(
 
             // Detect tiebreaker (two bids at the same max amount)
             const hadTiebreaker = sortedBids.length >= 2 && sortedBids[0].amount === sortedBids[1].amount;
+            let realVrfTxHash: string | undefined;
             if (hadTiebreaker) {
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${sortedBids[0].addr.slice(0, 10)}… and ${sortedBids[1].addr.slice(0, 10)}… both bid $${sortedBids[0].amount} — winner: first lock wins`, cycle: settlementCycle, totalCycles: 0 });
+                const tiedCandidates = sortedBids
+                    .filter(b => b.amount === sortedBids[0].amount)
+                    .map(b => b.addr);
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${tiedCandidates.length} bidders at $${sortedBids[0].amount} — requesting on-chain VRF tiebreaker`, cycle: settlementCycle, totalCycles: 0 });
+
+                // ── Real VRF Tiebreaker Call ──────────────────────────
+                if (demoLeadId && isVrfConfigured()) {
+                    try {
+                        const vrfTxHash = await requestTieBreak(demoLeadId, tiedCandidates, ResolveType.AUCTION_TIE);
+                        if (vrfTxHash) {
+                            realVrfTxHash = vrfTxHash;
+                            emit(io, { ts: new Date().toISOString(), level: 'success', message: `🎲 VRF request sent — tx: ${vrfTxHash.slice(0, 18)}… — waiting for DON fulfillment…`, cycle: settlementCycle, totalCycles: 0, data: { txHash: vrfTxHash, basescanUrl: `https://sepolia.basescan.org/tx/${vrfTxHash}` } });
+
+                            // Wait for VRF fulfillment (15s timeout, 2s poll)
+                            const vrfWinner = await waitForResolution(demoLeadId, 15_000, 2_000);
+                            if (vrfWinner) {
+                                emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ VRF Winner selected by DON: ${vrfWinner.slice(0, 10)}… — reordering bids`, cycle: settlementCycle, totalCycles: 0 });
+                                // Reorder sortedBids so VRF winner is first
+                                const vrfWinnerLower = vrfWinner.toLowerCase();
+                                const winnerIdx = sortedBids.findIndex(b => b.addr.toLowerCase() === vrfWinnerLower);
+                                if (winnerIdx > 0) {
+                                    const [winner] = sortedBids.splice(winnerIdx, 1);
+                                    sortedBids.unshift(winner);
+                                }
+                            } else {
+                                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⏱ VRF fulfillment timed out — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                            }
+                        } else {
+                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF request returned null — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                        }
+                    } catch (vrfErr: any) {
+                        console.error(`[DEMO VRF] Error during real VRF call:`, vrfErr.message);
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF call failed: ${vrfErr.message?.slice(0, 80)} — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                    }
+                } else if (!isVrfConfigured()) {
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF not configured — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                }
             }
+
+            // Re-derive winner/losers after potential VRF reorder
+            winnerEntry = sortedBids[0];
+            loserEntries = sortedBids.slice(1);
+            buyerWallet = winnerEntry?.addr ?? DEMO_BUYER_WALLETS[0];
+            bidAmount = winnerEntry?.amount ?? Number(baseBid ?? 35);
 
             emit(io, {
                 ts: new Date().toISOString(), level: 'step',
@@ -1356,7 +1399,8 @@ export async function runFullDemo(
                 const cyclePlatformFee = parseFloat((bidAmount * 0.05).toFixed(2));
                 cyclePlatformIncome = parseFloat((cyclePlatformFee + 1).toFixed(2));
                 totalPlatformIncome = parseFloat((totalPlatformIncome + cyclePlatformIncome).toFixed(2));
-                vrfTxHashForCycle = hadTiebreaker ? settleReceipt.hash : undefined;
+                // Use real VRF tx hash if available, otherwise no VRF proof link
+                vrfTxHashForCycle = realVrfTxHash;
                 if (hadTiebreaker) { totalTiebreakers++; }
                 if (vrfTxHashForCycle) { vrfProofLinks.push(`https://sepolia.basescan.org/tx/${vrfTxHashForCycle}`); }
                 emit(io, { ts: new Date().toISOString(), level: 'success', message: `💰 Platform earned $${cyclePlatformIncome.toFixed(2)} this settlement (5% of $${bidAmount} = $${cyclePlatformFee.toFixed(2)} + $1 winner fee)`, cycle: settlementCycle, totalCycles: 0 });

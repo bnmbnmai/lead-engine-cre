@@ -20,6 +20,7 @@
 | 8 | **VerticalBountyPool** | [`0x9C224182...3c2`](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | USDC bounty pools |
 
 **8 / 8 contracts source-verified on Basescan. Zero pending.**
+All contracts receive real on-chain transactions during the 1-click demo (including VRFTieBreaker via `requestResolution()`).
 
 ---
 
