@@ -12,6 +12,7 @@ import { rtbEngine } from './rtb/engine';
 import { startQuarterlyResetCron } from './services/quarterly-reset.service';
 import { resolveExpiredAuctions } from './services/auction-closure.service';
 import { startVaultReconciliationJob } from './services/vault-reconciliation.service';
+import { initAutomationService } from './services/automation.service';
 import { closeQueues } from './lib/queues';
 
 // Load environment variables FIRST
@@ -309,9 +310,13 @@ httpServer.listen(PORT, () => {
     // Start quarterly lease reset cron (daily at midnight UTC)
     startQuarterlyResetCron();
 
-    // Start EscrowVault DB ↔ on-chain reconciliation cron (every 5 min, production only)
+    // Start EscrowVault DB ↔ on-chain reconciliation cron
+    // Chainlink Automation detection runs first — if upkeep is registered,
+    // the cron interval drops to 30 min (safety net); otherwise 5 min.
     if (process.env.NODE_ENV !== 'test') {
-        startVaultReconciliationJob();
+        initAutomationService().then(() => {
+            startVaultReconciliationJob();
+        }).catch((err) => console.warn('[Automation] Init failed (non-fatal):', err));
     }
 
     // Sweep any auctions that expired during downtime

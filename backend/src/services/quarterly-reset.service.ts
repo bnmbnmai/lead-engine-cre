@@ -413,11 +413,14 @@ export function startQuarterlyResetCron(): void {
     }
 }
 
-// ── Chainlink Keepers Stub ────────────────────────────
+// ── Chainlink Automation ──────────────────────────────
 
 /**
- * Stub for future Chainlink Keepers integration.
- * Returns calldata for the on-chain `checkUpkeep` → `performUpkeep` pattern.
+ * Chainlink Automation is now LIVE on PersonalEscrowVault for PoR + expired lock refunds.
+ * See: automation.service.ts for upkeep detection and backend/contracts/PersonalEscrowVault.sol
+ * for on-chain checkUpkeep / performUpkeep implementation.
+ *
+ * The selectors below match the on-chain interface (retained for reference/testing):
  */
 export function getLeaseCheckCalldata(): { checkUpkeepSelector: string; performUpkeepSelector: string } {
     return {

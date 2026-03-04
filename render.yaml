@@ -85,6 +85,9 @@ services:
       # Chainlink VRF v2.5 subscription ID (numeric) — get from vrf.chain.link
       - key: VRF_SUBSCRIPTION_ID
         value: "63254467034236290721147755955934893245396809755548309042861263459757887337113"
+      # ── Chainlink Automation ──────────────────────────────────────────────────
+      - key: AUTOMATION_UPKEEP_ID
+        sync: false  # Set after registering at automation.chain.link on Base Sepolia
       # ── Demo / Platform ───────────────────────────────────────────────
       - key: DEMO_MODE
         sync: false

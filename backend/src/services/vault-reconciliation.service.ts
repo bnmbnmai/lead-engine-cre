@@ -16,10 +16,12 @@
 import { prisma } from '../lib/prisma';
 import { aceDevBus } from './ace.service';
 import { reconcileVaultBalance } from './vault.service';
+import { isAutomationActive } from './automation.service';
 
 // ── Constants ─────────────────────────────────────────
 
-export const RECONCILE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+export const RECONCILE_INTERVAL_MS = 5 * 60 * 1000;        // 5 minutes (off-chain only)
+export const RECONCILE_INTERVAL_SAFETY_MS = 30 * 60 * 1000; // 30 minutes (safety net when Automation active)
 export const DRIFT_THRESHOLD_USD = 0.01;             // alert if drift > $0.01
 const CRON_EXPRESSION = '*/5 * * * *';               // every 5 minutes
 
@@ -183,7 +185,15 @@ let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let jobInitialized = false;
 
 /**
- * Start the 5-minute vault reconciliation job.
+ * Start the vault reconciliation job.
+ *
+ * When Chainlink Automation is active (upkeep registered), the on-chain
+ * checkUpkeep/performUpkeep handles PoR checks and expired-lock refunds.
+ * In that case, we run the off-chain job at a reduced 30-min interval as
+ * a safety net (DB ↔ on-chain sync only).
+ *
+ * When Automation is NOT active, the off-chain job runs every 5 min.
+ *
  * Tries node-cron first; falls back to setInterval.
  * Idempotent — safe to call multiple times.
  * Only starts if NODE_ENV !== 'test'.
@@ -192,30 +202,37 @@ export function startVaultReconciliationJob(): void {
     if (jobInitialized) return;
     if (process.env.NODE_ENV === 'test') return;
 
+    const automationActive = isAutomationActive();
+    const intervalMs = automationActive ? RECONCILE_INTERVAL_SAFETY_MS : RECONCILE_INTERVAL_MS;
+    const intervalLabel = automationActive ? '30 min (safety net — Chainlink Automation active)' : '5 min (primary — no Automation)';
+
     let started = false;
 
-    try {
-        const cron = require('node-cron');
-        cronTask = cron.schedule(CRON_EXPRESSION, async () => {
-            console.log('[VaultRecon] Running scheduled reconciliation job...');
-            await reconcileAll().catch((err: Error) =>
-                console.error('[VaultRecon] Scheduled job error (non-fatal):', err.message)
-            );
-        });
-        started = true;
-        console.log('[VaultRecon] Scheduled vault reconciliation job (every 5 min via node-cron)');
-    } catch {
-        // node-cron not available — fall back to setInterval
+    // When Automation is active, use setInterval exclusively (cron every-5-min is overkill)
+    if (!automationActive) {
+        try {
+            const cron = require('node-cron');
+            cronTask = cron.schedule(CRON_EXPRESSION, async () => {
+                console.log('[VaultRecon] Running scheduled reconciliation job...');
+                await reconcileAll().catch((err: Error) =>
+                    console.error('[VaultRecon] Scheduled job error (non-fatal):', err.message)
+                );
+            });
+            started = true;
+            console.log(`[VaultRecon] Scheduled vault reconciliation job (${intervalLabel} via node-cron)`);
+        } catch {
+            // node-cron not available — fall back to setInterval
+        }
     }
 
     if (!started) {
         intervalHandle = setInterval(async () => {
-            console.log('[VaultRecon] Running scheduled reconciliation job (setInterval)...');
+            console.log(`[VaultRecon] Running scheduled reconciliation job (${automationActive ? 'safety net' : 'primary'})...`);
             await reconcileAll().catch((err: Error) =>
                 console.error('[VaultRecon] Scheduled job error (non-fatal):', err.message)
             );
-        }, RECONCILE_INTERVAL_MS);
-        console.log('[VaultRecon] Scheduled vault reconciliation job (every 5 min via setInterval)');
+        }, intervalMs);
+        console.log(`[VaultRecon] Scheduled vault reconciliation job (${intervalLabel} via setInterval)`);
     }
 
     jobInitialized = true;

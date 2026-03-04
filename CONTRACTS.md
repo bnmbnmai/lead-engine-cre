@@ -28,7 +28,7 @@ All contracts receive real on-chain transactions during the 1-click demo (includ
 
 | Service | Contract | How It's Used |
 |---------|----------|---------------|
-| **Automation** | PersonalEscrowVault | `checkUpkeep()` / `performUpkeep()` — 24h PoR cycle; sweeps expired bid locks after 7 days |
+| **Automation** | PersonalEscrowVault | **Real Chainlink Automation upkeep registered.** `checkUpkeep()` / `performUpkeep()` — 24h PoR cycle + sweeps expired bid locks after 7 days. Off-chain cron as 30-min safety net. |
 | **Data Feeds** | PersonalEscrowVault | USDC/ETH price feed ([`0x71041dDD...deF`](https://sepolia.basescan.org/address/0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF)) for vault operations |
 | **Functions (CRE)** | CREVerifier | `requestQualityScore()` → DON job → `fulfillRequest()` writes `uint16 score` on-chain |
 | **CHTT Phase 2** | CREVerifier | `requestZKProofVerification()` — live ZK fraud-signal DON request; enclave key in Vault slot 0 |
@@ -46,7 +46,8 @@ All contracts receive real on-chain transactions during the 1-click demo (includ
 | USDC Token (Base Sepolia) | [`0x036CbD53...CF7e`](https://sepolia.basescan.org/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
 | USDC/ETH Data Feed | [`0x71041dDD...2deF`](https://sepolia.basescan.org/address/0x71041dDDaD3595f9Ced3d1F5861e2931857B2deF) |
 | CRE Subscription | `581` |
-| VRF Subscription | `113264743570594559...` |
+| VRF Subscription | `63254467034236290721...` |
+| Automation Upkeep | Registered at [automation.chain.link](https://automation.chain.link) on Base Sepolia |
 
 ---
 

@@ -499,3 +499,36 @@ Wired real `requestTieBreak()` + `waitForResolution()` from `vrf.service.ts` int
 ### Expected Result
 
 Running the 1-click demo now produces **real VRFTieBreaker transactions** on Basescan, verifiable at the contract's address page.
+
+---
+
+## Section 12: Real Chainlink Automation (March 4, 2026)
+
+### Problem
+Vault reconciliation (PoR checks + expired lock refunds) ran entirely off-chain via `vault-reconciliation.service.ts` using `setInterval` (5-min cron). The Chainlink Automation integration in `PersonalEscrowVault.sol` was fully implemented but **never registered as an upkeep**.
+
+### Contract Status
+`PersonalEscrowVault` at `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` already implements `AutomationCompatibleInterface`:
+- `checkUpkeep()` — Returns true if PoR due (>24h) or expired locks exist (>7 days)
+- `performUpkeep()` — Runs `verifyReserves()` and/or `_refundExpiredLocks()` (batch 50)
+
+### Fix Applied
+1. **Upkeep registered** at `automation.chain.link` on Base Sepolia, funded with LINK
+2. **New `automation.service.ts`** — Detects upkeep via `AUTOMATION_UPKEEP_ID` env var; reads last PoR status from vault on startup
+3. **`vault-reconciliation.service.ts` updated** — Reduces cron to 30-min safety net when Automation active; keeps 5-min primary when not
+4. **`index.ts`** — Initializes automation detection before vault reconciliation
+5. **`quarterly-reset.service.ts`** — Keepers stub replaced with real Automation reference
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `automation.service.ts` | **NEW** — Upkeep detection, startup PoR read, status helpers |
+| `vault-reconciliation.service.ts` | Automation-aware interval (5 min → 30 min safety net) |
+| `index.ts` | Init automation before vault recon |
+| `quarterly-reset.service.ts` | Keepers stub → real Automation reference |
+| `render.yaml` | `AUTOMATION_UPKEEP_ID` env var |
+| `CONTRACTS.md` | Real upkeep note in Automation row |
+| `README.md` | Automation feature bullet |
+| `ROADMAP.md` | Marked Automation completed in Phase 0 |
+
