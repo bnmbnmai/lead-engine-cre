@@ -88,6 +88,8 @@ services:
       # ── Chainlink Automation ──────────────────────────────────────────────────
       - key: AUTOMATION_UPKEEP_ID
         sync: false  # Set after registering at automation.chain.link on Base Sepolia
+      - key: AUTOMATION_UPKEEP_CONTRACT_ADDRESS
+        value: "0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700"
       # ── Demo / Platform ───────────────────────────────────────────────
       - key: DEMO_MODE
         sync: false

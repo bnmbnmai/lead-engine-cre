@@ -18,8 +18,9 @@
 | 6 | **ACELeadPolicy** | [`0x013f3219...566F`](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) | ACE (lead-specific policy) |
 | 7 | **BountyMatcher** | [`0x897f8CCa...417D`](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | Functions (granular bounty matching) |
 | 8 | **VerticalBountyPool** | [`0x9C224182...3c2`](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | USDC bounty pools |
+| 9 | **PersonalEscrowVaultUpkeep** | [`0x9A565d0d...b700`](https://sepolia.basescan.org/address/0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700) | Automation (dedicated upkeep) |
 
-**8 / 8 contracts source-verified on Basescan. Zero pending.**
+**9 / 9 contracts source-verified on Basescan. Zero pending.**
 All contracts receive real on-chain transactions during the 1-click demo (including VRFTieBreaker via `requestResolution()`).
 
 ---

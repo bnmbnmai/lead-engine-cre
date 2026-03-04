@@ -513,22 +513,25 @@ Vault reconciliation (PoR checks + expired lock refunds) ran entirely off-chain 
 - `performUpkeep()` — Runs `verifyReserves()` and/or `_refundExpiredLocks()` (batch 50)
 
 ### Fix Applied
-1. **Upkeep registered** at `automation.chain.link` on Base Sepolia, funded with LINK
-2. **New `automation.service.ts`** — Detects upkeep via `AUTOMATION_UPKEEP_ID` env var; reads last PoR status from vault on startup
-3. **`vault-reconciliation.service.ts` updated** — Reduces cron to 30-min safety net when Automation active; keeps 5-min primary when not
-4. **`index.ts`** — Initializes automation detection before vault reconciliation
-5. **`quarterly-reset.service.ts`** — Keepers stub replaced with real Automation reference
+1. **New `PersonalEscrowVaultUpkeep.sol`** — Dedicated upkeep contract at [`0x9A565d0d...b700`](https://sepolia.basescan.org/address/0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700) that delegates to the vault's `checkUpkeep`/`performUpkeep`. Source-verified on Basescan (Exact Match).
+2. **Upkeep registered** at `automation.chain.link` on Base Sepolia, funded with LINK
+3. **`automation.service.ts`** — Detects upkeep via `AUTOMATION_UPKEEP_ID` env var; reads vault PoR state on startup
+4. **`vault-reconciliation.service.ts`** — Reduces cron to 30-min safety net when Automation active; keeps 5-min primary when not
+5. **`index.ts`** — Initializes automation detection before vault reconciliation
+6. **`quarterly-reset.service.ts`** — Keepers stub replaced with real Automation reference
 
 ### Files Changed
 
 | File | Change |
 |------|--------|
+| `PersonalEscrowVaultUpkeep.sol` | **NEW** — Dedicated Automation upkeep contract (verified on Basescan) |
+| `deploy-automation-upkeep.ts` | **NEW** — Deployment script |
 | `automation.service.ts` | **NEW** — Upkeep detection, startup PoR read, status helpers |
 | `vault-reconciliation.service.ts` | Automation-aware interval (5 min → 30 min safety net) |
 | `index.ts` | Init automation before vault recon |
 | `quarterly-reset.service.ts` | Keepers stub → real Automation reference |
-| `render.yaml` | `AUTOMATION_UPKEEP_ID` env var |
-| `CONTRACTS.md` | Real upkeep note in Automation row |
-| `README.md` | Automation feature bullet |
+| `render.yaml` | `AUTOMATION_UPKEEP_ID` + `AUTOMATION_UPKEEP_CONTRACT_ADDRESS` env vars |
+| `CONTRACTS.md` | 9th contract added, real upkeep note |
+| `README.md` | 9 contracts, Automation feature bullet |
 | `ROADMAP.md` | Marked Automation completed in Phase 0 |
 

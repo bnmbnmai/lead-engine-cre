@@ -22,6 +22,7 @@ import { aceDevBus } from './ace.service';
 // ── Config ────────────────────────────────────────────
 
 const AUTOMATION_UPKEEP_ID = process.env.AUTOMATION_UPKEEP_ID || '';
+const AUTOMATION_UPKEEP_CONTRACT_ADDRESS = process.env.AUTOMATION_UPKEEP_CONTRACT_ADDRESS || '';
 const VAULT_ADDRESS = process.env.VAULT_ADDRESS_BASE_SEPOLIA || process.env.PERSONAL_ESCROW_CONTRACT_ADDRESS_BASE_SEPOLIA || '';
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 
@@ -30,6 +31,13 @@ const VAULT_AUTOMATION_ABI = [
     'function lastPorCheck() view returns (uint256)',
     'function lastPorSolvent() view returns (bool)',
     'function activeLockCount() view returns (uint256)',
+];
+
+// Upkeep contract monitoring ABI
+const UPKEEP_ABI = [
+    'function lastUpkeepRun() view returns (uint256)',
+    'function upkeepCount() view returns (uint256)',
+    'function vault() view returns (address)',
 ];
 
 // ── State ─────────────────────────────────────────────

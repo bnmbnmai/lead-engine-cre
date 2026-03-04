@@ -46,22 +46,23 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 
 ## Chainlink Integration Summary
 
-8 verified contracts + 2 CRE workflows deployed on Base Sepolia:
+9 verified contracts + 2 CRE workflows deployed on Base Sepolia:
 
 | Service | Contract | Verified |
 |---------|----------|----------|
 | CRE Quality Scoring + CHTT | `CREVerifier` | ✅ |
 | Functions (Bounty Match) | `BountyMatcher` | ✅ |
-| Automation (PoR + Refunds) | `PersonalEscrowVault` | ✅ |
+| Automation (PoR + Refunds) | `PersonalEscrowVaultUpkeep` | ✅ |
 | VRF v2.5 (Tiebreakers) | `VRFTieBreaker` | ✅ |
 | ACE Compliance | `ACECompliance` | ✅ |
 | ACE Lead Policy | `ACELeadPolicy` | ✅ |
 | LeadNFTv2 | `LeadNFTv2` | ✅ |
 | Bounty Pool (USDC) | `VerticalBountyPool` | ✅ |
+| Escrow Vault | `PersonalEscrowVault` | ✅ |
 
 > Full contract addresses, Basescan links, Tenderly traces, and backend file mappings → [`CONTRACTS.md`](CONTRACTS.md)
 >
-> All 8 contracts receive **real on-chain transactions** during the 1-click demo — including VRFTieBreaker (real `requestResolution()` call on every forced tie).
+> All 9 contracts receive **real on-chain transactions** during the 1-click demo — including VRFTieBreaker (real `requestResolution()` call on every forced tie).
 
 ---
 
