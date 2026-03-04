@@ -58,7 +58,7 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - [x] **Unified CRE lead processing pipeline** — `afterLeadCreated()` fires unconditionally on all lead paths (API, webhook, demo, drip). Every lead goes through CRE quality scoring regardless of entry point — **COMPLETED 2026-03-04** (commit `918aae6`)
 - [x] **Real PII decryption for hosted lander/API leads** — `POST /leads/:leadId/decrypt-pii` now decrypts actual `lead.encryptedData` via `privacyService.decryptLeadPII()`. Falls back to synthetic PII only for demo-drip leads — **COMPLETED 2026-03-04** (commit `0f640d7`)
 - [x] **NFT Basescan token links** — Fixed env var mismatch (`VITE_LEAD_NFT_ADDRESS` → `VITE_LEAD_NFT_ADDRESS_SEPOLIA`); removed zero-address fallback — **COMPLETED 2026-03-04** (commit `729abf1`)
-- [x] **Real Chainlink Automation** — Registered upkeep on PersonalEscrowVault for 24h PoR checks and expired-lock refunds. Backend `automation.service.ts` detects upkeep and reduces off-chain cron to 30-min safety net — **COMPLETED 2026-03-04**
+- [x] **Real Chainlink Automation** — Live upkeep (ID `21294876…55922`, 10 LINK, Active) on PersonalEscrowVaultUpkeep for 24h PoR checks and expired-lock refunds. Backend detects upkeep and reduces off-chain cron to 30-min safety net — **COMPLETED 2026-03-04**
 
 ---
 

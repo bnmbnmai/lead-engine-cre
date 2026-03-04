@@ -1,6 +1,6 @@
 # FINAL_VERIFICATION_LOG.md — Zero-Assumption Codebase Audit
 
-> **Generated**: 2 March 2026 | **Last Updated**: 4 March 2026 (VRF real integration) | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
+> **Generated**: 2 March 2026 | **Last Updated**: 4 March 2026 (all Chainlink services live) | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
 
 ---
 
@@ -13,6 +13,7 @@
 - **Atomic USDC Settlement + Batched PoR SOLVENT** — PersonalEscrowVault locks at bid, releases on close; batched Proof-of-Reserves verifies all escrows are solvent per cycle
 - **CRE DON 7-Gate Quality Scoring** — deterministic buyer-rule evaluation inside the Chainlink DON (vertical, geo, state, quality, off-site, verified, field-filters) with winner-only PII decrypt via CRE Confidential Compute
 - **On-Chain Bounty Payouts** — VerticalBountyPool auto-matches and settles additional USDC rewards to sellers ($30 paid in latest run)
+- **Live Chainlink Automation** — Dedicated `PersonalEscrowVaultUpkeep` contract (upkeep `21294876…55922`, 10 LINK funded, Active) runs 24h Proof-of-Reserves checks and auto-refunds expired bid locks. [Verifiable on automation.chain.link](https://automation.chain.link/base-sepolia/21294876610015716277122175951088366648605324800147651647408453016017624655922).
 - **Recycling-Guarded 1-Click Demo** — clean UI with unified stats bar, truthful 3-state NFT column (green/yellow/grey), no overlapping elements, and Run Again button properly gated until full background recycle completes
 - **994/994 Tests** — 40 test suites, 8 deployed contracts, multi-track eligibility (CRE, Tokenization, DeFi, Privacy, Autonomous Agents)
 
@@ -514,7 +515,7 @@ Vault reconciliation (PoR checks + expired lock refunds) ran entirely off-chain 
 
 ### Fix Applied
 1. **New `PersonalEscrowVaultUpkeep.sol`** — Dedicated upkeep contract at [`0x9A565d0d...b700`](https://sepolia.basescan.org/address/0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700) that delegates to the vault's `checkUpkeep`/`performUpkeep`. Source-verified on Basescan (Exact Match).
-2. **Upkeep registered** at `automation.chain.link` on Base Sepolia, funded with LINK
+2. **Upkeep registered and LIVE** — ID `21294876610015716277122175951088366648605324800147651647408453016017624655922`, 10 LINK funded, Status: Active. [Dashboard →](https://automation.chain.link/base-sepolia/21294876610015716277122175951088366648605324800147651647408453016017624655922)
 3. **`automation.service.ts`** — Detects upkeep via `AUTOMATION_UPKEEP_ID` env var; reads vault PoR state on startup
 4. **`vault-reconciliation.service.ts`** — Reduces cron to 30-min safety net when Automation active; keeps 5-min primary when not
 5. **`index.ts`** — Initializes automation detection before vault reconciliation
