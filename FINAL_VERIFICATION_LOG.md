@@ -1,10 +1,12 @@
 # FINAL_VERIFICATION_LOG.md — Zero-Assumption Codebase Audit
 
-> **Generated**: 2 March 2026 | **Last Updated**: 3 March 2026 | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
+> **Generated**: 2 March 2026 | **Last Updated**: 4 March 2026 | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
 
 ---
 
 ## 🏆 Judge Summary — Chainlink Convergence Proof Points
+
+📺 **[Watch the 5-Minute Demo Video](https://youtu.be/0J2GWDbXsFs)** — full end-to-end walkthrough (March 2026 submission)
 
 - **Live VRF v2.5 Tiebreaker** — provably random on-chain tie resolution with visible fulfillment tx ([example](https://sepolia.basescan.org/tx/0x9c0b6e6f4cd45e1b7d8826ac5be639b8bb673416a3914b10cac4aca65fd6a238))
 - **Real ERC-721 LeadNFTv2 Minting** — every auction winner gets a minted NFT on Base Sepolia with green "Minted #N ✓" badges and live Basescan token-page links (tokenIds 1–5 in latest run)
@@ -32,7 +34,7 @@
 
 | Bullet (verbatim) | Status | Evidence |
 |---|---|---|
-| 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). | **Not present** | Grep for `decryptPii`, `permanentPii`, `piiUnlock`, `buyer-vault` returned zero results. PII decryption exists as a one-shot CRE DON call (`DecryptForWinner/main.ts:21`, `demo-panel.routes.ts:1182`) but no persistent storage or toggle. |
+| 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). | **Partially implemented** | Winner-only PII decryption is live and verified (commit `0f640d7`): `demo-panel.routes.ts` now decrypts real encrypted PII from `lead.encryptedData` via `privacyService.decryptLeadPII()` for hosted lander/API leads. Falls back to synthetic PII for demo-drip leads. Persistent buyer-vault storage and toggle UI remain roadmap items. |
 | **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action. | **Not present** | No bulk/batch PII decrypt endpoint or UI component found. |
 | Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview. | **Not present** | `auto-bid.service.ts` exists (16 KB) with 7-gate evaluation logic. No visual rule builder, drag-and-drop, or live preview code found in `frontend/src/`. |
 | **Marketplace Bounty Boost Badges** — leads matching active bounty criteria display a "💰 Bounty Boost" badge. | **Not present** | Grep for "Bounty Boost" returned results ONLY in `ROADMAP.md` lines 69 and 182. No frontend component or backend flag. |
@@ -46,8 +48,8 @@
 | Bullet (verbatim) | Status | Evidence |
 |---|---|---|
 | White-label verticals: one-click marketplace rebranding for insurers, banks, or lead aggregators. | **Not present** | Grep for "white-label" in project `*.ts`/`*.sol`/`*.js` returned zero results (hits only in `cre-templates/` which are Chainlink example templates, not project code). |
-| Secondary NFT market for lead resale with 2% royalties. | **Not present** | `LeadNFTv2` contract exists with ERC-2981 royalty standard (referenced in CONTRACTS.md line 13), but no secondary marketplace UI, listing endpoint, or resale flow code found in `backend/src/` or `frontend/src/`. |
-| Fractional ownership via ERC-3643 compliance. | **Not present** | Grep for `ERC-3643` in project `*.ts`/`*.sol`/`*.js` returned zero results. Only referenced in documentation (README.md) as a claim. |
+| Secondary NFT market for lead resale with 2% royalties. | **Not present** | `LeadNFTv2` contract has ERC-2981 royalty standard on-chain, but no secondary marketplace UI or resale flow. Roadmap only. |
+| Fractional ownership via ERC-3643 compliance. | **Not present — roadmap only** | No ERC-3643 code exists. Removed from README (commit `77a7fe2`) to avoid over-claims. Remains a roadmap item. |
 | Cross-chain settlement via CCIP for multi-chain USDC. | **Not present** | Grep for `CCIP` in project code returned results ONLY in `cre-templates/starter-templates/stablecoin-ace-ccip/` (Chainlink example templates). No CCIP integration in project contracts or backend. |
 
 ---
@@ -101,13 +103,13 @@
 | Contract | CONTRACTS.md (Canonical) | README.md (line) | Match? |
 |---|---|---|---|
 | CREVerifier | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` | `0xfec22A5159E077d7016AAb5fC3E91e0124393af8` (L157) | ✅ Match |
-| BountyMatcher | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | `0x897f8C0e6Ce9c4B2F73b25E7a0250aa6d5be08d4` (L158) | ❌ **MISMATCH** |
-| PersonalEscrowVault | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | `0x56bB31028EfE8B0e6e8ec02d1e0A0D1C48a0EF8C` (L159) | ❌ **MISMATCH** |
-| VRFTieBreaker | `0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` | `0x86c8f3CdC4E3c2536d87A94c8166E249B7ca930e` (L160) | ❌ **MISMATCH** |
-| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | `0xAea259fe9329DcD8c01c0b0c7B7c0178B3Fc02b7` (L162) | ❌ **MISMATCH** |
-| LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | `0x73ebD9Cd7C3e2A3c5f29f1bA48bF15E0e7C4b16d` (L166) | ❌ **MISMATCH** |
+| BountyMatcher | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | ✅ Slim table links to CONTRACTS.md | ✅ **FIXED** (commit `77a7fe2`) |
+| PersonalEscrowVault | `0x56bB31bE214C54ebeCA55cd86d86512b94310F8C` | ✅ | ✅ **FIXED** |
+| VRFTieBreaker | `0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8` | ✅ | ✅ **FIXED** |
+| ACECompliance | `0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6` | ✅ | ✅ **FIXED** |
+| LeadNFTv2 | `0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155` | ✅ | ✅ **FIXED** |
 
-**5 of 6 contract addresses in README.md do NOT match CONTRACTS.md canonical addresses.** Only CREVerifier matches.
+**✅ All contract addresses now resolved.** README uses a slim summary table with full details in CONTRACTS.md (commit `77a7fe2`).
 
 ---
 
@@ -161,16 +163,16 @@ Replace README.md lines 155–168 with:
 | Check | Result |
 |---|---|
 | CONTRACTS.md addresses verified in `.env` and deploy scripts | ✅ 7/7 found (1 with naming confusion) |
-| README.md matches CONTRACTS.md | ❌ **5 of 6 addresses WRONG** |
+| README.md matches CONTRACTS.md | ✅ **Fixed** — README rewritten with slim table linking to CONTRACTS.md (commit `77a7fe2`) |
 | Corrected README table provided | ✅ See Section 3 above |
 
 ---
 
 ## 5. Critical Gaps Requiring Attention
 
-> [!CAUTION]
-> ### 1. README Contract Addresses Are Wrong
-> 5 of 6 contract addresses in the README Chainlink Integration table point to incorrect addresses. This is the highest-priority fix for submission.
+> [!NOTE]
+> ### 1. ~~README Contract Addresses Are Wrong~~ — RESOLVED
+> Fixed in commit `77a7fe2`. README now uses a slim summary table (Service | Contract | Verified ✅) with full addresses in CONTRACTS.md.
 
 > [!WARNING]
 > ### 2. Scaling Section Overclaims
@@ -305,7 +307,7 @@ Added `VRF_TIE_BREAKER_ADDRESS=0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e` to `b
 | `README.md:160` | Added "addr reused from old CRE; Basescan-verified as VRFTieBreaker" to status |
 | `backend/.env:48-50` | Added `VRF_TIE_BREAKER_ADDRESS` with correct address + comment explaining the name mismatch |
 
-> **Note:** CRE workflows use local simulation + hybrid fallback (full DON deployment pending Early Access approval — see FINAL_VERIFICATION_LOG.md for details).
+> **Note:** CRE workflows use local simulation + hybrid fallback. The `afterLeadCreated()` hook now fires unconditionally on all lead paths (commit `918aae6`), ensuring every lead — demo, hosted lander, or API — goes through the same CRE quality scoring pipeline.
 
 ---
 
