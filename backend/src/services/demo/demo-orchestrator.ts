@@ -1575,7 +1575,9 @@ export async function runFullDemo(
                             firstMintedLeadId = cr.leadId;
                         }
                     } else {
-                        console.warn(`[NFT] Cycle ${cr.cycle} mint failed (non-fatal): ${mintResult.error?.slice(0, 100)}`);
+                        // Capture txHash even on failure (reverted tx still visible on Basescan)
+                        if (mintResult.txHash) cr.mintTxHash = mintResult.txHash;
+                        console.warn(`[NFT] Cycle ${cr.cycle} mint failed (non-fatal): ${mintResult.error?.slice(0, 100)}${mintResult.txHash ? ` txHash=${mintResult.txHash.slice(0, 16)}` : ''}`);
                     }
                 } catch (mintErr: any) {
                     console.warn(`[NFT] Cycle ${cr.cycle} mint error (non-fatal): ${mintErr.message?.slice(0, 100)}`);

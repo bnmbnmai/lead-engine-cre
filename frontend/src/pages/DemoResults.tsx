@@ -583,18 +583,21 @@ export default function DemoResults() {
                                                 )}
                                             </td>
 
-                                            {/* NFT — consistent Minted ✓ badge or pending */}
+                                            {/* NFT — 3-state: green Minted #N / yellow Mint Tx / grey pending */}
                                             <td className="px-3 py-3">
                                                 {nftMinted && nftHref ? (
                                                     <a
                                                         href={nftHref}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        title={cycle.nftTokenId != null ? `LeadNFTv2 #${cycle.nftTokenId}` : 'View mint tx'}
-                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:text-emerald-300 transition"
+                                                        title={cycle.nftTokenId != null ? `LeadNFTv2 #${cycle.nftTokenId}` : 'View mint tx on Basescan'}
+                                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition ${cycle.nftTokenId != null
+                                                                ? 'bg-emerald-500/10 text-emerald-400 hover:text-emerald-300'
+                                                                : 'bg-yellow-500/10 text-yellow-400 hover:text-yellow-300'
+                                                            }`}
                                                     >
                                                         <CheckCircle2 className="h-3 w-3" />
-                                                        Minted{cycle.nftTokenId != null ? ` #${cycle.nftTokenId}` : ''}
+                                                        {cycle.nftTokenId != null ? `Minted #${cycle.nftTokenId}` : 'NFT Mint Tx'}
                                                         <ExternalLink className="h-3 w-3" />
                                                     </a>
                                                 ) : (
@@ -632,8 +635,8 @@ export default function DemoResults() {
                                                         rel="noopener noreferrer"
                                                         title="Batch Proof-of-Reserves — verifies all escrows are solvent"
                                                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition ${cycle.porSolvent
-                                                                ? 'bg-emerald-500/10 text-emerald-400 hover:text-emerald-300'
-                                                                : 'bg-red-500/10 text-red-400 hover:text-red-300'
+                                                            ? 'bg-emerald-500/10 text-emerald-400 hover:text-emerald-300'
+                                                            : 'bg-red-500/10 text-red-400 hover:text-red-300'
                                                             }`}
                                                     >
                                                         {cycle.porSolvent
@@ -645,8 +648,8 @@ export default function DemoResults() {
                                                     </a>
                                                 ) : (
                                                     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium ${cycle.porSolvent
-                                                            ? 'bg-emerald-500/10 text-emerald-400'
-                                                            : 'bg-red-500/10 text-red-400'
+                                                        ? 'bg-emerald-500/10 text-emerald-400'
+                                                        : 'bg-red-500/10 text-red-400'
                                                         }`} title="Batch Proof-of-Reserves — verifies all escrows are solvent">
                                                         {cycle.porSolvent
                                                             ? <CheckCircle2 className="h-3 w-3" />
