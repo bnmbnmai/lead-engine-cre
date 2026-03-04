@@ -59,12 +59,12 @@ curl -X POST http://localhost:3002/ \
   }'
 ```
 
-### Production Endpoint (Render)
+### Production Endpoint
 
 ```
-https://lead-engine-api.onrender.com
+https://api.leadrtb.com
 ```
-*(The MCP server runs in-process with the backend on Render — no separate port in production.)*
+*(The MCP server runs in-process with the backend — no separate port in production.)*
 
 ---
 
@@ -279,7 +279,7 @@ Agents can subscribe to real-time lead and auction events via **Socket.IO** (sam
 ```javascript
 import { io } from 'socket.io-client';
 
-const socket = io('wss://lead-engine-api.onrender.com', {
+const socket = io('wss://api.leadrtb.com', {
   auth: { token: JWT }
 });
 

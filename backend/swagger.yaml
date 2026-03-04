@@ -24,7 +24,7 @@ info:
 servers:
   - url: http://localhost:3001
     description: Local development
-  - url: https://lead-engine-cre-api.onrender.com
+  - url: https://api.leadrtb.com
     description: Production
 
 tags:

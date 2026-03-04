@@ -96,6 +96,7 @@ app.use(helmet({
 const ALLOWED_ORIGINS = [
     'https://leadrtb.com',
     'https://www.leadrtb.com',
+    'https://api.leadrtb.com',
     'https://lead-engine-cre-frontend.vercel.app',
     // Vercel preview deployments
     'https://lead-engine-cre-frontend-li2y9pn8j-bruces-projects-8c801e4b.vercel.app',
@@ -172,7 +173,7 @@ const healthHandler = async (_req: Request, res: Response) => {
             status: 'ok',
             timestamp: new Date().toISOString(),
             version: '1.1.0',
-            service: 'lead-engine-cre-api',
+            service: 'leadrtb-api',
             database: 'connected',
             socket: 'active',
         });

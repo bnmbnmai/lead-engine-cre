@@ -22,7 +22,7 @@ dotenv.config({ path: "../backend/.env" });
 // ── Config ──────────────────────────────────────────────
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const CRE_API_KEY = process.env.CRE_API_KEY;
-const API_BASE_URL = process.env.API_BASE_URL || "https://lead-engine-cre-api.onrender.com";
+const API_BASE_URL = process.env.API_BASE_URL || "https://api.leadrtb.com";
 const CHTT_ENCLAVE_SECRET = process.env.CHTT_ENCLAVE_SECRET;
 
 // Base Sepolia — official Chainlink Functions addresses
