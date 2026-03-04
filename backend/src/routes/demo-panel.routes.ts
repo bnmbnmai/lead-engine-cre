@@ -571,7 +571,7 @@ router.post('/cre-mode', authMiddleware, publicDemoBypass, async (req: Request, 
 
 router.get('/demo-wallets', (_req: Request, res: Response) => {
     res.json({
-        seller: DEMO_WALLETS.PANEL_USER,
+        seller: DEMO_WALLETS.SELLER,
         deployer: DEMO_WALLETS.SELLER_KYC,
         buyers: DEMO_BUYERS.map(b => b.wallet),
     });
