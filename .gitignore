@@ -6,6 +6,7 @@ node_modules/
 # Local-only scripts (contain private keys — never commit)
 scripts/sweep-usdc-to-deployer.mjs
 faucet-wallets.txt
+docs-overhaul.md
 
 # Environment files — NEVER commit secrets
 
