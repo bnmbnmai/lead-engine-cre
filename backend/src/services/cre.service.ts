@@ -1227,11 +1227,12 @@ class CREService {
     // ─── Centralized CRE Hook: fire on every lead creation ───
     /**
      * Call this after every `prisma.lead.create()` across all entry paths
-     * (API, lander, webhook, demo). When CRE_WORKFLOW_ENABLED=true, fires
-     * triggerBuyerRulesWorkflow().  Fire-and-forget — never blocks the caller.
+     * (API, lander, webhook, demo). Always fires triggerBuyerRulesWorkflow()
+     * which internally handles both CRE-enabled (7-gate DON path) and
+     * CRE-disabled (direct evaluateLeadForAutoBid fallback) modes.
+     * Fire-and-forget — never blocks the caller.
      */
     afterLeadCreated(leadId: string): void {
-        if (!CRE_WORKFLOW_ENABLED) return;
         this.triggerBuyerRulesWorkflow(leadId)
             .then(r => {
                 console.log(`[CRE] afterLeadCreated: ${leadId} → ${r.matchedSets}/${r.totalPreferenceSets} matched, ${r.bidsPlaced} bids placed`);
