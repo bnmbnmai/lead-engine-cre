@@ -1103,6 +1103,7 @@ export async function runFullDemo(
         const processedLeadIds = new Set<string>();
         const buyerRoundRobinOffset = 0;
         let settlementCycle = 0;
+        let vrfTieForced = false; // Track whether we've already forced a VRF tie this run
 
         emit(io, { ts: new Date().toISOString(), level: 'step', message: `🏁 Natural settlement monitor started — auctions settle as they expire over ${DEMO_DURATION_MS / 60000} min` });
         emitStatus(io, { running: true, phase: 'on-chain', runId, percent: 0 });
@@ -1158,12 +1159,13 @@ export async function runFullDemo(
             const readyBuyers = registryBids.length;
 
             // ── VRF Tie Guarantee (settlement-time) ─────────────────────
-            // On the 3rd settled cycle, force the top two confirmed bids to
-            // have the same amount. This is deterministic (operates on bids
-            // that already landed on-chain) and immune to nonce contention.
-            const VRF_TIE_FORCE_ON_CYCLE = 3;
-            if (settlementCycle === VRF_TIE_FORCE_ON_CYCLE && sortedBids.length >= 2) {
+            // Force a tie on the FIRST cycle that has ≥2 confirmed bids.
+            // (Old approach used fixed cycle 3, which failed when cycle 3
+            // only had 1 bid due to nonce contention.)
+            if (!vrfTieForced && sortedBids.length >= 2) {
                 sortedBids[1].amount = sortedBids[0].amount;
+                vrfTieForced = true;
+                console.log(`[DEMO VRF] 🎯 Forced tie on cycle ${settlementCycle}: set bid[1] to $${sortedBids[0].amount} (matching bid[0])`);
             }
 
             // Detect tiebreaker (two bids at the same max amount)
