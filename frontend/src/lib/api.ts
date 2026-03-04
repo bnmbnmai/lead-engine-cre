@@ -124,6 +124,8 @@ export const api = {
         return apiFetch<{ asks: any[]; pagination: any }>(`/api/v1/asks${query}`);
     },
 
+    listMyAsks: () => apiFetch<{ asks: any[]; pagination: any }>('/api/v1/asks/my'),
+
     createAsk: (data: any) =>
         apiFetch<{ ask: any }>('/api/v1/asks', {
             method: 'POST',

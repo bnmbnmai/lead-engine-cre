@@ -18,6 +18,54 @@ import { resolveExpiredAuctions } from '../services/auction-closure.service';
 
 const router = Router();
 
+// Demo mode flag — matches convention used in demo-panel.routes.ts.
+// Default: ON (for hackathon). Set DEMO_MODE=false to disable.
+const IS_DEMO_MODE = process.env.DEMO_MODE !== 'false';
+
+// ============================================
+// List My Asks (Seller's Own Funnels)
+// ============================================
+
+router.get('/asks/my', authMiddleware, requireSeller, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const seller = await prisma.sellerProfile.findFirst({ where: { user: { id: req.user!.id } } });
+        if (!seller) {
+            res.json({ asks: [], pagination: { total: 0, limit: 50, offset: 0, hasMore: false } });
+            return;
+        }
+
+        // In demo mode, show ALL asks so the seller can manage seed data too
+        const where = IS_DEMO_MODE ? {} : { sellerId: seller.id };
+
+        const [asks, total] = await Promise.all([
+            prisma.ask.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+                include: {
+                    seller: {
+                        select: {
+                            companyName: true,
+                            reputationScore: true,
+                            isVerified: true,
+                        },
+                    },
+                    _count: { select: { leads: true } },
+                },
+            }),
+            prisma.ask.count({ where }),
+        ]);
+
+        res.json({
+            asks,
+            pagination: { total, limit: 100, offset: 0, hasMore: false },
+        });
+    } catch (error) {
+        console.error('List my asks error:', error);
+        res.status(500).json({ error: 'Failed to list asks' });
+    }
+});
+
 // ============================================
 // List Asks (Marketplace Listings)
 // ============================================
@@ -120,16 +168,18 @@ router.post('/asks', authMiddleware, requireSeller, async (req: AuthenticatedReq
             return;
         }
 
-        // Check KYC
-        const kycValid = await aceService.isKYCValid(req.user!.walletAddress);
-        if (!kycValid) {
-            res.status(403).json({
-                error: 'KYC verification must be completed before creating listings.',
-                code: 'KYC_REQUIRED',
-                resolution: 'Complete your identity verification through the ACE compliance flow. KYC results are cached on-chain for 1 year after approval.',
-                action: { label: 'Start KYC', href: '/profile/kyc' },
-            });
-            return;
+        // Check KYC (bypass in demo mode — demo-login already sets VERIFIED status)
+        if (!IS_DEMO_MODE) {
+            const kycValid = await aceService.isKYCValid(req.user!.walletAddress);
+            if (!kycValid) {
+                res.status(403).json({
+                    error: 'KYC verification must be completed before creating listings.',
+                    code: 'KYC_REQUIRED',
+                    resolution: 'Complete your identity verification through the ACE compliance flow. KYC results are cached on-chain for 1 year after approval.',
+                    action: { label: 'Start KYC', href: '/profile/kyc' },
+                });
+                return;
+            }
         }
 
         const ask = await prisma.ask.create({
@@ -212,7 +262,8 @@ router.put('/asks/:id', authMiddleware, requireSeller, async (req: Authenticated
 
         const ask = await prisma.ask.findUnique({ where: { id: req.params.id } });
         if (!ask) { res.status(404).json({ error: 'Ask not found' }); return; }
-        if (ask.sellerId !== seller.id) { res.status(403).json({ error: 'Not your ask' }); return; }
+        // Ownership check — relaxed in demo mode so any demo seller can edit seed data
+        if (ask.sellerId !== seller.id && !IS_DEMO_MODE) { res.status(403).json({ error: 'Not your ask' }); return; }
 
         const { reservePrice, buyNowPrice, acceptOffSite, geoTargets, status, parameters } = req.body;
         const updateData: any = {};
@@ -245,7 +296,8 @@ router.delete('/asks/:id', authMiddleware, requireSeller, async (req: Authentica
             include: { leads: { where: { status: 'IN_AUCTION' }, select: { id: true }, take: 1 } },
         });
         if (!ask) { res.status(404).json({ error: 'Ask not found' }); return; }
-        if (ask.sellerId !== seller.id) { res.status(403).json({ error: 'Not your ask' }); return; }
+        // Ownership check — relaxed in demo mode
+        if (ask.sellerId !== seller.id && !IS_DEMO_MODE) { res.status(403).json({ error: 'Not your ask' }); return; }
         if (ask.leads.length > 0) { res.status(409).json({ error: 'Cannot delete ask with active auctions' }); return; }
 
         await prisma.ask.delete({ where: { id: req.params.id } });

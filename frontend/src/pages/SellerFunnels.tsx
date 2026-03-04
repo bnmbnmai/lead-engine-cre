@@ -118,7 +118,7 @@ export default function SellerFunnels() {
     const loadFunnels = useCallback(async () => {
         setListLoading(true);
         try {
-            const { data } = await api.listAsks();
+            const { data } = await api.listMyAsks();
             setFunnels(data?.asks || []);
         } catch {
             // silent
