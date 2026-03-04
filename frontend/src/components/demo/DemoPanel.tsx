@@ -320,7 +320,7 @@ export function DemoPanel() {
                     if (import.meta.env.DEV) console.warn('[DemoPanel] Demo login failed:', data.error);
                     localStorage.setItem('le_auth_user', JSON.stringify({
                         id: `demo-${persona}`,
-                        walletAddress: persona === 'buyer' ? '0x424CaC929939377f221348af52d4cb1247fE4379' : '0x6BBcf283847f409a58Ff984A79eFD5719D3A9F70',
+                        walletAddress: persona === 'buyer' ? '0x424CaC929939377f221348af52d4cb1247fE4379' : '0x9bb15f98982715e33a2113a35662036528ee0a36',
                         role,
                         kycStatus: 'VERIFIED',
                     }));

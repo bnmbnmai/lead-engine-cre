@@ -207,6 +207,30 @@ router.post('/demo-login', async (req: Request, res: Response) => {
                     kycStatus: 'VERIFIED',
                 },
             });
+
+            // Register KYC compliance check so aceService.isKYCValid() passes.
+            // This avoids needing any IS_DEMO_MODE bypass in marketplace routes.
+            const existingKyc = await prisma.complianceCheck.findFirst({
+                where: {
+                    entityType: 'user',
+                    entityId: walletAddress.toLowerCase(),
+                    checkType: 'KYC',
+                    status: 'PASSED',
+                    expiresAt: { gt: new Date() },
+                },
+            });
+            if (!existingKyc) {
+                await prisma.complianceCheck.create({
+                    data: {
+                        entityType: 'user',
+                        entityId: walletAddress.toLowerCase(),
+                        checkType: 'KYC',
+                        status: 'PASSED',
+                        checkedAt: new Date(),
+                        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+                    },
+                });
+            }
         }
 
         // Generate real JWT
@@ -670,12 +694,14 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
             clearAllCaches();
         }
 
-        // Find or create a demo user + profiles
-        let demoUser = await prisma.user.findFirst({ where: { walletAddress: DEMO_WALLETS.PANEL_USER } });
+        // Find or create a demo user + profiles using DEMO_WALLETS.SELLER (Wallet 11)
+        // This is the canonical demo seller identity — same wallet used by demo-login
+        // so ownership checks pass naturally (no IS_DEMO_MODE bypasses needed).
+        let demoUser = await prisma.user.findFirst({ where: { walletAddress: DEMO_WALLETS.SELLER } });
         if (!demoUser) {
             demoUser = await prisma.user.create({
                 data: {
-                    walletAddress: DEMO_WALLETS.PANEL_USER,
+                    walletAddress: DEMO_WALLETS.SELLER,
                     role: 'SELLER',
                     sellerProfile: {
                         create: {
@@ -685,29 +711,15 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
                             kycStatus: 'VERIFIED',
                         },
                     },
-                    buyerProfile: {
-                        create: {
-                            companyName: 'Demo Buyer Corp.',
-                            verticals: VERTICALS,
-                            acceptOffSite: true,
-                            kycStatus: 'VERIFIED',
-                        },
-                    },
                 },
-                include: { sellerProfile: true, buyerProfile: true },
+                include: { sellerProfile: true },
             });
         } else {
-            // Ensure profiles exist for previously created user
+            // Ensure seller profile exists for previously created user
             const existingSeller = await prisma.sellerProfile.findFirst({ where: { userId: demoUser.id } });
             if (!existingSeller) {
                 await prisma.sellerProfile.create({
                     data: { userId: demoUser.id, companyName: 'Demo Seller Co.', verticals: VERTICALS, isVerified: true, kycStatus: 'VERIFIED' },
-                });
-            }
-            const existingBuyer = await prisma.buyerProfile.findFirst({ where: { userId: demoUser.id } });
-            if (!existingBuyer) {
-                await prisma.buyerProfile.create({
-                    data: { userId: demoUser.id, companyName: 'Demo Buyer Corp.', verticals: VERTICALS, acceptOffSite: true, kycStatus: 'VERIFIED' },
                 });
             }
         }
