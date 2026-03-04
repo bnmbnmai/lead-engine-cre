@@ -1173,19 +1173,26 @@ export async function runFullDemo(
                 const tiedCandidates = sortedBids
                     .filter(b => b.amount === sortedBids[0].amount)
                     .map(b => b.addr);
-                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${tiedCandidates.length} bidders at $${sortedBids[0].amount} — requesting on-chain VRF tiebreaker`, cycle: settlementCycle, totalCycles: 0 });
+
+                console.log(`[DEMO VRF] 🎲 Tie detected on cycle ${settlementCycle}: ${tiedCandidates.length} bidders at $${sortedBids[0].amount}`);
+                console.log(`[DEMO VRF] 🔧 isVrfConfigured()=${isVrfConfigured()}, VRF_TIE_BREAKER_ADDRESS=${process.env.VRF_TIE_BREAKER_ADDRESS ? 'SET' : 'MISSING'}, DEPLOYER_PRIVATE_KEY=${process.env.DEPLOYER_PRIVATE_KEY ? 'SET' : 'MISSING'}`);
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⚡ Tie detected — ${tiedCandidates.length} bidders at $${sortedBids[0].amount} — VRF configured: ${isVrfConfigured()}`, cycle: settlementCycle, totalCycles: 0 });
 
                 // ── Real VRF Tiebreaker Call ──────────────────────────
                 if (demoLeadId && isVrfConfigured()) {
                     try {
+                        console.log(`[DEMO VRF] 📡 Calling requestTieBreak(${demoLeadId}, [${tiedCandidates.map(a => a.slice(0, 10)).join(', ')}], AUCTION_TIE)...`);
                         const vrfTxHash = await requestTieBreak(demoLeadId, tiedCandidates, ResolveType.AUCTION_TIE);
+                        console.log(`[DEMO VRF] 📡 requestTieBreak returned: ${vrfTxHash}`);
                         if (vrfTxHash) {
                             realVrfTxHash = vrfTxHash;
-                            emit(io, { ts: new Date().toISOString(), level: 'success', message: `🎲 VRF request sent — tx: ${vrfTxHash.slice(0, 18)}… — waiting for DON fulfillment…`, cycle: settlementCycle, totalCycles: 0, data: { txHash: vrfTxHash, basescanUrl: `https://sepolia.basescan.org/tx/${vrfTxHash}` } });
+                            emit(io, { ts: new Date().toISOString(), level: 'success', message: `🎲 VRF request tx confirmed: ${vrfTxHash.slice(0, 18)}… — polling for DON fulfillment…`, cycle: settlementCycle, totalCycles: 0, data: { txHash: vrfTxHash, basescanUrl: `https://sepolia.basescan.org/tx/${vrfTxHash}` } });
 
                             // Wait for VRF fulfillment (15s timeout, 2s poll)
+                            console.log(`[DEMO VRF] ⏳ Waiting for VRF fulfillment (15s timeout)...`);
                             const vrfWinner = await waitForResolution(demoLeadId, 15_000, 2_000);
                             if (vrfWinner) {
+                                console.log(`[DEMO VRF] ✅ VRF fulfilled! Winner: ${vrfWinner}`);
                                 emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ VRF Winner selected by DON: ${vrfWinner.slice(0, 10)}… — reordering bids`, cycle: settlementCycle, totalCycles: 0 });
                                 // Reorder sortedBids so VRF winner is first
                                 const vrfWinnerLower = vrfWinner.toLowerCase();
@@ -1195,18 +1202,24 @@ export async function runFullDemo(
                                     sortedBids.unshift(winner);
                                 }
                             } else {
-                                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⏱ VRF fulfillment timed out — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                                console.log(`[DEMO VRF] ⏱ VRF fulfillment timed out after 15s — using first-lock-wins`);
+                                emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⏱ VRF fulfillment timed out — VRF request tx: ${vrfTxHash.slice(0, 18)}… (fulfillment pending) — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
                             }
                         } else {
-                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF request returned null — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                            console.log(`[DEMO VRF] ⚠️ requestTieBreak returned null — VRF call may have failed silently`);
+                            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF request returned null — see server logs for details`, cycle: settlementCycle, totalCycles: 0 });
                         }
                     } catch (vrfErr: any) {
-                        console.error(`[DEMO VRF] Error during real VRF call:`, vrfErr.message);
-                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF call failed: ${vrfErr.message?.slice(0, 80)} — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                        console.error(`[DEMO VRF] ❌ VRF call threw:`, vrfErr.message);
+                        emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF call failed: ${vrfErr.message?.slice(0, 120)} — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
                     }
-                } else if (!isVrfConfigured()) {
-                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF not configured — falling back to first-lock-wins`, cycle: settlementCycle, totalCycles: 0 });
+                } else {
+                    const reason = !demoLeadId ? 'no leadId' : 'VRF not configured (env vars missing)';
+                    console.warn(`[DEMO VRF] ⚠️ Skipping real VRF call: ${reason}. VRF_TIE_BREAKER_ADDRESS=${process.env.VRF_TIE_BREAKER_ADDRESS ? 'SET' : 'MISSING'}, DEPLOYER_PRIVATE_KEY=${process.env.DEPLOYER_PRIVATE_KEY ? 'SET' : 'MISSING'}`);
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ VRF skipped: ${reason}`, cycle: settlementCycle, totalCycles: 0 });
                 }
+            } else {
+                console.log(`[DEMO VRF] ℹ️ No tie on cycle ${settlementCycle} (${sortedBids.length} bids, top=${sortedBids[0]?.amount}, 2nd=${sortedBids[1]?.amount ?? 'N/A'})`);
             }
 
             // Re-derive winner/losers after potential VRF reorder

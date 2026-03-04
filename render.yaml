@@ -79,13 +79,12 @@ services:
       # Functions subscription: 581 (shared with CREVerifier)
       - key: FUNCTIONS_SUBSCRIPTION_ID
         value: "581"
-      # ── VRF Tiebreaker ────────────────────────────────────────────────
-      # Set manually: VRFTieBreaker contract address on Base Sepolia
+      # ── VRF Tiebreaker ──────────────────────────────────────────────────────────────────
       - key: VRF_TIE_BREAKER_ADDRESS
-        sync: false
-      # Chainlink VRF v2.5 subscription ID (numeric)
+        value: "0x6DE9fd3A54daFB1E145d66F52E538087a3fAEca8"
+      # Chainlink VRF v2.5 subscription ID (numeric) — get from vrf.chain.link
       - key: VRF_SUBSCRIPTION_ID
-        sync: false
+        value: "113264743570594559564982314341877976588830746108914258805903844389838314926501"
       # ── Demo / Platform ───────────────────────────────────────────────
       - key: DEMO_MODE
         sync: false
