@@ -87,7 +87,7 @@ services:
         value: "63254467034236290721147755955934893245396809755548309042861263459757887337113"
       # ── Chainlink Automation ──────────────────────────────────────────────────
       - key: AUTOMATION_UPKEEP_ID
-        sync: false  # Set after registering at automation.chain.link on Base Sepolia
+        value: "21294876610015716277122175951088366648605324800147651647408453016017624655922"
       - key: AUTOMATION_UPKEEP_CONTRACT_ADDRESS
         value: "0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700"
       # ── Demo / Platform ───────────────────────────────────────────────
