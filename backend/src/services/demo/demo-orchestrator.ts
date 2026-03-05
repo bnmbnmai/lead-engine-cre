@@ -1616,9 +1616,7 @@ export async function runFullDemo(
         // Synchronous: mint before emitting results so the frontend sees nftTokenId/mintTxHash.
         // Each lead is non-fatal — failures don't block other mints or the result.
         if (cycleResults.length > 0) {
-            emit(io, { ts: new Date().toISOString(), level: 'step', message: `🔗 Minting LeadNFTs for ${cycleResults.length} settled leads…` });
-            let firstMintedTokenId: number | null = null;
-            let firstMintedLeadId: string | null = null;
+            emit(io, { ts: new Date().toISOString(), level: 'step', message: `🔗 Minting LeadNFTs + CRE quality scores for ${cycleResults.length} settled leads…` });
 
             for (const cr of cycleResults) {
                 if (!cr.leadId) continue;
@@ -1629,9 +1627,16 @@ export async function runFullDemo(
                         cr.mintTxHash = mintResult.txHash ?? undefined;
                         console.log(`[NFT] Cycle ${cr.cycle} mint ✅ tokenId=${cr.nftTokenId} tx=${cr.mintTxHash?.slice(0, 16) ?? '—'}`);
                         emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ Cycle ${cr.cycle} NFT minted — tokenId=${cr.nftTokenId}`, txHash: cr.mintTxHash, cycle: cr.cycle, totalCycles: cycleResults.length });
-                        if (!firstMintedTokenId) {
-                            firstMintedTokenId = cr.nftTokenId;
-                            firstMintedLeadId = cr.leadId;
+
+                        // ── CRE DON quality score — fires unconditionally after every successful mint ──
+                        try {
+                            const creResult = await creService.requestOnChainQualityScore(cr.leadId, cr.nftTokenId, cr.leadId);
+                            if (creResult.submitted) {
+                                console.log(`[CRE-DISPATCH] Cycle ${cr.cycle} CRE score dispatched — requestId=${creResult.requestId}`);
+                                emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ [CRE] Cycle ${cr.cycle} on-chain quality score dispatched — requestId=${creResult.requestId}`, cycle: cr.cycle, totalCycles: cycleResults.length });
+                            }
+                        } catch (creErr: any) {
+                            console.warn(`[CRE-DISPATCH] Cycle ${cr.cycle} CRE error (non-fatal): ${creErr.message?.slice(0, 100)}`);
                         }
                     } else {
                         // Capture txHash even on failure (reverted tx still visible on Basescan)
@@ -1640,18 +1645,6 @@ export async function runFullDemo(
                     }
                 } catch (mintErr: any) {
                     console.warn(`[NFT] Cycle ${cr.cycle} mint error (non-fatal): ${mintErr.message?.slice(0, 100)}`);
-                }
-            }
-
-            // CRE dispatch for first successfully minted lead
-            if (firstMintedTokenId && firstMintedLeadId) {
-                try {
-                    const creResult = await creService.requestOnChainQualityScore(firstMintedLeadId, firstMintedTokenId, firstMintedLeadId);
-                    if (creResult.submitted) {
-                        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ [CRE-DISPATCH] CRE quality score dispatched — requestId=${creResult.requestId}` });
-                    }
-                } catch (creErr: any) {
-                    console.warn(`[CRE-DISPATCH] CRE dispatch error (non-fatal): ${creErr.message?.slice(0, 100)}`);
                 }
             }
         }

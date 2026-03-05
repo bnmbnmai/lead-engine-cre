@@ -25,7 +25,7 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 
 ## Key Features
 
-- **Chainlink CRE Quality Scoring** — Every lead scored by a 7-gate deterministic evaluation inside the Chainlink DON with BFT consensus. No off-chain trust assumptions.
+- **Chainlink CRE Quality Scoring** — Every lead scored by a 7-gate deterministic evaluation inside the Chainlink DON with BFT consensus. On-chain `requestOnChainQualityScore()` fires after every NFT mint. No off-chain trust assumptions.
 - **Winner-Only PII Decryption** — Lead data encrypted at rest; only the auction winner decrypts via CRE Confidential Compute (`encryptOutput: true`).
 - **Atomic USDC Settlement** — PersonalEscrowVault locks funds on-chain at bid time and releases instantly at auction close. No net terms, no chargebacks.
 - **VRF v2.5 Fair Tiebreaking** — Provably random, verifiable on-chain tie resolution.
