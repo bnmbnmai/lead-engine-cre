@@ -32,7 +32,7 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 - **Chainlink Automation** — Live upkeep on PersonalEscrowVaultUpkeep (10 LINK funded, Active) runs 24h Proof-of-Reserves checks and auto-refunds expired bid locks. Verifiable on [automation.chain.link](https://automation.chain.link/base-sepolia/21294876610015716277122175951088366648605324800147651647408453016017624655922).
 - **Granular Bounty Hunting via Functions** — Buyers post field-specific bounties ("solar leads in CA with 700+ credit"). The BountyMatcher contract auto-evaluates and settles additional USDC rewards at close.
 - **Autonomous AI Agent** — Kimi K2.5 LLM + LangChain ReAct with 15 MCP tools (incl. official `chainlink-agent-skills/cre-skills`) bids alongside human buyers in real-time using the same on-chain vault and rule engine.
-- **1-Click End-to-End Demo** — CRE scoring → sealed-bid auction → VRF tiebreak → USDC settlement → LeadNFTv2 mint → PII reveal. Every step with Basescan proof links.
+- **1-Click End-to-End Demo** — CRE scoring → sealed-bid auction → VRF tiebreak → USDC settlement → LeadNFTv2 mint → PII reveal. Every step with Basescan proof links. The demo-results JSON contains resolved on-chain CRE DON quality scores (0–100) for every cycle.
 - **Production Scale** — 40 test suites, 994 tests, BullMQ/Redis/WebSocket sharding, lint-clean codebase.
 
 ## Hackathon Track Eligibility

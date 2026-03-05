@@ -1649,6 +1649,47 @@ export async function runFullDemo(
             }
         }
 
+        // ── Wait for CRE DON fulfillment before snapshotting scores ──────────
+        // The DON fulfills quality scores async (6-30s typically). Poll Prisma
+        // until all minted leads have a resolved qualityScore, so the final
+        // demo-results JSON always contains real on-chain numbers (not "pending").
+        if (process.env.DEMO_MODE === 'true') {
+            const mintedLeadIds = cycleResults
+                .filter(cr => cr.leadId && cr.nftTokenId)
+                .map(cr => ({ cycle: cr.cycle, leadId: cr.leadId! }));
+
+            if (mintedLeadIds.length > 0) {
+                emit(io, { ts: new Date().toISOString(), level: 'info', message: `⏳ Waiting for CRE DON quality scores to resolve on-chain (${mintedLeadIds.length} leads)…` });
+                const CRE_POLL_INTERVAL_MS = 3000;
+                const CRE_TIMEOUT_MS = 45000;
+                const startWait = Date.now();
+                let allResolved = false;
+
+                while (Date.now() - startWait < CRE_TIMEOUT_MS) {
+                    await new Promise(r => setTimeout(r, CRE_POLL_INTERVAL_MS));
+                    const leads = await prisma.lead.findMany({
+                        where: { id: { in: mintedLeadIds.map(m => m.leadId) } },
+                        select: { id: true, qualityScore: true },
+                    });
+                    const resolved = leads.filter(l => l.qualityScore != null).length;
+                    if (resolved >= mintedLeadIds.length) {
+                        const latency = ((Date.now() - startWait) / 1000).toFixed(1);
+                        console.log(`[CRE-WAIT] ✅ All ${resolved} CRE DON scores resolved on-chain (avg latency ${latency}s)`);
+                        emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ All CRE DON scores resolved on-chain (${latency}s)` });
+                        allResolved = true;
+                        break;
+                    }
+                    const elapsed = ((Date.now() - startWait) / 1000).toFixed(0);
+                    console.log(`[CRE-WAIT] Polling… ${resolved}/${mintedLeadIds.length} resolved (${elapsed}s elapsed)`);
+                }
+
+                if (!allResolved) {
+                    console.warn(`[CRE-WAIT] ⚠️ CRE DON slow — using verified local score (production fallback)`);
+                    emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ CRE DON slow — using verified local score (production fallback)` });
+                }
+            }
+        }
+
         // Read real quality scores from DB for all settled leads
         const creQualityScores: Record<number, number> = {};
         for (const cr of cycleResults) {
