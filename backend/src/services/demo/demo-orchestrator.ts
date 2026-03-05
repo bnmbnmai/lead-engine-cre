@@ -1258,9 +1258,9 @@ export async function runFullDemo(
                     cyclePlatformIncome = 0;
                     if (demoLeadId) {
                         await prisma.lead.update({ where: { id: demoLeadId }, data: { status: 'UNSOLD' } }).catch(() => { /* non-fatal */ });
+                        // Flush client timer to 0 so premature-close guard (liveRemainingMs > 5000) passes
+                        io.emit('auction:updated', { leadId: demoLeadId, remainingTime: 0, serverTs: Date.now() });
                         io.emit('auction:closed', { leadId: demoLeadId, status: 'UNSOLD', remainingTime: 0, isClosed: true, serverTs: Date.now() });
-                        // Fix 4: emit leads:updated with final closed state so frontend
-                        // never re-fetches a stale IN_AUCTION snapshot for this lead.
                         io.emit('leads:updated', { leadId: demoLeadId, status: 'UNSOLD', isClosed: true, source: 'auction-closed' });
                         console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (zero locks)`);
                     }
@@ -1442,6 +1442,8 @@ export async function runFullDemo(
                 // AUCTION-SYNC (BUG-C fix): auction:closed emitted AFTER refund loop —
                 // frontend receives final closed state only when all DB writes are complete.
                 if (demoLeadId) {
+                    // Flush client timer to 0 so premature-close guard (liveRemainingMs > 5000) passes
+                    io.emit('auction:updated', { leadId: demoLeadId, remainingTime: 0, serverTs: Date.now() });
                     io.emit('auction:closed', {
                         leadId: demoLeadId,
                         status: 'SOLD',
@@ -1450,10 +1452,8 @@ export async function runFullDemo(
                         settleTxHash: settleReceiptHash,
                         remainingTime: 0,
                         isClosed: true,
-                        serverTs: Date.now(),  // ms epoch
+                        serverTs: Date.now(),
                     });
-                    // Fix 4: emit leads:updated with final closed state so frontend
-                    // never re-fetches a stale IN_AUCTION snapshot for this lead.
                     io.emit('leads:updated', { leadId: demoLeadId, status: 'SOLD', isClosed: true, source: 'auction-closed' });
                     console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} winner=${buyerWallet} amount=${bidAmount} tx=${settleReceiptHash}`);
                 }
@@ -1521,15 +1521,15 @@ export async function runFullDemo(
 
                     // AUCTION-SYNC: closed broadcast for BuyItNow (unsold) path
                     if (demoLeadId) {
+                        // Flush client timer to 0 so premature-close guard (liveRemainingMs > 5000) passes
+                        io.emit('auction:updated', { leadId: demoLeadId, remainingTime: 0, serverTs: Date.now() });
                         io.emit('auction:closed', {
                             leadId: demoLeadId,
                             status: 'UNSOLD',
                             remainingTime: 0,
                             isClosed: true,
-                            serverTs: Date.now(),  // ms epoch
+                            serverTs: Date.now(),
                         });
-                        // Fix 4: emit leads:updated with final closed state so frontend
-                        // never re-fetches a stale IN_AUCTION snapshot for this lead.
                         io.emit('leads:updated', { leadId: demoLeadId, status: 'UNSOLD', isClosed: true, source: 'auction-closed-buynow' });
                         console.log(`[AUCTION-CLOSED] leadId=${demoLeadId} status=UNSOLD (BuyItNow fallback)`);
                     }
@@ -1700,6 +1700,16 @@ export async function runFullDemo(
                         creQualityScores[cr.cycle] = Math.floor(dbLead.qualityScore / 100); // 0-10000 → 0-100
                     }
                 } catch { /* non-fatal */ }
+            }
+        }
+
+        // ── Merge resolved CRE scores into each cycle object ──────────
+        // The creQualityScores map is keyed by cycle number. Inject the real
+        // on-chain score (0-100) into each cycle's qualityScore field so the
+        // demo-results JSON and results table always show real numbers.
+        for (const cr of cycleResults) {
+            if (creQualityScores[cr.cycle] != null) {
+                cr.qualityScore = creQualityScores[cr.cycle];
             }
         }
 

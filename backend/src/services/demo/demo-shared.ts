@@ -153,6 +153,7 @@ export interface CycleResult {
     txStatus?: string;         // 'confirmed' | 'pending'
     bountyAmount?: number;     // bounty reward released to seller for this cycle
     bountyTxHashes?: string[]; // on-chain bounty release tx hashes
+    qualityScore?: number;     // CRE DON quality score (0-100), resolved after NFT mint
 }
 
 export interface DemoResult {
