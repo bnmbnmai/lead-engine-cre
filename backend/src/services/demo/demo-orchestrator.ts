@@ -1707,10 +1707,22 @@ export async function runFullDemo(
         // The creQualityScores map is keyed by cycle number. Inject the real
         // on-chain score (0-100) into each cycle's qualityScore field so the
         // demo-results JSON and results table always show real numbers.
+        // This MUST happen before the result object is constructed below.
         for (const cr of cycleResults) {
             if (creQualityScores[cr.cycle] != null) {
                 cr.qualityScore = creQualityScores[cr.cycle];
             }
+        }
+
+        // ── Defensive: warn if any minted cycle still lacks qualityScore ──
+        const mintedWithoutScore = cycleResults.filter(cr => cr.nftTokenId && cr.qualityScore == null);
+        if (mintedWithoutScore.length > 0) {
+            console.warn(`[CRE-MERGE] ⚠️ ${mintedWithoutScore.length} minted cycle(s) still missing qualityScore after merge: cycles [${mintedWithoutScore.map(c => c.cycle).join(', ')}]`);
+            emit(io, { ts: new Date().toISOString(), level: 'warn', message: `⚠️ ${mintedWithoutScore.length} cycle(s) missing CRE score after merge — DON may still be fulfilling` });
+        } else if (cycleResults.some(cr => cr.qualityScore != null)) {
+            const scored = cycleResults.filter(cr => cr.qualityScore != null).length;
+            console.log(`[CRE-MERGE] ✅ ${scored}/${cycleResults.length} cycles have real on-chain qualityScore`);
+            emit(io, { ts: new Date().toISOString(), level: 'success', message: `✅ ${scored}/${cycleResults.length} cycles have real CRE quality scores in results JSON` });
         }
 
         const result: DemoResult = {
