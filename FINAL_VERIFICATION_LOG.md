@@ -1,6 +1,6 @@
 # FINAL_VERIFICATION_LOG.md — Zero-Assumption Codebase Audit
 
-> **Generated**: 2 March 2026 | **Last Updated**: 4 March 2026 (all Chainlink services live) | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
+> **Generated**: 2 March 2026 | **Last Updated**: 6 March 2026 (unified LeadNFTv2 minting for all winners) | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
 
 ---
 
@@ -535,4 +535,27 @@ Vault reconciliation (PoR checks + expired lock refunds) ran entirely off-chain 
 | `CONTRACTS.md` | 9th contract added, real upkeep note |
 | `README.md` | 9 contracts, Automation feature bullet |
 | `ROADMAP.md` | Marked Automation completed in Phase 0 |
+
+---
+
+## 13. Unified LeadNFTv2 Minting for All Winners (6 March 2026)
+
+### Problem
+
+Only demo leads received a real LeadNFTv2 tokenId in the buyer portfolio. Hosted-lander leads won through the production auction-closure path showed "Lock #XXXX" with an amber badge linking to the Vault contract instead of the purple NFT badge.
+
+**Root cause**: `resolveAuction()` in `auction-closure.service.ts` performed vault settlement (`vaultService.settleBid`) but never called `nftService.mintLeadNFT()`. NFT minting only happened via:
+1. `demo-orchestrator.ts` (demo path — L1489, L1624)
+2. `marketplace.routes.ts` confirm-escrow handler (manual MetaMask path — L2030-2088)
+
+### Fix Applied
+
+| File | Change |
+|------|--------|
+| `auction-closure.service.ts` | Added `nftService.mintLeadNFT()` + `recordSaleOnChain()` + CRE quality score dispatch after vault settlement. Non-blocking with `scheduleMintRetry` fallback. |
+| `BuyerPortfolio.tsx` | NFT badges (table + card views) now link to LeadNFTv2 contract on Basescan. Token IDs displayed in full (not truncated). |
+
+### Expected Result
+
+Every auction winner — demo or manual hosted lander — now receives a real LeadNFTv2 token atomically at settlement. The buyer portfolio displays a purple `#N` badge with a live Basescan link for all purchased leads.
 

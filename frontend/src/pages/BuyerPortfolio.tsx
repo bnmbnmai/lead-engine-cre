@@ -480,15 +480,21 @@ export function BuyerPortfolio() {
                                                 </td>
                                                 <td>
                                                     {lead?.nftTokenId ? (
-                                                        <span className="font-mono text-xs text-violet-400">
-                                                            #{lead.nftTokenId.slice(0, 8)}…
-                                                        </span>
+                                                        <a
+                                                            href={`https://sepolia.basescan.org/token/${lead.nftContractAddr || import.meta.env.VITE_LEAD_NFT_ADDRESS_SEPOLIA || ''}?a=${lead.nftTokenId}`}
+                                                            target="_blank" rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 font-mono text-xs text-violet-400 hover:text-violet-300 transition"
+                                                            title={`LeadNFTv2 #${lead.nftTokenId}`}
+                                                        >
+                                                            #{lead.nftTokenId}
+                                                            <ExternalLink className="h-3 w-3" />
+                                                        </a>
                                                     ) : bid.escrowTxHash?.startsWith('vaultLock:') ? (
                                                         <a
                                                             href={`https://sepolia.basescan.org/address/${import.meta.env.VITE_LEAD_VAULT_ADDRESS || '0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b'}`}
                                                             target="_blank" rel="noopener noreferrer"
                                                             className="inline-flex items-center gap-1 text-amber-400 text-xs hover:text-amber-300 transition"
-                                                            title={`Vault Lock #${bid.escrowTxHash.replace('vaultLock:', '')}`}
+                                                            title={`Vault Lock #${bid.escrowTxHash.replace('vaultLock:', '')} — NFT mint pending`}
                                                         >
                                                             Lock #{bid.escrowTxHash.replace('vaultLock:', '')}
                                                             <ExternalLink className="h-3 w-3" />
@@ -642,15 +648,19 @@ export function BuyerPortfolio() {
 
                                         {/* NFT Badge */}
                                         {lead?.nftTokenId ? (
-                                            <div className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 text-xs font-medium">
+                                            <a
+                                                href={`https://sepolia.basescan.org/token/${lead.nftContractAddr || import.meta.env.VITE_LEAD_NFT_ADDRESS_SEPOLIA || ''}?a=${lead.nftTokenId}`}
+                                                target="_blank" rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-violet-500/10 text-violet-400 text-xs font-medium hover:bg-violet-500/20 transition"
+                                            >
                                                 <ExternalLink className="h-3 w-3" />
-                                                NFT #{lead.nftTokenId.slice(0, 8)}…
+                                                NFT #{lead.nftTokenId}
                                                 {lead.nftContractAddr && (
                                                     <span className="text-[10px] text-muted-foreground ml-auto">
                                                         {lead.nftContractAddr.slice(0, 6)}…{lead.nftContractAddr.slice(-4)}
                                                     </span>
                                                 )}
-                                            </div>
+                                            </a>
                                         ) : (
                                             <div className="flex items-center gap-1.5 mb-3 px-2 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 text-xs font-medium">
                                                 <Loader2 className="h-3 w-3 animate-spin" />

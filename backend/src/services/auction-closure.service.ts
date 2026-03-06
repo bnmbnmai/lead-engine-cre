@@ -18,6 +18,8 @@ import { bountyService } from '../services/bounty.service';
 import { isVrfConfigured, requestTieBreak, ResolveType, startVrfResolutionWatcher } from '../services/vrf.service';
 import { aceDevBus } from '../services/ace.service';
 import * as vaultService from '../services/vault.service';
+import { nftService } from '../services/nft.service';
+import { creService } from '../services/cre.service';
 
 // ============================================
 // Resolve Expired Auctions
@@ -423,6 +425,59 @@ async function resolveAuction(leadId: string, io?: Server) {
         } catch (settleErr: any) {
             // Non-blocking: DB already recorded the win — settlement can be retried
             console.error('[AuctionClosure] Vault settlement error (non-blocking):', settleErr.message);
+        }
+
+        // ── LeadNFTv2 mint — unified with confirm-escrow path ──
+        // Every winner (demo or manual) gets a real on-chain NFT so the portfolio
+        // always displays the purple badge + correct Basescan link.
+        try {
+            const mintResult = await nftService.mintLeadNFT(leadId);
+            if (mintResult.success && mintResult.tokenId) {
+                console.log(`[AuctionClosure] LeadNFT minted — tokenId=${mintResult.tokenId}, txHash=${mintResult.txHash}`);
+                aceDevBus.emit('ace:dev-log', {
+                    ts: new Date().toISOString(),
+                    action: 'nft:mint:success',
+                    leadId,
+                    tokenId: mintResult.tokenId,
+                    txHash: mintResult.txHash,
+                });
+
+                // Record sale on-chain (transfer ownership to buyer)
+                const buyerWallet = winningBid.buyer?.walletAddress;
+                if (buyerWallet && mintResult.tokenId) {
+                    const saleResult = await nftService.recordSaleOnChain(
+                        mintResult.tokenId,
+                        buyerWallet,
+                        winAmount,
+                    );
+                    if (saleResult.success) {
+                        console.log(`[AuctionClosure] Sale recorded on-chain — txHash=${saleResult.txHash}`);
+                    } else {
+                        console.warn(`[AuctionClosure] recordSaleOnChain failed: ${saleResult.error}`);
+                    }
+                }
+
+                // Dispatch CRE quality score request (non-blocking)
+                if (process.env.USE_BATCHED_PRIVATE_SCORE !== 'true') {
+                    creService.requestOnChainQualityScore(leadId, Number(mintResult.tokenId), leadId)
+                        .then((r) => {
+                            if (r.submitted) {
+                                console.log(`[AuctionClosure] CRE submitted — requestId=${r.requestId}`);
+                            } else {
+                                console.warn(`[AuctionClosure] CRE skipped/failed: ${r.error}`);
+                            }
+                        })
+                        .catch((err) => {
+                            console.warn(`[AuctionClosure] CRE threw: ${err.message}`);
+                        });
+                }
+            } else {
+                // BUG-08: Set nftMintFailed flag + schedule retry instead of silent warn.
+                console.warn(`[AuctionClosure] NFT mint failed (non-fatal): ${mintResult.error}`);
+                await nftService.scheduleMintRetry(leadId, mintResult.error || 'unknown mint error');
+            }
+        } catch (mintErr: any) {
+            console.error('[AuctionClosure] NFT mint error (non-blocking):', mintErr.message);
         }
 
         // ── Bounty Release ──

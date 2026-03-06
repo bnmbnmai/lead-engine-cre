@@ -59,6 +59,7 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - [x] **Real PII decryption for hosted lander/API leads** — `POST /leads/:leadId/decrypt-pii` now decrypts actual `lead.encryptedData` via `privacyService.decryptLeadPII()`. Falls back to synthetic PII only for demo-drip leads — **COMPLETED 2026-03-04** (commit `0f640d7`)
 - [x] **NFT Basescan token links** — Fixed env var mismatch (`VITE_LEAD_NFT_ADDRESS` → `VITE_LEAD_NFT_ADDRESS_SEPOLIA`); removed zero-address fallback — **COMPLETED 2026-03-04** (commit `729abf1`)
 - [x] **Real Chainlink Automation** — Live upkeep (ID `21294876…55922`, 10 LINK, Active) on PersonalEscrowVaultUpkeep for 24h PoR checks and expired-lock refunds. Backend detects upkeep and reduces off-chain cron to 30-min safety net — **COMPLETED 2026-03-04**
+- [x] **Unified LeadNFTv2 minting for all winners** — `resolveAuction()` in `auction-closure.service.ts` now calls `mintLeadNFT()` + `recordSaleOnChain()` + CRE dispatch after vault settlement, ensuring every winner (demo or manual hosted-lander) receives a real NFT. Portfolio UI links to LeadNFTv2 contract on Basescan — **COMPLETED 2026-03-06**
 
 ---
 
@@ -211,4 +212,4 @@ LeadRTB is production-ready infrastructure for the tokenized sensitive data econ
 
 ---
 
-*Last updated: 4 March 2026 (documentation polish, YouTube video integration, unified CRE pipeline, real PII decryption, NFT token link fix)*
+*Last updated: 6 March 2026 (unified LeadNFTv2 minting for all winners, documentation polish, YouTube video integration, unified CRE pipeline, real PII decryption, NFT token link fix)*
