@@ -1,6 +1,6 @@
 # DeFi & Tokenization Track
 
-**Prize: $20,000** | LeadRTB — On-chain lead marketplace with atomic USDC settlement and tokenized lead ownership
+LeadRTB — On-chain lead marketplace with atomic USDC settlement and tokenized lead ownership
 
 ---
 

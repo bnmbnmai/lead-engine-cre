@@ -1,6 +1,6 @@
 # Autonomous Agents Track
 
-**Prize: $10,000** | LeadRTB — Kimi K2.5 AI agent with 15 MCP tools bidding alongside human buyers
+LeadRTB — Kimi K2.5 AI agent with 15 MCP tools bidding alongside human buyers
 
 ---
 

@@ -1,6 +1,6 @@
 # CRE & AI Track
 
-**Prize: $20,000** | LeadRTB — 7-gate deterministic buyer-rule evaluation inside the Chainlink DON
+LeadRTB — 7-gate deterministic buyer-rule evaluation inside the Chainlink DON
 
 ---
 

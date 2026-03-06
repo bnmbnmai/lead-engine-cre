@@ -1,6 +1,6 @@
 # Risk & Compliance Track
 
-**Prize: $10,000** | LeadRTB — ACE policy-gated NFT minting with on-chain KYC enforcement
+LeadRTB — ACE policy-gated NFT minting with on-chain KYC enforcement
 
 ---
 

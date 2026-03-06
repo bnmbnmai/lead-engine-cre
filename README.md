@@ -39,10 +39,12 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 
 | Track | Integration |
 |-------|-------------|
-| **Privacy** | Winner-only PII decryption (CRE Confidential Compute); encrypted lead data at rest; CHTT Phase 2 SubtleCrypto |
 | **CRE & AI** | `EvaluateBuyerRulesAndMatch` workflow (7-gate DON evaluation); `DecryptForWinner` confidential output |
 | **DeFi & Tokenization** | LeadNFTv2 tokenized leads; PersonalEscrowVault atomic USDC settlement; Chainlink Automation PoR |
+| **Privacy** | Winner-only PII decryption (CRE Confidential Compute); encrypted lead data at rest; CHTT Phase 2 SubtleCrypto |
+| **Risk & Compliance** | ACE policy-gated NFT minting; on-chain KYC via ACECompliance; TCPA consent enforcement |
 | **Autonomous Agents** | Kimi K2.5 + LangChain ReAct + 15 MCP tools (incl. `cre-skills`); fully autonomous bidding |
+| **Tenderly & CRE Workflows** | 18 fresh simulations across all 9 contracts; `tenderly-replay-march6.js` replay script |
 
 ## Chainlink Integration Summary
 
@@ -195,15 +197,14 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 
 We are submitting to **all six eligible tracks**:
 
-| Track | Prize | One-Pager |
-|-------|-------|-----------|
-| DeFi & Tokenization | $20,000 | [`defi-tokenization.md`](docs/tracks/defi-tokenization.md) |
-| CRE & AI | $20,000 | [`cre-ai.md`](docs/tracks/cre-ai.md) |
-| Privacy | $16,000 | [`privacy.md`](docs/tracks/privacy.md) |
-| Risk & Compliance | $10,000 | [`risk-compliance.md`](docs/tracks/risk-compliance.md) |
-| Autonomous Agents | $10,000 | [`autonomous-agents.md`](docs/tracks/autonomous-agents.md) |
-| Tenderly & CRE Workflows | $5,000 | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) |
-
+| Track | One-Pager |
+|-------|----------|
+| CRE & AI | [`cre-ai.md`](docs/tracks/cre-ai.md) |
+| DeFi & Tokenization | [`defi-tokenization.md`](docs/tracks/defi-tokenization.md) |
+| Privacy | [`privacy.md`](docs/tracks/privacy.md) |
+| Risk & Compliance | [`risk-compliance.md`](docs/tracks/risk-compliance.md) |
+| Autonomous Agents | [`autonomous-agents.md`](docs/tracks/autonomous-agents.md) |
+| Tenderly & CRE Workflows | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) |
 
 ## Documentation
 

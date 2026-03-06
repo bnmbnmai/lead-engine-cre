@@ -1,6 +1,6 @@
 # Tenderly & CRE Workflows Track
 
-**Prize: $5,000** | LeadRTB — Full transaction simulation and debugging via Tenderly VNet
+LeadRTB — Full transaction simulation and debugging via Tenderly VNet
 
 ---
 

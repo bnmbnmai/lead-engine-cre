@@ -1,6 +1,6 @@
 # Privacy Track
 
-**Prize: $16,000** | LeadRTB — Winner-only PII decryption via CRE Confidential Compute
+LeadRTB — Winner-only PII decryption via CRE Confidential Compute
 
 ---
 
