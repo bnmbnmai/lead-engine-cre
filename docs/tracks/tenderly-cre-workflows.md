@@ -22,9 +22,9 @@ LeadRTB uses **Tenderly VNet** for full transaction simulation and debugging acr
 
 ## Evidence
 
-- **Tenderly VNet:** [Explorer →](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions)
+- **Tenderly Simulator:** [Live Simulations →](https://dashboard.tenderly.co/bnm/project/simulator)
 - **CRE simulate:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
-- **Certified runs:** `certified-runs/March-3-2026/` with full demo-results + CRE simulation JSONs
+- **Certified runs:** `certified-runs/March-6-2026/` with full demo-results + CRE simulation JSONs
 - **Live demo:** [leadrtb.com](https://leadrtb.com)
 
 <!-- Screenshot: Tenderly VNet transaction trace showing PersonalEscrowVault settlement -->
