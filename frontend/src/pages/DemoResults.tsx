@@ -52,6 +52,7 @@ interface CycleResult {
     vrfTxHash?: string;
     bountyAmount?: number;
     bountyTxHashes?: string[];
+    qualityScore?: number;       // CRE DON quality score (0-100), from backend cycle data
 }
 
 interface DemoResult {
@@ -106,6 +107,14 @@ export default function DemoResults() {
         totalBountyRewards: (partialResults.cycles as CycleResult[]).reduce(
             (sum, c) => sum + (c.bountyAmount ?? 0), 0
         ),
+        // Synthesize creQualityScores map from per-cycle qualityScore (sent in socket payload)
+        creQualityScores: (() => {
+            const map: Record<number, number> = {};
+            for (const c of partialResults.cycles as CycleResult[]) {
+                if (c.qualityScore != null) map[c.cycle] = c.qualityScore;
+            }
+            return Object.keys(map).length > 0 ? map : undefined;
+        })(),
     } : null);
 
     const fetchResults = useCallback(async (specificRunId?: string) => {
@@ -542,6 +551,14 @@ export default function DemoResults() {
                                                     >
                                                         <Shield className="h-3 w-3" />
                                                         {display.creQualityScores[cycle.cycle]}/100
+                                                    </span>
+                                                ) : cycle.bidAmount === 0 || cycle.settleTxHash === '' ? (
+                                                    <span
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-xs"
+                                                        title="Cycle was unsold — no CRE quality score applicable"
+                                                    >
+                                                        <Shield className="h-3 w-3" />
+                                                        N/A
                                                     </span>
                                                 ) : (
                                                     <span

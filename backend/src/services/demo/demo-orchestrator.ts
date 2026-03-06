@@ -1739,7 +1739,7 @@ export async function runFullDemo(
         emitStatus(io, { running: false, recycling: true, phase: 'recycling', totalCycles: cycles, currentCycle: cycles, percent: 100, runId });
 
         try {
-            safeEmit(io, 'demo:results-ready', { runId, status: 'completed', totalCycles: cycleResults.length, totalSettled, elapsedSec, cycles: cycleResults });
+            safeEmit(io, 'demo:results-ready', { runId, status: 'completed', totalCycles: cycleResults.length, totalSettled, elapsedSec, cycles: cycleResults, creQualityScores: Object.keys(creQualityScores).length > 0 ? creQualityScores : undefined });
         } catch (emitErr: any) {
             console.error('[DEMO] demo:results-ready emit failed (non-fatal):', emitErr.message);
         }
