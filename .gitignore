@@ -154,3 +154,8 @@ pre-submission-final-audit.md
 
 # CRE templates (Chainlink reference examples, not project code)
 cre-templates/
+
+# Internal-only documentation
+docs/internal/
+docs/archive/
+docs/submission/

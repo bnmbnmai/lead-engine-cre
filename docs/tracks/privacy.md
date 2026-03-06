@@ -6,7 +6,7 @@ LeadRTB — Winner-only PII decryption via CRE Confidential Compute
 
 ## Why LeadRTB Wins This Track
 
-LeadRTB solves the #1 problem in lead generation: **PII exposure during bidding**. Lead data is encrypted at rest using AES-256-GCM, zero PII touches the blockchain, and only the auction winner can decrypt via CRE Confidential Compute with `encryptOutput: true`.
+LeadRTB ensures sensitive PII is never exposed to losing bidders or the platform after settlement. Lead data is encrypted at rest using AES-256-GCM, zero PII touches the blockchain, and only the auction winner can decrypt via CRE Confidential Compute with `encryptOutput: true`.
 
 ## Privacy Integrations
 

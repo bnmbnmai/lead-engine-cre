@@ -208,7 +208,7 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 - [`CONTRACTS.md`](CONTRACTS.md) — Contract verification status and addresses
 - [`ROADMAP.md`](ROADMAP.md) — Phased development plan and market analysis
 - [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) — Confidential Compute and CHTT details
-- [`submission-checklist.md`](docs/submission/submission-checklist.md) — Hackathon submission requirements
+- [`submission-checklist.md`](docs/internal/submission/submission-checklist.md) — Hackathon submission requirements
 - [`swagger.yaml`](backend/swagger.yaml) — Full API documentation (24 KB, ~95 endpoints)
 
 ## Market Opportunity
