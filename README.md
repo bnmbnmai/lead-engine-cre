@@ -187,7 +187,7 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 - **All 9 contracts verified "Exact Match"** on Basescan — see [`CONTRACTS.md`](CONTRACTS.md)
 - **Live demo:** [leadrtb.com](https://leadrtb.com) (connect any Base Sepolia wallet)
 - **CRE Workflow simulation:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
-- **Certified demo artifacts:** `certified-runs/March-3-2026/` (demo-results JSON + CRE simulation JSON)
+- **Certified demo artifacts:** `certified-runs/March-6-2026/` (demo-results JSON + CRE simulation JSON + screenshot)
 - **Tenderly VNet:** [Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) — full tx traces for all 9 contracts, repopulate with `./scripts/tenderly-simulate.sh`
 - **994/994 tests passing** across 40 suites
 
