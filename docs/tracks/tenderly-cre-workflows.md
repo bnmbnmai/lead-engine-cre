@@ -11,7 +11,8 @@ LeadRTB uses **Tenderly VNet** for full transaction simulation and debugging acr
 ## Tenderly Integration
 
 - **Tenderly VNet Explorer** — [Live dashboard](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) with full transaction traces for PersonalEscrowVault, LeadNFTv2, CREVerifier, VRFTieBreaker, and all 9 contracts.
-- **Simulation Script** — `./scripts/tenderly-simulate.sh` repopulates the VNet with latest transactions. `scripts/tenderly-simulate.js` (33 KB) contains comprehensive simulation scenarios.
+- **Simulation Script** — `scripts/tenderly-replay-march6.sh` replays 18 key transactions from the March-6 certified run (6 NFT mints, 6 escrow settlements, 2 VRF tiebreakers, 1 PoR batch, 3 bounty payouts). `scripts/tenderly-simulate.js` (33 KB) contains additional comprehensive scenarios.
+- **Fresh Simulations (March 6, 2026)** — All 9 contracts have fresh transaction traces from the latest certified run (NFTs #65–#70, $215 settled, 2 VRF tiebreakers, PoR solvency check).
 - **Contract Debugging** — Full call trace, gas profiling, and state diff analysis for every on-chain interaction (escrow locks, NFT mints, VRF requests, bounty payouts).
 
 ## CRE Workflow Details
