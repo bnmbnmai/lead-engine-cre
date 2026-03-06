@@ -188,7 +188,7 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 - **Live demo:** [leadrtb.com](https://leadrtb.com) (connect any Base Sepolia wallet)
 - **CRE Workflow simulation:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
 - **Certified demo artifacts:** `certified-runs/March-6-2026/` (demo-results JSON + CRE simulation JSON + screenshot)
-- **Tenderly VNet (refreshed March 6, 2026):** [Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) — all 9 contracts + fresh simulations of March-6 certified run (NFT mints #65–#70, PoR, VRF tiebreakers, escrow settlements, bounty payouts). Repopulate with `bash scripts/tenderly-replay-march6.sh`
+- **Tenderly Simulator (refreshed March 6, 2026):** [Live Simulations](https://dashboard.tenderly.co/bnm/project/simulator) — all 9 contracts + 18 fresh simulations of March-6 certified run (NFT mints #65–#70, PoR, VRF tiebreakers, escrow settlements, bounty payouts). Repopulate with `node scripts/tenderly-replay-march6.js`
 - **994/994 tests passing** across 40 suites
 
 ## Submission Tracks
