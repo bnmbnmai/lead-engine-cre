@@ -21,7 +21,14 @@ Full end-to-end demo video (March 2026 submission).
 
 ## Why LeadRTB?
 
-The $200B+ lead generation market is broken: buyers can't verify quality before purchase, sellers wait weeks for payment, and sensitive PII is exposed during bidding. LeadRTB fixes all three with on-chain infrastructure.
+Traditional lead generation is opaque, slow, and risky: buyers cannot verify quality before purchase, sellers wait weeks for payment, and sensitive PII is exposed to every bidder during the auction process.
+
+LeadRTB solves all three problems on-chain:
+- Deterministic quality scoring inside the Chainlink DON
+- Atomic USDC settlement with no counterparty risk
+- Winner-only PII decryption via Confidential Compute (non-winners never see raw data)
+
+The platform works for any high-value lead vertical (solar, roofing, HVAC, mortgage, insurance, real estate, and more).
 
 ## Key Features
 
@@ -35,16 +42,18 @@ The $200B+ lead generation market is broken: buyers can't verify quality before 
 - **1-Click End-to-End Demo** — CRE scoring → sealed-bid auction → VRF tiebreak → USDC settlement → LeadNFTv2 mint → PII reveal. Every step with Basescan proof links. The demo-results JSON contains resolved on-chain CRE DON quality scores (0–100) for every cycle.
 - **Production Scale** — 40 test suites, 994 tests, BullMQ/Redis/WebSocket sharding, lint-clean codebase.
 
-## Hackathon Track Eligibility
+## Submission Tracks
 
-| Track | Integration |
-|-------|-------------|
-| **CRE & AI** | `EvaluateBuyerRulesAndMatch` workflow (7-gate DON evaluation); `DecryptForWinner` confidential output |
-| **DeFi & Tokenization** | LeadNFTv2 tokenized leads; PersonalEscrowVault atomic USDC settlement; Chainlink Automation PoR |
-| **Privacy** | Winner-only PII decryption (CRE Confidential Compute); encrypted lead data at rest; CHTT Phase 2 SubtleCrypto |
-| **Risk & Compliance** | ACE policy-gated NFT minting; on-chain KYC via ACECompliance; TCPA consent enforcement |
-| **Autonomous Agents** | Kimi K2.5 + LangChain ReAct + 15 MCP tools (incl. `cre-skills`); fully autonomous bidding |
-| **Tenderly & CRE Workflows** | 18 fresh simulations across all 9 contracts; `tenderly-replay-march6.js` replay script |
+We are submitting to all six eligible tracks:
+
+| Track | One-Pager |
+|------------------------------|----------|
+| CRE & AI | [`cre-ai.md`](docs/tracks/cre-ai.md) |
+| DeFi & Tokenization | [`defi-tokenization.md`](docs/tracks/defi-tokenization.md) |
+| Privacy | [`privacy.md`](docs/tracks/privacy.md) |
+| Risk & Compliance | [`risk-compliance.md`](docs/tracks/risk-compliance.md) |
+| Autonomous Agents | [`autonomous-agents.md`](docs/tracks/autonomous-agents.md) |
+| Tenderly & CRE Workflows | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) |
 
 ## Chainlink Integration Summary
 
@@ -193,18 +202,6 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 - **Tenderly Simulator (refreshed March 6, 2026):** [Live Simulations](https://dashboard.tenderly.co/bnm/project/simulator) — all 9 contracts + 18 fresh simulations of March-6 certified run (NFT mints #65–#70, PoR, VRF tiebreakers, escrow settlements, bounty payouts). Repopulate with `node scripts/tenderly-replay-march6.js`
 - **994/994 tests passing** across 40 suites
 
-## Submission Tracks
-
-We are submitting to **all six eligible tracks**:
-
-| Track | One-Pager |
-|-------|----------|
-| CRE & AI | [`cre-ai.md`](docs/tracks/cre-ai.md) |
-| DeFi & Tokenization | [`defi-tokenization.md`](docs/tracks/defi-tokenization.md) |
-| Privacy | [`privacy.md`](docs/tracks/privacy.md) |
-| Risk & Compliance | [`risk-compliance.md`](docs/tracks/risk-compliance.md) |
-| Autonomous Agents | [`autonomous-agents.md`](docs/tracks/autonomous-agents.md) |
-| Tenderly & CRE Workflows | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) |
 
 ## Documentation
 
