@@ -2,7 +2,7 @@
 
 > **Network:** Base Sepolia (chain ID 84532)
 > **All contracts source-verified on Basescan (Exact Match).**
-> **Last verified:** 3 March 2026
+> **Last verified:** 6 March 2026
 
 ---
 

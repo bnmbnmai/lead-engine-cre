@@ -523,12 +523,12 @@ const DEMO_BUYERS = [
 // POST /demo-buyers-toggle — flip it
 // ============================================
 
-router.get('/demo-buyers-toggle', authMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
+router.get('/demo-buyers-toggle', optionalAuthMiddleware, publicDemoBypass, async (_req: Request, res: Response) => {
     const enabled = await getDemoBuyersEnabled();
     res.json({ enabled });
 });
 
-router.post('/demo-buyers-toggle', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/demo-buyers-toggle', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     const { enabled } = req.body as { enabled?: boolean };
     let newValue: boolean;
     if (typeof enabled === 'boolean') {
@@ -552,7 +552,7 @@ router.get('/cre-mode', async (_req: Request, res: Response) => {
     res.json({ enabled });
 });
 
-router.post('/cre-mode', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/cre-mode', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     const { enabled } = req.body as { enabled?: boolean };
     let newValue: boolean;
     if (typeof enabled === 'boolean') {
@@ -657,7 +657,7 @@ router.get('/status', async (_req: Request, res: Response) => {
 // ============================================
 // POST /seed — populate marketplace with demo data
 // ============================================
-router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/seed', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // Seed Vertical table records first (ensures hierarchy API returns data)
         await seedVerticals();
@@ -931,7 +931,7 @@ router.post('/seed', authMiddleware, publicDemoBypass, async (req: Request, res:
 // ============================================
 // POST /clear — remove all demo data
 // ============================================
-router.post('/clear', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/clear', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // TD-09 fix: only delete demo-tagged records, not ALL data
         const deletedBids = await prisma.bid.deleteMany({ where: { lead: { source: 'DEMO' } } });
@@ -965,7 +965,7 @@ router.post('/clear', authMiddleware, publicDemoBypass, async (req: Request, res
 // ============================================
 // POST /lead — inject single random lead
 // ============================================
-router.post('/lead', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/lead', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
         const geo = req.body?.geo || pick(GEOS);
@@ -1236,7 +1236,7 @@ function generateDemoPii(leadId: string, vertical: string | null): Record<string
 
 // POST /auction — simulate live auction (create lead + bids over time)
 // ============================================
-router.post('/auction', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/auction', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const vertical = req.body?.vertical || pick(DEMO_VERTICALS);
         const geo = pick(GEOS);
@@ -1388,7 +1388,7 @@ router.post('/auction', authMiddleware, publicDemoBypass, async (req: Request, r
 // POST /reset — clear ALL non-sold leads + demo-sold leads
 // Comprehensive reset: catches lander-submitted leads that lack DEMO_TAG
 // ============================================
-router.post('/reset', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/reset', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // 1. Delete ALL non-sold leads (IN_AUCTION, UNSOLD, PENDING_AUCTION, EXPIRED, CANCELLED)
         //    This catches lander-submitted leads that don't have source: DEMO
@@ -1488,7 +1488,7 @@ router.post('/wipe', authMiddleware, requireAdmin, async (req: Request, res: Res
 // ============================================
 // POST /seed-templates — Reset + seed all formConfig templates
 // ============================================
-router.post('/seed-templates', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/seed-templates', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         // 1. Clear all existing formConfig
         await prisma.vertical.updateMany({
@@ -1524,7 +1524,7 @@ router.post('/seed-templates', authMiddleware, publicDemoBypass, async (req: Req
 // ============================================
 // POST /seed-bounties — Seed demo bounty pools for Seller Dashboard
 // ============================================
-router.post('/seed-bounties', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/seed-bounties', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const { bountyService } = await import('../services/bounty.service');
 
@@ -1600,7 +1600,7 @@ router.post('/seed-bounties', authMiddleware, publicDemoBypass, async (req: Requ
 // Settle (Escrow Release) — on-chain settlement
 // ============================================
 
-router.post('/settle', authMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
+router.post('/settle', optionalAuthMiddleware, publicDemoBypass, async (req: Request, res: Response) => {
     try {
         const { leadId } = req.body as { leadId?: string };
         const { escrowService } = await import('../services/escrow.service');

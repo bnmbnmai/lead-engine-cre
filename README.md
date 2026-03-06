@@ -174,8 +174,8 @@ graph TD
 ```bash
 git clone https://github.com/bnmbnmai/lead-engine-cre
 cd lead-engine-cre
-cp .env.example .env      # populate required keys
-cd backend && npm install
+cd backend && cp .env.example .env  # populate required keys
+npm install
 cd ../frontend && npm install
 npm run dev                # both frontend and backend
 ```
@@ -184,11 +184,26 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 
 ## For Judges
 
-- **All 8 contracts verified "Exact Match"** on Basescan — see [`CONTRACTS.md`](CONTRACTS.md)
+- **All 9 contracts verified "Exact Match"** on Basescan — see [`CONTRACTS.md`](CONTRACTS.md)
 - **Live demo:** [leadrtb.com](https://leadrtb.com) (connect any Base Sepolia wallet)
 - **CRE Workflow simulation:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
-- **Certified demo artifacts:** `certified-runs/March-2-2026/`
-- **Tenderly VNet:** [Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) — repopulate with `./scripts/tenderly-simulate.sh`
+- **Certified demo artifacts:** `certified-runs/March-3-2026/` (demo-results JSON + CRE simulation JSON)
+- **Tenderly VNet:** [Explorer](https://dashboard.tenderly.co/explorer/vnet/5ce481f4-3d52-4c72-ba73-1c978a7d20ba/transactions) — full tx traces for all 9 contracts, repopulate with `./scripts/tenderly-simulate.sh`
+- **994/994 tests passing** across 40 suites
+
+## Submission Tracks
+
+We are submitting to **all six eligible tracks**:
+
+| Track | Prize | One-Pager |
+|-------|-------|-----------|
+| DeFi & Tokenization | $20,000 | [`defi-tokenization.md`](docs/tracks/defi-tokenization.md) |
+| CRE & AI | $20,000 | [`cre-ai.md`](docs/tracks/cre-ai.md) |
+| Privacy | $16,000 | [`privacy.md`](docs/tracks/privacy.md) |
+| Risk & Compliance | $10,000 | [`risk-compliance.md`](docs/tracks/risk-compliance.md) |
+| Autonomous Agents | $10,000 | [`autonomous-agents.md`](docs/tracks/autonomous-agents.md) |
+| Tenderly & CRE Workflows | $5,000 | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) |
+
 
 ## Documentation
 

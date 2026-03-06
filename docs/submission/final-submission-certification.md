@@ -1,7 +1,7 @@
 # Final Submission Certification — LeadRTB
 
 **Chainlink Convergence Hackathon 2026**
-**Certified: 2026-03-03 | Network: Base Sepolia (chain ID 84532)**
+**Certified: 2026-03-06 | Network: Base Sepolia (chain ID 84532)**
 
 ---
 
@@ -41,8 +41,9 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 | **ACELeadPolicy** (lead-specific policy rules) | `0x013f3219012030aC32cc293fB51a92eBf82a566F` | [View](https://sepolia.basescan.org/address/0x013f3219012030aC32cc293fB51a92eBf82a566F) |
 | **BountyMatcher** (Functions bounty criteria matching) | `0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D` | [View](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) |
 | **VerticalBountyPool** (Per-vertical USDC bounty pools) | `0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2` | [View](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) |
+| **PersonalEscrowVaultUpkeep** (Dedicated Automation upkeep) | `0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700` | [View](https://sepolia.basescan.org/address/0x9A565d0dd3a004a2b1c8FAd536cfd33442f4b700) |
 
-**8 of 8 deployed contracts source-verified on Basescan.**
+**9 of 9 deployed contracts source-verified on Basescan.**
 
 ---
 
@@ -93,6 +94,6 @@ All transaction hashes in the demo run JSON are real Base Sepolia transactions, 
 ```
 
 ---
-**Date:** 2026-03-03
+**Date:** 2026-03-06
 **Network:** Base Sepolia (chain ID 84532)
 **Repository:** [github.com/bnmbnmai/lead-engine-cre](https://github.com/bnmbnmai/lead-engine-cre)
