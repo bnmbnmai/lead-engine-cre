@@ -192,7 +192,6 @@ The current architecture is designed for demo and early-production traffic. Scal
 | Deferred | Data Streams dynamic bounties        | Streams + Automation           | Low      | Liveness & wow factor               |
 | Medium   | CCIP cross-chain + private tx        | CCIP Private                   | Medium   | Multi-chain RWA                     |
 | ✅ Done  | Expanded admin dashboard             | —                              | Medium   | Operational visibility              |
-| Medium   | Marketplace bounty boost badges      | Functions                      | Low      | Seller engagement + fill rates      |
 | Medium   | Prediction market on conversion      | Functions + Streams            | Medium   | New asset class                     |
 | Low      | Sybil resistance layer                | Identity verification          | Low      | Fraud prevention at scale           |
 
