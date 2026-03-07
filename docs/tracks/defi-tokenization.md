@@ -19,7 +19,8 @@ LeadRTB is a fully functional **DeFi marketplace** where high-value commercial l
 
 - **9/9 contracts source-verified** "Exact Match" on Basescan
 - **$132 USDC settled** in latest certified run with $30 bounty payouts
+- **Automation Upkeep Dashboard:** [Live upkeep →](https://automation.chain.link/base-sepolia/21294876610015716277122175951088366648605324800147651647408453016017624655922) — 24h PoR checks + auto-refund (10 LINK funded, Active)
 - **994/994 tests pass** (40 suites)
 - **Live demo:** [leadrtb.com](https://leadrtb.com)
+- All flows use real DON consensus + Confidential Compute — no mocks in the happy path
 
-<!-- Screenshot: Portfolio showing purple NFT badges with Basescan links -->

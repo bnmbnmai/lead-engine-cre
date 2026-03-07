@@ -21,5 +21,5 @@ LeadRTB deploys a **fully autonomous AI bidding agent** powered by Kimi K2.5 + L
 - **Agent Chat Widget:** Embedded in the frontend — users can converse with the agent in real-time
 - **Backend Agent Service:** `agent.service.ts` (29 KB) — full ReAct loop with tool execution
 - **Live demo:** [leadrtb.com](https://leadrtb.com) — open the AI Agent chat widget to interact
+- All flows use real DON consensus + Confidential Compute — no mocks in the happy path
 
-<!-- Screenshot: AI Agent MCP chat widget bidding on a lead -->

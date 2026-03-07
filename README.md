@@ -32,6 +32,7 @@ The platform works for any high-value lead vertical (solar, roofing, HVAC, mortg
 
 ## Key Features
 
+- **Dual Production CRE Workflows** — `EvaluateBuyerRulesAndMatch` (484-line 7-gate deterministic buyer-rule engine with Vault DON secrets) + `DecryptForWinner` (winner-only PII decryption via Confidential Compute + `encryptOutput: true`).
 - **Chainlink CRE Quality Scoring** — Every lead scored by a 7-gate deterministic evaluation inside the Chainlink DON with BFT consensus. On-chain `requestOnChainQualityScore()` fires after every NFT mint. No off-chain trust assumptions.
 - **Winner-Only PII Decryption** — Lead data encrypted at rest; only the auction winner decrypts via CRE Confidential Compute (`encryptOutput: true`).
 - **Atomic USDC Settlement** — PersonalEscrowVault locks funds on-chain at bid time and releases instantly at auction close. No net terms, no chargebacks.
@@ -53,7 +54,7 @@ We are submitting to six eligible tracks:
 | Privacy | [`privacy.md`](docs/tracks/privacy.md) |
 | Risk & Compliance | [`risk-compliance.md`](docs/tracks/risk-compliance.md) |
 | Autonomous Agents | [`autonomous-agents.md`](docs/tracks/autonomous-agents.md) |
-| Tenderly & CRE Workflows | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) |
+| Tenderly & CRE Workflows | [`tenderly-cre-workflows.md`](docs/tracks/tenderly-cre-workflows.md) — Tenderly VNet simulations + 2 production CRE workflows |
 
 ## Chainlink Integration Summary
 
@@ -143,6 +144,42 @@ Production CRE workflow that evaluates buyer preference rules against incoming l
 
 > **Note:** CRE workflows use local simulation + hybrid fallback. The `afterLeadCreated()` hook fires unconditionally on all lead paths (API, webhook, demo, drip), ensuring every lead goes through the same CRE quality scoring pipeline.
 
+## CRE Workflow: `DecryptForWinner`
+
+Symmetric companion to `EvaluateBuyerRulesAndMatch`. After the auction winner is determined and USDC is settled (Step 6), this workflow handles **Step 8: Winner Decrypts PII** — the winning buyer retrieves the lead's real PII through CRE Confidential Compute. Non-winners never see raw data.
+
+```text
++-----------------------------------------------------------+
+|                 Chainlink DON (BFT Consensus)              |
+|                                                            |
+|  1. CronCapability trigger (schedule: "* * * * *")         |
+|  2. ConfidentialHTTPClient -> POST /decrypt-pii            |
+|     (JWT winner verification + owner in body)              |
+|  3. Backend verifies escrowReleased: true                  |
+|  4. privacyService.decryptLeadPII() via AES-256-GCM        |
+|  5. encryptOutput: true -> PII encrypted for winner only   |
+|  6. consensusIdenticalAggregation -> attested result        |
++-----------------------------------------------------------+
+                           |
+                           v
++-----------------------------------------------------------+
+|                Winner's Client (Frontend)                   |
+|                                                            |
+|  7. "🔓 Decrypt PII" button -> decrypts DON-attested       |
+|     payload with winner's DON node key                     |
+|  8. PII displayed: name, email, phone, address             |
+|     (non-winners see only anonymized metadata)             |
++-----------------------------------------------------------+
+```
+
+**Key files:**
+
+- [`cre-workflows/DecryptForWinner/main.ts`](cre-workflows/DecryptForWinner/main.ts) — 39-line CRE SDK workflow (`CronCapability` + `ConfidentialHTTPClient` + `consensusIdenticalAggregation`)
+- [`cre-workflows/DecryptForWinner/workflow.yaml`](cre-workflows/DecryptForWinner/workflow.yaml) — Workflow config with `encryptOutput: true`, staging + production targets
+- [`cre-workflows/secrets.yaml`](cre-workflows/secrets.yaml) — Shared DON Vault secrets (API key injected as `{{.creApiKey}}`)
+
+> **How it ties into the lead flow:** This is **Step 8** in the [flowchart above](#how-a-lead-moves-through-leadrtb). After `LeadNFTv2` is minted (Step 7), the winner clicks "🔓 Decrypt PII" which triggers this CRE workflow. The DON verifies the caller is the auction winner, decrypts `lead.encryptedData` via the backend, and returns the result encrypted for the winner's node only.
+
 ## Try the 1-Click Demo
 
 **Live at [https://leadrtb.com](https://leadrtb.com)**
@@ -197,10 +234,20 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 
 - **All 9 contracts verified "Exact Match"** on Basescan — see [`CONTRACTS.md`](CONTRACTS.md)
 - **Live demo:** [leadrtb.com](https://leadrtb.com) (connect any Base Sepolia wallet)
-- **CRE Workflow simulation:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
+- **CRE Workflow simulation (EvaluateBuyerRulesAndMatch):**
+  ```bash
+  cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings
+  ```
+- **CRE Workflow simulation (DecryptForWinner):**
+  ```bash
+  cd cre-workflows && cre workflow simulate ./DecryptForWinner --target-staging-settings
+  ```
+- **Automation Upkeep Dashboard:** [Live upkeep →](https://automation.chain.link/base-sepolia/21294876610015716277122175951088366648605324800147651647408453016017624655922) — 24h PoR checks + auto-refund expired bid locks (10 LINK funded, Active)
 - **Certified demo artifacts:** `certified-runs/March-6-2026/` (demo-results JSON + CRE simulation JSON + screenshot)
 - **Tenderly Simulator (refreshed March 6, 2026):** [Live Simulations](https://dashboard.tenderly.co/bnm/project/simulator) — all 9 contracts + 18 fresh simulations of March-6 certified run (NFT mints #65–#70, PoR, VRF tiebreakers, escrow settlements, bounty payouts). Repopulate with `node scripts/tenderly-replay-march6.js`
 - **994/994 tests passing** across 40 suites
+
+> **All flows use real DON consensus + Confidential Compute — no mocks in the happy path.** CRE workflows execute with BFT consensus inside the Chainlink DON; Confidential HTTP calls use Vault DON secrets; `encryptOutput: true` ensures winner-only PII access. The 1-click demo exercises the full pipeline end-to-end.
 
 
 ## Documentation

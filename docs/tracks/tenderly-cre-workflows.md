@@ -1,12 +1,12 @@
 # Tenderly & CRE Workflows Track
 
-LeadRTB — Full transaction simulation and debugging via Tenderly VNet
+LeadRTB — Full transaction simulation via Tenderly VNet + 2 production CRE workflows inside the Chainlink DON
 
 ---
 
 ## Why LeadRTB Wins This Track
 
-LeadRTB uses **Tenderly VNet** for full transaction simulation and debugging across all 9 deployed contracts, alongside 2 production CRE workflows that run real business logic inside the Chainlink DON.
+LeadRTB combines **Tenderly VNet** for full transaction simulation and debugging across all 9 deployed contracts with **2 production CRE workflows** that run real business logic inside the Chainlink DON — buyer-rule evaluation and winner-only PII decryption, both using `@chainlink/cre-sdk`.
 
 ## Tenderly Integration
 
@@ -16,15 +16,20 @@ LeadRTB uses **Tenderly VNet** for full transaction simulation and debugging acr
 
 ## CRE Workflow Details
 
-- **EvaluateBuyerRulesAndMatch** — 484-line TypeScript workflow with `CronCapability`, `ConfidentialHTTPClient`, 7 deterministic gates, `consensusIdenticalAggregation`. Located at `cre-workflows/EvaluateBuyerRulesAndMatch/main.ts`.
-- **DecryptForWinner** — Winner-only PII decryption with `encryptOutput: true`. Located at `cre-workflows/DecryptForWinner/main.ts`.
-- **CRE SDK:** `@chainlink/cre-sdk ^1.0.9` with typed config schema via Zod validation.
+- **EvaluateBuyerRulesAndMatch** — 484-line TypeScript workflow with `CronCapability`, `ConfidentialHTTPClient`, 7 deterministic gates, `consensusIdenticalAggregation`. Fetches lead + buyer preferences via Confidential HTTP with Vault DON secrets (`{{.creApiKey}}`). Located at `cre-workflows/EvaluateBuyerRulesAndMatch/main.ts`.
+- **DecryptForWinner** — 39-line winner-only PII decryption workflow. `CronCapability` → `ConfidentialHTTPClient` POST to `/decrypt-pii` → backend verifies `escrowReleased: true` → `privacyService.decryptLeadPII()` → `encryptOutput: true` ensures PII encrypted for winner's DON node only → `consensusIdenticalAggregation`. Located at `cre-workflows/DecryptForWinner/main.ts`.
+- **CRE SDK:** `@chainlink/cre-sdk ^1.0.9` with typed config schema via Zod validation. Shared Vault secrets in `cre-workflows/secrets.yaml`.
 
 ## Evidence
 
 - **Tenderly Simulator:** [Live Simulations →](https://dashboard.tenderly.co/bnm/project/simulator)
-- **CRE simulate:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
+- **CRE simulate (EvaluateBuyerRulesAndMatch):**
+  ```bash
+  cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings
+  ```
+- **CRE simulate (DecryptForWinner):**
+  ```bash
+  cd cre-workflows && cre workflow simulate ./DecryptForWinner --target-staging-settings
+  ```
 - **Certified runs:** `certified-runs/March-6-2026/` with full demo-results + CRE simulation JSONs
 - **Live demo:** [leadrtb.com](https://leadrtb.com)
-
-<!-- Screenshot: Tenderly VNet transaction trace showing PersonalEscrowVault settlement -->

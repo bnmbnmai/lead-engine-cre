@@ -18,8 +18,9 @@ LeadRTB ensures sensitive PII is never exposed to losing bidders or the platform
 ## Evidence
 
 - **Real PII decrypt live:** Hosted lander/API leads decrypt actual `lead.encryptedData` via `privacyService.decryptLeadPII()`. Demo-drip leads use synthetic fallback.
+- **CRE simulate (DecryptForWinner):** `cd cre-workflows && cre workflow simulate ./DecryptForWinner --target-staging-settings`
 - **Confidential HTTP Vault secrets:** `{{.creApiKey}}` injected from Vault DON — API key never in config or node memory
 - **TCPA consent tracking:** `tcpaConsentAt` timestamp required before any mint
 - **Live demo:** [leadrtb.com](https://leadrtb.com) — win a lead, then click "🔓 Decrypt PII" to see winner-only decryption
+- All flows use real DON consensus + Confidential Compute — no mocks in the happy path
 
-<!-- Screenshot: Decrypted PII panel with "CRE DON Attested" badge -->

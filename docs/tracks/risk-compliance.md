@@ -21,5 +21,5 @@ LeadRTB integrates **ACE (Access, Compliance, Enforcement)** directly into the l
 - **Per-vertical policy rules** enforced on-chain (mortgage, insurance, solar require TCPA consent)
 - **Auto-KYC registration** via `aceService.autoKYC(walletAddress)` during demo persona switch
 - **Live demo:** [leadrtb.com](https://leadrtb.com) — switch to Buyer persona to see ACE compliance status
+- All flows use real DON consensus + Confidential Compute — no mocks in the happy path
 
-<!-- Screenshot: ACE KYC Verified badge in Buyer Portfolio -->

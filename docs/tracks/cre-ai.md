@@ -17,9 +17,10 @@ LeadRTB deploys **two production CRE workflows** using `@chainlink/cre-sdk` that
 
 ## Evidence
 
-- **CRE simulate command:** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
+- **CRE simulate (EvaluateBuyerRulesAndMatch):** `cd cre-workflows && cre workflow simulate ./EvaluateBuyerRulesAndMatch --target-staging-settings`
+- **CRE simulate (DecryptForWinner):** `cd cre-workflows && cre workflow simulate ./DecryptForWinner --target-staging-settings`
 - **CRE subscription ID:** 581 (Base Sepolia DON)
 - **Field-level filters:** 11 operators (EQUALS, IN, GT, LT, BETWEEN, CONTAINS, STARTS_WITH, NOT_EQUALS, NOT_IN, GTE, LTE)
 - **Live demo:** [leadrtb.com](https://leadrtb.com) — click "Run Full On-Chain Demo" to see CRE scoring in action
+- All flows use real DON consensus + Confidential Compute — no mocks in the happy path
 
-<!-- Screenshot: CRE workflow evaluation results in Demo Results table -->
