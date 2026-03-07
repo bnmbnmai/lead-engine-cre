@@ -77,7 +77,6 @@ Build the **institutional-grade infrastructure layer for private data RWAs** —
 - 🔥 **Permanent PII Unlock** toggle in Buyer Portfolio: after first winner-only decrypt, store decrypted PII in buyer-specific encrypted vault (CRE enclave protected). _Status: Winner-only PII decryption is **live and verified** (commit `0f640d7`) — real encrypted PII decrypted via `privacyService.decryptLeadPII()` for hosted lander/API leads, synthetic PII fallback for demo-drip only. Persistent buyer vault toggle UI remains post-hackathon._
 - **Bulk PII Unlock** — multi-select purchased leads and decrypt all in one action, reducing friction for high-volume buyers.
 - Improved Auto-Bid Preferences UI: visual rule builder, drag-and-drop priority, live matching preview (real-time sample leads from CRE simulation).
-- **Marketplace Bounty Boost Badges** — leads matching active bounty criteria display a "💰 Bounty Boost" badge on marketplace cards, signaling higher payout potential to sellers and increasing fill rates.
 - _Moved from Phase 0:_ **Data Streams dynamic bounties** — Add real-time stream (mortgage rates or weather) that triggers Automation → CRE workflow → dynamic bounty adjustment.
 - _Moved from Phase 2:_ **DisputeResolution CRE workflow** — buyer disputes → Confidential HTTP to CRM → auto-refund.
 
