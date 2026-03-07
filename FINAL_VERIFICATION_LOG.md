@@ -1,6 +1,9 @@
 # FINAL_VERIFICATION_LOG.md — Zero-Assumption Codebase Audit
 
-> **Generated**: 2 March 2026 | **Last Updated**: 6 March 2026 (unified LeadNFTv2 minting for all winners) | **Method**: Exhaustive grep/file search of entire codebase | **Source of truth**: Code only
+> **Generated**: 2 March 2026  
+> **Last Updated**: 7 March 2026 (README + CONTRACTS.md finalized; corrected table applied)  
+> **Method**: Exhaustive grep/file search of entire codebase  
+> **Source of truth**: Code + on-chain (CONTRACTS.md is now canonical)
 
 ---
 
@@ -114,29 +117,12 @@
 
 ---
 
-### Corrected README Contract Table
+### README Contract Table History (for transparency)
 
-Replace README.md lines 155–168 with:
-
-```markdown
-| # | Service | Contract | Address | Status | Backend File |
-|---|---------|----------|---------|--------|--------------| 
-| 1 | **CRE (Quality Scoring)** | `CREVerifier` | [0xfec22A...af8](https://sepolia.basescan.org/address/0xfec22A5159E077d7016AAb5fC3E91e0124393af8) | Live | `cre.service.ts` |
-| 2 | **Functions (Bounty Match)** | `BountyMatcher` | [0x897f8C...17D](https://sepolia.basescan.org/address/0x897f8CCa48B6Ed02266E1DB80c3967E2fdD0417D) | Live | `functions.service.ts` |
-| 3 | **Automation (PoR)** | `PersonalEscrowVault` | [0x56bB31...F8C](https://sepolia.basescan.org/address/0x56bB31bE214C54ebeCA55cd86d86512b94310F8C) | Live | `vault-reconciliation.service.ts` |
-| 4 | **VRF v2.5 (Tiebreakers)** | `VRFTieBreaker` | [0x86c8f3...30e](https://sepolia.basescan.org/address/0x86c8f348d816c35fc0bd364e4a9fa8a1e0fd930e) | Live | `vrf.service.ts` |
-| 5 | **Data Feeds (Price Guards)** | Inline in Vault | -- | Live | `data-feeds.service.ts` |
-| 6 | **ACE (Compliance)** | `ACECompliance` | [0xAea259...fE6](https://sepolia.basescan.org/address/0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6) | Live | `ace.service.ts` |
-| 7 | **CHTT Phase 2 (Confidential)** | `CREVerifier` | (shared) | Live | `batched-private-score.ts` |
-| 8 | **CRE Workflow (Buyer Rules)** | DON-executed | -- | Live | `cre-workflows/EvaluateBuyerRulesAndMatch/` |
-| 9 | **CRE Workflow (Winner Decrypt)** | DON-executed | -- | Live | `cre-workflows/DecryptForWinner/` |
-| 10 | **LeadNFTv2 (ACE-Protected)** | `LeadNFTv2` | [0x73ebD9...155](https://sepolia.basescan.org/address/0x73ebD9218aDe497C9ceED04E5CcBd06a00Ba7155) | Live | `nft.service.ts` |
-| 11 | **Bounty Pool (USDC)** | `VerticalBountyPool` | [0x9C2241...3c2](https://sepolia.basescan.org/address/0x9C22418295642Df3D5521B8fA21fBb03Eb89c3c2) | Live | `bounty.service.ts` |
-| 11 | **Confidential HTTP (SecretsFetch)** | DON-executed | -- | Live | `confidential-http.stub.ts` |
-| 12 | **Data Streams (Pricing)** | Inline | -- | Live | `data-feeds.service.ts` |
-```
-
----
+**Corrected & finalized 6 March 2026**  
+The original verbose contract table that lived in README.md was intentionally replaced with a slim, readable 9-row summary (see current README → "Chainlink Integration Summary").  
+Full authoritative table (addresses, Basescan links, service mappings) is now in [`CONTRACTS.md`](CONTRACTS.md) — the single source of truth.  
+All 9 contracts remain "Exact Match" verified and receive real on-chain transactions in the 1-click demo.
 
 ## 4. Completion Summary
 
