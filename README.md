@@ -44,7 +44,7 @@ The platform works for any high-value lead vertical (solar, roofing, HVAC, mortg
 
 ## Submission Tracks
 
-We are submitting to all six eligible tracks:
+We are submitting to six eligible tracks:
 
 | Track | One-Pager |
 |------------------------------|----------|
@@ -73,7 +73,7 @@ We are submitting to all six eligible tracks:
 
 > Full contract addresses, Basescan links, Tenderly traces, and backend file mappings → [`CONTRACTS.md`](CONTRACTS.md)
 >
-> All 9 contracts receive **real on-chain transactions** during the 1-click demo — including VRFTieBreaker (real `requestResolution()` call on every forced tie).
+> All 9 contracts receive real on-chain transactions during the 1-click demo.
 
 ---
 
@@ -208,7 +208,6 @@ Set `VITE_DEMO_MODE=true` to enable the Demo Control Panel.
 - [`CONTRACTS.md`](CONTRACTS.md) — Contract verification status and addresses
 - [`ROADMAP.md`](ROADMAP.md) — Phased development plan and market analysis
 - [`docs/PRIVACY_TRACK.md`](docs/PRIVACY_TRACK.md) — Confidential Compute and CHTT details
-- [`submission-checklist.md`](docs/internal/submission/submission-checklist.md) — Hackathon submission requirements
 - [`swagger.yaml`](backend/swagger.yaml) — Full API documentation (24 KB, ~95 endpoints)
 
 ## Market Opportunity
