@@ -7,7 +7,7 @@
 
 ## 🎥 Watch the 5-Minute Hackathon Demo
 
-[![LeadRTB – Real-Time Bidding for Verified Leads on Chainlink](https://img.youtube.com/vi/0J2GWDbXsFs/maxresdefault.jpg)](https://youtu.be/0J2GWDbXsFs)
+[![LeadRTB – Real-Time Bidding for Verified Leads on Chainlink](https://img.youtube.com/vi/Nti0BleRh4I/maxresdefault.jpg)](https://youtu.be/Nti0BleRh4I)
 
 Full end-to-end demo video (March 2026 submission).
 
@@ -15,15 +15,15 @@ Full end-to-end demo video (March 2026 submission).
 
 **LeadRTB is a production-grade, on-chain marketplace for real-time lead bidding — quality-scored by Chainlink CRE, settled atomically in USDC, with winner-only PII decryption via Confidential Compute.**
 
-🔗 **Live demo:** [leadrtb.com](https://leadrtb.com) &nbsp;|&nbsp; 📡 **API:** [api.leadrtb.com](https://api.leadrtb.com/health)
+🔗 **Live demo:** [leadrtb.com](https://leadrtb.com)
 
 ---
 
 ## Why LeadRTB?
 
-Traditional lead generation is opaque, slow, and risky: buyers cannot verify quality before purchase, sellers wait weeks for payment, and sensitive PII is exposed to every bidder during the auction process.
+Traditional lead generation is opaque, slow, and inefficient: buyers have no reliable way to verify lead quality before purchase, sellers face long payment delays, and sensitive buyer information is shared during the bidding process.
 
-LeadRTB solves all three problems on-chain:
+LeadRTB solves these core problems on-chain:
 - Deterministic quality scoring inside the Chainlink DON
 - Atomic USDC settlement with no counterparty risk
 - Winner-only PII decryption via Confidential Compute (non-winners never see raw data)
