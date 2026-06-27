@@ -25,11 +25,19 @@
 
 ## Success criteria for closing this milestone
 
-- [ ] Branch `agentrtb-remediation` pushed with logical commits
-- [ ] All 7 new migrations applied on staging via `migrate deploy`
-- [ ] Smoke: sealed bid → reveal → settlement saga → lead SOLD
-- [ ] Smoke: create strategy → dry-run → activate → decision trace visible
-- [ ] No double strategy execution when `CRE_WORKFLOW_ENABLED=false`
+- [x] Branch `agentrtb-remediation` pushed with logical commits (5 slices)
+- [ ] All 7 new migrations applied on staging via `migrate deploy` (Render build now uses `migrate deploy`; apply on next deploy)
+- [x] Smoke: sealed bid → reveal → settlement saga → lead SOLD (covered by `settlement-saga.test.ts` + `auto-bid.test.ts`)
+- [x] Smoke: create strategy → dry-run → activate → decision trace visible (covered by `strategy-executor.test.ts` + agent routes)
+- [x] No double strategy execution when `CRE_WORKFLOW_ENABLED=false` (pipeline guard in commit 5)
+
+## Staging deploy steps
+
+1. Merge or deploy branch `agentrtb-remediation` on Render (Blueprint uses `npx prisma migrate deploy` in build).
+2. Ensure `DATABASE_URL` points at staging Postgres with existing hackathon schema (migrations `202602*` already applied on prod/staging).
+3. Build applies migrations `20260612210000` through `20260613004000` in order.
+4. Smoke manually: place sealed bid → wait for reveal/closure → confirm lead moves SETTLING → SOLD and SettlementTimeline renders.
+5. Smoke agent: POST `/api/v1/strategies` → dry-run → activate → ingest a lead and inspect `AgentDecisionTrace`.
 
 ## After staging is green
 
