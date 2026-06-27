@@ -17,6 +17,8 @@ import { closeQueues } from './lib/queues';
 
 // Load environment variables FIRST
 dotenv.config();
+import { validateProductionEnv } from './config/env-validation';
+validateProductionEnv();
 
 // ─── Sentry Monitoring ───────────────────────────────────────
 let Sentry: any = null;
@@ -68,6 +70,8 @@ import bountiesRoutes from './routes/bounties.routes';
 import autoBidRoutes from './routes/auto-bid.routes';
 import ingestRoutes from './routes/ingest.routes';
 import creRoutes from './routes/cre.routes';
+import strategyRoutes from './routes/strategy.routes';
+import agentRoutes from './routes/agent.routes';
 
 // Middleware
 import { generalLimiter } from './middleware/rateLimit';
@@ -94,44 +98,16 @@ app.use(helmet({
     },
 }));
 
-const ALLOWED_ORIGINS = [
-    'https://leadrtb.com',
-    'https://www.leadrtb.com',
-    'https://api.leadrtb.com',
-    'https://lead-engine-cre-frontend.vercel.app',
-    // Vercel preview deployments
-    'https://lead-engine-cre-frontend-li2y9pn8j-bruces-projects-8c801e4b.vercel.app',
-    'https://lead-engine-cre',  // prefix-match covers all Vercel preview slugs for this project
-    'http://localhost:5173',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL,
-].filter(Boolean) as string[];
+// Shared allowlist + origin check — also used by the Socket.IO server
+// (rtb/socket.ts) so every entry point enforces the same policy.
+import { corsOriginFn } from './config/cors';
 
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, curl, server-to-server)
-        if (!origin) {
-            callback(null, true);
-            return;
-        }
-        // Only allow explicitly listed origins — reject everything else.
-        // SECURITY: The previous fallback callback(null, true) allowed all origins,
-        // bypassing CORS entirely. In production this would allow any site to make
-        // credentialed cross-origin requests on behalf of logged-in users.
-        if (ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
-            callback(null, true);
-        } else {
-            callback(new Error(`CORS: origin '${origin}' is not in the allowlist`));
-        }
-    },
-    credentials: true,
-}));
+app.use(cors({ origin: corsOriginFn, credentials: true }));
 
 // Enable CORS preflight for ALL routes — must come immediately after cors() middleware.
-// app.options('*', cors()) is the standard Express pattern that handles OPTIONS for any
-// path depth (e.g. /api/v1/demo-panel/full-e2e/results/latest). This supersedes the
-// per-path handler that used /:rest* which did NOT match multi-segment subpaths.
-app.options('*', cors({ origin: (o, cb) => cb(null, true), credentials: true }));
+// Uses the SAME allowlist as the main middleware (previously this handler
+// allowed all origins, undermining the allowlist for preflighted requests).
+app.options('*', cors({ origin: corsOriginFn, credentials: true }));
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -229,8 +205,13 @@ app.use('/api/v1/bounties', bountiesRoutes);
 app.use('/api/v1/auto-bid', autoBidRoutes);
 app.use('/api/v1/ingest', ingestRoutes);
 app.use('/api/v1/cre', creRoutes);
-// Mock endpoints — simulate external APIs called by Chainlink CHTT workflow from TEE enclave
-app.use('/api/mock', mockRoutes);
+app.use('/api/v1/strategies', strategyRoutes);
+app.use('/api/v1/agent', agentRoutes);
+// Mock endpoints — simulate external APIs called by Chainlink CHTT workflow from TEE enclave.
+// Never mounted in production (unless demo routes are explicitly opted in).
+if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_ROUTES === 'true') {
+    app.use('/api/mock', mockRoutes);
+}
 
 
 app.post('/api/v1/rtb/bid', (req: Request, res: Response) => {

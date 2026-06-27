@@ -43,3 +43,39 @@ export async function checkRedisHealth(): Promise<boolean> {
         return false;
     }
 }
+
+// ============================================
+// Distributed Lock (multi-instance safety)
+// ============================================
+
+import crypto from 'crypto';
+
+/**
+ * Acquire a distributed lock via SET NX PX.
+ * Returns a lock token when acquired, or null when the lock is held elsewhere.
+ * When Redis is unavailable, returns a synthetic token (single-instance
+ * deployments still get safety from DB-level compare-and-swap gates).
+ */
+export async function acquireLock(key: string, ttlMs: number): Promise<string | null> {
+    const token = crypto.randomUUID();
+    if (!redisClient) return token; // no Redis — rely on DB CAS
+    try {
+        const ok = await redisClient.set(`lock:${key}`, token, 'PX', ttlMs, 'NX');
+        return ok === 'OK' ? token : null;
+    } catch {
+        return token; // Redis hiccup — degrade to DB CAS protection
+    }
+}
+
+/** Release a lock only if we still own it (check-and-del Lua). */
+export async function releaseLock(key: string, token: string): Promise<void> {
+    if (!redisClient) return;
+    try {
+        await redisClient.eval(
+            `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+            1,
+            `lock:${key}`,
+            token,
+        );
+    } catch { /* lock expires via TTL */ }
+}

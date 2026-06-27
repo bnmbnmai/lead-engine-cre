@@ -158,8 +158,6 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
         prevBidCount.current = effectiveBidCount;
     }, [effectiveBidCount]);
 
-    const recentBids = storeSlice?.recentBids ?? [];
-
     return (
         <Card
             data-auction-state={auctionPhase}
@@ -310,12 +308,9 @@ export function LeadCard({ lead, showBidButton = true, isAuthenticated = true, f
                         </div>
                     )}
 
-                    {/* Bid count with hover tooltip showing last 3 bids */}
-                    <Tooltip content={
-                        recentBids.length > 0
-                            ? recentBids.map((b) => `${b.buyer}: $${b.amount.toFixed(2)}`).join(' • ')
-                            : `${effectiveBidCount} bid${effectiveBidCount !== 1 ? 's' : ''} placed`
-                    }>
+                    {/* Bid count tooltip — SEALED-BID: never reveal bidder names or
+                        amounts while the auction is live; only the count is public. */}
+                    <Tooltip content={`${effectiveBidCount} sealed bid${effectiveBidCount !== 1 ? 's' : ''} placed`}>
                         <div
                             className={`flex items-center gap-1 cursor-help transition-all duration-300 ${bidPulse ? 'text-emerald-400 scale-110' : ''}`}
                         >

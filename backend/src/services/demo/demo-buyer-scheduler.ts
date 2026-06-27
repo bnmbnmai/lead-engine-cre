@@ -166,11 +166,9 @@ export function scheduleBuyerBids(
         const delayMs = Math.round(delaySec * 1000);
 
         // R-01: Emit bid:pending immediately — real scheduler event, before vault lock fires.
-        // Frontend can display 'Bid incoming' state while the chain confirms.
+        // SEALED-BID: never include the amount or buyer identity in the broadcast.
         io.emit('auction:bid:pending', {
             leadId,
-            buyerName: profile.name,
-            amount: bidAmount,
             timestamp: new Date().toISOString(),
         });
 
@@ -327,11 +325,9 @@ export function scheduleBuyerBids(
             const bidIdx = prof.index;
 
             fallbackSlot++;
-            // R-01: Emit bid:pending for fallback buyers too
+            // R-01: Emit bid:pending for fallback buyers too (no amount/identity)
             io.emit('auction:bid:pending', {
                 leadId,
-                buyerName: prof.name,
-                amount: fallbackBid,
                 timestamp: new Date().toISOString(),
             });
 

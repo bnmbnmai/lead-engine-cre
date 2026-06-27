@@ -53,13 +53,16 @@ import * as path from 'path';
 const BACKEND_SRC = path.join(__dirname, '../../src');
 const AGENT_SVC = path.join(BACKEND_SRC, 'services', 'agent.service.ts');
 const MCP_ROUTES = path.join(BACKEND_SRC, 'routes', 'mcp.routes.ts');
+const AGENT_GUARDS = path.join(BACKEND_SRC, 'services', 'agent-guards.ts');
 
 let agentSrc: string;
 let routesSrc: string;
+let guardsSrc: string;
 
 beforeAll(() => {
     agentSrc = fs.readFileSync(AGENT_SVC, 'utf8');
     routesSrc = fs.readFileSync(MCP_ROUTES, 'utf8');
+    guardsSrc = fs.readFileSync(AGENT_GUARDS, 'utf8');
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -76,16 +79,16 @@ describe('P2-MCP — agent.service.ts source hardening', () => {
         expect(agentSrc).not.toContain("'https://lead-engine-mcp.onrender.com'");
     });
 
-    it('declares MCP_API_KEY from env', () => {
-        expect(agentSrc).toContain("MCP_API_KEY = process.env.MCP_API_KEY");
+    it('declares MCP_SERVER_TOKEN from env (with MCP_API_KEY fallback)', () => {
+        expect(agentSrc).toContain('MCP_SERVER_TOKEN = process.env.MCP_SERVER_TOKEN');
     });
 
     it('has startup warning when KIMI_API_KEY is missing', () => {
         expect(agentSrc).toContain('KIMI_API_KEY is not set');
     });
 
-    it('has startup warning when MCP_API_KEY is missing', () => {
-        expect(agentSrc).toContain('MCP_API_KEY is not set');
+    it('has startup warning when MCP_SERVER_TOKEN is missing', () => {
+        expect(agentSrc).toContain('MCP_SERVER_TOKEN is not set');
     });
 
     it('executeMcpTool builds authHeaders object', () => {
@@ -94,11 +97,11 @@ describe('P2-MCP — agent.service.ts source hardening', () => {
 
     it('executeMcpTool sends Authorization: Bearer header', () => {
         expect(agentSrc).toContain('Authorization');
-        expect(agentSrc).toContain('Bearer ${MCP_API_KEY}');
+        expect(agentSrc).toContain('Bearer ${MCP_SERVER_TOKEN}');
     });
 
-    it('executeMcpTool sends X-Api-Key header', () => {
-        expect(agentSrc).toContain("'X-Api-Key'");
+    it('executeMcpTool sends X-Mcp-Token header', () => {
+        expect(agentSrc).toContain("'X-Mcp-Token'");
     });
 
     it('fetch to MCP server uses authHeaders (not bare object)', () => {
@@ -121,12 +124,12 @@ describe('P2-MCP — mcp.routes.ts source hardening', () => {
         expect(routesSrc).not.toContain("'https://lead-engine-mcp.onrender.com'");
     });
 
-    it('declares MCP_API_KEY from env', () => {
-        expect(routesSrc).toContain("MCP_API_KEY = process.env.MCP_API_KEY");
+    it('declares MCP_SERVER_TOKEN from env (with MCP_API_KEY fallback)', () => {
+        expect(routesSrc).toContain('MCP_SERVER_TOKEN = process.env.MCP_SERVER_TOKEN');
     });
 
-    it('has startup warning when MCP_API_KEY is missing', () => {
-        expect(routesSrc).toContain('MCP_API_KEY not set');
+    it('has startup warning when MCP_SERVER_TOKEN is missing', () => {
+        expect(routesSrc).toContain('MCP_SERVER_TOKEN not set');
     });
 
     it('defines mcpHeaders() helper function', () => {
@@ -135,12 +138,11 @@ describe('P2-MCP — mcp.routes.ts source hardening', () => {
 
     it('mcpHeaders adds Authorization: Bearer header', () => {
         expect(routesSrc).toContain('Authorization');
-        expect(routesSrc).toContain('Bearer ${MCP_API_KEY}');
+        expect(routesSrc).toContain('Bearer ${MCP_SERVER_TOKEN}');
     });
 
-    it('mcpHeaders adds X-Api-Key header', () => {
-        // Both agent.service and mcp.routes should include this
-        expect(routesSrc).toContain("'X-Api-Key'");
+    it('mcpHeaders adds X-Mcp-Token header', () => {
+        expect(routesSrc).toContain("'X-Mcp-Token'");
     });
 
     it('GET /tools fetch uses mcpHeaders()', () => {
@@ -175,20 +177,28 @@ describe('P2-MCP — mcp.routes.ts source hardening', () => {
         expect(guardSection).toContain('leadId is required');
     });
 
-    it('mcpPlaceBid checks lead.status === IN_AUCTION', () => {
+    // A6: auction-state + budget guards moved to the SHARED agent-guards
+    // module so the raw-Kimi path and the LangChain path enforce identical
+    // checks. mcpPlaceBid delegates to checkAgentBidGuards().
+    it('mcpPlaceBid delegates to shared checkAgentBidGuards', () => {
         const guardSection = routesSrc.slice(
             routesSrc.indexOf('async function mcpPlaceBid('),
             routesSrc.indexOf('async function executeMcpTool(')
         );
-        expect(guardSection).toContain("'IN_AUCTION'");
+        expect(guardSection).toContain('checkAgentBidGuards');
     });
 
-    it('mcpPlaceBid checks auctionEndAt expiry', () => {
-        const guardSection = routesSrc.slice(
-            routesSrc.indexOf('async function mcpPlaceBid('),
-            routesSrc.indexOf('async function executeMcpTool(')
-        );
-        expect(guardSection).toContain('auctionEndAt');
+    it('shared guards check lead.status === IN_AUCTION', () => {
+        expect(guardsSrc).toContain("'IN_AUCTION'");
+    });
+
+    it('shared guards check auctionEndAt expiry', () => {
+        expect(guardsSrc).toContain('auctionEndAt');
+    });
+
+    it('shared guards enforce budget caps (maxBidPerLead + dailyBudget)', () => {
+        expect(guardsSrc).toContain('maxBidPerLead');
+        expect(guardsSrc).toContain('dailyBudget');
     });
 
     it('executeMcpTool routes place_bid to mcpPlaceBid', () => {

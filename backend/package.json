@@ -6,7 +6,7 @@
     "main": "dist/index.js",
     "scripts": {
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-        "build": "npx prisma@5 generate && npx prisma@5 db push --accept-data-loss && tsc",
+        "build": "npx prisma@5 generate && npx prisma@5 migrate deploy && tsc",
         "start": "node dist/index.js",
         "lint": "eslint src --ext .ts",
         "test": "jest",
@@ -27,6 +27,8 @@
     },
     "dependencies": {
         "@faker-js/faker": "^10.3.0",
+        "@lead-engine/agent-tools": "1.0.0",
+        "@lead-engine/rules-engine": "1.0.0",
         "@langchain/community": "^1.1.15",
         "@langchain/core": "^1.1.24",
         "@langchain/openai": "^1.2.7",

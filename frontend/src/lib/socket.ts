@@ -39,7 +39,8 @@ type AuctionEventHandler = {
     'error': (data: { message: string }) => void;
     // Global marketplace events
     'marketplace:lead:new': (data: { lead: any }) => void;
-    'marketplace:bid:update': (data: { leadId: string; bidCount: number; highestBid: number; timestamp?: string; buyerName?: string; recentBids?: Array<{ buyer: string; amount: number; ts: string }> }) => void;
+    // SEALED-BID: bid amounts/bidder identities are never broadcast pre-close
+    'marketplace:bid:update': (data: { leadId: string; bidCount: number; timestamp?: string }) => void;
     'marketplace:auction:resolved': (data: { leadId: string; winnerId: string; amount: number }) => void;
     'marketplace:refreshAll': () => void;
     // Auction end events (no-winner paths)
@@ -67,17 +68,20 @@ type AuctionEventHandler = {
     // ── AUCTION-SYNC events (added 2026-02-22) ──────────────────────────────────
     // auction:updated — server re-baselines remaining time on every bid so
     // frontend countdown timers stay locked to backend. Also carries isSealed flag
-    // (5-second sealed-bid window) and updated bidCount / highestBid.
+    // (5-second sealed-bid window) and updated bidCount.
+    // SEALED-BID: highestBid is never sent while the auction is live.
     'auction:updated': (data: {
         leadId: string;
         remainingTime: number | null;
         serverTs: number;          // ms epoch (Date.now()) — enables clock-drift correction
         bidCount: number;
-        highestBid: number | null;
         isSealed?: boolean;   // true for the final 5 s sealed-bid window
     }) => void;
     // auction:closing-soon — server signals ≤10 s remaining (v7)
     'auction:closing-soon': (data: { leadId: string; remainingTime: number }) => void;
+    // auction:reveal-phase — commit-reveal (Phase B2): bidding has ended and
+    // the server is holding resolution open so sealed bids can be revealed.
+    'auction:reveal-phase': (data: { leadId: string; revealEndsAt: string }) => void;
     // auction:closed — single authoritative signal that the auction is fully resolved.
     // Emitted AFTER all DB writes so frontend can freeze UI synchronously.
     'auction:closed': (data: {
@@ -89,20 +93,20 @@ type AuctionEventHandler = {
         winnerId?: string;
         winningAmount?: number;
         settleTxHash?: string;
-        finalBids?: { buyerId: string; amount: number | null; status: string }[];
+        bidCount?: number;
     }) => void;
     // leads:updated — backend signals that new leads were injected / replenishment ran.
     // socketBridge re-fetches active leads from REST API on receipt.
     'leads:updated': (data: { activeCount?: number }) => void;
     // R-01: real scheduler event — emitted the moment a buyer bid is committed,
-    // before the vault lockForBid timeout fires on-chain.
-    'auction:bid:pending': (data: { leadId: string; buyerName: string; amount: number; timestamp: string }) => void;
+    // before the vault lockForBid timeout fires on-chain. (No amount/identity.)
+    'auction:bid:pending': (data: { leadId: string; timestamp: string }) => void;
     // R-07: emitted by demo-lead-drip after initial seed loop completes
     'demo:pre-populated': (data: { leadCount: number; ts: string }) => void;
-    // Kimi AI agent bid event — emitted by RTB engine when auto-bid fires
-    'agent:bid:placed': (data: { leadId: string; buyerWallet: string; amount: number; vertical: string; ts: string }) => void;
-    // Agent bid announcement (emitted by scheduleBidsForLead for chat widget)
-    'agent:bid-placed': (data: { leadId: string; amount: number; buyerAddr: string; vertical: string; txHash: string; isAgentBid: boolean; ts: string }) => void;
+    // Kimi AI agent bid event — emitted by RTB engine when auto-bid fires (sealed: no amount/identity)
+    'agent:bid:placed': (data: { leadId: string; vertical: string; ts: number | string; message?: string }) => void;
+    // Agent bid announcement (emitted by scheduleBidsForLead for chat widget; sealed: no amount/identity)
+    'agent:bid-placed': (data: { leadId: string; vertical: string; txHash: string; isAgentBid: boolean; ts: string }) => void;
     // CRE-Native demo evaluation result
     'demo:cre-evaluation': (data: { leadId: string; vertical: string; matchedSets: number; totalPreferenceSets: number; results: any[]; timestamp: string }) => void;
 };
@@ -138,6 +142,7 @@ const ALL_EVENTS: (keyof AuctionEventHandler)[] = [
     // ── AUCTION-SYNC: must be here or setupEventForwarding() silently drops them ──
     'auction:updated',
     'auction:closing-soon',
+    'auction:reveal-phase',
     'auction:closed',
     'leads:updated',
     // R-01: buyer bid commitment signal — emitted before vault lock fires
@@ -271,7 +276,9 @@ class SocketClient {
         this.socket?.emit('leave:auction', leadId);
     }
 
-    placeBid(data: { leadId: string; commitment?: string; amount?: number }): Promise<{ bidId: string; status: string }> {
+    // SEALED-BID (Phase B2): only the commitment hash is transmitted — the
+    // backend rejects any payload carrying a plaintext amount.
+    placeBid(data: { leadId: string; commitment: string }): Promise<{ bidId: string; status: string }> {
         const attempt = (): Promise<{ bidId: string; status: string }> => {
             return new Promise((resolve, reject) => {
                 if (!this.socket?.connected) {

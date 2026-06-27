@@ -665,6 +665,65 @@ class BountyService {
     }
 
     // ============================================
+    // View — Aggregated bounty availability (used by MCP agent tools)
+    // ============================================
+
+    async getAvailableBounties(verticalSlug?: string): Promise<any> {
+        if (verticalSlug) {
+            const total = await this.getVerticalBountyTotal(verticalSlug);
+            const vert = await prisma.vertical.findUnique({
+                where: { slug: verticalSlug },
+                select: { formConfig: true },
+            });
+            const config = (vert?.formConfig as any) || {};
+            const pools: any[] = (config.bountyPools || []).filter((p: any) => p.active);
+            const poolSummaries = pools.map((p: any) => ({
+                poolId: p.poolId || p.buyerId,
+                availableUSDC: Math.max(0, (p.amount || 0) - (p.totalReleased || 0)),
+                criteria: {
+                    minQualityScore: p.criteria?.minQualityScore ?? null,
+                    geoStates: p.criteria?.geoStates ?? null,
+                    geoCountries: p.criteria?.geoCountries ?? null,
+                    minCreditScore: p.criteria?.minCreditScore ?? null,
+                    maxLeadAge: p.criteria?.maxLeadAge ?? null,
+                },
+            }));
+            const filteredTotal = poolSummaries.reduce((sum, p) => sum + p.availableUSDC, 0);
+            return {
+                vertical: verticalSlug,
+                totalAvailableUSDC: filteredTotal || total,
+                poolCount: poolSummaries.length,
+                pools: poolSummaries,
+                contractAddress: process.env.BOUNTY_POOL_ADDRESS || null,
+                functionsEnabled: process.env.BOUNTY_FUNCTIONS_ENABLED === 'true',
+            };
+        }
+
+        const verticals = await prisma.vertical.findMany({
+            select: { slug: true, formConfig: true },
+        });
+        const results: any[] = [];
+        for (const v of verticals) {
+            const config = (v.formConfig as any) || {};
+            const pools: any[] = (config.bountyPools || []).filter((p: any) => p.active);
+            if (pools.length === 0) continue;
+            const availableUSDC = pools.reduce(
+                (sum, p) => sum + Math.max(0, (p.amount || 0) - (p.totalReleased || 0)), 0
+            );
+            if (availableUSDC <= 0) continue;
+            results.push({ vertical: v.slug, totalAvailableUSDC: availableUSDC, poolCount: pools.length });
+        }
+        results.sort((a, b) => b.totalAvailableUSDC - a.totalAvailableUSDC);
+        return {
+            verticals: results,
+            totalUSDC: results.reduce((sum, r) => sum + r.totalAvailableUSDC, 0),
+            contractAddress: process.env.BOUNTY_POOL_ADDRESS || null,
+            functionsEnabled: process.env.BOUNTY_FUNCTIONS_ENABLED === 'true',
+            matcherAddress: process.env.BOUNTY_MATCHER_ADDRESS || null,
+        };
+    }
+
+    // ============================================
     // Internal — Update off-chain release tracking
     // ============================================
 

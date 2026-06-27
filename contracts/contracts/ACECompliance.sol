@@ -296,6 +296,25 @@ contract ACECompliance is IACECompliance, Ownable, ReentrancyGuard {
         return true;
     }
 
+    /**
+     * @notice Vertical/geo-agnostic compliance gate consumed by ACE policies
+     *         (ACELeadPolicy.run → LeadNFTv2 mint/transfer gating).
+     * @dev Same checks as canTransact() minus the vertical/geo policy lookup:
+     *      not blacklisted, KYC approved and unexpired, reputation above the
+     *      minimum, and the user's own jurisdiction not globally blocked.
+     */
+    function isCompliant(address user) external view returns (bool) {
+        UserCompliance storage compliance = _userCompliance[user];
+
+        if (compliance.isBlacklisted) return false;
+        if (compliance.kycStatus != ComplianceStatus.APPROVED) return false;
+        if (block.timestamp > compliance.kycExpiresAt) return false;
+        if (compliance.reputationScore < minReputationScore) return false;
+        if (blockedJurisdictions[compliance.jurisdictionHash]) return false;
+
+        return true;
+    }
+
     // ============================================
     // Reputation Functions
     // ============================================

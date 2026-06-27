@@ -9,8 +9,11 @@ export const API_BASE_URL = (
 ).replace(/\/$/, ''); // strip trailing slash so /api/v1/... paths compose cleanly
 
 // Shared secret for the public demo button — must match TEST_API_TOKEN on the backend.
-// Set VITE_TEST_API_TOKEN in Vercel env vars.
-const TEST_API_TOKEN = (import.meta.env.VITE_TEST_API_TOKEN as string) || '';
+// SECURITY: only ever attached in explicit demo builds (VITE_DEMO_MODE=true).
+// Anything bundled into the frontend is publicly extractable, so this token
+// must never ship in a production build.
+const IS_DEMO_BUILD = import.meta.env.VITE_DEMO_MODE === 'true';
+const TEST_API_TOKEN = IS_DEMO_BUILD ? ((import.meta.env.VITE_TEST_API_TOKEN as string) || '') : '';
 
 // ============================================
 // Types
@@ -167,7 +170,8 @@ export const api = {
         apiFetch<{ sellers: any[] }>(`/api/v1/sellers/search?q=${encodeURIComponent(q)}`),
 
     // Bids
-    placeBid: (data: { leadId: string; amount?: number; commitment?: string }) =>
+    // SEALED-BID (Phase B2): commitment only — amounts are revealed post-close
+    placeBid: (data: { leadId: string; commitment: string }) =>
         apiFetch<{ bid: any }>('/api/v1/bids', {
             method: 'POST',
             body: JSON.stringify(data),

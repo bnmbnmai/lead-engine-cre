@@ -3,6 +3,9 @@ import { redisClient } from './redis';
 import { resolveExpiredAuctions, resolveStuckAuctions, resolveExpiredBuyNow } from '../services/auction-closure.service';
 import { Server } from 'socket.io';
 import { aceDevBus } from '../services/ace.service';
+import { initSettlementRetryWorker, closeSettlementRetryQueue } from './settlement-retry.queue';
+import { initSettlementSagaWorker, closeSettlementSagaQueue } from '../services/settlement-saga.service';
+import { initAgentPipelineWorker, closeAgentPipelineQueue } from '../agents/orchestrator/queue';
 
 const connection = redisClient;
 
@@ -29,6 +32,10 @@ export const auctionQueue = connection
 let auctionWorker: Worker | null = null;
 
 export function initQueues(io: Server) {
+    initSettlementRetryWorker();
+    initSettlementSagaWorker(io);
+    initAgentPipelineWorker();
+
     if (!connection) {
         console.warn('[BullMQ] REDIS_URL not set. Falling back to in-memory queues/intervals.');
         // Fallback setInterval (Legacy behavior)
@@ -78,6 +85,19 @@ export function initQueues(io: Server) {
         jobId: 'singleton-auction-monitor'
     });
 
+    // Reconciliation sweep (Phase D2) — every 5 minutes
+    setInterval(async () => {
+        try {
+            const { runReconciliationSweep } = await import('../services/reconciliation.service');
+            const r = await runReconciliationSweep();
+            if (r.stuckSettling > 0 || r.stalledSagas > 0) {
+                console.warn(`[Reconcile] stuckSettling=${r.stuckSettling} stalledSagas=${r.stalledSagas}`);
+            }
+        } catch (err: any) {
+            console.error('[Reconcile] sweep failed:', err.message);
+        }
+    }, 5 * 60 * 1000);
+
     aceDevBus.emit('ace:dev-log', {
         type: 'INFO',
         message: 'BullMQ queues initialized for scalable background processing',
@@ -89,6 +109,9 @@ export function initQueues(io: Server) {
 // Graceful shutdown
 export async function closeQueues() {
     if (auctionWorker) await auctionWorker.close();
+    await closeSettlementRetryQueue();
+    await closeSettlementSagaQueue();
+    await closeAgentPipelineQueue();
     if (connection) {
         await auctionQueue.close();
         await bidQueue.close();

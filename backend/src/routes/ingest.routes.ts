@@ -18,8 +18,17 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { creService } from '../services/cre.service';
 import { privacyService } from '../services/privacy.service';
+import { requireSharedSecret } from '../middleware/secret-auth';
 
 const router = Router();
+
+// Fail-closed traffic platform key: in production, TRAFFIC_PLATFORM_API_KEY
+// must be set and match; in dev/demo an unset key allows any truthy value.
+const validateTrafficPlatformKey = requireSharedSecret({
+    header: 'x-api-key',
+    envVars: ['TRAFFIC_PLATFORM_API_KEY'],
+    label: 'traffic platform API key',
+});
 
 // ── Sample payloads used by the frontend "Simulate Traffic Lead" button ──
 const SAMPLE_PAYLOADS = [
@@ -88,9 +97,10 @@ const PII_KEYS = new Set([
 // POST /traffic-platform — Ingest lead from ad platform webhook
 // ============================================
 
-router.post('/traffic-platform', async (req: Request, res: Response) => {
+router.post('/traffic-platform', validateTrafficPlatformKey, async (req: Request, res: Response) => {
     try {
-        // API key guard (any truthy value in dev; production would validate against vault)
+        // Basic presence guard retained for dev mode (validateTrafficPlatformKey
+        // enforces the real secret in production, fail-closed).
         const apiKey = req.headers['x-api-key'] as string | undefined;
         if (!apiKey) {
             res.status(401).json({

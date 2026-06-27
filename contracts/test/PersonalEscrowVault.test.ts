@@ -564,5 +564,120 @@ describe("PersonalEscrowVault", function () {
             ).to.be.revertedWith("Invalid lock");
         });
     });
+
+    // ============================================
+    // Phase B3: Lead-bound settlement
+    // ============================================
+
+    describe("Lead binding (Phase B3)", function () {
+        const LEAD_HASH = ethers.keccak256(ethers.toUtf8Bytes("lead-123"));
+        const OTHER_HASH = ethers.keccak256(ethers.toUtf8Bytes("lead-456"));
+
+        beforeEach(async function () {
+            await vault.connect(buyer1).deposit(DEPOSIT_AMOUNT);
+        });
+
+        it("should create a lead-bound lock and emit LeadBound", async function () {
+            await expect(
+                vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                    buyer1.address, BID_AMOUNT, LEAD_HASH
+                )
+            ).to.emit(vault, "LeadBound").withArgs(1, LEAD_HASH);
+
+            const lock = await vault.bidLocks(1);
+            expect(lock.leadIdHash).to.equal(LEAD_HASH);
+        });
+
+        it("should reject bound lock with zero leadIdHash", async function () {
+            await expect(
+                vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                    buyer1.address, BID_AMOUNT, ethers.ZeroHash
+                )
+            ).to.be.revertedWith("Zero leadIdHash");
+        });
+
+        it("should settle a bound lock with the matching leadIdHash", async function () {
+            await vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                buyer1.address, BID_AMOUNT, LEAD_HASH
+            );
+
+            await expect(
+                vault.connect(backend)["settleBid(uint256,address,bytes32)"](
+                    1, seller.address, LEAD_HASH
+                )
+            ).to.emit(vault, "BidSettledForLead").withArgs(1, LEAD_HASH, seller.address);
+
+            const lock = await vault.bidLocks(1);
+            expect(lock.settled).to.be.true;
+        });
+
+        it("should REJECT settling a bound lock with the wrong leadIdHash", async function () {
+            await vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                buyer1.address, BID_AMOUNT, LEAD_HASH
+            );
+
+            await expect(
+                vault.connect(backend)["settleBid(uint256,address,bytes32)"](
+                    1, seller.address, OTHER_HASH
+                )
+            ).to.be.revertedWith("Lead binding mismatch");
+        });
+
+        it("should REJECT settling a bound lock via the legacy unbound settleBid", async function () {
+            await vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                buyer1.address, BID_AMOUNT, LEAD_HASH
+            );
+
+            await expect(
+                vault.connect(backend)["settleBid(uint256,address)"](1, seller.address)
+            ).to.be.revertedWith("Lead binding mismatch");
+        });
+
+        it("should REJECT settling a legacy unbound lock via the bound settleBid", async function () {
+            await vault.connect(backend)["lockForBid(address,uint256)"](buyer1.address, BID_AMOUNT);
+
+            await expect(
+                vault.connect(backend)["settleBid(uint256,address,bytes32)"](
+                    1, seller.address, LEAD_HASH
+                )
+            ).to.be.revertedWith("Lead binding mismatch");
+        });
+
+        it("should enforce owner-registered seller binding", async function () {
+            await vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                buyer1.address, BID_AMOUNT, LEAD_HASH
+            );
+
+            // Owner (multisig) registers the legitimate seller for this lead
+            await vault.connect(owner).registerLeadSeller(LEAD_HASH, seller.address);
+
+            // Relayer trying to redirect funds to another address → revert
+            await expect(
+                vault.connect(backend)["settleBid(uint256,address,bytes32)"](
+                    1, buyer2.address, LEAD_HASH
+                )
+            ).to.be.revertedWith("Seller binding mismatch");
+
+            // Paying the registered seller succeeds
+            await vault.connect(backend)["settleBid(uint256,address,bytes32)"](
+                1, seller.address, LEAD_HASH
+            );
+        });
+
+        it("should only allow the owner to register lead sellers", async function () {
+            await expect(
+                vault.connect(backend).registerLeadSeller(LEAD_HASH, seller.address)
+            ).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
+        });
+
+        it("should still refund bound locks normally", async function () {
+            await vault.connect(backend)["lockForBid(address,uint256,bytes32)"](
+                buyer1.address, BID_AMOUNT, LEAD_HASH
+            );
+
+            await vault.connect(backend).refundBid(1);
+            expect(await vault.balanceOf(buyer1.address)).to.equal(DEPOSIT_AMOUNT);
+        });
+    });
 });
 

@@ -12,6 +12,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { bountyService, BountyDepositSchema } from '../services/bounty.service';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -150,14 +151,18 @@ router.get('/pools/:vertical', async (req: Request, res: Response) => {
 // ──────────────────────────────────────────────────────────────────────────────
 // POST /api/v1/bounties/deposit
 //
-// Body: { buyerId, verticalSlug, amount, criteria?, buyerWallet? }
+// Body: { verticalSlug, amount, criteria?, buyerWallet? }
+// Authenticated: the depositing buyer is ALWAYS the authenticated user.
 // ──────────────────────────────────────────────────────────────────────────────
-router.post('/deposit', async (req: Request, res: Response) => {
+router.post('/deposit', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-        const { buyerId, verticalSlug, amount, criteria, buyerWallet } = req.body;
+        const { verticalSlug, amount, criteria, buyerWallet } = req.body;
+        // Bind the deposit to the authenticated user — never trust a
+        // client-supplied buyerId.
+        const buyerId = req.user!.id;
 
-        if (!buyerId || !verticalSlug || !amount) {
-            return res.status(400).json({ error: 'buyerId, verticalSlug, and amount are required' });
+        if (!verticalSlug || !amount) {
+            return res.status(400).json({ error: 'verticalSlug and amount are required' });
         }
 
         const parsed = BountyDepositSchema.safeParse({ amount, criteria });

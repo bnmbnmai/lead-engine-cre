@@ -84,6 +84,12 @@ interface IACECompliance {
         bytes32 geoHash
     ) external view returns (bool);
 
+    /// @notice Vertical/geo-agnostic compliance gate used by ACE policies
+    ///         (ACELeadPolicy.run). True when the user is not blacklisted,
+    ///         KYC-approved and unexpired, meets the minimum reputation, and
+    ///         is not in a blocked jurisdiction.
+    function isCompliant(address user) external view returns (bool);
+
     // Reputation
     function getReputationScore(address user) external view returns (uint16);
     function updateReputationScore(address user, int16 delta) external;

@@ -13,9 +13,11 @@
   "author": "bnmbnmai",
   "license": "UNLICENSED",
   "workspaces": [
+    "packages/*",
     "backend",
     "frontend",
-    "contracts"
+    "contracts",
+    "mcp-server"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",

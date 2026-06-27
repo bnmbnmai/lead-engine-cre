@@ -15,8 +15,30 @@ import { privacyService } from '../services/privacy.service';
 import { calculateFees } from '../lib/fees';
 import { evaluateFieldFilters, FieldFilterRule, FilterOperator } from '../services/field-filter.service';
 import { resolveExpiredAuctions } from '../services/auction-closure.service';
+import { requireSharedSecret } from '../middleware/secret-auth';
 
 const router = Router();
+
+type SettlementProgress = 'winner' | 'vault' | 'nft' | 'sold';
+
+/** Map saga step state to UI timeline progress (Phase D5). */
+async function getSettlementProgress(
+    leadId: string,
+    leadStatus: string,
+    nftTokenId: string | null,
+): Promise<SettlementProgress | null> {
+    if (leadStatus === 'SOLD') return 'sold';
+    if (leadStatus !== 'SETTLING' && !nftTokenId) return null;
+
+    const saga = await prisma.settlementSaga.findUnique({ where: { leadId } });
+    if (!saga) return leadStatus === 'SETTLING' ? 'winner' : null;
+
+    const steps = (saga.steps as Record<string, string>) || {};
+    if (saga.state === 'COMPLETED' || steps.finalize === 'DONE') return 'sold';
+    if (steps.nftMint === 'DONE' || nftTokenId) return 'nft';
+    if (steps.vaultSettle === 'DONE' || steps.vaultSettle === 'SKIPPED') return 'vault';
+    return 'winner';
+}
 
 // ============================================
 // List My Asks (Seller's Own Funnels)
@@ -773,20 +795,19 @@ router.post('/leads/public/submit', leadSubmitLimiter, async (req: Authenticated
 //
 // Guarded by x-cre-key header — in production the CHTT TEE injects
 // this key from the Vault DON (never exposed in plaintext node memory).
-// Here we accept any truthy value for development / demo.
+// Fail-closed: production requires CRE_API_KEY to be set and matched.
 //
 // Path: GET /api/v1/leads/:leadId/scoring-data
 // ============================================================
 
-router.get('/leads/:leadId/scoring-data', generalLimiter, async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        // Key guard — simulates production Vault DON secret validation
-        const apiKey = req.headers['x-cre-key'] as string | undefined;
-        if (!apiKey) {
-            res.status(401).json({ error: 'Missing x-cre-key header' });
-            return;
-        }
+const validateCreScoringKey = requireSharedSecret({
+    header: 'x-cre-key',
+    envVars: ['CRE_API_KEY', 'CRE_API_KEY_ALL'],
+    label: 'CRE scoring key',
+});
 
+router.get('/leads/:leadId/scoring-data', generalLimiter, validateCreScoringKey, async (req: AuthenticatedRequest, res: Response) => {
+    try {
         const { leadId } = req.params;
         const lead = await prisma.lead.findFirst({
             where: {
@@ -1346,6 +1367,11 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
         // Check if requesting user is the auction winner AND payment is settled
         let isBuyer = false;
         let settlementPending = false;
+        const settlementProgress = await getSettlementProgress(
+            lead.id,
+            lead.status,
+            lead.nftTokenId,
+        );
         if (req.user?.id && !isOwner) {
             const winningBid = await prisma.bid.findFirst({
                 where: {
@@ -1388,43 +1414,40 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
         }
 
         if (isOwner || isBuyer) {
-            // Seller or settled buyer sees full lead data (PII decrypted)
-            let contactInfo: Record<string, any> | null = null;
-
-            if (!lead.encryptedData) {
-                // Demo lead — synthesize demo PII
+            // Seller or settled buyer sees full lead data (PII decrypted).
+            // Synthetic PII fallbacks are restricted to non-production demo
+            // environments — production never fabricates contact data.
+            const allowSyntheticPii = process.env.NODE_ENV !== 'production';
+            const makeDemoPii = () => {
                 const geo = typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {};
-                contactInfo = normalizePII({
+                return normalizePII({
                     contactName: 'John Smith',
                     contactEmail: 'john.smith@example.com',
                     contactPhone: '(555) 867-5309',
                     propertyAddress: `${Math.floor(Math.random() * 9000) + 1000} Main St, ${geo.city || 'Miami'}, ${geo.state || 'FL'} ${geo.zip || '33101'}`,
                 });
+            };
+            let contactInfo: Record<string, any> | null = null;
+
+            if (!lead.encryptedData) {
+                // Demo lead without encrypted data
+                contactInfo = allowSyntheticPii ? makeDemoPii() : null;
             } else {
                 // Real lead — decrypt PII and normalize field names
                 try {
                     const encrypted = typeof lead.encryptedData === 'string' ? JSON.parse(lead.encryptedData) : lead.encryptedData;
                     const raw = privacyService.decryptLeadPII(encrypted);
                     const normalized = normalizePII(raw);
-                    // Safety: if decrypted data has no recognizable PII fields
-                    // (e.g. encryptedData was previously overwritten by NFT metadata),
-                    // fall through to demo PII so buyer still sees contact info.
                     const hasPII = normalized.contactName || normalized.contactEmail || normalized.contactPhone;
                     contactInfo = hasPII ? normalized : null;
                 } catch (err) {
                     console.error('[LEAD DETAIL] PII decryption failed:', err);
                 }
 
-                // Fallback: if decryption yielded no PII, synthesize demo contact info
-                if (!contactInfo) {
-                    const geo = typeof lead.geo === 'string' ? JSON.parse(lead.geo) : lead.geo || {};
-                    contactInfo = normalizePII({
-                        contactName: 'John Smith',
-                        contactEmail: 'john.smith@example.com',
-                        contactPhone: '(555) 867-5309',
-                        propertyAddress: `${Math.floor(Math.random() * 9000) + 1000} Main St, ${geo.city || 'Miami'}, ${geo.state || 'FL'} ${geo.zip || '33101'}`,
-                    });
-                    console.log('[LEAD DETAIL] encryptedData contained no PII — using demo fallback');
+                // Dev/demo only: synthesize contact info if decryption yielded none
+                if (!contactInfo && allowSyntheticPii) {
+                    contactInfo = makeDemoPii();
+                    console.log('[LEAD DETAIL] encryptedData contained no PII — using demo fallback (non-production)');
                 }
             }
 
@@ -1441,12 +1464,23 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     encryptedData: undefined,
                     dataHash: undefined,
                     nftMintTxHash,
+                    settlementProgress,
                     pii: contactInfo, // decrypted + normalized PII
                 },
             });
         } else {
             // Everyone else (including unsettled winners) gets PII-redacted preview
             const preview = redactLeadForPreview(lead as any);
+            // SEALED-BID: while the auction is live, the auction room's
+            // highestBid/highestBidder must not be exposed to other bidders.
+            const isLiveAuction = lead.status === 'IN_AUCTION';
+            const publicAuctionRoom = lead.auctionRoom
+                ? {
+                    ...lead.auctionRoom,
+                    highestBid: isLiveAuction ? null : lead.auctionRoom.highestBid,
+                    highestBidder: isLiveAuction ? null : lead.auctionRoom.highestBidder,
+                }
+                : lead.auctionRoom;
             res.json({
                 lead: {
                     id: lead.id,
@@ -1457,7 +1491,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                         reputationScore: lead.seller.reputationScore,
                         isVerified: lead.seller.isVerified,
                     } : undefined,
-                    auctionRoom: lead.auctionRoom,
+                    auctionRoom: publicAuctionRoom,
                     auctionStartAt: lead.auctionStartAt,
                     auctionEndAt: lead.auctionEndAt,
                     reservePrice: lead.reservePrice ? parseFloat(String(lead.reservePrice)) : null,
@@ -1470,6 +1504,7 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
                     // Signal to frontend that this user won but payment hasn't cleared
                     isBuyer: false,
                     settlementPending,
+                    settlementProgress,
                 },
             });
         }
@@ -1479,114 +1514,9 @@ router.get('/leads/:id', optionalAuthMiddleware, async (req: AuthenticatedReques
     }
 });
 
-// ============================================
-// Lead Scoring Data (for Chainlink Functions DON)
-// ============================================
-
-/**
- * GET /leads/:tokenId/scoring-data
- *
- * Returns the data the Chainlink Functions DON needs to compute
- * the on-chain quality score. Protected by CRE API key.
- * This is called by the DON when CREVerifier.requestQualityScore() fires.
- */
-router.get('/leads/:tokenId/scoring-data', async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const creKey = req.headers['x-cre-key'];
-        if (!creKey || creKey !== process.env.CRE_API_KEY) {
-            return res.status(403).json({ error: 'Invalid CRE API key' });
-        }
-
-        // tokenId can be the NFT token ID or the lead UUID
-        const { tokenId } = req.params;
-
-        // Try finding by nftTokenId first, then by lead id
-        let lead = await prisma.lead.findFirst({
-            where: { nftTokenId: tokenId },
-            select: {
-                id: true,
-                tcpaConsentAt: true,
-                geo: true,
-                encryptedData: true,
-                parameters: true,
-                source: true,
-            },
-        });
-
-        if (!lead) {
-            lead = await prisma.lead.findUnique({
-                where: { id: tokenId },
-                select: {
-                    id: true,
-                    tcpaConsentAt: true,
-                    geo: true,
-                    encryptedData: true,
-                    parameters: true,
-                    source: true,
-                },
-            });
-        }
-
-        if (!lead) {
-            return res.status(404).json({ error: 'Lead not found' });
-        }
-
-        // Build scoring data — same shape the DON source expects
-        const geo = lead.geo as any;
-        const params = lead.parameters as any;
-        const paramCount = params
-            ? Object.keys(params).filter(k => params[k] != null && params[k] !== '').length
-            : 0;
-
-        let encryptedDataValid = false;
-        if (lead.encryptedData) {
-            try {
-                const parsed = JSON.parse(lead.encryptedData as string);
-                encryptedDataValid = !!(parsed.ciphertext && parsed.iv && parsed.tag);
-            } catch { /* malformed */ }
-        }
-
-        // Cross-validate zip↔state
-        let zipMatchesState = false;
-        if (geo?.zip && geo?.state) {
-            const country = (geo.country || 'US').toUpperCase();
-            if (country === 'US') {
-                const { getStateForZip } = await import('../lib/geo-registry');
-                const expectedState = getStateForZip(geo.zip);
-                zipMatchesState = !!expectedState && expectedState === geo.state.toUpperCase();
-            } else {
-                zipMatchesState = true;
-            }
-        }
-
-        // Build the scoring response
-        const scoringResponse: Record<string, unknown> = {
-            tcpaConsentAt: lead.tcpaConsentAt,
-            geo: geo || null,
-            hasEncryptedData: !!lead.encryptedData,
-            encryptedDataValid,
-            parameterCount: paramCount,
-            source: lead.source || 'OTHER',
-            zipMatchesState,
-        };
-
-        // If called via Confidential HTTP (stub or real), append metadata
-        // Normal x-cre-key-only calls are unaffected.
-        if (req.headers['x-chtt-request'] === 'true') {
-            scoringResponse._meta = {
-                confidentialHTTP: true,
-                executedInEnclave: false,  // STUB — always false locally
-                isStub: true,
-                note: 'Response would be encrypted (AES-GCM) in production when EncryptOutput is enabled',
-            };
-        }
-
-        res.json(scoringResponse);
-    } catch (err) {
-        console.error('[MARKETPLACE] scoring-data error:', err);
-        res.status(500).json({ error: 'Failed to build scoring data' });
-    }
-});
+// NOTE: A second /leads/:tokenId/scoring-data route previously lived here.
+// It was unreachable (shadowed by the /leads/:leadId/scoring-data route above,
+// which also handles nftTokenId lookups) and has been removed.
 
 // ============================================
 // Lead Preview (Redacted for Buyers)
@@ -1659,11 +1589,21 @@ router.post('/leads/:id/buy-now', authMiddleware, requireBuyer, async (req: Auth
                 },
             });
 
-            // Create transaction record
-            const transaction = await tx.transaction.create({
-                data: {
+            // Create transaction record — idempotent on (leadId, buyerId):
+            // a stale PENDING pre-bid transaction from the earlier auction
+            // phase is reused instead of violating the unique constraint.
+            const transaction = await tx.transaction.upsert({
+                where: { leadId_buyerId: { leadId: lead.id, buyerId: req.user!.id } },
+                create: {
                     leadId: lead.id,
                     buyerId: req.user!.id,
+                    amount: lead.buyNowPrice,
+                    platformFee: fees.platformFee,
+                    convenienceFee: fees.convenienceFee || undefined,
+                    convenienceFeeType: fees.convenienceFeeType,
+                    status: 'PENDING',
+                },
+                update: {
                     amount: lead.buyNowPrice,
                     platformFee: fees.platformFee,
                     convenienceFee: fees.convenienceFee || undefined,
@@ -1938,9 +1878,11 @@ router.post('/leads/:id/prepare-prebid-escrow', authMiddleware, requireBuyer, as
         const convenienceFee = 1.0;
         const totalAmount = bidAmount + convenienceFee;
 
-        // Create a PENDING transaction to track this pre-bid escrow
-        const transaction = await prisma.transaction.create({
-            data: {
+        // Create a PENDING transaction to track this pre-bid escrow.
+        // Idempotent on (leadId, buyerId) — re-bids reuse the same record.
+        const transaction = await prisma.transaction.upsert({
+            where: { leadId_buyerId: { leadId, buyerId: req.user!.id } },
+            create: {
                 leadId,
                 buyerId: req.user!.id,
                 amount: bidAmount,
@@ -1948,6 +1890,11 @@ router.post('/leads/:id/prepare-prebid-escrow', authMiddleware, requireBuyer, as
                 convenienceFee,
                 convenienceFeeType: 'ALWAYS',
                 status: 'PENDING',
+            },
+            update: {
+                amount: bidAmount,
+                convenienceFee,
+                convenienceFeeType: 'ALWAYS',
             },
         });
 

@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { creService } from '../services/cre.service';
 import { aceService } from '../services/ace.service';
 import { escrowService } from '../services/escrow.service';
@@ -9,6 +9,19 @@ import { prisma } from '../lib/prisma';
 import { calculateFees } from '../lib/fees';
 
 const router = Router();
+
+// Fail-closed: integration/demo routes are hard-blocked in production
+// unless explicitly opted in via ALLOW_DEMO_ROUTES=true.
+router.use((_req: Request, res: Response, next: NextFunction) => {
+    const explicitlyDisabled = process.env.DEMO_MODE === 'false';
+    const blockedInProduction =
+        process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_ROUTES !== 'true';
+    if (explicitlyDisabled || blockedInProduction) {
+        res.status(403).json({ error: 'Demo endpoints disabled' });
+        return;
+    }
+    next();
+});
 
 // ============================================
 // End-to-End Demo Flow
@@ -180,10 +193,12 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
         // ─── Step 8: x402 Settlement ───────────────
         stepStart = Date.now();
         const e2eFees = calculateFees(bidAmount, 'AGENT');
-        const transaction = await prisma.transaction.create({
-            data: {
+        const e2eBuyerId = await getOrCreateDemoBuyer(buyerAddress);
+        const transaction = await prisma.transaction.upsert({
+            where: { leadId_buyerId: { leadId: lead.id, buyerId: e2eBuyerId } },
+            create: {
                 leadId: lead.id,
-                buyerId: (await getOrCreateDemoBuyer(buyerAddress)),
+                buyerId: e2eBuyerId,
                 amount: bidAmount,
                 platformFee: e2eFees.platformFee,
                 convenienceFee: e2eFees.convenienceFee || undefined,
@@ -191,6 +206,7 @@ router.post('/e2e-bid', async (req: Request, res: Response) => {
                 currency: 'USDC',
                 status: 'PENDING',
             },
+            update: {},
         });
         const paymentResult = await escrowService.createPayment(
             '0x0000000000000000000000000000000000000002', // demo seller address

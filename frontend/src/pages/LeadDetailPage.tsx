@@ -15,6 +15,7 @@ import { BidPanel } from '@/components/bidding/BidPanel';
 import { formatCurrency, getStatusColor, formatTimeRemaining } from '@/lib/utils';
 import { useAuction } from '@/hooks/useAuction';
 import useAuth from '@/hooks/useAuth';
+import { getSealedBidRecord } from '@/utils/sealedBid';
 import { useEscrow } from '@/hooks/useEscrow';
 import api from '@/lib/api';
 import { toast } from '@/hooks/useToast';
@@ -136,7 +137,7 @@ function EscrowStepIndicator({ label, done, active }: { label: string; done?: bo
 
 export default function LeadDetailPage() {
     const { id } = useParams<{ id: string }>();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const { openConnectModal } = useConnectModal();
 
     const [lead, setLead] = useState<LeadDetail | null>(null);
@@ -178,7 +179,8 @@ export default function LeadDetailPage() {
     // Bidding state
     const [bidLoading, setBidLoading] = useState(false);
     const [myBidAmount, setMyBidAmount] = useState<number | null>(null);
-    const [localHighestBid, setLocalHighestBid] = useState<number | null>(null);
+    // Sealed-bid: highest bid only surfaces post-close (server-authoritative)
+    const [localHighestBid] = useState<number | null>(null);
     const [localBidCount, setLocalBidCount] = useState<number | null>(null);
 
     // Auction hook — only active for IN_AUCTION leads
@@ -267,36 +269,24 @@ export default function LeadDetailPage() {
         }
     };
 
-    const handlePlaceBid = (data: { amount?: number; commitment?: string }) => {
+    // SEALED-BID (Phase B2): only the commitment crosses the wire. The amount
+    // stays in this tab's sessionStorage until reveal.
+    const handlePlaceBid = (data: { commitment: string }) => {
         setBidLoading(true);
         try {
             placeBid(data);
             // Increment bid count immediately for local feedback
             setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
 
-            if (data.amount) {
-                setMyBidAmount(data.amount);
-                // Don't set localHighestBid during BIDDING phase — sealed bids must stay hidden
-                if (phase !== 'BIDDING') {
-                    if (!localHighestBid || data.amount > localHighestBid) {
-                        setLocalHighestBid(data.amount);
-                    }
-                }
-            }
+            // Local display only — read back from this tab's sealed-bid store
+            const stored = getSealedBidRecord(data.commitment);
+            if (stored) setMyBidAmount(stored.amount);
 
-            if (data.commitment) {
-                toast({
-                    type: 'success',
-                    title: '🔒 Sealed Bid Committed',
-                    description: 'Your bid has been encrypted and submitted. It will be revealed automatically when the auction ends.',
-                });
-            } else if (data.amount) {
-                toast({
-                    type: 'success',
-                    title: '✅ Bid Placed!',
-                    description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
-                });
-            }
+            toast({
+                type: 'success',
+                title: '🔒 Sealed Bid Committed',
+                description: 'Your bid has been encrypted and submitted. It will be revealed automatically when the auction ends.',
+            });
         } finally {
             // Release loading state after a brief delay
             setTimeout(() => setBidLoading(false), 800);
@@ -656,6 +646,8 @@ export default function LeadDetailPage() {
 
                                         {isAuthenticated && (
                                             <BidPanel
+                                                leadId={lead.id}
+                                                buyerId={user?.id}
                                                 reservePrice={lead.reservePrice ?? 0}
                                                 highestBid={displayHighestBid}
                                                 phase={phase as any}

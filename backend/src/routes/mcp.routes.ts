@@ -7,21 +7,31 @@
  */
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { authMiddleware } from '../middleware/auth';
+import { toAnthropicTools, buildSystemPrompt } from '@lead-engine/agent-tools';
 
 const router = Router();
-const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3001';
-const MCP_API_KEY = process.env.MCP_API_KEY || '';
 
-if (!MCP_API_KEY) {
-    console.warn('[mcp.routes] ⚠️  MCP_API_KEY not set — outbound MCP server calls will be unauthenticated.');
+// All MCP proxy routes require an authenticated session. Tool execution
+// performs real actions (bids, auto-bid rules, exports) so anonymous
+// access is never allowed.
+router.use(authMiddleware);
+
+const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3002';
+// Shared secret for INBOUND auth at the MCP server (MCP_SERVER_TOKEN there).
+// Falls back to MCP_API_KEY for backwards compatibility.
+const MCP_SERVER_TOKEN = process.env.MCP_SERVER_TOKEN || process.env.MCP_API_KEY || '';
+
+if (!MCP_SERVER_TOKEN) {
+    console.warn('[mcp.routes] ⚠️  MCP_SERVER_TOKEN not set — outbound MCP server calls will be unauthenticated.');
 }
 
 /** Build auth headers for outbound calls to the MCP server. */
 function mcpHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const h: Record<string, string> = { 'Content-Type': 'application/json', ...extra };
-    if (MCP_API_KEY) {
-        h['Authorization'] = `Bearer ${MCP_API_KEY}`;
-        h['X-Api-Key'] = MCP_API_KEY;
+    if (MCP_SERVER_TOKEN) {
+        h['Authorization'] = `Bearer ${MCP_SERVER_TOKEN}`;
+        h['X-Mcp-Token'] = MCP_SERVER_TOKEN;
     }
     return h;
 }
@@ -33,243 +43,14 @@ function mcpHeaders(extra: Record<string, string> = {}): Record<string, string> 
 const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
 const KIMI_BASE_URL = 'https://api.kimi.com/coding';
 
-// ── MCP tool definitions for the LLM ──
+// ── MCP tool definitions for the LLM (Phase B5: canonical registry) ──
+// Definitions live in @lead-engine/agent-tools (packages/agent-tools) and
+// are shared with the MCP server proxy and the LangChain agent. The 'chat'
+// surface includes every proxyable tool plus the in-process tools this
+// route implements (batched_private_score_request, subscribe_to_live_leads).
 
-const MCP_TOOLS = [
-    {
-        type: 'function' as const,
-        function: {
-            name: 'search_leads',
-            description: 'Search and filter available leads in the marketplace by vertical, state, price range.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    vertical: { type: 'string', description: 'Lead vertical (solar, mortgage, roofing, insurance, etc.)' },
-                    state: { type: 'string', description: 'US state code (e.g., CA, FL, TX)' },
-                    minPrice: { type: 'number', description: 'Minimum reserve price in USDC' },
-                    maxPrice: { type: 'number', description: 'Maximum reserve price in USDC' },
-                    limit: { type: 'number', description: 'Max results to return', default: 5 },
-                },
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'get_bid_floor',
-            description: 'Get real-time bid floor pricing for a vertical. Returns floor, ceiling, and market index.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    vertical: { type: 'string', description: 'Lead vertical (solar, mortgage, etc.)' },
-                    country: { type: 'string', description: 'Country code', default: 'US' },
-                },
-                required: ['vertical'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'get_preferences',
-            description: 'Get the current buyer auto-bid preference sets (per-vertical, geo filters, budgets).',
-            parameters: { type: 'object', properties: {} },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'set_auto_bid_rules',
-            description: 'Configure auto-bid rules for a vertical. The engine auto-bids on matching leads.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    vertical: { type: 'string', description: 'Lead vertical' },
-                    autoBidEnabled: { type: 'boolean', default: true },
-                    autoBidAmount: { type: 'number', description: 'Bid amount in USDC' },
-                    minQualityScore: { type: 'number', description: 'Min quality score 0-100' },
-                    dailyBudget: { type: 'number', description: 'Daily budget cap in USDC' },
-                    geoInclude: { type: 'array', items: { type: 'string' }, description: 'State codes to include' },
-                },
-                required: ['vertical', 'autoBidAmount'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'export_leads',
-            description: 'Export leads as CSV or JSON for CRM integration.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    format: { type: 'string', enum: ['csv', 'json'], default: 'json' },
-                    status: { type: 'string', default: 'SOLD' },
-                    days: { type: 'number', default: 30 },
-                },
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'place_bid',
-            description: 'Place a sealed bid on a specific lead.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    leadId: { type: 'string', description: 'The lead ID to bid on' },
-                    commitment: { type: 'string', description: 'Bid commitment hash' },
-                },
-                required: ['leadId', 'commitment'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'configure_crm_webhook',
-            description: 'Register a CRM webhook (HubSpot, Zapier, or generic).',
-            parameters: {
-                type: 'object',
-                properties: {
-                    url: { type: 'string', description: 'Webhook destination URL' },
-                    format: { type: 'string', enum: ['hubspot', 'zapier', 'generic'], default: 'generic' },
-                },
-                required: ['url'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'ping_lead',
-            description: 'Get full details and current status for a specific lead.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    leadId: { type: 'string', description: 'The lead ID' },
-                    action: { type: 'string', enum: ['status', 'evaluate'], default: 'status' },
-                },
-                required: ['leadId'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'suggest_vertical',
-            description: 'AI-powered vertical classification from a lead description.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    description: { type: 'string', description: 'Lead description text' },
-                },
-                required: ['description'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'batched_private_score_request',
-            description: 'Request a Phase 2 batched confidential quality score for a lead. Runs quality score + ZK fraud signal + ACE compliance in a single DON enclave computation and stores an AES-GCM encrypted envelope in the lead record. Returns the composite score and ACE compliance result without any PII.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    leadId: { type: 'string', description: 'The lead ID to score privately' },
-                },
-                required: ['leadId'],
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'subscribe_to_live_leads',
-            description: 'Subscribe to real-time events for new leads and auction updates via Socket.IO. Use this to wait for live events. Returns the first event received.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    verticals: { type: 'array', items: { type: 'string' }, description: 'Filter by vertical (e.g. solar). Omit for all.' },
-                },
-            },
-        },
-    },
-    {
-        type: 'function' as const,
-        function: {
-            name: 'query_open_granular_bounties',
-            description: 'Query active buyer bounty pools across all verticals. Returns total USDC available per vertical, pool count, and contract address. Use this when users ask about bounties, demand signals, or which verticals have the most buyer interest.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    vertical: { type: 'string', description: 'Optional: filter by specific vertical slug (e.g. solar.residential)' },
-                },
-            },
-        },
-    },
-];
-
-// Use relative paths for lead links — the AgentChatModal renders these inside the SPA
-const _FRONTEND_URL = '';
-
-const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Convergence Hackathon.
-You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
-You help buyers discover, evaluate, and bid on commercial real-estate leads on a blockchain-verified marketplace powered by Chainlink.
-You have access to 12 MCP tools. Use them to answer the user's questions.
-
-## STRICT PII RULES
-- NEVER reveal phone numbers, emails, full names, street addresses, or any personally identifiable information.
-- Only return non-sensitive fields: lead ID, vertical, state, reserve price, quality score, seller reputation, bid count.
-- If a tool result contains PII, ignore those fields and only reference safe data.
-
-## APP NAVIGATION
-You can link users to pages inside the app. Use relative markdown links (no domain).
-Available pages:
-
-| Page | Path | When to suggest |
-|------|------|-----------------|
-| Marketplace | /marketplace | "browse leads", "show marketplace", "take me to marketplace" |
-| Auction / Lead Detail | /auction/{leadId} | After listing leads or when user asks about a specific lead |
-| Buyer Dashboard | /buyer | "show my dashboard", "go home" |
-| My Bids | /buyer/bids | "show my bids", "bid history" |
-| Purchased Leads (Portfolio) | /buyer/portfolio | "my purchased leads", "won leads", "my portfolio" |
-| Buyer Preferences | /buyer/preferences | "my preferences", "auto-bid settings", "auto-bidding", "change my verticals" |
-| Buyer Analytics | /buyer/analytics | "my stats", "analytics", "performance" |
-| Integrations | /buyer/integrations | "integrations", "API keys", "webhooks" |
-| Seller Dashboard | /seller | "seller dashboard" |
-| Seller Leads | /seller/leads | "my listings", "my leads" (as seller) |
-| Seller Funnels | /seller/funnels | "my funnels", "landing pages", "lead capture forms" |
-| Submit Lead | /seller/submit | "submit a lead", "sell a lead" |
-| Seller Analytics | /seller/analytics | "seller stats", "seller analytics" |
-
-## FORMATTING RULES
-- Be concise and use markdown formatting. Show numbers and data clearly.
-- When listing leads, format each lead with a clickable link:
-  **[Vertical — State — $Price](/auction/{leadId})** | Quality: X | Bids: Y
-- After listing leads, add a call-to-action: "Click any lead above to view and bid." and optionally link to the full [Marketplace](/marketplace).
-- When the user asks about a specific lead, include a **[🎯 Place Bid](/auction/{leadId})** link.
-- When asked about pricing, check bid floors.
-- Always explain what you found after calling a tool.
-- If a search returns no results, suggest broadening the search (try different verticals or remove filters).
-
-## SMART NAVIGATION
-Proactively suggest relevant navigation after answering:
-- After showing leads → "Want to see more? [Browse Marketplace](/marketplace)"
-- After checking preferences → "You can edit these in [Preferences](/buyer/preferences)"
-- After showing bids → "View your full bid history in [My Bids](/buyer/bids)"
-- When user asks "where can I..." or "how do I..." → provide the appropriate nav link
-- When user says "go to", "take me to", "open", "show me" → output a link to that page
-- Always use the format: [Page Name](/path) — never use full URLs.`;
-
-// ── Anthropic-format tool definitions for Kimi Code ──
-
-const ANTHROPIC_TOOLS = MCP_TOOLS.map((t) => ({
-    name: t.function.name,
-    description: t.function.description,
-    input_schema: t.function.parameters,
-}));
+const ANTHROPIC_TOOLS = toAnthropicTools('chat');
+const SYSTEM_PROMPT = buildSystemPrompt();
 
 // ── GET /tools — list available MCP tools ──
 
@@ -388,27 +169,23 @@ async function searchLeadsLocal(params: Record<string, unknown>): Promise<any> {
 }
 
 /**
- * Race-condition guard for place_bid:
- * Checks the lead is still IN_AUCTION inside a Prisma serializable-read before
- * delegating to the MCP server. Prevents the agent from bidding on a lead that
- * has just been closed by another user or the auction-closure cron.
+ * Guard for place_bid (shared with the LangChain path — see agent-guards.ts):
+ * auction-state check + budget caps (maxBidPerLead / dailyBudget) before
+ * delegating to the MCP server. Prevents the agent from bidding on a closed
+ * lead or blowing past its configured spend limits.
  */
 async function mcpPlaceBid(params: Record<string, unknown>): Promise<unknown> {
     const leadId = params.leadId as string | undefined;
     if (!leadId) return { error: 'place_bid: leadId is required' };
 
-    // Read-only guard: confirm lead is still active
-    const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
-        select: { id: true, status: true, auctionEndAt: true },
+    const { checkAgentBidGuards, decodeCommitmentAmount, resolveAgentBuyerUserId } = await import('../services/agent-guards');
+    const guard = await checkAgentBidGuards({
+        leadId,
+        buyerUserId: await resolveAgentBuyerUserId(),
+        amount: decodeCommitmentAmount(params.commitment as string | undefined),
     });
-
-    if (!lead) return { error: `place_bid: lead ${leadId} not found` };
-    if (lead.status !== 'IN_AUCTION') {
-        return { error: `place_bid: lead ${leadId} is not available (status: ${lead.status})` };
-    }
-    if (lead.auctionEndAt && new Date(lead.auctionEndAt) < new Date()) {
-        return { error: `place_bid: auction for lead ${leadId} has already ended` };
+    if (!guard.allowed) {
+        return { error: `place_bid: ${guard.reason}` };
     }
 
     // Guard passed — delegate to MCP server
@@ -442,16 +219,12 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
         return mcpPlaceBid(params);
     }
 
-    // query_open_granular_bounties — fetch bounty availability from local API
+    // query_open_granular_bounties — query the bounty service in-process
     if (name === 'query_open_granular_bounties') {
         try {
+            const { bountyService } = await import('../services/bounty.service');
             const vertical = params.vertical as string | undefined;
-            const url = vertical
-                ? `${MCP_BASE}/api/v1/bounties/available?vertical=${encodeURIComponent(vertical)}`
-                : `${MCP_BASE}/api/v1/bounties/available`;
-            const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-            if (!res.ok) return { error: `Bounty API returned ${res.status}` };
-            return await res.json();
+            return await bountyService.getAvailableBounties(vertical);
         } catch (err: any) {
             return { error: `query_open_granular_bounties failed: ${err.message}` };
         }

@@ -6,6 +6,7 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { wagmiConfig } from '@/lib/wagmi';
 import { AuthProvider } from '@/hooks/useAuth';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { initSentry } from '@/lib/sentry';
 initSentry();
 
@@ -33,6 +34,8 @@ import MarketMetrics from '@/pages/MarketMetrics';
 import SellerIntegrations from '@/pages/SellerIntegrations';
 import BuyerIntegrations from '@/pages/BuyerIntegrations';
 import DemoResults from '@/pages/DemoResults';
+import AgentDashboard from '@/pages/AgentDashboard';
+import AgentSimulate from '@/pages/AgentSimulate';
 
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { DevLogPanel } from '@/components/demo/DevLogPanel';
@@ -76,6 +79,7 @@ function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
 
 function App() {
     return (
+        <ErrorBoundary>
         <WagmiProvider config={wagmiConfig}>
             <QueryClientProvider client={queryClient}>
                 <RainbowKitProvider theme={darkTheme({ accentColor: '#375BD2', borderRadius: 'medium' })}>
@@ -103,6 +107,8 @@ function App() {
                                 <Route path="/buyer/preferences" element={<ProtectedRoute role="BUYER"><BuyerPreferences /></ProtectedRoute>} />
                                 <Route path="/buyer/portfolio" element={<ProtectedRoute role="BUYER"><BuyerPortfolio /></ProtectedRoute>} />
                                 <Route path="/buyer/integrations" element={<ProtectedRoute role="BUYER"><BuyerIntegrations /></ProtectedRoute>} />
+                                <Route path="/agent" element={<ProtectedRoute role="BUYER"><AgentDashboard /></ProtectedRoute>} />
+                                <Route path="/agent/simulate" element={<ProtectedRoute role="BUYER"><AgentSimulate /></ProtectedRoute>} />
 
                                 {/* Seller Routes (auth + role required) */}
                                 <Route path="/seller" element={<ProtectedRoute role="SELLER"><SellerDashboard /></ProtectedRoute>} />
@@ -147,6 +153,7 @@ function App() {
                 </RainbowKitProvider>
             </QueryClientProvider>
         </WagmiProvider>
+        </ErrorBoundary>
     );
 }
 

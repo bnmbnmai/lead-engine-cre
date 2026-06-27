@@ -286,11 +286,10 @@ export function scheduleBidsForLead(
                     basescanLink: `https://sepolia.basescan.org/tx/${receipt.hash}`,
                 });
 
-                // Emit agent bid announcement for AI chat widget
+                // Emit agent bid announcement for AI chat widget.
+                // SEALED-BID: no amount or bidder identity in the broadcast.
                 io.emit('agent:bid-placed', {
                     leadId,
-                    amount: mutableBidAmount,
-                    buyerAddr,
                     vertical: 'lead',
                     txHash: receipt.hash,
                     isAgentBid,
