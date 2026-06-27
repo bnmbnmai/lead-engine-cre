@@ -8,12 +8,12 @@
  *   1. Upserts a User row for the Kimi agent wallet (Wallet 12)
  *   2. Upserts a BuyerProfile with KYC=VERIFIED
  *   3. Upserts an EscrowVault so vault queries don't fail
- *   4. Creates a 1-year Session token (the JWT / API_KEY for the MCP server)
+ *   4. Creates a signed 7-day JWT + matching Session row (the API_KEY for the MCP server)
  *   5. Prints KIMI_AGENT_JWT and KIMI_AGENT_BUYER_PROFILE_ID — copy to .env files
  */
 
 import { prisma } from '../lib/prisma';
-import { randomBytes } from 'crypto';
+import { generateToken } from '../middleware/auth';
 
 // ── Kimi agent identity (Wallet 10 — already in DEMO_BUYER_WALLETS, pre-funded each run)
 const KIMI_WALLET = '0x7be5ce8824d5c1890bC09042837cEAc57a55fdad';
@@ -56,12 +56,19 @@ async function main(): Promise<void> {
     });
     console.log(`✅ EscrowVault:   created/verified`);
 
-    // 4 — Create a fresh 1-year session token
-    //     Using a 48-byte random hex string as the "JWT" — simple, no RSA overhead.
+    // 4 — Create a fresh session token
+    //     MUST be a real signed JWT: authMiddleware verifies the JWT signature
+    //     FIRST (jwt.verify) and only then checks the Session row. A random hex
+    //     string fails signature verification and is rejected with 401.
     //     The MCP server sends it as:  Authorization: Bearer <token>
-    //     The backend validates it via Session.token lookup in the auth middleware.
-    const token = randomBytes(48).toString('hex');
-    const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // +1 year
+    const token = generateToken({
+        userId: user.id,
+        walletAddress: user.walletAddress,
+        role: user.role,
+    });
+    // Session validity is bounded by the JWT's own exp (7d) — the Session row
+    // simply must not expire before the JWT does.
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // +7 days (matches JWT exp)
 
     const session = await prisma.session.create({
         data: {
