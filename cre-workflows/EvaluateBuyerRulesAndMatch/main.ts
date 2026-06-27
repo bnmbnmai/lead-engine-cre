@@ -49,296 +49,95 @@ import {
 } from "@chainlink/cre-sdk"
 import { z } from "zod"
 
+// Canonical rule evaluation — shared with the backend via packages/rules-engine.
+// Bun bundles this TypeScript source directly into the WASM build, so the DON
+// and the server run byte-identical gate logic.
+import { evaluatePreferenceSet } from "../../packages/rules-engine/src/gates"
+import type { MatchResult } from "../../packages/rules-engine/src/types"
+
 // ── Config Schema ───────────────────────────────────────────────────────
 
 const configSchema = z.object({
     schedule: z.string(),
     url: z.string(),
+    // Phase B5: DON → backend feedback loop. Consensus match results are
+    // POSTed here (POST /api/v1/auto-bid/match-results) so the backend
+    // ingests the DON verdict idempotently instead of re-evaluating on its
+    // own cron (split-brain fix).
+    reportUrl: z.string(),
     owner: z.string(),
 })
 
 type Config = z.infer<typeof configSchema>
 
-// ── Types ───────────────────────────────────────────────────────────────
+// ── Types & API Response Validation (Zod) ───────────────────────────────
 
-/** Lead data fetched from the backend API. */
-interface LeadData {
-    id: string
-    vertical: string
-    geo: {
-        country: string
-        state?: string
-        city?: string
-        zip?: string
-    }
-    source: string
-    qualityScore: number | null
-    isVerified: boolean
-    reservePrice: number
-    parameters?: Record<string, unknown> | null
-}
-
-/** Buyer preference set fetched from the backend API. */
-interface PreferenceSet {
-    id: string
-    buyerId: string
-    vertical: string
-    label: string
-    geoCountries: string[]
-    geoInclude: string[]
-    geoExclude: string[]
-    minQualityScore: number | null
-    acceptOffSite: boolean
-    requireVerified: boolean
-    autoBidAmount: number
-    maxBidPerLead: number | null
-    fieldFilters: FieldFilter[]
-}
+const filterOperatorSchema = z.enum([
+    "EQUALS", "NOT_EQUALS",
+    "IN", "NOT_IN",
+    "GT", "GTE", "LT", "LTE",
+    "BETWEEN",
+    "CONTAINS", "STARTS_WITH",
+])
 
 /** Field-level filter rule from a buyer preference set. */
-interface FieldFilter {
-    fieldKey: string
-    operator: FilterOperator
-    value: string
-}
+const fieldFilterSchema = z.object({
+    fieldKey: z.string(),
+    operator: filterOperatorSchema,
+    value: z.string(),
+})
 
-type FilterOperator =
-    | "EQUALS" | "NOT_EQUALS"
-    | "IN" | "NOT_IN"
-    | "GT" | "GTE" | "LT" | "LTE"
-    | "BETWEEN"
-    | "CONTAINS" | "STARTS_WITH"
+/** Lead data fetched from the backend API. */
+const leadDataSchema = z.object({
+    id: z.string().min(1),
+    vertical: z.string(),
+    geo: z.object({
+        country: z.string(),
+        state: z.string().optional(),
+        city: z.string().optional(),
+        zip: z.string().optional(),
+    }),
+    source: z.string(),
+    qualityScore: z.number().nullable(),
+    isVerified: z.boolean(),
+    reservePrice: z.number(),
+    parameters: z.record(z.string(), z.unknown()).nullish(),
+})
+
+/** Buyer preference set fetched from the backend API. */
+const preferenceSetSchema = z.object({
+    id: z.string().min(1),
+    buyerId: z.string().min(1),
+    vertical: z.string(),
+    label: z.string(),
+    geoCountries: z.array(z.string()),
+    geoInclude: z.array(z.string()),
+    geoExclude: z.array(z.string()),
+    minQualityScore: z.number().nullable(),
+    acceptOffSite: z.boolean(),
+    requireVerified: z.boolean(),
+    autoBidAmount: z.number(),
+    maxBidPerLead: z.number().nullable(),
+    fieldFilters: z.array(fieldFilterSchema),
+})
 
 /** Combined response from the /evaluate-lead endpoint. */
-interface EvaluateLeadResponse {
-    lead: LeadData | null
-    preferenceSets: PreferenceSet[]
-}
+const evaluateLeadResponseSchema = z.object({
+    lead: leadDataSchema.nullable(),
+    preferenceSets: z.array(preferenceSetSchema),
+})
 
-/** Result of evaluating a single preference set against a lead. */
-interface MatchResult {
-    preferenceSetId: string
-    buyerId: string
-    matched: boolean
-    reason: string
-    suggestedBidAmount: number
-    gateResults: {
-        verticalMatch: boolean
-        geoCountryMatch: boolean
-        geoStateMatch: boolean
-        qualityScoreMatch: boolean
-        offSiteMatch: boolean
-        verifiedMatch: boolean
-        fieldFilterMatch: boolean
-    }
-}
-
-/** Aggregated result returned from the DON. */
+/**
+ * Aggregated result returned from the DON.
+ * NOTE: deliberately contains NO timestamp — every field must be identical
+ * across nodes for consensusIdenticalAggregation to succeed. The evaluatedAt
+ * timestamp is added post-consensus from runtime.now() (DON Time).
+ */
 interface WorkflowResult {
     leadId: string
     totalPreferenceSets: number
     matchedSets: number
     results: MatchResult[]
-    evaluatedAt: string
-}
-
-// ── Gate Evaluation (Pure, Deterministic) ────────────────────────────────
-
-/**
- * Evaluate all 7 deterministic gates for a single preference set.
- * Pure function — no external state, no async, fully deterministic.
- * This is the core logic that runs inside the DON with BFT consensus.
- */
-function evaluatePreferenceSet(lead: LeadData, pref: PreferenceSet): MatchResult {
-    const result: MatchResult = {
-        preferenceSetId: pref.id,
-        buyerId: pref.buyerId,
-        matched: true,
-        reason: "",
-        suggestedBidAmount: pref.autoBidAmount,
-        gateResults: {
-            verticalMatch: false,
-            geoCountryMatch: false,
-            geoStateMatch: false,
-            qualityScoreMatch: false,
-            offSiteMatch: false,
-            verifiedMatch: false,
-            fieldFilterMatch: false,
-        },
-    }
-
-    // ── Gate 1: Vertical match ──
-    if (pref.vertical !== "*" && pref.vertical !== lead.vertical) {
-        result.matched = false
-        result.reason = `Vertical mismatch: ${lead.vertical} vs ${pref.vertical}`
-        return result
-    }
-    result.gateResults.verticalMatch = true
-
-    // ── Gate 2: Geo country match ──
-    const geoCountries = pref.geoCountries.length > 0 ? pref.geoCountries : ["US"]
-    if (!geoCountries.includes(lead.geo.country)) {
-        result.matched = false
-        result.reason = `Country mismatch: [${geoCountries.join(",")}] does not include ${lead.geo.country}`
-        return result
-    }
-    result.gateResults.geoCountryMatch = true
-
-    // ── Gate 3: Geo state include/exclude ──
-    const state = lead.geo.state?.toUpperCase() ?? ""
-    if (state && pref.geoInclude.length > 0) {
-        const included = pref.geoInclude.map((s) => s.toUpperCase())
-        if (!included.includes(state)) {
-            result.matched = false
-            result.reason = `State ${state} not in include list`
-            return result
-        }
-    }
-    if (state && pref.geoExclude.length > 0) {
-        const excluded = pref.geoExclude.map((s) => s.toUpperCase())
-        if (excluded.includes(state)) {
-            result.matched = false
-            result.reason = `State ${state} in exclude list`
-            return result
-        }
-    }
-    result.gateResults.geoStateMatch = true
-
-    // ── Gate 4: Quality score threshold ──
-    if (pref.minQualityScore != null && pref.minQualityScore > 0) {
-        const leadScore = lead.qualityScore ?? 0
-        // Buyer sets minQualityScore on 0–100 scale; internal score is 0–10,000
-        const internalThreshold = pref.minQualityScore * 100
-        if (leadScore < internalThreshold) {
-            result.matched = false
-            result.reason = `Quality ${Math.floor(leadScore / 100)}/100 < min ${pref.minQualityScore}/100`
-            return result
-        }
-    }
-    result.gateResults.qualityScoreMatch = true
-
-    // ── Gate 5: Off-site toggle ──
-    if (!pref.acceptOffSite && lead.source === "OFFSITE") {
-        result.matched = false
-        result.reason = "Off-site leads rejected"
-        return result
-    }
-    result.gateResults.offSiteMatch = true
-
-    // ── Gate 6: Verified-only ──
-    if (pref.requireVerified && !lead.isVerified) {
-        result.matched = false
-        result.reason = "Requires verified lead"
-        return result
-    }
-    result.gateResults.verifiedMatch = true
-
-    // ── Gate 7: Field-level filters ──
-    if (pref.fieldFilters.length > 0) {
-        const filterResult = evaluateFieldFilters(lead.parameters, pref.fieldFilters)
-        if (!filterResult.pass) {
-            result.matched = false
-            result.reason = `Field filter failed: ${filterResult.failedKeys.join(", ")}`
-            return result
-        }
-    }
-    result.gateResults.fieldFilterMatch = true
-
-    result.reason = `Matched: ${pref.label} → $${pref.autoBidAmount}`
-    return result
-}
-
-// ── Field Filter Evaluation (Pure, Deterministic) ────────────────────────
-
-/**
- * Evaluate field-level filter rules against lead parameters.
- * All rules must pass (AND logic). Self-contained — no imports needed.
- * Mirrors backend/src/services/field-filter.service.ts exactly.
- */
-function evaluateFieldFilters(
-    parameters: Record<string, unknown> | null | undefined,
-    rules: FieldFilter[]
-): { pass: boolean; failedKeys: string[] } {
-    const failedKeys: string[] = []
-    if (!rules || rules.length === 0) return { pass: true, failedKeys }
-
-    const params = parameters || {}
-
-    for (const rule of rules) {
-        const leadValue = params[rule.fieldKey]
-        let filterValue: unknown
-        try {
-            filterValue = JSON.parse(rule.value)
-        } catch {
-            filterValue = rule.value
-        }
-
-        if (!evaluateSingleRule(leadValue, rule.operator, filterValue)) {
-            failedKeys.push(rule.fieldKey)
-        }
-    }
-
-    return { pass: failedKeys.length === 0, failedKeys }
-}
-
-/** Evaluate a single filter rule. Pure function. */
-function evaluateSingleRule(
-    leadValue: unknown,
-    operator: FilterOperator,
-    filterValue: unknown
-): boolean {
-    if (leadValue === undefined || leadValue === null) {
-        if (operator === "NOT_EQUALS") return filterValue !== null && filterValue !== undefined
-        if (operator === "NOT_IN") return true
-        return false
-    }
-
-    switch (operator) {
-        case "EQUALS":
-            return normalize(leadValue) === normalize(filterValue)
-        case "NOT_EQUALS":
-            return normalize(leadValue) !== normalize(filterValue)
-        case "IN": {
-            if (!Array.isArray(filterValue)) return false
-            const list = filterValue.map(normalize)
-            return list.includes(normalize(leadValue))
-        }
-        case "NOT_IN": {
-            if (!Array.isArray(filterValue)) return true
-            const list = filterValue.map(normalize)
-            return !list.includes(normalize(leadValue))
-        }
-        case "GT":
-            return toNumber(leadValue) > toNumber(filterValue)
-        case "GTE":
-            return toNumber(leadValue) >= toNumber(filterValue)
-        case "LT":
-            return toNumber(leadValue) < toNumber(filterValue)
-        case "LTE":
-            return toNumber(leadValue) <= toNumber(filterValue)
-        case "BETWEEN": {
-            if (!Array.isArray(filterValue) || filterValue.length !== 2) return false
-            const num = toNumber(leadValue)
-            return num >= toNumber(filterValue[0]) && num <= toNumber(filterValue[1])
-        }
-        case "CONTAINS":
-            return String(leadValue).toLowerCase().includes(String(filterValue).toLowerCase())
-        case "STARTS_WITH":
-            return String(leadValue).toLowerCase().startsWith(String(filterValue).toLowerCase())
-        default:
-            return false
-    }
-}
-
-function normalize(val: unknown): string | number {
-    if (typeof val === "number") return val
-    if (typeof val === "boolean") return String(val)
-    return String(val).toLowerCase().trim()
-}
-
-function toNumber(val: unknown): number {
-    const num = Number(val)
-    return isNaN(num) ? 0 : num
 }
 
 // ── Confidential HTTP Fetcher ───────────────────────────────────────────
@@ -379,27 +178,36 @@ const fetchEvaluationData = (
         })
         .result()
 
+    // Fail closed on HTTP errors: a silent empty result is indistinguishable
+    // from "no matches" downstream and masks backend/auth outages.
     if (!ok(response)) {
-        return {
-            leadId: "unknown",
-            totalPreferenceSets: 0,
-            matchedSets: 0,
-            results: [],
-            evaluatedAt: new Date().toISOString(),
-        }
+        throw new Error(
+            `evaluate-lead request failed: HTTP ${response.statusCode ?? "?"} from ${config.url}`
+        )
     }
 
-    // Parse combined response: { lead, preferenceSets }
+    // Parse + validate combined response: { lead, preferenceSets }
     const bodyStr = new TextDecoder().decode(response.body ?? new Uint8Array(0))
-    const data: EvaluateLeadResponse = JSON.parse(bodyStr)
+    let parsedBody: unknown
+    try {
+        parsedBody = JSON.parse(bodyStr)
+    } catch {
+        throw new Error(`evaluate-lead returned non-JSON body (${bodyStr.slice(0, 120)})`)
+    }
 
+    const validation = evaluateLeadResponseSchema.safeParse(parsedBody)
+    if (!validation.success) {
+        throw new Error(`evaluate-lead response failed schema validation: ${validation.error.message}`)
+    }
+    const data = validation.data
+
+    // No pending lead is a legitimate (non-error) outcome — nothing to evaluate.
     if (!data.lead) {
         return {
             leadId: "none",
             totalPreferenceSets: 0,
             matchedSets: 0,
             results: [],
-            evaluatedAt: new Date().toISOString(),
         }
     }
 
@@ -419,7 +227,65 @@ const fetchEvaluationData = (
         totalPreferenceSets: data.preferenceSets.length,
         matchedSets: matchedCount,
         results,
-        evaluatedAt: new Date().toISOString(),
+    }
+}
+
+// ── Match-Result Report Fetcher (Phase B5 feedback loop) ───────────────
+
+/** Serializable input for the report request (no closures — static DAG). */
+interface ReportInput {
+    url: string
+    owner: string
+    /** Pre-serialized JSON body — built post-consensus, identical on all nodes. */
+    body: string
+}
+
+/** Deterministic receipt — identical across nodes so consensus succeeds. */
+interface ReportReceipt {
+    ok: boolean
+    leadId: string
+}
+
+/**
+ * POST the consensus match results back to the backend ingestion endpoint.
+ * The backend response is deliberately deterministic ({ok, leadId}) even on
+ * duplicate delivery, so consensusIdenticalAggregation never diverges when
+ * one node's request lands first and the rest are idempotent no-ops.
+ */
+const reportMatchResults = (
+    sendRequester: ConfidentialHTTPSendRequester,
+    input: ReportInput
+): ReportReceipt => {
+    const response = sendRequester
+        .sendRequest({
+            request: {
+                url: input.url,
+                method: "POST",
+                bodyString: input.body,
+                multiHeaders: {
+                    "content-type": { values: ["application/json"] },
+                    "x-cre-api-key": { values: ["{{.creApiKey}}"] },
+                },
+            },
+            vaultDonSecrets: [
+                { key: "creApiKey", owner: input.owner },
+            ],
+            encryptOutput: false,
+        })
+        .result()
+
+    if (!ok(response)) {
+        throw new Error(
+            `match-results report failed: HTTP ${response.statusCode ?? "?"} from ${input.url}`
+        )
+    }
+
+    const bodyStr = new TextDecoder().decode(response.body ?? new Uint8Array(0))
+    try {
+        const parsed = JSON.parse(bodyStr) as { ok?: boolean; leadId?: string }
+        return { ok: parsed.ok === true, leadId: parsed.leadId ?? "unknown" }
+    } catch {
+        throw new Error(`match-results report returned non-JSON body (${bodyStr.slice(0, 120)})`)
     }
 }
 
@@ -444,6 +310,43 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
         )(runtime.config)
         .result()
 
+    // DON Time (consensus-derived) — deterministic across nodes, unlike
+    // new Date() which would break consensusIdenticalAggregation.
+    const evaluatedAt = runtime.now().toISOString()
+
+    // ── Phase B5: report consensus matches back to the backend ──
+    // Second sendRequest with its own top-level fetcher and serializable
+    // input (no runtime-computed URL, no closures) — the static-DAG
+    // constraint only forbids dynamic request *structure*, not data inputs.
+    let reportStatus = "skipped (no lead)"
+    if (result.leadId !== "none") {
+        const reportBody = JSON.stringify({
+            leadId: result.leadId,
+            evaluatedAt,
+            results: result.results.map((r) => ({
+                preferenceSetId: r.preferenceSetId,
+                buyerId: r.buyerId,
+                matched: r.matched,
+                reason: r.reason,
+                bidAmount: r.matched ? r.suggestedBidAmount : undefined,
+            })),
+        })
+
+        const receipt = confHTTPClient
+            .sendRequest(
+                runtime,
+                reportMatchResults,
+                consensusIdenticalAggregation<ReportReceipt>()
+            )({
+                url: runtime.config.reportUrl,
+                owner: runtime.config.owner,
+                body: reportBody,
+            })
+            .result()
+
+        reportStatus = receipt.ok ? `delivered (${receipt.leadId})` : "rejected by backend"
+    }
+
     runtime.log("--- EvaluateBuyerRulesAndMatch Results ---")
     runtime.log(`Lead ID: ${result.leadId}`)
     runtime.log(`Total preference sets evaluated: ${result.totalPreferenceSets}`)
@@ -458,10 +361,11 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
         }
     }
 
-    runtime.log(`Evaluated at: ${result.evaluatedAt}`)
+    runtime.log(`Evaluated at: ${evaluatedAt}`)
+    runtime.log(`Match-result report: ${reportStatus}`)
     runtime.log("---")
 
-    return JSON.stringify(result)
+    return JSON.stringify({ ...result, evaluatedAt, reportStatus })
 }
 
 // ── Workflow Init ───────────────────────────────────────────────────────
