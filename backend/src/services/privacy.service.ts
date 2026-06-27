@@ -5,14 +5,28 @@ import { ethers } from 'ethers';
 // Privacy Suite Service
 // ============================================
 // Encrypted bids, PII protection, token metadata encryption
+//
+// Phase B4 — Envelope encryption:
+//   Each payload is encrypted with a fresh per-payload Data Encryption Key
+//   (DEK). The DEK is then wrapped (AES-256-GCM) by the master Key Encryption
+//   Key (KEK). Rotating the KEK only requires re-wrapping DEKs — never
+//   re-encrypting the data — and a leaked DEK exposes exactly one payload.
+//
+//   KEK source: PRIVACY_MASTER_KEY (preferred, KMS-style with version tag)
+//   or PRIVACY_ENCRYPTION_KEY (legacy single key). In production the KEK
+//   should be supplied by a cloud KMS (AWS KMS / GCP Cloud KMS decrypt of a
+//   sealed key at boot) — the env var is the injection point.
+//
+//   Legacy payloads (no wrappedKey field) decrypt with the KEK directly,
+//   preserving backwards compatibility with existing stored ciphertexts.
 
 function requireEncryptionKey(): string {
-    const key = process.env.PRIVACY_ENCRYPTION_KEY;
+    const key = process.env.PRIVACY_MASTER_KEY || process.env.PRIVACY_ENCRYPTION_KEY;
     if (!key || key === 'generate-with-openssl-rand-hex-32') {
         const msg = [
-            '⛔ FATAL: PRIVACY_ENCRYPTION_KEY is not set (or is the placeholder).',
+            '⛔ FATAL: PRIVACY_MASTER_KEY / PRIVACY_ENCRYPTION_KEY is not set (or is the placeholder).',
             '   Run:  openssl rand -hex 32',
-            '   Then set PRIVACY_ENCRYPTION_KEY in your .env / Render env vars.',
+            '   Then set PRIVACY_MASTER_KEY in your .env / secret manager (or wire a cloud KMS).',
         ].join('\n');
         console.error(msg);
         throw new Error(msg);
@@ -20,12 +34,16 @@ function requireEncryptionKey(): string {
     return key;
 }
 const ENCRYPTION_KEY = requireEncryptionKey();
+const KEY_VERSION = process.env.PRIVACY_MASTER_KEY_VERSION || 'v1';
 
 interface EncryptedPayload {
     ciphertext: string;  // hex-encoded AES-256-GCM ciphertext
     iv: string;          // hex-encoded initialization vector
     tag: string;         // hex-encoded authentication tag
     commitment: string;  // keccak256 commitment for on-chain verification
+    // ── Envelope fields (Phase B4) — absent on legacy payloads ──
+    wrappedKey?: string; // hex: iv(12) || tag(16) || AES-256-GCM(KEK, DEK)
+    keyVersion?: string; // KEK version used to wrap the DEK
 }
 
 interface BidCommitment {
@@ -35,23 +53,46 @@ interface BidCommitment {
 }
 
 class PrivacyService {
-    private key: Buffer;
+    /** Master Key Encryption Key (KEK) — wraps per-payload DEKs. */
+    private kek: Buffer;
 
     constructor() {
-        this.key = Buffer.from(ENCRYPTION_KEY, 'hex');
+        this.kek = Buffer.from(ENCRYPTION_KEY, 'hex');
         // Ensure key is 32 bytes
-        if (this.key.length !== 32) {
-            this.key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+        if (this.kek.length !== 32) {
+            this.kek = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
         }
     }
 
     // ============================================
-    // AES-256-GCM Encryption
+    // AES-256-GCM Envelope Encryption (Phase B4)
     // ============================================
 
+    /** Wrap a DEK under the KEK: hex(iv || tag || ciphertext). */
+    private wrapDek(dek: Buffer): string {
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv('aes-256-gcm', this.kek, iv);
+        const wrapped = Buffer.concat([cipher.update(dek), cipher.final()]);
+        const tag = cipher.getAuthTag();
+        return Buffer.concat([iv, tag, wrapped]).toString('hex');
+    }
+
+    /** Unwrap a DEK from hex(iv || tag || ciphertext). */
+    private unwrapDek(wrappedKey: string): Buffer {
+        const raw = Buffer.from(wrappedKey, 'hex');
+        const iv = raw.subarray(0, 12);
+        const tag = raw.subarray(12, 28);
+        const wrapped = raw.subarray(28);
+        const decipher = crypto.createDecipheriv('aes-256-gcm', this.kek, iv);
+        decipher.setAuthTag(tag);
+        return Buffer.concat([decipher.update(wrapped), decipher.final()]);
+    }
+
     private encrypt(plaintext: string, associatedData?: string): EncryptedPayload {
+        // Fresh per-payload DEK — never reused across payloads
+        const dek = crypto.randomBytes(32);
         const iv = crypto.randomBytes(12); // 96-bit IV for GCM
-        const cipher = crypto.createCipheriv('aes-256-gcm', this.key, iv);
+        const cipher = crypto.createCipheriv('aes-256-gcm', dek, iv);
 
         if (associatedData) {
             cipher.setAAD(Buffer.from(associatedData));
@@ -69,13 +110,19 @@ class PrivacyService {
             iv: iv.toString('hex'),
             tag: tag.toString('hex'),
             commitment,
+            wrappedKey: this.wrapDek(dek),
+            keyVersion: KEY_VERSION,
         };
     }
 
     private decrypt(payload: EncryptedPayload, associatedData?: string): string {
+        // Envelope payloads carry their own wrapped DEK; legacy payloads
+        // (pre-B4) were encrypted directly with the master key.
+        const dataKey = payload.wrappedKey ? this.unwrapDek(payload.wrappedKey) : this.kek;
+
         const decipher = crypto.createDecipheriv(
             'aes-256-gcm',
-            this.key,
+            dataKey,
             Buffer.from(payload.iv, 'hex')
         );
 
