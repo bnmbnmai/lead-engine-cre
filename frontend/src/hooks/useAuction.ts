@@ -101,7 +101,8 @@ export function useAuction({ leadId, onBidPlaced, onResolved }: UseAuctionOption
     }, [leadId]); // Only depends on leadId now
 
     const placeBid = useCallback(
-        (data: { commitment?: string; amount?: number }) => {
+        // SEALED-BID (Phase B2): commitment only — no plaintext amounts
+        (data: { commitment: string }) => {
             setError(null);
             return socketClient.placeBid({ leadId, ...data });
         },

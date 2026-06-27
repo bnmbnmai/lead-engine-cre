@@ -75,8 +75,8 @@ export interface LeadSlice {
      *  The card's CSS transition drives opacity 1→ 0 over 2.5s then the
      *  removeLead setTimeout eliminates it from the DOM after CLOSE_GRACE_MS. */
     fadeOutAt?: number;
-    /** v10: Recent bids for bid history tooltip. Updated on every marketplace:bid:update. */
-    recentBids?: Array<{ buyer: string; amount: number; ts: string }>;
+    // SEALED-BID: recentBids (bidder names + amounts) was removed — bid
+    // details must never reach non-winning clients while an auction is live.
     /** v10: Epoch ms timestamp of the most recent bid — used to trigger the card glow/flash animation */
     newBidFlash?: number;
 }
@@ -102,9 +102,7 @@ interface AuctionStoreState {
         remainingTime?: number | null;
         serverTs?: number;
         bidCount?: number;
-        highestBid?: number | null;
         isSealed?: boolean;
-        recentBids?: Array<{ buyer: string; amount: number; ts: string }>;
     }) => void;
     /**
      * v7: Set phase to 'closing-soon' when server emits auction:closing-soon.
@@ -243,7 +241,7 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
         });
     },
 
-    updateBid({ leadId, remainingTime, serverTs, bidCount, highestBid, isSealed, recentBids }) {
+    updateBid({ leadId, remainingTime, serverTs, bidCount, isSealed }) {
         set((state) => {
             const lead = state.leads.get(leadId);
             if (!lead) return state;
@@ -276,11 +274,10 @@ export const useAuctionStore = create<AuctionStoreState>((set, get) => ({
                 liveBidCount: bidCount != null
                     ? Math.max(bidCount, lead.liveBidCount ?? 0)
                     : lead.liveBidCount,
-                liveHighestBid: highestBid ?? lead.liveHighestBid,
+                // SEALED-BID: liveHighestBid is only ever written by closeLead()
+                // (the public clearing price after the auction ends).
                 liveRemainingMs,
                 isSealed: isSealed ?? lead.isSealed,
-                // v10: persist recentBids and mark newBidFlash timestamp if bid count grew
-                recentBids: recentBids ?? lead.recentBids,
                 newBidFlash: (bidCount != null && bidCount > (lead.liveBidCount ?? 0))
                     ? Date.now()
                     : lead.newBidFlash,

@@ -74,6 +74,9 @@ model VaultTransaction {
 
   vault EscrowVault @relation(fields: [vaultId], references: [id])
 
+  // Idempotency: a given on-chain reference (txHash / lock id) can only be
+  // recorded once per vault+type — blocks double-credit/double-refund replays.
+  @@unique([vaultId, type, reference])
   @@index([vaultId, createdAt(sort: Desc)])
 }
 
@@ -557,6 +560,8 @@ enum LeadSource {
 enum LeadStatus {
   PENDING_AUCTION
   IN_AUCTION        // Active 60s sealed-bid auction
+  CLOSING           // Claimed by a closure worker (CAS gate) — prevents double settlement
+  SETTLING          // Winner determined — settlement saga in flight (Phase B3)
   SOLD
   UNSOLD            // Auction ended with no winner → available for Buy It Now
   EXPIRED
@@ -606,8 +611,181 @@ model AuctionRoom {
 
 enum AuctionPhase {
   BIDDING       // Active sealed-bid auction
+  REVEAL        // Bidding ended — reveal window open for sealed commitments (Phase B2)
   RESOLVED
   CANCELLED
+}
+
+// ============================================
+// Settlement Saga (Phase B3 — outbox pattern)
+// ============================================
+
+// One row per resolved auction. Created in the SAME transaction that marks the
+// lead SETTLING (outbox pattern) so a crash between "winner determined" and
+// "chain settlement" can always be recovered by re-running the saga.
+model SettlementSaga {
+  id           String              @id @default(cuid())
+  leadId       String              @unique
+  winningBidId String
+  state        SettlementSagaState @default(PENDING)
+
+  // Per-step status map: { vaultSettle, loserRefunds, nftMint, finalize }
+  // values: PENDING | DONE | SKIPPED | FAILED
+  steps        Json                @default("{}")
+  attempts     Int                 @default(0)
+  lastError    String?
+
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([state, updatedAt])
+}
+
+enum SettlementSagaState {
+  PENDING       // Created in the closure transaction — not yet executed
+  RUNNING       // Worker is executing steps
+  COMPLETED     // All steps done — lead is SOLD
+  COMPENSATED   // Settle failed terminally — winner refunded, lead reverted to UNSOLD
+  FAILED        // Compensation also failed — manual reconciliation required (DLQ)
+}
+
+// ============================================
+// Decrypt Request Queue (Phase B4 — DecryptForWinner workflow)
+// ============================================
+
+// Winner-initiated PII decryption requests served to the DecryptForWinner
+// CRE workflow. The winner enqueues via POST /api/v1/cre/decrypt-request
+// (winner verification at enqueue time); the DON polls GET /decrypt-pending
+// (winner re-verified at delivery time) and the row doubles as an audit
+// trail of every PII decryption event.
+model DecryptRequest {
+  id          String               @id @default(cuid())
+  leadId      String
+  winnerId    String               // buyer userId verified as auction winner
+  status      DecryptRequestStatus @default(PENDING)
+  dataHash    String?              // keccak256 of delivered plaintext (audit)
+  failReason  String?
+
+  requestedAt DateTime             @default(now())
+  deliveredAt DateTime?
+
+  @@unique([leadId, winnerId])
+  @@index([status, requestedAt])
+}
+
+// ── CRE Match Result ingestion (Phase B5) ──────────────────────────────
+// DON → backend feedback loop. The EvaluateBuyerRulesAndMatch workflow's
+// consensus output is ingested exactly once per lead (unique leadId) via
+// POST /api/v1/auto-bid/match-results. The row is both the idempotency
+// guard (no double-bidding when the DON cron and the local trigger race)
+// and an audit trail of what the DON decided.
+model CreMatchResult {
+  id           String   @id @default(cuid())
+  leadId       String   @unique
+  source       String   // DON | LOCAL — which evaluator produced the matches
+  payload      Json     // raw match results (preferenceSetId, buyerId, matched, reason)
+  matchedSets  Int      @default(0)
+  bidsPlaced   Int      @default(0)
+  receivedAt   DateTime @default(now())
+  processedAt  DateTime?
+
+  @@index([receivedAt])
+}
+
+// ── Agent Strategies (Phase C1) ────────────────────────────────────────
+// User-authorable, versioned StrategySpec documents (zod schema lives in
+// packages/rules-engine/src/strategy-spec.ts). The executor interprets the
+// spec purely and deterministically; the LLM may only DRAFT/EXPLAIN specs.
+// isPublic + forkedFromId seed the Phase C5 strategy marketplace.
+model AgentStrategy {
+  id             String                 @id @default(cuid())
+  ownerId        String // User.id
+  name           String
+  status         AgentStrategyStatus    @default(DRAFT)
+  currentVersion Int                    @default(1)
+  isPublic       Boolean                @default(false)
+  forkedFromId   String?
+  versions       AgentStrategyVersion[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([ownerId, status])
+  @@index([isPublic, status])
+}
+
+// Immutable spec snapshots — every edit creates a new version, so bids and
+// backtests can always cite the exact spec they executed.
+model AgentStrategyVersion {
+  id         String        @id @default(cuid())
+  strategyId String
+  strategy   AgentStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  version    Int
+  spec       Json
+  changelog  String?
+  createdAt  DateTime      @default(now())
+
+  @@unique([strategyId, version])
+}
+
+enum AgentStrategyStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+// ── Agent identity & tenancy (Phase C3) ────────────────────────────────
+model AgentProfile {
+  id              String   @id @default(cuid())
+  ownerId         String   @unique // User.id
+  displayName     String
+  onChainAgentId  String?  // AgentRegistry token/agent id when registered
+  walletAddress   String?
+  reputationScore Int      @default(0) // 0–10000, fed by settlement attestations
+  wins            Int      @default(0)
+  settlements     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  apiKeys AgentApiKey[]
+
+  @@index([reputationScore])
+}
+
+model AgentApiKey {
+  id        String    @id @default(cuid())
+  agentId   String
+  agent     AgentProfile @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  label     String    @default("default")
+  keyHash   String    @unique // sha256 of the raw key — never store plaintext
+  scopes    String[]  @default(["bid", "read"])
+  lastUsed  DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([agentId])
+}
+
+// ── Decision traces (Phase C6) ─────────────────────────────────────────
+model AgentDecisionTrace {
+  id         String   @id @default(cuid())
+  leadId     String
+  ownerId    String?
+  trigger    String   @default("manual")
+  traces     Json     // per-stage trace array from orchestrator
+  bidsPlaced Int      @default(0)
+  outcome    String?  // won | lost | skipped | error
+  createdAt  DateTime @default(now())
+
+  @@index([leadId, createdAt])
+  @@index([ownerId, createdAt])
+}
+
+enum DecryptRequestStatus {
+  PENDING     // Queued — awaiting DON pickup
+  DELIVERED   // PII delivered through the confidential channel
+  DENIED      // Winner verification failed at delivery time
+  EXPIRED     // Aged out before pickup
 }
 
 model Bid {
@@ -695,6 +873,9 @@ model Transaction {
   lead  Lead @relation(fields: [leadId], references: [id])
   buyer User @relation(fields: [buyerId], references: [id])
 
+  // Idempotency: one transaction per (lead, buyer) — settlement and escrow
+  // paths use upsert so concurrent closure attempts can never double-charge.
+  @@unique([leadId, buyerId])
   @@index([leadId])
   @@index([buyerId])
   @@index([txHash])

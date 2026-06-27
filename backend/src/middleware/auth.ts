@@ -3,7 +3,13 @@ import jwt from 'jsonwebtoken';
 import { verifyMessage } from 'ethers';
 import { prisma } from '../lib/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const DEV_JWT_FALLBACK = 'dev-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_FALLBACK;
+
+// Fail closed: refuse to boot in production with a missing/default JWT secret.
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_JWT_FALLBACK)) {
+    throw new Error('[AUTH] JWT_SECRET must be set to a strong unique value in production');
+}
 
 export interface AuthenticatedRequest extends Request {
     user?: {
