@@ -25,8 +25,8 @@
         "db:migrate-verticals": "cross-env TEST_MODE=true ts-node prisma/migrate-verticals.ts",
         "demo:seed": "tsx scripts/seed-demo-leads.ts",
         "demo:clear": "tsx scripts/seed-demo-leads.ts clear",
-        "smoke:agentrtb": "tsx scripts/smoke-agentrtb.ts",
-        "bot:integrator": "tsx scripts/integrator-bot.ts"
+        "smoke:agentrtb": "npx tsx scripts/smoke-agentrtb.ts",
+        "bot:integrator": "npx tsx scripts/integrator-bot.ts"
     },
     "dependencies": {
         "@faker-js/faker": "^10.3.0",

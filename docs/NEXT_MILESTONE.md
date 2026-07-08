@@ -13,11 +13,13 @@ Supersedes the 2026-06-12 staging-first note. Canonical plan: [PATH_TO_LIVE.md](
 
 ## Rung checklist
 
-- [x] Two-sided + fraud packaged on `agentrtb-remediation`
-- [ ] Staging deploy + `npm run smoke:agentrtb` ([STAGING_SMOKE.md](STAGING_SMOKE.md))
-- [ ] Owned integrator bot traffic (`npm run bot:integrator`)
-- [ ] Pilot commercial signal ([PILOT_COMMERCIAL.md](PILOT_COMMERCIAL.md))
-- [ ] Mainnet only after trigger; audit only after TVL/partner trigger
+- [x] Two-sided + fraud packaged on `agentrtb-remediation` (PR #1)
+- [x] Local smoke: `npm run smoke:agentrtb` (TCPA / dedup / SupplySpec / StrategySpec)
+- [x] Owned integrator bot: `npm run bot:integrator`
+- [x] Pilot commercial package: [PILOT_COMMERCIAL.md](PILOT_COMMERCIAL.md)
+- [x] Mainnet/audit triggers documented: [MAINNET_TRIGGER.md](MAINNET_TRIGGER.md)
+- [ ] Remote staging host deploy (see [STAGING_DEPLOY_RUNBOOK.md](STAGING_DEPLOY_RUNBOOK.md))
+- [ ] First paid or signed pilot (execute outreach from PILOT_COMMERCIAL)
 
 ## Explicitly deferred
 

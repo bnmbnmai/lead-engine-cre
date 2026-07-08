@@ -4,7 +4,7 @@
  * Writes connection info to ../.local/db.env
  */
 import EmbeddedPostgres from 'embedded-postgres';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,7 +23,18 @@ const pg = new EmbeddedPostgres({
     persistent: true,
 });
 
-await pg.initialise();
+async function alreadyInitialized() {
+    try {
+        await access(path.join(databaseDir, 'PG_VERSION'));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+if (!(await alreadyInitialized())) {
+    await pg.initialise();
+}
 await pg.start();
 
 const dbName = 'lead_engine_cre';

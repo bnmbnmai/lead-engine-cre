@@ -52,6 +52,7 @@ Discovery: `GET /.well-known/agent.json`, OpenAPI at `/api/swagger`.
 
 - [PATH_TO_LIVE.md](PATH_TO_LIVE.md) — staged ladder (staging → integrator → pilot → mainnet)
 - [STAGING_SMOKE.md](STAGING_SMOKE.md) — deploy + `npm run smoke:agentrtb`
+- [STAGING_DEPLOY_RUNBOOK.md](STAGING_DEPLOY_RUNBOOK.md) — host checklist + local verification log
 - [PILOT_COMMERCIAL.md](PILOT_COMMERCIAL.md) — invoice / take-rate before mainnet
 - [MAINNET_TRIGGER.md](MAINNET_TRIGGER.md) — when (not if) to touch mainnet/audit
 
