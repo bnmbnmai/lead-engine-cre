@@ -20,10 +20,13 @@
         "db:generate": "prisma generate",
         "db:studio": "prisma studio",
         "db:seed": "cross-env TEST_MODE=true ts-node prisma/seed.ts",
+        "db:bootstrap": "cross-env TEST_MODE=true ts-node --transpile-only scripts/db-bootstrap.ts",
         "db:clear-mock": "cross-env TEST_MODE=true ts-node prisma/clear.ts",
         "db:migrate-verticals": "cross-env TEST_MODE=true ts-node prisma/migrate-verticals.ts",
         "demo:seed": "tsx scripts/seed-demo-leads.ts",
-        "demo:clear": "tsx scripts/seed-demo-leads.ts clear"
+        "demo:clear": "tsx scripts/seed-demo-leads.ts clear",
+        "smoke:agentrtb": "tsx scripts/smoke-agentrtb.ts",
+        "bot:integrator": "tsx scripts/integrator-bot.ts"
     },
     "dependencies": {
         "@faker-js/faker": "^10.3.0",

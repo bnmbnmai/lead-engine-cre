@@ -23,6 +23,18 @@ export async function persistDecisionTrace(opts: {
             outcome: opts.outcome,
         },
     });
+
+    if (opts.ownerId) {
+        try {
+            const { fireAgentWebhooks } = await import('./agent-webhook.service');
+            await fireAgentWebhooks(opts.ownerId, 'strategy.decision', {
+                leadId: opts.leadId,
+                trigger: opts.trigger,
+                bidsPlaced: opts.bidsPlaced,
+                traces: opts.traces,
+            });
+        } catch { /* non-blocking */ }
+    }
 }
 
 export async function listDecisionTraces(opts: {
@@ -53,4 +65,50 @@ export async function recordAgentSettlementAttestation(ownerId: string, won: boo
         where: { id: profile.id },
         data: { wins, settlements, reputationScore },
     });
+
+    const wallet = profile.walletAddress
+        ?? (await prisma.user.findUnique({ where: { id: ownerId }, select: { walletAddress: true } }))?.walletAddress;
+
+    if (wallet) {
+        try {
+            const { attestAgentSettlementOnChain } = await import('./agent-registry.service');
+            await attestAgentSettlementOnChain(wallet, won);
+        } catch (err: any) {
+            console.warn(`[AgentTrace] on-chain attestation skipped: ${err.message}`);
+        }
+    }
+
+    try {
+        const { fireAgentWebhooks } = await import('./agent-webhook.service');
+        await fireAgentWebhooks(ownerId, 'auction.won', { ownerId, won, settlements, wins, reputationScore });
+    } catch { /* non-blocking */ }
+}
+
+/** Update seller reputation after settlement / auction close. */
+export async function recordSellerSettlementAttestation(sellerUserId: string, sold: boolean): Promise<void> {
+    const seller = await prisma.sellerProfile.findUnique({ where: { userId: sellerUserId } });
+    if (!seller) return;
+
+    const totalLeadsSold = seller.totalLeadsSold + (sold ? 1 : 0);
+    const currentRep = Number(seller.reputationScore);
+    const reputationScore = sold
+        ? Math.min(10000, currentRep + 50)
+        : Math.max(0, currentRep - 25);
+
+    await prisma.sellerProfile.update({
+        where: { id: seller.id },
+        data: { totalLeadsSold, reputationScore },
+    });
+
+    try {
+        const { fireSellerWebhooks } = await import('./agent-webhook.service');
+        if (sold) {
+            await fireSellerWebhooks(sellerUserId, 'settlement.paid', {
+                sellerId: seller.id,
+                sold,
+                totalLeadsSold,
+                reputationScore,
+            });
+        }
+    } catch { /* non-blocking */ }
 }

@@ -65,12 +65,17 @@ export default function AgentDashboard() {
             </div>
 
             <div className="flex gap-3">
-                <Link to="/agent/simulate" className="rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-medium">
+                <Link to={import.meta.env.VITE_AGENTRTB_MODE === 'true' ? '/status/simulate' : '/agent/simulate'} className="rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-medium">
                     Run simulation
                 </Link>
-                <Link to="/buyer/preferences" className="rounded-lg border px-4 py-2 text-sm">
-                    Auto-bid rules
-                </Link>
+                {!import.meta.env.VITE_AGENTRTB_MODE && (
+                    <Link to="/buyer/preferences" className="rounded-lg border px-4 py-2 text-sm">
+                        Auto-bid rules
+                    </Link>
+                )}
+                <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/swagger`} className="rounded-lg border px-4 py-2 text-sm" target="_blank" rel="noreferrer">
+                    API docs
+                </a>
             </div>
 
             <section>

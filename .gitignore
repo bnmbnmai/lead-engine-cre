@@ -1,4 +1,13 @@
-﻿# Dependencies
+﻿# CRE workflow build artifacts
+cre-workflows/**/out.js
+cre-workflows/**/main.js
+cre-workflows/**/main.wasm
+!cre-workflows/**/main.ts
+
+# Local agent / Cursor scratch (never commit)
+.local/
+
+# Dependencies
 node_modules/
 .pnp/
 .pnp.js

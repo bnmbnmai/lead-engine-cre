@@ -17,6 +17,11 @@ export interface AuthenticatedRequest extends Request {
         walletAddress: string;
         role: string;
     };
+    agentAuth?: {
+        keyId: string;
+        scopes: string[];
+        sandboxOnly: boolean;
+    };
 }
 
 // ============================================
@@ -88,6 +93,61 @@ export async function authMiddleware(
     }
 
     const token = authHeader.slice(7);
+
+    // Seller agent API keys (lsa_...)
+    if (token.startsWith('lsa_')) {
+        const { verifySellerAgentApiKey } = await import('../services/agent-identity.service');
+        const key = await verifySellerAgentApiKey(token);
+        if (!key.valid || !key.ownerId) {
+            res.status(401).json({ error: 'Invalid or revoked seller agent API key' });
+            return;
+        }
+        const user = await prisma.user.findUnique({ where: { id: key.ownerId } });
+        if (!user) {
+            res.status(401).json({ error: 'Seller agent owner account not found' });
+            return;
+        }
+        req.user = {
+            id: user.id,
+            walletAddress: user.walletAddress,
+            role: user.role,
+        };
+        req.agentAuth = {
+            keyId: key.keyId!,
+            scopes: key.scopes ?? ['read', 'supply'],
+            sandboxOnly: key.sandboxOnly ?? false,
+        };
+        next();
+        return;
+    }
+
+    // Agent API keys (lea_...) — scoped keys for external buyer agents
+    if (token.startsWith('lea_')) {
+        const { verifyAgentApiKey } = await import('../services/agent-identity.service');
+        const key = await verifyAgentApiKey(token);
+        if (!key.valid || !key.ownerId) {
+            res.status(401).json({ error: 'Invalid or revoked agent API key' });
+            return;
+        }
+        const user = await prisma.user.findUnique({ where: { id: key.ownerId } });
+        if (!user) {
+            res.status(401).json({ error: 'Agent owner account not found' });
+            return;
+        }
+        req.user = {
+            id: user.id,
+            walletAddress: user.walletAddress,
+            role: user.role,
+        };
+        req.agentAuth = {
+            keyId: key.keyId!,
+            scopes: key.scopes ?? ['read', 'bid'],
+            sandboxOnly: key.sandboxOnly ?? false,
+        };
+        next();
+        return;
+    }
+
     const decoded = verifyToken(token);
 
     if (!decoded) {

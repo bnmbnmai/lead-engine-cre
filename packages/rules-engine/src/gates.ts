@@ -25,6 +25,16 @@ import { evaluateFieldFilters } from './field-filters';
 
 export const RULES_ENGINE_VERSION = 1;
 
+/**
+ * Gate 1 vertical match: exact slug, wildcard '*', or parent prefix
+ * (e.g. pref "solar" matches lead "solar.residential").
+ */
+export function verticalMatches(leadVertical: string, prefVertical: string): boolean {
+    if (prefVertical === '*') return true;
+    if (prefVertical === leadVertical) return true;
+    return leadVertical.startsWith(`${prefVertical}.`);
+}
+
 export function evaluatePreferenceSet(lead: LeadData, pref: PreferenceSet): MatchResult {
     const result: MatchResult = {
         preferenceSetId: pref.id,
@@ -44,7 +54,7 @@ export function evaluatePreferenceSet(lead: LeadData, pref: PreferenceSet): Matc
     };
 
     // ── Gate 1: Vertical match ──
-    if (pref.vertical !== '*' && pref.vertical !== lead.vertical) {
+    if (!verticalMatches(lead.vertical, pref.vertical)) {
         result.matched = false;
         result.reason = `Vertical mismatch: ${lead.vertical} vs ${pref.vertical}`;
         return result;

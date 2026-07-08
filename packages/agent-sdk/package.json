@@ -1,11 +1,19 @@
 {
     "name": "@lead-engine/agent-sdk",
     "version": "1.0.0",
-    "private": true,
     "description": "TypeScript SDK for AgentRTB — register, fund, author StrategySpec, simulate, deploy, observe.",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "files": ["dist", "src"],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/bnmbnmai/lead-engine-cre.git",
+        "directory": "packages/agent-sdk"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "scripts": {
         "build": "tsc",
         "prepare": "tsc"

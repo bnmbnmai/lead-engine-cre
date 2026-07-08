@@ -136,12 +136,15 @@ export async function runAgentPipeline(input: PipelineInput): Promise<PipelineRe
             select: { id: true, walletAddress: true },
         });
 
-        const { creService } = await import('../../services/cre.service');
+        const { aceService } = await import('../../services/ace.service');
+        const leadGeo = lead.geo as any;
+        const geoHash = leadGeo?.geoHash || '';
         const blocked: string[] = [];
         for (const u of users) {
             if (!u.walletAddress) continue;
-            const ace = await creService.checkACECompliance(u.walletAddress);
-            if (!ace.compliant) blocked.push(u.id);
+            const kycOk = await aceService.isKYCValid(u.walletAddress);
+            const can = await aceService.canTransact(u.walletAddress, lead.vertical, geoHash);
+            if (!kycOk || !can.allowed) blocked.push(u.id);
         }
 
         if (blocked.length > 0) {

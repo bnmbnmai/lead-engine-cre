@@ -36,6 +36,10 @@ import BuyerIntegrations from '@/pages/BuyerIntegrations';
 import DemoResults from '@/pages/DemoResults';
 import AgentDashboard from '@/pages/AgentDashboard';
 import AgentSimulate from '@/pages/AgentSimulate';
+import AgentLanding from '@/pages/AgentLanding';
+import AgentDocs from '@/pages/AgentDocs';
+
+const IS_AGENTRTB = import.meta.env.VITE_AGENTRTB_MODE === 'true';
 
 import { DemoPanel } from '@/components/demo/DemoPanel';
 import { DevLogPanel } from '@/components/demo/DevLogPanel';
@@ -69,9 +73,9 @@ function AuthErrorDialog() {
 // Redirect authenticated users away from public lander to their dashboard
 function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading, user } = useAuth();
-    if (isLoading) return null; // wait for session restore
+    if (isLoading) return null;
     if (isAuthenticated) {
-        const dest = user?.role === 'SELLER' ? '/seller' : '/buyer';
+        const dest = IS_AGENTRTB ? '/status' : (user?.role === 'SELLER' ? '/seller' : '/buyer');
         return <Navigate to={dest} replace />;
     }
     return <>{children}</>;
@@ -86,6 +90,17 @@ function App() {
                     <AuthProvider>
                         <Router>
                             <Routes>
+                                {/* AgentRTB mode: developer landing + docs */}
+                                {IS_AGENTRTB ? (
+                                    <>
+                                        <Route path="/" element={<RedirectIfAuthenticated><AgentLanding /></RedirectIfAuthenticated>} />
+                                        <Route path="/docs" element={<AgentDocs />} />
+                                        <Route path="/status" element={<ProtectedRoute role="BUYER"><AgentDashboard /></ProtectedRoute>} />
+                                        <Route path="/status/simulate" element={<ProtectedRoute role="BUYER"><AgentSimulate /></ProtectedRoute>} />
+                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                    </>
+                                ) : (
+                                <>
                                 {/* Marketplace (public landing — auth users redirected to dashboard) */}
                                 <Route path="/" element={<RedirectIfAuthenticated><HomePage /></RedirectIfAuthenticated>} />
                                 {/* Marketplace — accessible to everyone (auth users use this from dashboard) */}
@@ -138,6 +153,8 @@ function App() {
 
                                 {/* Fallback */}
                                 <Route path="*" element={<Navigate to="/" replace />} />
+                                </>
+                                )}
                             </Routes>
 
                             {/* Hide demo tools on public hosted forms */}
@@ -162,16 +179,14 @@ export default App;
 /** Hide DemoPanel + AgentChatWidget on public hosted landers (/f/*) */
 function GlobalOverlays() {
     const { pathname } = useLocation();
-    // Mount the global socket bridge here so it lives for the app's full lifetime.
-    // All marketplace:lead:new, auction:updated, auction:closed, leads:updated events
-    // are dispatched to the Zustand auctionStore from this single subscription.
     useSocketBridge();
+    if (IS_AGENTRTB) return null;
     if (pathname.startsWith('/f/')) return null;
     return (
         <>
-            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DemoPanel />}
-            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && <DevLogPanel />}
-            <AgentChatWidget />
+            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && !import.meta.env.PROD && <DemoPanel />}
+            {(import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true') && !import.meta.env.PROD && <DevLogPanel />}
+            {!IS_AGENTRTB && <AgentChatWidget />}
         </>
     );
 }

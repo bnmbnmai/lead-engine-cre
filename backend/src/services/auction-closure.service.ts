@@ -597,5 +597,22 @@ async function convertToUnsold(leadId: string, lead: any, io?: Server) {
         },
     });
 
+    try {
+        const sellerProfile = await prisma.sellerProfile.findUnique({
+            where: { id: lead.sellerId },
+            select: { userId: true },
+        });
+        if (sellerProfile?.userId) {
+            const { recordSellerSettlementAttestation } = await import('./agent-trace.service');
+            const { fireSellerWebhooks } = await import('./agent-webhook.service');
+            await fireSellerWebhooks(sellerProfile.userId, 'auction.closed', {
+                leadId,
+                status: 'UNSOLD',
+                buyNowPrice: binPrice,
+            });
+            await recordSellerSettlementAttestation(sellerProfile.userId, false);
+        }
+    } catch { /* non-blocking */ }
+
     console.log(`[AuctionClosure] ${leadId} → UNSOLD (Buy It Now: $${binPrice?.toFixed(2) ?? 'N/A'})`);
 }

@@ -59,21 +59,6 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         surfaces: ALL,
     },
     {
-        name: 'place_bid',
-        description: 'Place a sealed bid on a lead. Submit a commitment hash (keccak256 of amount + salt). Reveal after the bidding phase ends.',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                leadId: { type: 'string', description: 'The lead ID to bid on' },
-                commitment: { type: 'string', description: 'Bid commitment hash — keccak256(abi.encode(amount, salt))' },
-            },
-            required: ['leadId', 'commitment'],
-        },
-        handler: '/api/v1/bids',
-        method: 'POST',
-        surfaces: ALL,
-    },
-    {
         name: 'get_bid_floor',
         description: 'Get real-time bid floor pricing for a vertical and country. Returns suggested minimum bid, ceiling, and market index powered by Chainlink Data Feeds.',
         inputSchema: {
@@ -355,6 +340,104 @@ export const AGENT_TOOLS: AgentToolDef[] = [
         inputSchema: { type: 'object', properties: {} },
         handler: '/api/v1/cre/status',
         method: 'GET',
+        surfaces: ALL,
+    },
+
+    // ── AgentRTB StrategySpec lifecycle (Option A — primary agent path) ──
+
+    {
+        name: 'list_strategies',
+        description: 'List your versioned buyer strategies (StrategySpec documents). Returns id, name, status, and current version for each.',
+        inputSchema: { type: 'object', properties: {} },
+        handler: '/api/v1/strategies',
+        method: 'GET',
+        surfaces: ALL,
+    },
+    {
+        name: 'draft_strategy',
+        description: 'Draft a StrategySpec from natural language (LLM advisory only — does not activate or spend). Returns a validated spec JSON to review before create_strategy.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                description: { type: 'string', description: 'Natural language description of buying rules and budget' },
+            },
+            required: ['description'],
+        },
+        handler: '/api/v1/strategies/draft',
+        method: 'POST',
+        surfaces: ALL,
+    },
+    {
+        name: 'create_strategy',
+        description: 'Create a new buyer strategy from a StrategySpec JSON document. Strategy stays DRAFT until activate_strategy.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                spec: { type: 'object', description: 'Full StrategySpec object (version, name, gates, bidCurve, budget)' },
+            },
+            required: ['spec'],
+        },
+        handler: '/api/v1/strategies',
+        method: 'POST',
+        surfaces: ALL,
+    },
+    {
+        name: 'activate_strategy',
+        description: 'Activate a strategy so the deterministic executor places sealed bids on matching leads.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                strategyId: { type: 'string', description: 'Strategy id from list_strategies or create_strategy' },
+            },
+            required: ['strategyId'],
+        },
+        handler: '/api/v1/strategies/{strategyId}/activate',
+        method: 'POST',
+        surfaces: ALL,
+    },
+    {
+        name: 'simulate_strategy',
+        description: 'Backtest a strategy against historical leads (no bids placed). Returns would-bid counts and estimated spend.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                strategyId: { type: 'string' },
+                days: { type: 'number', default: 30 },
+                limit: { type: 'number', default: 50 },
+            },
+            required: ['strategyId'],
+        },
+        handler: '/api/v1/agent/simulate',
+        method: 'POST',
+        surfaces: ALL,
+    },
+    {
+        name: 'get_decision_traces',
+        description: 'Fetch recent agent decision traces (scout/evaluator/compliance/bidder stages) for audit and debugging.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                limit: { type: 'number', default: 20 },
+                leadId: { type: 'string', description: 'Optional filter by lead id' },
+            },
+        },
+        handler: '/api/v1/agent/traces',
+        method: 'GET',
+        surfaces: ALL,
+    },
+    {
+        name: 'register_agent',
+        description: 'Register an agent profile for this buyer account (display name, optional wallet for on-chain reputation).',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                displayName: { type: 'string' },
+                walletAddress: { type: 'string', description: 'Optional wallet for AgentRegistry attestation' },
+            },
+            required: ['displayName'],
+        },
+        handler: '/api/v1/agent/register',
+        method: 'POST',
         surfaces: ALL,
     },
 ];

@@ -734,10 +734,60 @@ enum AgentStrategyStatus {
   ARCHIVED
 }
 
+// ── Seller supply strategies (SupplySpec) ───────────────────────────────
+model SupplyStrategy {
+  id             String               @id @default(cuid())
+  ownerId        String // Seller User.id
+  name           String
+  status         AgentStrategyStatus  @default(DRAFT)
+  currentVersion Int                  @default(1)
+  versions       SupplyStrategyVersion[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([ownerId, status])
+}
+
+model SupplyStrategyVersion {
+  id         String         @id @default(cuid())
+  strategyId String
+  strategy   SupplyStrategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  version    Int
+  spec       Json
+  changelog  String?
+  createdAt  DateTime       @default(now())
+
+  @@unique([strategyId, version])
+}
+
+// ── Ingest dedup fingerprints (form stuffing guard) ───────────────────
+model LeadContactDedup {
+  id        String   @id @default(cuid())
+  hashType  String   // phone | email
+  hash      String
+  vertical  String?
+  leadId    String
+  createdAt DateTime @default(now())
+
+  @@index([hashType, hash, vertical, createdAt])
+}
+
+enum AgentWebhookSide {
+  BUYER
+  SELLER
+}
+
 // ── Agent identity & tenancy (Phase C3) ────────────────────────────────
+enum AgentProfileRole {
+  BUYER
+  SELLER
+  BOTH
+}
+
 model AgentProfile {
-  id              String   @id @default(cuid())
-  ownerId         String   @unique // User.id
+  id              String           @id @default(cuid())
+  ownerId         String           @unique // User.id
+  role            AgentProfileRole @default(BUYER)
   displayName     String
   onChainAgentId  String?  // AgentRegistry token/agent id when registered
   walletAddress   String?
@@ -753,17 +803,49 @@ model AgentProfile {
 }
 
 model AgentApiKey {
-  id        String    @id @default(cuid())
-  agentId   String
-  agent     AgentProfile @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  label     String    @default("default")
-  keyHash   String    @unique // sha256 of the raw key — never store plaintext
-  scopes    String[]  @default(["bid", "read"])
-  lastUsed  DateTime?
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  agentId     String
+  agent       AgentProfile @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  label       String    @default("default")
+  keyHash     String    @unique // sha256 of the raw key — never store plaintext
+  scopes      String[]  @default(["bid", "read"])
+  sandboxOnly Boolean   @default(false)
+  lastUsed    DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([agentId])
+}
+
+model AgentWebhook {
+  id        String           @id @default(cuid())
+  ownerId   String
+  side      AgentWebhookSide @default(BUYER)
+  url       String
+  events    String[]
+  secret    String   // HMAC signing secret (shown once at registration)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveries AgentWebhookDelivery[]
+
+  @@index([ownerId])
+}
+
+model AgentWebhookDelivery {
+  id          String    @id @default(cuid())
+  webhookId   String
+  webhook     AgentWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  eventType   String
+  status      String    @default("pending") // pending | delivered | failed
+  attempts    Int       @default(0)
+  lastError   String?
+  payload     Json
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+
+  @@index([webhookId, createdAt])
 }
 
 // ── Decision traces (Phase C6) ─────────────────────────────────────────

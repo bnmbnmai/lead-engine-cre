@@ -171,6 +171,13 @@ describe('evaluatePreferenceSet (examples)', () => {
         expect(res.matched).toBe(true);
     });
 
+    it('parent vertical slug matches child lead verticals', () => {
+        const childLead: LeadData = { ...baseLead, vertical: 'solar.residential' };
+        const res = evaluatePreferenceSet(childLead, { ...basePref, vertical: 'solar' });
+        expect(res.matched).toBe(true);
+        expect(res.gateResults.verticalMatch).toBe(true);
+    });
+
     it('empty geoCountries defaults to US', () => {
         expect(evaluatePreferenceSet(baseLead, { ...basePref, geoCountries: [] }).matched).toBe(true);
         expect(

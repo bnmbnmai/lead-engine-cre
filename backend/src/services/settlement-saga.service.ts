@@ -331,10 +331,37 @@ async function finalize(leadId: string, lead: any, winningBid: any, winAmount: n
         return;
     }
 
-    // Phase C3: record settlement attestation for agent reputation
+    // Phase C3: record settlement attestation for agent reputation (winner + losers)
     try {
         const { recordAgentSettlementAttestation } = await import('./agent-trace.service');
-        await recordAgentSettlementAttestation(winningBid.buyerId, true);
+        const participantBids = await prisma.bid.findMany({
+            where: { leadId },
+            select: { buyerId: true },
+        });
+        const seen = new Set<string>();
+        for (const b of participantBids) {
+            if (seen.has(b.buyerId)) continue;
+            seen.add(b.buyerId);
+            await recordAgentSettlementAttestation(b.buyerId, b.buyerId === winningBid.buyerId);
+        }
+    } catch { /* non-blocking */ }
+
+    // Seller agent reputation + webhook
+    try {
+        const sellerProfile = await prisma.sellerProfile.findUnique({
+            where: { id: lead.sellerId },
+            select: { userId: true },
+        });
+        if (sellerProfile?.userId) {
+            const { recordSellerSettlementAttestation } = await import('./agent-trace.service');
+            const { fireSellerWebhooks } = await import('./agent-webhook.service');
+            await fireSellerWebhooks(sellerProfile.userId, 'auction.closed', {
+                leadId,
+                status: 'SOLD',
+                winningAmount: Number(winningBid.amount),
+            });
+            await recordSellerSettlementAttestation(sellerProfile.userId, true);
+        }
     } catch { /* non-blocking */ }
 
     const fees = calculateFees(winAmount, (winningBid.source || 'MANUAL') as BidSourceType);

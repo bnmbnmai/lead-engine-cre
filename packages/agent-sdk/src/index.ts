@@ -1,11 +1,11 @@
 /**
- * Lead Engine Agent SDK (Phase C6)
- * register → fund vault → author StrategySpec → simulate → deploy → observe
+ * AgentRTB SDK — buyer (lea_) + seller (lsa_) programmatic paths.
+ * See docs/AGENT_DEVELOPER_GUIDE.md and docs/PATH_TO_LIVE.md
  */
 
 export interface AgentSdkConfig {
     baseUrl: string;
-    /** JWT from SIWE login or agent API key (lea_...) */
+    /** JWT from SIWE login, lea_ buyer key, or lsa_ seller key */
     token: string;
 }
 
@@ -89,6 +89,85 @@ export class LeadEngineAgentClient {
 
     async forkStrategy(id: string) {
         return this.request(`/api/v1/strategies/${id}/fork`, { method: 'POST' });
+    }
+
+    async registerWebhook(url: string, events?: string[]) {
+        return this.request('/api/v1/agent/webhooks', {
+            method: 'POST',
+            body: JSON.stringify({ url, events }),
+        });
+    }
+
+    async listWebhooks() {
+        return this.request('/api/v1/agent/webhooks');
+    }
+
+    async deleteWebhook(id: string) {
+        return this.request(`/api/v1/agent/webhooks/${id}`, { method: 'DELETE' });
+    }
+
+    async listWebhookDeliveries(webhookId: string, limit = 50) {
+        return this.request(`/api/v1/agent/webhooks/${webhookId}/deliveries?limit=${limit}`);
+    }
+
+    async createSandboxApiKey(label = 'sandbox') {
+        return this.request<{ apiKey: string }>('/api/v1/agent/api-keys', {
+            method: 'POST',
+            body: JSON.stringify({ label, sandbox: true }),
+        });
+    }
+
+    // ── Seller (SupplySpec + ingest) ─────────────────────────────────
+
+    async registerSellerAgent(displayName: string, walletAddress?: string) {
+        return this.request('/api/v1/seller-agent/register', {
+            method: 'POST',
+            body: JSON.stringify({ displayName, walletAddress }),
+        });
+    }
+
+    async createSellerApiKey(label = 'default', opts?: { sandbox?: boolean; scopes?: string[] }) {
+        return this.request<{ apiKey: string }>('/api/v1/seller-agent/api-keys', {
+            method: 'POST',
+            body: JSON.stringify({ label, sandbox: opts?.sandbox, scopes: opts?.scopes }),
+        });
+    }
+
+    async getSellerDashboard() {
+        return this.request('/api/v1/seller-agent/me');
+    }
+
+    async listSupplyStrategies() {
+        return this.request('/api/v1/supply');
+    }
+
+    async createSupplyStrategy(spec: unknown) {
+        return this.request('/api/v1/supply', {
+            method: 'POST',
+            body: JSON.stringify({ spec }),
+        });
+    }
+
+    async activateSupplyStrategy(id: string) {
+        return this.request(`/api/v1/supply/${id}/activate`, { method: 'POST' });
+    }
+
+    async ingestLead(payload: unknown) {
+        return this.request('/api/v1/ingest/traffic-platform', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    }
+
+    async registerSellerWebhook(url: string, events?: string[]) {
+        return this.request('/api/v1/seller-agent/webhooks', {
+            method: 'POST',
+            body: JSON.stringify({ url, events }),
+        });
+    }
+
+    async getDiscovery() {
+        return this.request('/.well-known/agent.json');
     }
 }
 

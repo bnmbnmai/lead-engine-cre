@@ -201,6 +201,18 @@ app.post('/rpc', requireMcpToken, async (req: Request, res: Response) => {
 
     const params = { ...(rpc.params || {}) } as Record<string, unknown>;
 
+    if (rpc.method === 'place_bid') {
+        res.status(400).json({
+            jsonrpc: '2.0',
+            id: rpc.id || null,
+            ...formatErrorResponse(
+                ERROR_CODES.VALIDATION_ERROR,
+                'place_bid is removed. Use create_strategy → activate_strategy for deterministic bidding.',
+            ),
+        });
+        return;
+    }
+
     try {
         // ── Tool adapters ─────────────────────────────────────────────
         // Some tools need request-shape translation before the generic proxy.
@@ -262,6 +274,10 @@ app.post('/rpc', requireMcpToken, async (req: Request, res: Response) => {
         let url: string;
         let fetchOpts: RequestInit;
 
+        // Caller identity: prefer forwarded user token over shared service API_KEY
+        const callerAuth = (req.headers['x-caller-authorization'] as string) || '';
+        const upstreamAuth = callerAuth || (API_KEY ? `Bearer ${API_KEY}` : '');
+
         if (method === 'GET') {
             const query = new URLSearchParams();
             for (const [k, v] of Object.entries(remainingParams)) {
@@ -272,7 +288,7 @@ app.post('/rpc', requireMcpToken, async (req: Request, res: Response) => {
             fetchOpts = {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${API_KEY}`,
+                    ...(upstreamAuth ? { Authorization: upstreamAuth } : {}),
                     'X-Agent-Id': agentId || 'unknown',
                     'X-Request-Id': requestId,
                 },
@@ -283,7 +299,7 @@ app.post('/rpc', requireMcpToken, async (req: Request, res: Response) => {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_KEY}`,
+                    ...(upstreamAuth ? { Authorization: upstreamAuth } : {}),
                     'X-Agent-Id': agentId || 'unknown',
                     'X-Request-Id': requestId,
                 },

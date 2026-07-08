@@ -5,9 +5,6 @@
  * strategies, builds the real-time execution context (spend, open bids,
  * Data Feeds floor), executes each spec deterministically, and places the
  * resulting bids through bid.service (server-custody sealed commit-reveal).
- *
- * The LLM is nowhere in this path. All money flows through the same
- * BidService caps as every other bid source.
  */
 
 import { prisma } from '../../lib/prisma';
@@ -31,12 +28,12 @@ function utcDayStart(now = new Date()): Date {
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-/**
- * Build the real-time context for one owner's strategy execution.
- * Spend figures come from revealed/placed bids today and open bids.
- */
-async function buildContext(ownerId: string, vertical: string): Promise<StrategyExecutionContext> {
-    const [todayAgg, openBids] = await Promise.all([
+async function buildSpendContext(ownerId: string): Promise<{
+    spentTodayUsd: number;
+    activeBidCount: number;
+    totalSpentUsd: number;
+}> {
+    const [todayAgg, openBids, lifetimeAgg] = await Promise.all([
         prisma.bid.aggregate({
             _sum: { amount: true },
             where: {
@@ -48,7 +45,28 @@ async function buildContext(ownerId: string, vertical: string): Promise<Strategy
         prisma.bid.count({
             where: { buyerId: ownerId, status: { in: ['PENDING', 'REVEALED'] } },
         }),
+        prisma.bid.aggregate({
+            _sum: { amount: true },
+            where: {
+                buyerId: ownerId,
+                status: { in: ['PENDING', 'REVEALED', 'ACCEPTED'] },
+            },
+        }),
     ]);
+
+    return {
+        spentTodayUsd: Number(todayAgg._sum.amount ?? 0),
+        activeBidCount: openBids,
+        totalSpentUsd: Number(lifetimeAgg._sum.amount ?? 0),
+    };
+}
+
+async function buildContext(
+    ownerId: string,
+    vertical: string,
+    spend?: { spentTodayUsd: number; activeBidCount: number; totalSpentUsd: number },
+): Promise<StrategyExecutionContext> {
+    const spendCtx = spend ?? await buildSpendContext(ownerId);
 
     let dataFeedFloor: number | null = null;
     try {
@@ -61,18 +79,15 @@ async function buildContext(ownerId: string, vertical: string): Promise<Strategy
 
     return {
         dataFeedFloor,
-        spentTodayUsd: Number(todayAgg._sum.amount ?? 0),
-        activeBidCount: openBids,
-        totalSpentUsd: undefined, // lifetime tracking lands with decision traces (C6)
+        spentTodayUsd: spendCtx.spentTodayUsd,
+        activeBidCount: spendCtx.activeBidCount,
+        totalSpentUsd: spendCtx.totalSpentUsd,
     };
 }
 
 /**
  * Execute all ACTIVE strategies against a lead and place bids for the ones
  * that match. Called from the auto-bid engine after preference sets run.
- *
- * Duplicate-safe: bid.service upserts one bid per (lead, buyer), so a
- * strategy re-run (multiple triggers) cannot double-bid.
  */
 export async function runStrategiesForLead(lead: LeadData): Promise<StrategyRunOutcome[]> {
     const strategies = await prisma.agentStrategy.findMany({
@@ -97,23 +112,57 @@ export async function runStrategiesForLead(lead: LeadData): Promise<StrategyRunO
             continue;
         }
 
-        const ctx = await buildContext(strategy.ownerId, lead.vertical);
-        const decision = executeStrategy(spec, lead, ctx);
-
         const outcome: StrategyRunOutcome = {
             strategyId: strategy.id,
             strategyName: strategy.name,
             ownerId: strategy.ownerId,
             version: versionRow.version,
-            shouldBid: decision.shouldBid,
-            bidAmount: decision.bidAmount,
-            reason: decision.reason,
+            shouldBid: false,
+            bidAmount: null,
+            reason: 'skipped',
             bidPlaced: false,
         };
 
-        if (decision.shouldBid && decision.bidAmount != null) {
-            try {
-                const user = await prisma.user.findUnique({
+        try {
+            await prisma.$transaction(async (tx) => {
+                const spend = await (async () => {
+                    const [todayAgg, openBids, lifetimeAgg] = await Promise.all([
+                        tx.bid.aggregate({
+                            _sum: { amount: true },
+                            where: {
+                                buyerId: strategy.ownerId,
+                                createdAt: { gte: utcDayStart() },
+                                status: { in: ['PENDING', 'REVEALED', 'ACCEPTED'] },
+                            },
+                        }),
+                        tx.bid.count({
+                            where: { buyerId: strategy.ownerId, status: { in: ['PENDING', 'REVEALED'] } },
+                        }),
+                        tx.bid.aggregate({
+                            _sum: { amount: true },
+                            where: {
+                                buyerId: strategy.ownerId,
+                                status: { in: ['PENDING', 'REVEALED', 'ACCEPTED'] },
+                            },
+                        }),
+                    ]);
+                    return {
+                        spentTodayUsd: Number(todayAgg._sum.amount ?? 0),
+                        activeBidCount: openBids,
+                        totalSpentUsd: Number(lifetimeAgg._sum.amount ?? 0),
+                    };
+                })();
+
+                const ctx = await buildContext(strategy.ownerId, lead.vertical, spend);
+                const decision = executeStrategy(spec, lead, ctx);
+
+                outcome.shouldBid = decision.shouldBid;
+                outcome.bidAmount = decision.bidAmount;
+                outcome.reason = decision.reason;
+
+                if (!decision.shouldBid || decision.bidAmount == null) return;
+
+                const user = await tx.user.findUnique({
                     where: { id: strategy.ownerId },
                     select: { walletAddress: true },
                 });
@@ -127,9 +176,9 @@ export async function runStrategiesForLead(lead: LeadData): Promise<StrategyRunO
                 });
                 outcome.bidPlaced = res.ok;
                 if (!res.ok) outcome.bidError = res.error;
-            } catch (err: any) {
-                outcome.bidError = err.message;
-            }
+            });
+        } catch (err: any) {
+            outcome.bidError = err.message;
         }
 
         outcomes.push(outcome);

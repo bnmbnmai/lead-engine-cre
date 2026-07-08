@@ -154,6 +154,24 @@ export async function ingestMatchResults(submission: MatchResultSubmission): Pro
 
     const bidsPlaced = prefSetBids;
 
+    // Notify matched buyers (strategy executor may also bid via orchestrator)
+    const matchedBuyerIds = [...new Set(matchedSets.map((m) => m.buyerId))];
+    if (matchedBuyerIds.length > 0) {
+        try {
+            const { fireAgentWebhooks } = await import('./agent-webhook.service');
+            for (const buyerId of matchedBuyerIds) {
+                await fireAgentWebhooks(buyerId, 'lead.matched', {
+                    leadId,
+                    vertical: lead.vertical,
+                    source: submission.source,
+                    matchedPreferenceSetIds: matchedSets
+                        .filter((m) => m.buyerId === buyerId)
+                        .map((m) => m.preferenceSetId),
+                });
+            }
+        } catch { /* non-blocking */ }
+    }
+
     await prisma.creMatchResult.update({
         where: { leadId },
         data: { bidsPlaced, processedAt: new Date() },

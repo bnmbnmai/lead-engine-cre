@@ -291,6 +291,17 @@ export async function placeSealedBid(opts: PlaceSealedBidOptions): Promise<Place
         },
     });
 
+    try {
+        const { fireAgentWebhooks } = await import('./agent-webhook.service');
+        await fireAgentWebhooks(buyerId, 'bid.placed', {
+            leadId,
+            bidId: bid.id,
+            source,
+            isNewBid,
+            vertical: lead.vertical,
+        });
+    } catch { /* non-blocking */ }
+
     return {
         ok: true,
         bid: { id: bid.id, leadId: bid.leadId, status: bid.status, createdAt: bid.createdAt },

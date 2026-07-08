@@ -263,28 +263,6 @@ function buildTools() {
             func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('export_leads', params)),
         }),
         new _DynamicStructuredTool({
-            name: 'place_bid',
-            description: getToolDef('place_bid').description,
-            schema: z.object({
-                leadId: z.string().describe('The lead ID to bid on'),
-                commitment: z.string().describe('Bid commitment hash'),
-            }),
-            func: async (params: Record<string, unknown>) => {
-                // Same guard as the raw-Kimi path (mcpPlaceBid): auction-state
-                // + budget caps. The LLM cannot bypass spend limits here.
-                const { checkAgentBidGuards, decodeCommitmentAmount, resolveAgentBuyerUserId } = await import('./agent-guards');
-                const guard = await checkAgentBidGuards({
-                    leadId: params.leadId as string,
-                    buyerUserId: await resolveAgentBuyerUserId(),
-                    amount: decodeCommitmentAmount(params.commitment as string | undefined),
-                });
-                if (!guard.allowed) {
-                    return JSON.stringify({ error: `place_bid blocked: ${guard.reason}` });
-                }
-                return JSON.stringify(await executeMcpTool('place_bid', params));
-            },
-        }),
-        new _DynamicStructuredTool({
             name: 'configure_crm_webhook',
             description: getToolDef('configure_crm_webhook').description,
             schema: z.object({
@@ -446,7 +424,7 @@ function buildTools() {
 
                     socket.on('marketplace:lead:new', (data: any) => {
                         if (verts && data.lead && !verts.includes(data.lead.vertical)) return;
-                        aceDevBus.emit('ace:dev-log', { level: 'success', message: 'Agent received new lead via live stream', module: 'Agent' });
+                        aceDevBus.emit('ace:dev-log', { level: 'success', message: 'Agent subscribed to live lead via live stream', module: 'Agent' });
                         cleanup({ event: 'marketplace:lead:new', data });
                     });
 
@@ -457,6 +435,66 @@ function buildTools() {
                     setTimeout(() => cleanup({ status: 'timeout', message: 'No events received in 15 seconds. You can call subscribe again.' }), 15000);
                 });
             },
+        }),
+
+        // ── StrategySpec lifecycle (Option A — primary agent path) ──
+        new _DynamicStructuredTool({
+            name: 'list_strategies',
+            description: getToolDef('list_strategies').description,
+            schema: z.object({}),
+            func: async () => JSON.stringify(await executeMcpTool('list_strategies', {})),
+        }),
+        new _DynamicStructuredTool({
+            name: 'draft_strategy',
+            description: getToolDef('draft_strategy').description,
+            schema: z.object({
+                description: z.string().describe('Natural language buying rules and budget'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('draft_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'create_strategy',
+            description: getToolDef('create_strategy').description,
+            schema: z.object({
+                spec: z.any().describe('Validated StrategySpec JSON object'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('create_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'activate_strategy',
+            description: getToolDef('activate_strategy').description,
+            schema: z.object({
+                strategyId: z.string().describe('Strategy id from list_strategies or create_strategy'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('activate_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'simulate_strategy',
+            description: getToolDef('simulate_strategy').description,
+            schema: z.object({
+                strategyId: z.string(),
+                days: z.number().optional().default(30),
+                limit: z.number().optional().default(50),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('simulate_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'get_decision_traces',
+            description: getToolDef('get_decision_traces').description,
+            schema: z.object({
+                limit: z.number().optional().default(20),
+                leadId: z.string().optional(),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('get_decision_traces', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'register_agent',
+            description: getToolDef('register_agent').description,
+            schema: z.object({
+                displayName: z.string(),
+                walletAddress: z.string().optional(),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('register_agent', params)),
         }),
     ];
 }

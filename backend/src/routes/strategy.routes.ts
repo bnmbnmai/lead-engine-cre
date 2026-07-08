@@ -12,6 +12,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
+import { requireAgentScope, rejectSandboxKey } from '../middleware/agent-scope';
 import { parseStrategySpec } from '@lead-engine/rules-engine';
 import { executeStrategy } from '../agents/strategy/executor';
 
@@ -37,7 +38,7 @@ async function ownedStrategy(req: Request, res: Response) {
 
 // ── GET / — list my strategies ──
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requireAgentScope('read'), async (req: Request, res: Response) => {
     const strategies = await prisma.agentStrategy.findMany({
         where: { ownerId: userId(req) },
         include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
@@ -59,7 +60,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 // ── POST / — create a strategy (spec validated) ──
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAgentScope('bid'), rejectSandboxKey, async (req: Request, res: Response) => {
     try {
         const spec = parseStrategySpec(req.body.spec);
         const strategy = await prisma.agentStrategy.create({
@@ -102,7 +103,7 @@ router.get('/marketplace', async (_req: Request, res: Response) => {
 // ── POST /draft — LLM advisory: natural language → StrategySpec ──
 // Registered before /:id so "draft" is not captured as an id.
 
-router.post('/draft', async (req: Request, res: Response) => {
+router.post('/draft', requireAgentScope('read'), async (req: Request, res: Response) => {
     const description = String(req.body.description || '').trim();
     if (!description) return res.status(400).json({ error: 'description is required' });
     if (description.length > 4000) return res.status(400).json({ error: 'description too long (max 4000 chars)' });
@@ -118,7 +119,7 @@ router.post('/draft', async (req: Request, res: Response) => {
 
 // ── GET /:id — fetch one (with full version history) ──
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', requireAgentScope('read'), async (req: Request, res: Response) => {
     const strategy = await prisma.agentStrategy.findUnique({
         where: { id: req.params.id },
         include: { versions: { orderBy: { version: 'desc' } } },
@@ -131,7 +132,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // ── PUT /:id — new immutable version ──
 
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireAgentScope('bid'), rejectSandboxKey, async (req: Request, res: Response) => {
     const strategy = await ownedStrategy(req, res);
     if (!strategy) return;
     try {
@@ -159,14 +160,26 @@ router.put('/:id', async (req: Request, res: Response) => {
 
 // ── POST /:id/activate | /pause | /archive — lifecycle ──
 
-for (const [action, status] of [['activate', 'ACTIVE'], ['pause', 'PAUSED'], ['archive', 'ARCHIVED']] as const) {
-    router.post(`/:id/${action}`, async (req: Request, res: Response) => {
-        const strategy = await ownedStrategy(req, res);
-        if (!strategy) return;
-        await prisma.agentStrategy.update({ where: { id: strategy.id }, data: { status } });
-        res.json({ id: strategy.id, status });
-    });
-}
+router.post('/:id/activate', requireAgentScope('bid'), rejectSandboxKey, async (req: Request, res: Response) => {
+    const strategy = await ownedStrategy(req, res);
+    if (!strategy) return;
+    await prisma.agentStrategy.update({ where: { id: strategy.id }, data: { status: 'ACTIVE' } });
+    res.json({ id: strategy.id, status: 'ACTIVE' });
+});
+
+router.post('/:id/pause', requireAgentScope('bid'), async (req: Request, res: Response) => {
+    const strategy = await ownedStrategy(req, res);
+    if (!strategy) return;
+    await prisma.agentStrategy.update({ where: { id: strategy.id }, data: { status: 'PAUSED' } });
+    res.json({ id: strategy.id, status: 'PAUSED' });
+});
+
+router.post('/:id/archive', requireAgentScope('admin'), async (req: Request, res: Response) => {
+    const strategy = await ownedStrategy(req, res);
+    if (!strategy) return;
+    await prisma.agentStrategy.update({ where: { id: strategy.id }, data: { status: 'ARCHIVED' } });
+    res.json({ id: strategy.id, status: 'ARCHIVED' });
+});
 
 // ── POST /:id/publish — make strategy public (Phase C5) ──
 
@@ -179,7 +192,7 @@ router.post('/:id/publish', async (req: Request, res: Response) => {
 
 // ── POST /:id/fork — fork a public strategy (Phase C5) ──
 
-router.post('/:id/fork', authMiddleware, async (req: Request, res: Response) => {
+router.post('/:id/fork', requireAgentScope('read'), async (req: Request, res: Response) => {
     const source = await prisma.agentStrategy.findUnique({
         where: { id: req.params.id },
         include: { versions: { orderBy: { version: 'desc' }, take: 1 } },

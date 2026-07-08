@@ -72,9 +72,12 @@ import ingestRoutes from './routes/ingest.routes';
 import creRoutes from './routes/cre.routes';
 import strategyRoutes from './routes/strategy.routes';
 import agentRoutes from './routes/agent.routes';
+import sellerAgentRoutes from './routes/seller-agent.routes';
+import supplyRoutes from './routes/supply.routes';
+import wellKnownRoutes from './routes/well-known.routes';
 
 // Middleware
-import { generalLimiter } from './middleware/rateLimit';
+import { generalLimiter, agentApiLimiter, strategyApiLimiter, mcpApiLimiter } from './middleware/rateLimit';
 
 const app = express();
 const httpServer = createServer(app);
@@ -165,6 +168,19 @@ const healthHandler = async (_req: Request, res: Response) => {
 app.get('/health', healthHandler);
 app.get('/api/health', healthHandler);
 
+// Agent discovery manifest
+app.use('/.well-known', wellKnownRoutes);
+
+// OpenAPI JSON export
+try {
+    const swaggerYamlPath = join(__dirname, '..', 'swagger.yaml');
+    app.get('/api/openapi.json', (_req: Request, res: Response) => {
+        const swaggerYaml = readFileSync(swaggerYamlPath, 'utf-8');
+        const swaggerJson = require('js-yaml')?.load?.(swaggerYaml) ?? {};
+        res.json(swaggerJson);
+    });
+} catch { /* optional */ }
+
 // Swagger UI — serve OpenAPI docs
 try {
     const swaggerYaml = readFileSync(join(__dirname, '..', 'swagger.yaml'), 'utf-8');
@@ -200,13 +216,15 @@ app.use('/api/v1/demo-panel', demoPanelRoutes);
 app.use('/api/v1/verticals', verticalRoutes);
 app.use('/api/v1/buyer', buyerRoutes);
 app.use('/api/v1/buyer/vault', vaultRoutes);
-app.use('/api/v1/mcp', mcpRoutes);
+app.use('/api/v1/mcp', mcpApiLimiter, mcpRoutes);
 app.use('/api/v1/bounties', bountiesRoutes);
 app.use('/api/v1/auto-bid', autoBidRoutes);
 app.use('/api/v1/ingest', ingestRoutes);
 app.use('/api/v1/cre', creRoutes);
-app.use('/api/v1/strategies', strategyRoutes);
-app.use('/api/v1/agent', agentRoutes);
+app.use('/api/v1/strategies', strategyApiLimiter, strategyRoutes);
+app.use('/api/v1/supply', strategyApiLimiter, supplyRoutes);
+app.use('/api/v1/agent', agentApiLimiter, agentRoutes);
+app.use('/api/v1/seller-agent', agentApiLimiter, sellerAgentRoutes);
 // Mock endpoints — simulate external APIs called by Chainlink CHTT workflow from TEE enclave.
 // Never mounted in production (unless demo routes are explicitly opted in).
 if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_ROUTES === 'true') {
@@ -298,6 +316,13 @@ httpServer.listen(PORT, () => {
         initAutomationService().then(() => {
             startVaultReconciliationJob();
         }).catch((err) => console.warn('[Automation] Init failed (non-fatal):', err));
+    }
+
+    // Retry failed webhook deliveries on startup
+    if (process.env.NODE_ENV !== 'test') {
+        import('./services/agent-webhook.service').then(({ retryFailedWebhookDeliveries }) => {
+            retryFailedWebhookDeliveries(50).catch(() => {});
+        });
     }
 
     // Sweep any auctions that expired during downtime

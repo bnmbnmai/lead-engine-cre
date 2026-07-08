@@ -70,10 +70,27 @@ router.get('/tools', async (_req: Request, res: Response) => {
 // ── POST /rpc — proxy JSON-RPC to MCP server ──
 
 router.post('/rpc', async (req: Request, res: Response) => {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MCP_RPC !== 'true') {
+        return res.status(403).json({
+            jsonrpc: '2.0',
+            id: req.body?.id || null,
+            error: {
+                code: -32601,
+                message: 'MCP RPC disabled in production. Use REST API with lea_ API keys.',
+            },
+        });
+    }
+
+    const authHeader = req.headers.authorization || '';
+    const callerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
     try {
         const response = await fetch(`${MCP_BASE}/rpc`, {
             method: 'POST',
-            headers: mcpHeaders(req.headers['x-agent-id'] ? { 'X-Agent-Id': req.headers['x-agent-id'] as string } : {}),
+            headers: mcpHeaders({
+                ...(req.headers['x-agent-id'] ? { 'X-Agent-Id': req.headers['x-agent-id'] as string } : {}),
+                ...(callerToken ? { 'X-Caller-Authorization': `Bearer ${callerToken}` } : {}),
+            }),
             body: JSON.stringify(req.body),
             signal: AbortSignal.timeout(15000),
         });
@@ -214,9 +231,11 @@ async function executeMcpTool(name: string, params: Record<string, unknown>): Pr
         }
     }
 
-    // place_bid gets a race-condition guard (P2-MCP)
+    // place_bid demoted (Option A) — direct LLM bidding replaced by StrategySpec executor
     if (name === 'place_bid') {
-        return mcpPlaceBid(params);
+        return {
+            error: 'place_bid is deprecated for agent buyers. Create and activate a StrategySpec (create_strategy → activate_strategy) so the deterministic executor places sealed bids.',
+        };
     }
 
     // query_open_granular_bounties — query the bounty service in-process
