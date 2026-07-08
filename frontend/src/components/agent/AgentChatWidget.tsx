@@ -68,11 +68,12 @@ export function AgentChatWidget() {
     // Only show bids from the AI agent wallet (isAgentBid=true), not all demo wallets.
     useEffect(() => {
         const sock = socketClient.connect();
-        const bidHandler = (data: { leadId: string; amount: number; buyerAddr: string; vertical: string; txHash: string; isAgentBid: boolean }) => {
+        const bidHandler = (data: { leadId: string; vertical: string; txHash: string; isAgentBid: boolean }) => {
             if (!data.isAgentBid) return; // Filter: only persona/AI-agent bids
+            // SEALED-BID: broadcast no longer carries amounts pre-close.
             const msg: ChatMessage = {
                 role: 'assistant',
-                content: `🤖 **Agent committed** $${data.amount} on lead \`${data.leadId.slice(0, 8)}…\`\n\n[View on Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
+                content: `🤖 **Agent committed a sealed bid** on lead \`${data.leadId.slice(0, 8)}…\`\n\n[View on Basescan](https://sepolia.basescan.org/tx/${data.txHash})`,
             };
             setMessages(prev => [...prev, msg]);
             if (!isOpen) setHasUnread(true);

@@ -17,6 +17,7 @@
 import { useEffect } from 'react';
 import socketClient from '@/lib/socket';
 import { useAuctionStore } from '@/store/auctionStore';
+import { autoRevealSealedBids } from '@/utils/sealedBid';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
@@ -42,13 +43,14 @@ export function useSocketBridge(): void {
             store().addLead(data.lead);
         });
 
+        // SEALED-BID: bid amounts and bidder identities are never stored or
+        // displayed during a live auction — only counts. The server no longer
+        // sends them pre-close; dropping the fields here is defence-in-depth.
         const unsubBidUpdate = socketClient.on('marketplace:bid:update', (data: any) => {
             if (!data?.leadId) return;
             store().updateBid({
                 leadId: data.leadId,
                 bidCount: data.bidCount,
-                highestBid: data.highestBid,
-                recentBids: data.recentBids,
             });
         });
 
@@ -60,7 +62,6 @@ export function useSocketBridge(): void {
                 remainingTime: data.remainingTime ?? undefined,
                 serverTs: typeof data.serverTs === 'number' ? data.serverTs : undefined,
                 bidCount: data.bidCount,
-                highestBid: data.highestBid ?? undefined,
                 isSealed: data.isSealed,
             });
         });
@@ -69,6 +70,14 @@ export function useSocketBridge(): void {
         const unsubClosingSoon = socketClient.on('auction:closing-soon', (data: any) => {
             if (!data?.leadId) return;
             store().setClosingSoon(data.leadId);
+        });
+
+        // Commit-reveal (Phase B2): when the server opens the reveal window,
+        // auto-reveal any sealed bids this tab committed (salt + amount live
+        // in sessionStorage — never sent before this moment).
+        const unsubRevealPhase = socketClient.on('auction:reveal-phase', (data) => {
+            if (!data?.leadId) return;
+            void autoRevealSealedBids(data.leadId);
         });
 
         const unsubClosed = socketClient.on('auction:closed', (data) => {
@@ -91,12 +100,12 @@ export function useSocketBridge(): void {
             }
         });
 
-        // R-01 micro-fix: consume auction:bid:pending emitted by the scheduler immediately
-        // on bid commitment — routes the incoming bid amount into the store so LeadCard
-        // shows a real-time price signal before the vault lock confirms on-chain.
+        // SEALED-BID: auction:bid:pending previously routed live bid AMOUNTS
+        // into the store (price signal leak). Only the pending-bid signal is
+        // consumed now — no amount is stored or displayed pre-close.
         const unsubBidPending = socketClient.on('auction:bid:pending', (data: any) => {
             if (!data?.leadId) return;
-            store().updateBid({ leadId: data.leadId, highestBid: data.amount });
+            store().updateBid({ leadId: data.leadId });
         });
 
         const unsubLeadsUpdated = socketClient.on('leads:updated', (_data: any) => {
@@ -132,6 +141,7 @@ export function useSocketBridge(): void {
             unsubBidUpdate();
             unsubAuctionUpdated();
             unsubClosingSoon();
+            unsubRevealPhase();
             unsubClosed();
             unsubStatusChanged();
             unsubLeadsUpdated();

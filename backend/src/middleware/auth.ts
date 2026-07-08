@@ -3,13 +3,24 @@ import jwt from 'jsonwebtoken';
 import { verifyMessage } from 'ethers';
 import { prisma } from '../lib/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const DEV_JWT_FALLBACK = 'dev-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_FALLBACK;
+
+// Fail closed: refuse to boot in production with a missing/default JWT secret.
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEV_JWT_FALLBACK)) {
+    throw new Error('[AUTH] JWT_SECRET must be set to a strong unique value in production');
+}
 
 export interface AuthenticatedRequest extends Request {
     user?: {
         id: string;
         walletAddress: string;
         role: string;
+    };
+    agentAuth?: {
+        keyId: string;
+        scopes: string[];
+        sandboxOnly: boolean;
     };
 }
 
@@ -82,6 +93,61 @@ export async function authMiddleware(
     }
 
     const token = authHeader.slice(7);
+
+    // Seller agent API keys (lsa_...)
+    if (token.startsWith('lsa_')) {
+        const { verifySellerAgentApiKey } = await import('../services/agent-identity.service');
+        const key = await verifySellerAgentApiKey(token);
+        if (!key.valid || !key.ownerId) {
+            res.status(401).json({ error: 'Invalid or revoked seller agent API key' });
+            return;
+        }
+        const user = await prisma.user.findUnique({ where: { id: key.ownerId } });
+        if (!user) {
+            res.status(401).json({ error: 'Seller agent owner account not found' });
+            return;
+        }
+        req.user = {
+            id: user.id,
+            walletAddress: user.walletAddress,
+            role: user.role,
+        };
+        req.agentAuth = {
+            keyId: key.keyId!,
+            scopes: key.scopes ?? ['read', 'supply'],
+            sandboxOnly: key.sandboxOnly ?? false,
+        };
+        next();
+        return;
+    }
+
+    // Agent API keys (lea_...) — scoped keys for external buyer agents
+    if (token.startsWith('lea_')) {
+        const { verifyAgentApiKey } = await import('../services/agent-identity.service');
+        const key = await verifyAgentApiKey(token);
+        if (!key.valid || !key.ownerId) {
+            res.status(401).json({ error: 'Invalid or revoked agent API key' });
+            return;
+        }
+        const user = await prisma.user.findUnique({ where: { id: key.ownerId } });
+        if (!user) {
+            res.status(401).json({ error: 'Agent owner account not found' });
+            return;
+        }
+        req.user = {
+            id: user.id,
+            walletAddress: user.walletAddress,
+            role: user.role,
+        };
+        req.agentAuth = {
+            keyId: key.keyId!,
+            scopes: key.scopes ?? ['read', 'bid'],
+            sandboxOnly: key.sandboxOnly ?? false,
+        };
+        next();
+        return;
+    }
+
     const decoded = verifyToken(token);
 
     if (!decoded) {

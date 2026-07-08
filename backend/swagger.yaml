@@ -11,6 +11,12 @@ info:
     2. `POST /api/v1/auth/wallet` — submit signature, receive JWT
     3. Include `Authorization: Bearer <token>` on all subsequent requests
 
+    Agent API keys use the `lea_` prefix with scoped access:
+    - `read` — traces, list strategies, simulate
+    - `bid` — create/activate strategies, pipeline enqueue
+    - `admin` — API keys, webhook registration
+    Sandbox keys (`sandbox: true` at mint) are simulate-only.
+
     ## Lead Sources
     Leads can be submitted via three channels:
     - **PLATFORM** — the built-in web form
@@ -38,6 +44,8 @@ tags:
     description: Sealed-bid auction operations
   - name: Analytics
     description: Dashboard analytics and reporting
+  - name: Agent
+    description: AgentRTB buyer agent registration, strategies, webhooks, and reputation
 
 paths:
   # ─── Auth ───────────────────────────────
@@ -527,6 +535,147 @@ paths:
       responses:
         "200":
           description: Bid analytics data
+
+  # ─── AgentRTB (Option A) ─────────────────
+  /api/v1/agent/register:
+    post:
+      tags: [Agent]
+      summary: Register agent profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName]
+              properties:
+                displayName:
+                  type: string
+                walletAddress:
+                  type: string
+      responses:
+        "201":
+          description: Agent profile created
+
+  /api/v1/agent/api-keys:
+    post:
+      tags: [Agent]
+      summary: Mint scoped agent API key (lea_...)
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: API key minted (shown once)
+
+  /api/v1/agent/me:
+    get:
+      tags: [Agent]
+      summary: Agent dashboard (profile, strategies, traces)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard payload
+
+  /api/v1/agent/traces:
+    get:
+      tags: [Agent]
+      summary: Decision trace feed
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: leadId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trace list
+
+  /api/v1/agent/simulate:
+    post:
+      tags: [Agent]
+      summary: Backtest a StrategySpec
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [strategyId]
+              properties:
+                strategyId:
+                  type: string
+                days:
+                  type: integer
+                limit:
+                  type: integer
+      responses:
+        "200":
+          description: Simulation report
+
+  /api/v1/agent/leaderboard:
+    get:
+      tags: [Agent]
+      summary: Agent reputation leaderboard
+      responses:
+        "200":
+          description: Ranked agents with win rate
+
+  /api/v1/agent/webhooks:
+    get:
+      tags: [Agent]
+      summary: List integration webhooks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Webhook list
+    post:
+      tags: [Agent]
+      summary: Register integration webhook
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    type: string
+                    enum: [strategy.decision, bid.placed, auction.won, lead.matched]
+      responses:
+        "201":
+          description: Webhook registered
+
+  /api/v1/agent/webhooks/{id}:
+    delete:
+      tags: [Agent]
+      summary: Delete integration webhook
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
 
 components:
   securitySchemes:

@@ -26,8 +26,34 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deployer:", deployer.address);
 
-    const ACE_COMPLIANCE = process.env.ACE_COMPLIANCE_ADDRESS || "0xAea2590E1E95F0d8bb34D375923586Bf0744EfE6";
-    console.log("ACECompliance:", ACE_COMPLIANCE);
+    // Use an existing ACECompliance when provided; otherwise deploy a fresh
+    // one. IMPORTANT: the registry MUST expose isCompliant(address) — older
+    // deployments (pre-A5) lack it, which makes every gated mint/transfer
+    // revert (fail-closed) once the policy is attached.
+    let ACE_COMPLIANCE = process.env.ACE_COMPLIANCE_ADDRESS || "";
+    if (ACE_COMPLIANCE) {
+        const probe = new ethers.Contract(
+            ACE_COMPLIANCE,
+            ["function isCompliant(address) view returns (bool)"],
+            deployer,
+        );
+        try {
+            await probe.isCompliant(deployer.address);
+            console.log("ACECompliance (existing):", ACE_COMPLIANCE);
+        } catch {
+            throw new Error(
+                `ACECompliance at ${ACE_COMPLIANCE} does not implement isCompliant(address). ` +
+                `Redeploy ACECompliance (unset ACE_COMPLIANCE_ADDRESS) or upgrade it first.`,
+            );
+        }
+    } else {
+        console.log("\n[0/3] No ACE_COMPLIANCE_ADDRESS set — deploying fresh ACECompliance…");
+        const ACECompliance = await ethers.getContractFactory("ACECompliance");
+        const ace = await ACECompliance.deploy(deployer.address);
+        await ace.waitForDeployment();
+        ACE_COMPLIANCE = await ace.getAddress();
+        console.log("  ACECompliance:", ACE_COMPLIANCE);
+    }
 
     // ── 1. Deploy ACELeadPolicy ───────────────────────────────────────────────
     // policyEngine = address(0): we're using direct-call mode — no separate
@@ -65,7 +91,27 @@ async function main() {
     if (attachedEngine.toLowerCase() !== acePolicyAddr.toLowerCase()) {
         console.warn("  ⚠ PolicyEngine wiring mismatch — please call attachPolicyEngine() manually");
     } else {
-        console.log("  ✓ ACE policy wired correctly");
+        console.log("  ✓ ACE policy attached");
+    }
+
+    // End-to-end smoke test of the engine entry point: exercise the exact
+    // run(Payload) selector that LeadNFTv2._runPolicy() will call. A revert
+    // with "function not found" here means the direct-call bridge is missing.
+    const engineProbe = new ethers.Contract(
+        acePolicyAddr,
+        ["function run((bytes4 selector, address sender, bytes data, bytes context)) view"],
+        deployer,
+    );
+    try {
+        await engineProbe.run({ selector: "0x00000000", sender: deployer.address, data: "0x", context: "0x" });
+        console.log("  ✓ run(Payload) reachable — deployer is compliant");
+    } catch (err: any) {
+        const msg = String(err?.message ?? err);
+        if (msg.includes("PolicyRejected") || msg.includes("not compliant")) {
+            console.log("  ✓ run(Payload) reachable — deployer not yet compliant (expected before KYC)");
+        } else {
+            throw new Error(`ACELeadPolicy.run(Payload) wiring check failed: ${msg}`);
+        }
     }
 
 

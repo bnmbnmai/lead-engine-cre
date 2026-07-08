@@ -13,13 +13,18 @@ import { Server } from 'socket.io';
 import { prisma } from '../lib/prisma';
 import { calculateFees, type BidSourceType } from '../lib/fees';
 import { applyHolderPerks, applyMultiplier } from '../services/holder-perks.service';
-import { fireConversionEvents, ConversionPayload } from '../services/conversion-tracking.service';
-import { bountyService } from '../services/bounty.service';
-import { isVrfConfigured, requestTieBreak, ResolveType, startVrfResolutionWatcher } from '../services/vrf.service';
-import { aceDevBus } from '../services/ace.service';
-import * as vaultService from '../services/vault.service';
-import { nftService } from '../services/nft.service';
-import { creService } from '../services/cre.service';
+import {
+    isVrfConfigured, requestTieBreak, waitForResolution, getResolution,
+    ResolveType, startVrfResolutionWatcher,
+} from '../services/vrf.service';
+import { acquireLock, releaseLock } from '../lib/redis';
+import { isAwaitingReveals, REVEAL_WINDOW_MS } from './bid.service';
+import { runSettlementSaga, recoverStalledSagas } from './settlement-saga.service';
+
+// Phase B3: how long auction closure blocks waiting for the on-chain VRF
+// tie-break before falling back to the deterministic (earliest-bid) winner.
+// Must stay well under the 120s Redis closure lock TTL.
+const VRF_TIE_TIMEOUT_MS = Number(process.env.VRF_TIE_TIMEOUT_MS || 45_000);
 
 // ============================================
 // Resolve Expired Auctions
@@ -78,6 +83,31 @@ export async function resolveExpiredAuctions(io?: Server): Promise<number> {
  */
 export async function resolveStuckAuctions(io?: Server): Promise<number> {
     const now = new Date();
+
+    // Recover leads stranded in CLOSING (worker crashed mid-resolution).
+    // After 5 minutes the CAS claim is considered stale and is reverted so
+    // the regular expired-auction sweep can retry resolution.
+    const recovered = await prisma.lead.updateMany({
+        where: {
+            status: 'CLOSING',
+            auctionEndAt: { lte: new Date(now.getTime() - 5 * 60 * 1000) },
+        },
+        data: { status: 'IN_AUCTION' },
+    });
+    if (recovered.count > 0) {
+        console.warn(`[AuctionClosure] Recovered ${recovered.count} lead(s) stranded in CLOSING — will retry resolution`);
+    }
+
+    // Phase B3: resume settlement sagas stranded in PENDING/RUNNING
+    // (worker crashed mid-settlement or a scheduled retry was lost).
+    try {
+        const resumed = await recoverStalledSagas(io);
+        if (resumed > 0) {
+            console.warn(`[AuctionClosure] Resumed ${resumed} stalled settlement saga(s)`);
+        }
+    } catch (sagaErr: any) {
+        console.error('[AuctionClosure] Saga recovery sweep failed:', sagaErr.message);
+    }
 
     const stuckAuctions = await prisma.lead.findMany({
         where: {
@@ -147,6 +177,51 @@ export async function resolveExpiredBuyNow(io?: Server): Promise<number> {
 // ============================================
 
 async function resolveAuction(leadId: string, io?: Server) {
+    // ── Reveal window (Phase B2 commit-reveal) ──
+    // When commit-only sealed bids exist, hold resolution open for the
+    // configured reveal window after auctionEndAt so buyers can reveal via
+    // POST /bids/:id/reveal. New bids are still rejected (auctionEndAt past).
+    // The resolver re-attempts on its normal schedule until the window ends.
+    const leadForWindow = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { auctionEndAt: true, status: true },
+    });
+    if (leadForWindow?.status === 'IN_AUCTION'
+        && await isAwaitingReveals(leadId, leadForWindow.auctionEndAt)) {
+        await prisma.auctionRoom.updateMany({
+            where: { leadId, phase: 'BIDDING' },
+            data: { phase: 'REVEAL' },
+        });
+        if (io) {
+            io.emit('auction:reveal-phase', {
+                leadId,
+                revealEndsAt: new Date(new Date(leadForWindow.auctionEndAt!).getTime() + REVEAL_WINDOW_MS).toISOString(),
+            });
+        }
+        console.log(`[AuctionClosure] ${leadId}: awaiting sealed-bid reveals — deferring resolution`);
+        return;
+    }
+
+    // ── Multi-instance guard: Redis lock (best-effort) ──
+    const lockToken = await acquireLock(`auction-close:${leadId}`, 120_000);
+    if (!lockToken) {
+        console.log(`[AuctionClosure] ${leadId}: another instance holds the closure lock — skipping`);
+        return;
+    }
+
+    // ── Compare-and-swap status gate: IN_AUCTION → CLOSING ──
+    // Exactly ONE caller can win this transition; concurrent resolvers see
+    // count === 0 and bail. This is the primary idempotency barrier.
+    const claimed = await prisma.lead.updateMany({
+        where: { id: leadId, status: 'IN_AUCTION' },
+        data: { status: 'CLOSING' },
+    });
+    if (claimed.count === 0) {
+        await releaseLock(`auction-close:${leadId}`, lockToken);
+        console.log(`[AuctionClosure] ${leadId}: already CLOSING/closed elsewhere — skipping`);
+        return;
+    }
+
     try {
         const lead = await prisma.lead.findUnique({
             where: { id: leadId },
@@ -258,18 +333,18 @@ async function resolveAuction(leadId: string, io?: Server) {
             return true;
         });
 
-        // ── VRF Tie-Breaking (BUG-09: non-blocking) ──
+        // ── VRF Tie-Breaking (Phase B3: blocking with timeout fallback) ──
         // Detect ties: 2+ bids with the same top effectiveBid.
         // Strategy:
-        //   1. Pick deterministic fallback winner immediately (earliest createdAt) so
-        //      auction closure is NEVER blocked.
-        //   2. If VRF is configured and 2+ wallet addresses are available, fire
-        //      requestTieBreak() and launch startVrfResolutionWatcher() in the
-        //      background. The watcher will update AuctionRoom.vrfWinner and emit
-        //      'auction:vrf-resolved' once the on-chain callback lands (~15-90 s).
-        //   3. Persist vrfRequestId immediately to AuctionRoom (before response).
+        //   1. Request the on-chain VRF tie-break and BLOCK for up to
+        //      VRF_TIE_TIMEOUT_MS so the announced winner IS the VRF winner.
+        //   2. On fulfillment: select the matching bid, persist vrfRequestId +
+        //      vrfWinner to AuctionRoom before the winner transaction commits.
+        //   3. On timeout/error: fall back to the deterministic winner
+        //      (earliest createdAt) and leave the background watcher running
+        //      so VRF provenance still lands in AuctionRoom for audit.
         let winningBid: typeof rankedBids[0] | null = null;
-        const vrfRequestId: string | null = null; // BUG-09: captured for DB + socket
+        let vrfRequestId: string | null = null;
 
         if (eligibleBids.length === 0) {
             // No eligible bids
@@ -285,40 +360,61 @@ async function resolveAuction(leadId: string, io?: Server) {
                 // Clear winner — no tie
                 winningBid = tiedBids[0];
             } else {
-                // TIE DETECTED
-                console.log(
-                    `[AuctionClosure] ${leadId}: ${tiedBids.length}-way tie at $${topEffective}` +
-                    ` — deterministic fallback selected immediately, VRF requested async`
-                );
-
-                // Step 1 — pick deterministic fallback now (earliest createdAt, already sorted)
+                // TIE DETECTED — deterministic fallback first, VRF may override below
                 winningBid = tiedBids[0];
 
-                // Step 2 — fire VRF async if configured
                 const candidates = tiedBids
                     .map(b => b.buyer?.walletAddress)
                     .filter((w): w is string => !!w);
 
                 if (candidates.length >= 2 && isVrfConfigured()) {
-                    // requestTieBreak submits the on-chain tx and returns the tx hash.
-                    // We do NOT await the resolution here — that would block closure.
-                    requestTieBreak(leadId, candidates, ResolveType.AUCTION_TIE)
-                        .then(txHash => {
-                            if (txHash) {
-                                // vrfRequestId not yet available synchronously — the watcher
-                                // will read it from the contract once fulfilled.
-                                console.log(`[AuctionClosure] ${leadId}: VRF tx submitted (${txHash}), watcher started`);
-                                // Emit requested event immediately so Judge View shows pending state
-                                if (io) {
-                                    io.emit('auction:vrf-requested', { leadId, txHash, candidateCount: candidates.length });
+                    console.log(
+                        `[AuctionClosure] ${leadId}: ${tiedBids.length}-way tie at $${topEffective}` +
+                        ` — requesting VRF tie-break (blocking up to ${VRF_TIE_TIMEOUT_MS / 1000}s)`
+                    );
+                    try {
+                        const txHash = await requestTieBreak(leadId, candidates, ResolveType.AUCTION_TIE);
+                        if (txHash) {
+                            if (io) {
+                                io.emit('auction:vrf-requested', { leadId, txHash, candidateCount: candidates.length });
+                            }
+
+                            const vrfWinnerAddr = await waitForResolution(leadId, VRF_TIE_TIMEOUT_MS);
+                            if (vrfWinnerAddr) {
+                                const resolution = await getResolution(leadId);
+                                vrfRequestId = resolution ? resolution.requestId.toString() : null;
+
+                                const vrfBid = tiedBids.find(
+                                    b => b.buyer?.walletAddress?.toLowerCase() === vrfWinnerAddr.toLowerCase()
+                                );
+                                if (vrfBid) {
+                                    winningBid = vrfBid;
+                                    console.log(`[AuctionClosure] ${leadId}: VRF selected winner ${vrfWinnerAddr} (requestId=${vrfRequestId})`);
+                                } else {
+                                    console.warn(`[AuctionClosure] ${leadId}: VRF winner ${vrfWinnerAddr} not among tied bids — keeping deterministic fallback`);
                                 }
-                                // Launch background watcher — non-blocking, swallows errors
+
+                                await prisma.auctionRoom.updateMany({
+                                    where: { leadId },
+                                    data: { vrfWinner: vrfWinnerAddr, ...(vrfRequestId ? { vrfRequestId } : {}) },
+                                });
+                                if (io) {
+                                    io.emit('auction:vrf-resolved', {
+                                        leadId,
+                                        vrfWinner: vrfWinnerAddr,
+                                        requestId: vrfRequestId ?? undefined,
+                                    });
+                                }
+                            } else {
+                                // Timeout — deterministic fallback wins; the background
+                                // watcher still records VRF provenance when it lands.
+                                console.warn(`[AuctionClosure] ${leadId}: VRF timed out after ${VRF_TIE_TIMEOUT_MS / 1000}s — using earliest bid as tiebreaker`);
                                 startVrfResolutionWatcher(leadId, io).catch(() => { });
                             }
-                        })
-                        .catch((err: any) => {
-                            console.warn(`[AuctionClosure] ${leadId}: VRF requestTieBreak failed (non-fatal):`, err.message);
-                        });
+                        }
+                    } catch (vrfErr: any) {
+                        console.warn(`[AuctionClosure] ${leadId}: VRF tie-break failed (non-fatal): ${vrfErr.message}`);
+                    }
                 } else {
                     console.warn(
                         `[AuctionClosure] ${leadId}: VRF unavailable (configured=${isVrfConfigured()},` +
@@ -338,6 +434,11 @@ async function resolveAuction(leadId: string, io?: Server) {
         const winAmount = Number(winningBid.amount);
         const fees = calculateFees(winAmount, (winningBid.source || 'MANUAL') as BidSourceType);
 
+        // ── Winner transaction + settlement-saga outbox (Phase B3) ──
+        // The lead moves to SETTLING (not SOLD) and the saga row is created in
+        // the SAME transaction. If the process dies right after this commit,
+        // the recovery sweep finds the saga and resumes settlement — no more
+        // "DB says sold, chain never settled" split-brain.
         await prisma.$transaction([
             prisma.bid.update({
                 where: { id: winningBid.id },
@@ -364,18 +465,18 @@ async function resolveAuction(leadId: string, io?: Server) {
             }),
             prisma.lead.update({
                 where: { id: leadId },
-                data: {
-                    status: 'SOLD',
-                    winningBid: winningBid.amount,
-                    soldAt: new Date(),
-                },
+                data: { status: 'SETTLING' },
             }),
             prisma.auctionRoom.updateMany({
                 where: { leadId },
                 data: { phase: 'RESOLVED' },
             }),
-            prisma.transaction.create({
-                data: {
+            // Idempotent: upsert on (leadId, buyerId) — a pre-bid escrow may
+            // already have created a PENDING transaction for this buyer, and a
+            // concurrent closure attempt must never create a duplicate charge.
+            prisma.transaction.upsert({
+                where: { leadId_buyerId: { leadId, buyerId: winningBid.buyerId } },
+                create: {
                     leadId,
                     buyerId: winningBid.buyerId,
                     amount: winningBid.amount!,
@@ -384,333 +485,43 @@ async function resolveAuction(leadId: string, io?: Server) {
                     convenienceFeeType: fees.convenienceFeeType,
                     status: 'PENDING',
                 },
+                update: {
+                    amount: winningBid.amount!,
+                    platformFee: fees.platformFee,
+                    convenienceFee: fees.convenienceFee || undefined,
+                    convenienceFeeType: fees.convenienceFeeType,
+                },
+            }),
+            // Outbox: durable record of the settlement work that remains
+            prisma.settlementSaga.upsert({
+                where: { leadId },
+                create: { leadId, winningBidId: winningBid.id },
+                update: { winningBidId: winningBid.id, state: 'PENDING', steps: {}, attempts: 0, lastError: null },
             }),
         ]);
 
-        console.log(`[AuctionClosure] ${leadId} resolved. Winner: ${winningBid.buyerId}`);
+        console.log(`[AuctionClosure] ${leadId} winner determined (${winningBid.buyerId}) — running settlement saga`);
 
-        // ── On-chain vault settlement for the winner ──
-        // Transfer locked bid amount → seller, convenience fee → platform wallet
-        try {
-            const winnerEscrowRef = winningBid.escrowTxHash || '';
-            const sellerWallet = (lead as any).seller?.user?.walletAddress || '';
-            if (winnerEscrowRef.startsWith('vaultLock:') && sellerWallet) {
-                const lockId = parseInt(winnerEscrowRef.split(':')[1], 10);
-                if (lockId > 0) {
-                    const settleResult = await vaultService.settleBid(lockId, sellerWallet, winningBid.buyerId, leadId);
-                    if (settleResult.success) {
-                        console.log(`[AuctionClosure] Vault settlement successful: lockId=${lockId}, txHash=${settleResult.txHash}`);
-                        aceDevBus.emit('ace:dev-log', {
-                            ts: new Date().toISOString(),
-                            action: 'vault:settle-winner',
-                            leadId,
-                            buyerId: winningBid.buyerId,
-                            lockId,
-                            txHash: settleResult.txHash,
-                            amount: winAmount,
-                        });
-                    } else {
-                        console.error(`[AuctionClosure] Vault settlement FAILED for lockId=${lockId}: ${settleResult.error}`);
-                        aceDevBus.emit('ace:dev-log', {
-                            ts: new Date().toISOString(),
-                            action: 'vault:settle-winner:error',
-                            leadId,
-                            buyerId: winningBid.buyerId,
-                            lockId,
-                            error: settleResult.error,
-                        });
-                    }
-                }
-            }
-        } catch (settleErr: any) {
-            // Non-blocking: DB already recorded the win — settlement can be retried
-            console.error('[AuctionClosure] Vault settlement error (non-blocking):', settleErr.message);
-        }
-
-        // ── LeadNFTv2 mint — unified with confirm-escrow path ──
-        // Every winner (demo or manual) gets a real on-chain NFT so the portfolio
-        // always displays the purple badge + correct Basescan link.
-        try {
-            const mintResult = await nftService.mintLeadNFT(leadId);
-            if (mintResult.success && mintResult.tokenId) {
-                console.log(`[AuctionClosure] LeadNFT minted — tokenId=${mintResult.tokenId}, txHash=${mintResult.txHash}`);
-                aceDevBus.emit('ace:dev-log', {
-                    ts: new Date().toISOString(),
-                    action: 'nft:mint:success',
-                    leadId,
-                    tokenId: mintResult.tokenId,
-                    txHash: mintResult.txHash,
-                });
-
-                // Record sale on-chain (transfer ownership to buyer)
-                const buyerWallet = winningBid.buyer?.walletAddress;
-                if (buyerWallet && mintResult.tokenId) {
-                    const saleResult = await nftService.recordSaleOnChain(
-                        mintResult.tokenId,
-                        buyerWallet,
-                        winAmount,
-                    );
-                    if (saleResult.success) {
-                        console.log(`[AuctionClosure] Sale recorded on-chain — txHash=${saleResult.txHash}`);
-                    } else {
-                        console.warn(`[AuctionClosure] recordSaleOnChain failed: ${saleResult.error}`);
-                    }
-                }
-
-                // Dispatch CRE quality score request (non-blocking)
-                if (process.env.USE_BATCHED_PRIVATE_SCORE !== 'true') {
-                    creService.requestOnChainQualityScore(leadId, Number(mintResult.tokenId), leadId)
-                        .then((r) => {
-                            if (r.submitted) {
-                                console.log(`[AuctionClosure] CRE submitted — requestId=${r.requestId}`);
-                            } else {
-                                console.warn(`[AuctionClosure] CRE skipped/failed: ${r.error}`);
-                            }
-                        })
-                        .catch((err) => {
-                            console.warn(`[AuctionClosure] CRE threw: ${err.message}`);
-                        });
-                }
-            } else {
-                // BUG-08: Set nftMintFailed flag + schedule retry instead of silent warn.
-                console.warn(`[AuctionClosure] NFT mint failed (non-fatal): ${mintResult.error}`);
-                await nftService.scheduleMintRetry(leadId, mintResult.error || 'unknown mint error');
-            }
-        } catch (mintErr: any) {
-            console.error('[AuctionClosure] NFT mint error (non-blocking):', mintErr.message);
-        }
-
-        // ── Bounty Release ──
-        // Match active buyer bounty pools and auto-release to seller
-        try {
-            const sellerWallet = (lead as any).seller?.user?.walletAddress || '';
-            if (sellerWallet && lead.vertical) {
-                const geo = (lead as any).geo || {};
-                const matched = await bountyService.matchBounties(
-                    {
-                        id: lead.id,
-                        vertical: lead.vertical,
-                        qualityScore: (lead as any).qualityScore,
-                        state: geo.state || null,
-                        country: geo.country || null,
-                        parameters: (lead as any).parameters,
-                        createdAt: (lead as any).createdAt,
-                        reservePrice: lead.reservePrice ? Number(lead.reservePrice) : null,
-                    },
-                    winAmount // Use winning bid (not reserve) for stacking cap
-                );
-
-                for (const bounty of matched) {
-                    const releaseResult = await bountyService.releaseBounty(
-                        bounty.poolId,
-                        leadId,
-                        sellerWallet,
-                        bounty.amount,
-                        bounty.verticalSlug
-                    );
-                    if (releaseResult.success) {
-                        console.log(`[AuctionClosure] Bounty $${bounty.amount} released from pool ${bounty.poolId} to seller ${sellerWallet.slice(0, 10)}...`);
-                        if (io) {
-                            io.emit('bounty:released', {
-                                leadId,
-                                poolId: bounty.poolId,
-                                buyerId: bounty.buyerId,
-                                amount: bounty.amount,
-                                verticalSlug: bounty.verticalSlug,
-                                txHash: releaseResult.txHash,
-                            });
-                        }
-                    }
-                }
-
-                if (matched.length > 0) {
-                    const totalBounty = matched.reduce((sum, m) => sum + m.amount, 0);
-                    console.log(`[AuctionClosure] ${matched.length} bounties released for lead ${leadId}, total: $${totalBounty.toFixed(2)}`);
-                }
-            }
-        } catch (bountyErr) {
-            // Bounty release is non-blocking — don't fail the auction resolution
-            console.error('[AuctionClosure] Bounty release error (non-blocking):', bountyErr);
-        }
-
-        // ── Vault + Escrow Refund: Auto-refund losers ──
-        // Losers get their vault deductions refunded (bid amount + $1 fee)
-        try {
-            const loserBids = await prisma.bid.findMany({
-                where: {
-                    leadId,
-                    status: 'OUTBID',
-                    amount: { not: null },
-                    escrowRefunded: false,
-                },
-            });
-
-            for (const loserBid of loserBids) {
-                try {
-                    console.log(`[AuctionClosure] Auto-refunding escrow for loser bid ${loserBid.id}`);
-                    aceDevBus.emit('ace:dev-log', {
-                        ts: new Date().toISOString(),
-                        action: 'escrow:refund:call',
-                        leadId,
-                        bidId: loserBid.id,
-                        buyerId: loserBid.buyerId,
-                    });
-
-                    // On-chain vault refund via lockId stored in escrowTxHash
-                    // Attempt on-chain refund FIRST, then mark DB only on success
-                    const escrowRef = loserBid.escrowTxHash || '';
-                    let onChainRefunded = false;
-                    if (escrowRef.startsWith('vaultLock:')) {
-                        const lockId = parseInt(escrowRef.split(':')[1], 10);
-                        if (lockId > 0) {
-                            const refundResult = await vaultService.refundBid(lockId, loserBid.buyerId, leadId);
-                            onChainRefunded = refundResult.success;
-                            if (!refundResult.success) {
-                                console.error(`[AuctionClosure] On-chain refund failed for lockId=${lockId}: ${refundResult.error}`);
-                            }
-                        }
-                    } else {
-                        // No vault lock — legacy bid or no amount: skip on-chain, just mark DB
-                        onChainRefunded = true;
-                    }
-
-                    if (onChainRefunded) {
-                        await prisma.bid.update({
-                            where: { id: loserBid.id },
-                            data: { escrowRefunded: true },
-                        });
-                    }
-
-                    aceDevBus.emit('ace:dev-log', {
-                        ts: new Date().toISOString(),
-                        action: onChainRefunded ? 'escrow:refund:success' : 'escrow:refund:partial',
-                        leadId,
-                        bidId: loserBid.id,
-                        buyerId: loserBid.buyerId,
-                        vaultRefund: escrowRef.startsWith('vaultLock:') ? (onChainRefunded ? 'on-chain' : 'failed') : 'n/a',
-                    });
-                } catch (refundErr: any) {
-                    console.error(`[AuctionClosure] Escrow refund failed for bid ${loserBid.id}:`, refundErr.message);
-                    aceDevBus.emit('ace:dev-log', {
-                        ts: new Date().toISOString(),
-                        action: 'escrow:refund:error',
-                        leadId,
-                        bidId: loserBid.id,
-                        error: refundErr.message,
-                    });
-                }
-            }
-
-            if (loserBids.length > 0) {
-                console.log(`[AuctionClosure] Refunded ${loserBids.length} pre-bid escrows for lead ${leadId}`);
-            }
-        } catch (refundBatchErr) {
-            console.error('[AuctionClosure] Batch escrow refund error (non-blocking):', refundBatchErr);
-        }
-
-        // Escrow deferred to buyer's MetaMask (TD-01)
-        const buyerWallet = winningBid.buyer?.walletAddress;
-
-        if (io) {
-            if (buyerWallet) {
-                console.log(`[AuctionClosure] Escrow deferred to buyer's wallet — buyer=${buyerWallet.slice(0, 10)}, lead=${leadId}`);
-                io.emit('lead:escrow-required', {
-                    leadId,
-                    buyerId: winningBid.buyerId,
-                    buyerWallet,
-                    amount: Number(winningBid.amount),
-                });
-            } else {
-                console.warn(`[AuctionClosure] Buyer wallet missing — escrow must be created manually, lead=${leadId}`);
-            }
-
-            io.to(`auction_${leadId}`).emit('auction:resolved', {
-                leadId,
-                winnerId: winningBid.buyerId,
-                winningAmount: Number(winningBid.amount),
-                effectiveBid: Number(winningBid.effectiveBid ?? winningBid.amount),
-                // BUG-09: include VRF provenance fields — undefined when no tie
-                vrfRequestId: vrfRequestId ?? undefined,
-                vrfPending: vrfRequestId ? true : undefined,
-            });
-
-            io.emit('lead:status-changed', {
-                leadId,
-                oldStatus: 'IN_AUCTION',
-                newStatus: 'SOLD',
-            });
-
-            io.emit('analytics:update', {
-                type: 'purchase',
-                leadId,
-                buyerId: winningBid.buyerId,
-                amount: Number(winningBid.amount),
-                vertical: lead.vertical || 'unknown',
-                timestamp: new Date().toISOString(),
-            });
-
-            // ── AUCTION-SYNC: authoritative closure broadcast ──
-            // Emitted AFTER all DB writes are committed so the frontend
-            // can immediately freeze the UI and show winner/results.
-            const settleTxHash = (winningBid as any).escrowTxHash ?? undefined;
-            const finalBids = await prisma.bid.findMany({
-                where: { leadId },
-                select: { buyerId: true, amount: true, status: true },
-                orderBy: { effectiveBid: { sort: 'desc', nulls: 'last' } },
-            });
-            io.emit('auction:closed', {
-                leadId,
-                status: 'SOLD',
-                winnerId: winningBid.buyerId,
-                winningAmount: Number(winningBid.amount),
-                settleTxHash,
-                finalBids: finalBids.map(b => ({
-                    buyerId: b.buyerId,
-                    amount: b.amount != null ? Number(b.amount) : null,
-                    status: b.status,
-                })),
-                remainingTime: 0,
-                isClosed: true,
-                serverTs: Date.now(),  // BUG-1 fix: epoch ms, not ISO string
-            });
-            console.log(`[AUCTION-CLOSED] leadId=${leadId} winner=${winningBid.buyerId} amount=${Number(winningBid.amount)} tx=${settleTxHash ?? '—'}`);
-        }
-
-        // Log analytics
-        await prisma.analyticsEvent.create({
-            data: {
-                eventType: 'auction_resolved',
-                entityType: 'lead',
-                entityId: leadId,
-                metadata: {
-                    winnerId: winningBid.buyerId,
-                    amount: Number(winningBid.amount),
-                },
-            },
-        });
-
-        // Fire seller conversion tracking — non-blocking
-        const fullLead = await prisma.lead.findUnique({
-            where: { id: leadId },
-            select: { sellerId: true, vertical: true, geo: true },
-        });
-        if (fullLead) {
-            const geo = fullLead.geo as any;
-            const convPayload: ConversionPayload = {
-                event: 'lead_sold',
-                lead_id: leadId,
-                sale_amount: winAmount,
-                platform_fee: fees.platformFee,
-                vertical: fullLead.vertical,
-                geo: geo ? `${geo.country || 'US'}-${geo.state || ''}` : 'US',
-                quality_score: 0,
-                transaction_id: '',
-                sold_at: new Date().toISOString(),
-            };
-            fireConversionEvents(fullLead.sellerId, convPayload).catch(console.error);
-        }
+        // ── Execute the saga inline (first attempt) ──
+        // vault settle → loser refunds → NFT mint → finalize (SETTLING → SOLD
+        // + socket events + bounties + analytics). Failures self-schedule
+        // retries with backoff; terminal failures compensate (winner refund +
+        // lead → UNSOLD).
+        await runSettlementSaga(leadId, io);
     } catch (error) {
         console.error('[AuctionClosure] Auction resolution error:', error);
+        // Revert the CAS claim so the next sweep can retry this auction.
+        // (Only if still CLOSING — a partial success may have set SOLD/UNSOLD.)
+        try {
+            await prisma.lead.updateMany({
+                where: { id: leadId, status: 'CLOSING' },
+                data: { status: 'IN_AUCTION' },
+            });
+        } catch (revertErr) {
+            console.error(`[AuctionClosure] CRITICAL: failed to revert CLOSING status for ${leadId}:`, revertErr);
+        }
+    } finally {
+        await releaseLock(`auction-close:${leadId}`, lockToken);
     }
 }
 
@@ -785,6 +596,23 @@ async function convertToUnsold(leadId: string, lead: any, io?: Server) {
             metadata: { buyNowPrice: binPrice, reservePrice },
         },
     });
+
+    try {
+        const sellerProfile = await prisma.sellerProfile.findUnique({
+            where: { id: lead.sellerId },
+            select: { userId: true },
+        });
+        if (sellerProfile?.userId) {
+            const { recordSellerSettlementAttestation } = await import('./agent-trace.service');
+            const { fireSellerWebhooks } = await import('./agent-webhook.service');
+            await fireSellerWebhooks(sellerProfile.userId, 'auction.closed', {
+                leadId,
+                status: 'UNSOLD',
+                buyNowPrice: binPrice,
+            });
+            await recordSellerSettlementAttestation(sellerProfile.userId, false);
+        }
+    } catch { /* non-blocking */ }
 
     console.log(`[AuctionClosure] ${leadId} → UNSOLD (Buy It Now: $${binPrice?.toFixed(2) ?? 'N/A'})`);
 }

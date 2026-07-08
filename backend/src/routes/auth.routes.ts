@@ -11,6 +11,8 @@ import {
 import { WalletAuthSchema, KycInitSchema } from '../utils/validation';
 import { authLimiter } from '../middleware/rateLimit';
 import { aceService } from '../services/ace.service';
+import { timingSafeEqualStr } from '../middleware/secret-auth';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -258,7 +260,26 @@ router.post('/kyc/init', authMiddleware, async (req: AuthenticatedRequest, res: 
 
 router.post('/kyc/callback', async (req: Request, res: Response) => {
     try {
-        // In production, verify webhook signature
+        // Verify webhook HMAC signature (fail-closed in production).
+        // The KYC provider signs the raw JSON body with the shared secret:
+        //   x-kyc-signature: hex(HMAC-SHA256(KYC_WEBHOOK_SECRET, body))
+        const webhookSecret = process.env.KYC_WEBHOOK_SECRET || '';
+        if (webhookSecret) {
+            const signature = (req.headers['x-kyc-signature'] as string) || '';
+            const expected = crypto
+                .createHmac('sha256', webhookSecret)
+                .update(JSON.stringify(req.body))
+                .digest('hex');
+            if (!signature || !timingSafeEqualStr(signature, expected)) {
+                res.status(401).json({ error: 'Invalid webhook signature' });
+                return;
+            }
+        } else if (process.env.NODE_ENV === 'production') {
+            console.error('[KYC] KYC_WEBHOOK_SECRET not configured — rejecting callback');
+            res.status(503).json({ error: 'KYC webhook verification not configured' });
+            return;
+        }
+
         const { userId, status, verificationId } = req.body;
 
         if (!userId || !status) {

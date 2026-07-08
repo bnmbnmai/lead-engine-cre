@@ -5,10 +5,9 @@ import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthenticatedRequest, requireBuyer } from '../middleware/auth';
 import { BidCommitSchema, BidRevealSchema, BuyerPreferencesSchema, BuyerPreferencesV2Schema } from '../utils/validation';
 import { rtbBiddingLimiter } from '../middleware/rateLimit';
-import { aceService } from '../services/ace.service';
 import { dataStreamsService } from '../services/data-feeds.service';
 import { evaluateLeadForAutoBid, LeadData } from '../services/auto-bid.service';
-import { applyHolderPerks } from '../services/holder-perks.service';
+import { placeSealedBid, revealSealedBid } from '../services/bid.service';
 
 const router = Router();
 
@@ -46,116 +45,55 @@ router.post('/', rtbBiddingLimiter, authMiddleware, requireBuyer, async (req: Au
 
         const { leadId, commitment } = validation.data;
 
-        // Check lead exists and is in auction
+        // Buyer-profile preference gates (route-level; auction-state +
+        // compliance + persistence happen inside BidService)
         const lead = await prisma.lead.findUnique({
             where: { id: leadId },
-            include: { auctionRoom: true },
+            select: { source: true, vertical: true, isVerified: true },
         });
-
-        if (!lead) {
-            res.status(404).json({ error: 'Lead not found' });
-            return;
-        }
-
-        if (lead.status !== 'IN_AUCTION') {
-            res.status(400).json({ error: 'Lead is not in auction' });
-            return;
-        }
-
-        if (lead.auctionEndAt && lead.auctionEndAt < new Date()) {
-            res.status(400).json({ error: 'Auction has ended' });
-            return;
-        }
-
-        // Check buyer compliance
-        const compliance = await aceService.canTransact(
-            req.user!.walletAddress,
-            lead.vertical,
-            (lead.geo as any)?.geoHash || ''
-        );
-
-        if (!compliance.allowed) {
-            res.status(403).json({ error: 'Compliance check failed', reason: compliance.reason });
-            return;
-        }
-
-        // Check buyer preferences match lead
-        const buyer = await prisma.buyerProfile.findFirst({
-            where: { user: { id: req.user!.id } },
-        });
-
-        if (buyer) {
-            if (!buyer.acceptOffSite && lead.source === 'OFFSITE') {
-                res.status(400).json({ error: 'Buyer does not accept off-site leads' });
-                return;
-            }
-            if (buyer.verticals.length > 0 && !buyer.verticals.includes(lead.vertical)) {
-                res.status(400).json({ error: 'Lead vertical not in buyer preferences' });
-                return;
-            }
-            if (buyer.requireVerified && !lead.isVerified) {
-                res.status(400).json({ error: 'Buyer requires verified leads' });
-                return;
-            }
-        }
-
-        // Check holder perks
-        const holderPerks = await applyHolderPerks(
-            lead.vertical,
-            req.user!.walletAddress,
-        );
-
-        // Create or update sealed bid (commitment only — amount revealed after auction)
-        const bid = await prisma.bid.upsert({
-            where: {
-                leadId_buyerId: { leadId, buyerId: req.user!.id },
-            },
-            create: {
-                leadId,
-                buyerId: req.user!.id,
-                commitment,
-                status: 'PENDING',
-            },
-            update: {
-                commitment,
-                status: 'PENDING',
-            },
-        });
-
-        // Update auction room
-        if (lead.auctionRoom) {
-            await prisma.auctionRoom.update({
-                where: { id: lead.auctionRoom.id },
-                data: {
-                    bidCount: { increment: 1 },
-                    participants: {
-                        push: req.user!.id,
-                    },
-                },
+        if (lead) {
+            const buyer = await prisma.buyerProfile.findFirst({
+                where: { user: { id: req.user!.id } },
             });
+            if (buyer) {
+                if (!buyer.acceptOffSite && lead.source === 'OFFSITE') {
+                    res.status(400).json({ error: 'Buyer does not accept off-site leads' });
+                    return;
+                }
+                if (buyer.verticals.length > 0 && !buyer.verticals.includes(lead.vertical)) {
+                    res.status(400).json({ error: 'Lead vertical not in buyer preferences' });
+                    return;
+                }
+                if (buyer.requireVerified && !lead.isVerified) {
+                    res.status(400).json({ error: 'Buyer requires verified leads' });
+                    return;
+                }
+            }
         }
 
-        // Log analytics
-        await prisma.analyticsEvent.create({
-            data: {
-                eventType: 'bid_committed',
-                entityType: 'bid',
-                entityId: bid.id,
-                userId: req.user!.id,
-                metadata: { leadId, vertical: lead.vertical },
-            },
+        // Canonical sealed-bid path (Phase B2): commitment only, no amount.
+        const result = await placeSealedBid({
+            leadId,
+            buyerId: req.user!.id,
+            walletAddress: req.user!.walletAddress,
+            commitment,
+            source: 'MANUAL',
         });
+
+        if (!result.ok) {
+            res.status(result.statusCode ?? 400).json({ error: result.error });
+            return;
+        }
 
         res.status(201).json({
             bid: {
-                id: bid.id,
-                leadId: bid.leadId,
-                status: bid.status,
-                committedAt: bid.createdAt,
+                id: result.bid!.id,
+                leadId: result.bid!.leadId,
+                status: result.bid!.status,
+                committedAt: result.bid!.createdAt,
             },
-            holderPerks: holderPerks.isHolder ? {
-                prePingSeconds: holderPerks.prePingSeconds,
-                multiplier: holderPerks.multiplier,
+            holderPerks: result.isHolder ? {
+                multiplier: result.holderMultiplier,
             } : undefined,
             message: 'Bid committed. Reveal after auction ends.',
         });
@@ -179,96 +117,21 @@ router.post('/:bidId/reveal', authMiddleware, requireBuyer, async (req: Authenti
 
         const { amount, salt } = validation.data;
 
-        const bid = await prisma.bid.findUnique({
-            where: { id: req.params.bidId },
-            include: { lead: { include: { auctionRoom: true } } },
+        // Canonical reveal path (Phase B2): domain-separated commitment
+        // verification + vault lock at reveal + holder multiplier.
+        const result = await revealSealedBid({
+            bidId: req.params.bidId,
+            buyerId: req.user!.id,
+            amount,
+            salt,
         });
 
-        if (!bid) {
-            res.status(404).json({ error: 'Bid not found' });
+        if (!result.ok) {
+            res.status(result.statusCode ?? 400).json({ error: result.error });
             return;
         }
 
-        if (bid.buyerId !== req.user!.id) {
-            res.status(403).json({ error: 'Not your bid' });
-            return;
-        }
-
-        if (bid.status !== 'PENDING') {
-            res.status(400).json({ error: 'Bid already revealed or processed' });
-            return;
-        }
-
-        // Auction must have ended (60s window closed) before reveals are accepted
-        if (bid.lead.auctionEndAt && bid.lead.auctionEndAt > new Date()) {
-            res.status(400).json({ error: 'Auction still active — wait for the 60s window to close' });
-            return;
-        }
-
-        // Verify commitment: keccak256(abi.encode(amount, salt))
-        const expectedCommitment = ethers.keccak256(
-            ethers.AbiCoder.defaultAbiCoder().encode(['uint96', 'bytes32'], [amount, salt])
-        );
-
-        if (bid.commitment !== expectedCommitment) {
-            res.status(400).json({ error: 'Invalid reveal — commitment mismatch' });
-            return;
-        }
-
-        // Check reserve price
-        if (bid.lead.reservePrice && amount < Number(bid.lead.reservePrice)) {
-            await prisma.bid.update({
-                where: { id: bid.id },
-                data: { status: 'REJECTED', amount, salt, revealedAt: new Date() },
-            });
-            res.status(400).json({ error: 'Bid below reserve price' });
-            return;
-        }
-
-        // Update bid to REVEALED
-        const updatedBid = await prisma.bid.update({
-            where: { id: bid.id },
-            data: {
-                amount,
-                salt,
-                status: 'REVEALED',
-                revealedAt: new Date(),
-            },
-        });
-
-        // Update auction room highest bid
-        if (bid.lead.auctionRoom) {
-            const currentHighest = bid.lead.auctionRoom.highestBid ? Number(bid.lead.auctionRoom.highestBid) : 0;
-            if (amount > currentHighest) {
-                await prisma.auctionRoom.update({
-                    where: { id: bid.lead.auctionRoom.id },
-                    data: {
-                        highestBid: amount,
-                        highestBidder: req.user!.id,
-                    },
-                });
-            }
-        }
-
-        // Log analytics
-        await prisma.analyticsEvent.create({
-            data: {
-                eventType: 'bid_revealed',
-                entityType: 'bid',
-                entityId: bid.id,
-                userId: req.user!.id,
-                metadata: { leadId: bid.leadId, amount },
-            },
-        });
-
-        res.json({
-            bid: {
-                id: updatedBid.id,
-                amount: Number(updatedBid.amount),
-                status: updatedBid.status,
-                revealedAt: updatedBid.revealedAt,
-            },
-        });
+        res.json({ bid: result.bid });
     } catch (error) {
         console.error('Reveal bid error:', error);
         res.status(500).json({ error: 'Failed to reveal bid' });
@@ -281,6 +144,9 @@ router.post('/:bidId/reveal', authMiddleware, requireBuyer, async (req: Authenti
 
 router.get('/my', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
+        // SECURITY: never return encryptedData/dataHash here — PII ciphertext
+        // must not be handed to every bidder. Winners decrypt via the
+        // winner-verified decrypt endpoint instead.
         const leadSelect = {
             id: true,
             vertical: true,
@@ -294,8 +160,6 @@ router.get('/my', authMiddleware, async (req: AuthenticatedRequest, res: Respons
             source: true,
             reservePrice: true,
             winningBid: true,
-            encryptedData: true,
-            dataHash: true,
             sellerId: true,
         };
 

@@ -16,21 +16,26 @@
  * Exports: runAgent(message, history) — called from mcp.routes.ts
  */
 import { z } from 'zod';
+import { buildSystemPrompt, getToolDef } from '@lead-engine/agent-tools';
 import { prisma } from '../lib/prisma';
 
 // ── Config ──
 
 const KIMI_API_KEY = process.env.KIMI_API_KEY || '';
 const KIMI_BASE_URL = process.env.KIMI_BASE_URL || 'https://api.kimi.com/coding/v1';
-const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3001';
-const MCP_API_KEY = process.env.MCP_API_KEY || '';
+// The standalone MCP server listens on MCP_PORT (default 3002) — NOT the
+// backend port 3001. Pointing here at 3001 silently routed agent tool calls
+// back into the backend where no /rpc route exists.
+const MCP_BASE = process.env.MCP_SERVER_URL || 'http://localhost:3002';
+// Inbound auth token expected by the MCP server (Authorization: Bearer / X-Mcp-Token)
+const MCP_SERVER_TOKEN = process.env.MCP_SERVER_TOKEN || process.env.MCP_API_KEY || '';
 
 // ── Startup validation ──
 if (!KIMI_API_KEY) {
     console.warn('[AgentService] ⚠️  KIMI_API_KEY is not set — LangChain agent will throw on first call.');
 }
-if (!MCP_API_KEY) {
-    console.warn('[AgentService] ⚠️  MCP_API_KEY is not set — tool calls to MCP server will be unauthenticated.');
+if (!MCP_SERVER_TOKEN) {
+    console.warn('[AgentService] ⚠️  MCP_SERVER_TOKEN is not set — tool calls to MCP server will be unauthenticated.');
 }
 
 // ── PII sanitization (shared with mcp.routes.ts) ──
@@ -98,94 +103,53 @@ async function localSearchLeads(params: {
 
 // ── MCP tool executor ──
 
+let rpcIdCounter = 0;
+
 async function executeMcpTool(name: string, params: Record<string, unknown>): Promise<unknown> {
     // Use local Prisma search for search_leads (faster, no network hop)
     if (name === 'search_leads') {
         return localSearchLeads(params as any);
     }
 
-    // Build auth headers for MCP server
+    // Build auth headers for the MCP server (expects Bearer <MCP_SERVER_TOKEN>
+    // or X-Mcp-Token — see mcp-server/index.ts requireMcpToken)
     const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (MCP_API_KEY) {
-        authHeaders['Authorization'] = `Bearer ${MCP_API_KEY}`;
-        authHeaders['X-Api-Key'] = MCP_API_KEY;
+    if (MCP_SERVER_TOKEN) {
+        authHeaders['Authorization'] = `Bearer ${MCP_SERVER_TOKEN}`;
+        authHeaders['X-Mcp-Token'] = MCP_SERVER_TOKEN;
     }
 
-    // For all other tools, call MCP server
+    // The MCP server exposes a single JSON-RPC endpoint: POST /rpc
+    // { jsonrpc: "2.0", id, method: <toolName>, params }
     try {
-        const res = await fetch(`${MCP_BASE}/tools/${name}`, {
+        const res = await fetch(`${MCP_BASE}/rpc`, {
             method: 'POST',
             headers: authHeaders,
-            body: JSON.stringify(params),
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: ++rpcIdCounter,
+                method: name,
+                params,
+            }),
+            signal: AbortSignal.timeout(20_000),
         });
-        if (!res.ok) return { error: `MCP tool ${name} returned ${res.status}` };
-        return await res.json();
+        const rpcResponse: any = await res.json().catch(() => ({}));
+        if (!res.ok || rpcResponse.error) {
+            const message = rpcResponse?.error?.message || `HTTP ${res.status}`;
+            return { error: `MCP tool ${name} failed: ${message}` };
+        }
+        return rpcResponse.result ?? rpcResponse;
     } catch (err: any) {
         return { error: `MCP tool ${name} failed: ${err.message}` };
     }
 }
 
-// ── System prompt (identical to SYSTEM_PROMPT in mcp.routes.ts) ──
+// ── System prompt (Phase B5: shared module in @lead-engine/agent-tools) ──
 
-const SYSTEM_PROMPT = `You are LEAD Engine AI, the autonomous bidding agent for the Lead Engine CRE platform — built for the Chainlink Convergence Hackathon.
-You are powered by Kimi K2.5 via LangChain ReAct. You are NOT Claude, NOT ChatGPT, and NOT any other third-party model. You are LEAD Engine AI.
-You help buyers discover, evaluate, and bid on commercial real-estate leads on a blockchain-verified marketplace powered by Chainlink.
-You have access to 12 MCP tools. Use them to answer the user's questions.
-
-## YOUR ROLE vs AUTO-BID ENGINE
-- **You (LEAD Engine AI):** LLM-autonomous agent. You reason, plan, and use tools dynamically based on the conversation. You can search, bid, check compliance, configure rules, and navigate the platform.
-- **Auto-Bid Engine:** Separate deterministic system. It evaluates every lead against buyer preference sets using a 7-gate rule evaluation (vertical, geo, quality score, budget, etc.) — no LLM involved. When asked about auto-bid, explain that it runs automatically based on saved rules, while you can help configure those rules.
-
-## CHAINLINK DATA FEEDS
-Bid floor prices are powered by **Chainlink Data Feeds** reading real-time ETH/USD on Base Sepolia.
-The ETH/USD price feed (0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1) drives a market multiplier
-that modulates per-vertical floor/ceiling prices. This ensures competitive, market-aware pricing.
-When asked about pricing, ALWAYS call get_bid_floor first to get the current market floor.
-When suggesting bid amounts, use suggest_bid_amount for quality-weighted recommendations.
-
-## STRICT PII RULES
-- NEVER reveal phone numbers, emails, full names, street addresses, or any personally identifiable information.
-- Only return non-sensitive fields: lead ID, vertical, state, reserve price, quality score, seller reputation, bid count.
-- If a tool result contains PII, ignore those fields and only reference safe data.
-
-## APP NAVIGATION
-You can link users to pages inside the app. Use relative markdown links (no domain).
-Available pages:
-
-| Page | Path | When to suggest |
-|------|------|-----------------|
-| Marketplace | /marketplace | "browse leads", "show marketplace", "take me to marketplace" |
-| Auction / Lead Detail | /auction/{leadId} | After listing leads or when user asks about a specific lead |
-| Buyer Dashboard | /buyer | "show my dashboard", "go home" |
-| My Bids | /buyer/bids | "show my bids", "bid history" |
-| Purchased Leads (Portfolio) | /buyer/portfolio | "my purchased leads", "won leads", "my portfolio" |
-| Auto Bid Rules | /buyer/preferences | "my auto bid rules", "auto-bid settings", "auto-bidding", "change my verticals", "my preferences" |
-| Buyer Analytics | /buyer/analytics | "my stats", "analytics", "performance" |
-| Integrations | /buyer/integrations | "integrations", "API keys", "webhooks" |
-| Seller Dashboard | /seller | "seller dashboard" |
-| Seller Leads | /seller/leads | "my listings", "my leads" (as seller) |
-| Seller Funnels | /seller/funnels | "my funnels", "landing pages", "lead capture forms" |
-| Submit Lead | /seller/submit | "submit a lead", "sell a lead" |
-| Seller Analytics | /seller/analytics | "seller stats", "seller analytics" |
-
-## FORMATTING RULES
-- Be concise and use markdown formatting. Show numbers and data clearly.
-- When listing leads, format each lead with a clickable link:
-  **[Vertical — State — $Price](/auction/{leadId})** | Quality: X | Bids: Y
-- After listing leads, add a call-to-action: "Click any lead above to view and bid." and optionally link to the full [Marketplace](/marketplace).
-- When the user asks about a specific lead, include a **[🎯 Place Bid](/auction/{leadId})** link.
-- When asked about pricing, check bid floors.
-- Always explain what you found after calling a tool.
-- If a search returns no results, suggest broadening the search (try different verticals or remove filters).
-
-## SMART NAVIGATION
-Proactively suggest relevant navigation after answering:
-- After showing leads → "Want to see more? [Browse Marketplace](/marketplace)"
-- After checking auto bid rules → "You can edit these in [Auto Bid Rules](/buyer/preferences)"
-- After showing bids → "View your full bid history in [My Bids](/buyer/bids)"
-- When user asks "where can I..." or "how do I..." → provide the appropriate nav link
-- When user says "go to", "take me to", "open", "show me" → output a link to that page
-- Always use the format: [Page Name](/path) — never use full URLs.`;
+const SYSTEM_PROMPT = buildSystemPrompt({
+    engineLine: 'You are powered by Kimi K2.5 via LangChain ReAct.',
+    hasSuggestBidTool: true,
+});
 
 // ── Chat message interface (matches frontend + mcp.routes.ts) ──
 
@@ -241,7 +205,7 @@ function buildTools() {
     return [
         new _DynamicStructuredTool({
             name: 'search_leads',
-            description: 'Search lead marketplace. Returns matching leads with quality score, status, bid count.',
+            description: getToolDef('search_leads').description,
             schema: z.object({
                 vertical: z.string().optional().describe('Lead vertical (solar, mortgage, roofing, insurance, etc.)'),
                 state: z.string().optional().describe('US state code (e.g., CA, FL, TX)'),
@@ -253,7 +217,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'get_bid_floor',
-            description: 'Get real-time bid floor pricing from Chainlink Data Feeds for a vertical. Returns floor, ceiling, market multiplier, and ETH/USD price.',
+            description: getToolDef('get_bid_floor').description,
             schema: z.object({
                 vertical: z.string().describe('Lead vertical (solar, mortgage, etc.)'),
                 country: z.string().optional().default('US').describe('Country code'),
@@ -271,13 +235,13 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'get_preferences',
-            description: 'Get the current buyer auto bid rules (per-vertical, geo filters, budgets).',
+            description: getToolDef('get_preferences').description,
             schema: z.object({}),
             func: async () => JSON.stringify(await executeMcpTool('get_preferences', {})),
         }),
         new _DynamicStructuredTool({
             name: 'set_auto_bid_rules',
-            description: 'Configure auto-bid rules for a vertical. The engine auto-bids on matching leads.',
+            description: getToolDef('set_auto_bid_rules').description,
             schema: z.object({
                 vertical: z.string().describe('Lead vertical'),
                 autoBidEnabled: z.boolean().optional().default(true),
@@ -290,7 +254,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'export_leads',
-            description: 'Export leads as CSV or JSON for CRM integration.',
+            description: getToolDef('export_leads').description,
             schema: z.object({
                 format: z.enum(['csv', 'json']).optional().default('json'),
                 status: z.string().optional().default('SOLD'),
@@ -299,17 +263,8 @@ function buildTools() {
             func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('export_leads', params)),
         }),
         new _DynamicStructuredTool({
-            name: 'place_bid',
-            description: 'Place a sealed bid on a specific lead.',
-            schema: z.object({
-                leadId: z.string().describe('The lead ID to bid on'),
-                commitment: z.string().describe('Bid commitment hash'),
-            }),
-            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('place_bid', params)),
-        }),
-        new _DynamicStructuredTool({
             name: 'configure_crm_webhook',
-            description: 'Register a CRM webhook (HubSpot, Zapier, or generic).',
+            description: getToolDef('configure_crm_webhook').description,
             schema: z.object({
                 url: z.string().describe('Webhook destination URL'),
                 format: z.enum(['hubspot', 'zapier', 'generic']).optional().default('generic'),
@@ -318,7 +273,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'ping_lead',
-            description: 'Get full details and current status for a specific lead.',
+            description: getToolDef('ping_lead').description,
             schema: z.object({
                 leadId: z.string().describe('The lead ID'),
                 action: z.enum(['status', 'evaluate']).optional().default('status'),
@@ -327,7 +282,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'suggest_vertical',
-            description: 'AI-powered vertical classification from a lead description.',
+            description: getToolDef('suggest_vertical').description,
             schema: z.object({
                 description: z.string().describe('Lead description text'),
             }),
@@ -335,7 +290,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'suggest_bid_amount',
-            description: 'Suggest an optimal bid amount based on Chainlink Data Feeds floor price, lead quality score, and competition. Use this when a user asks "how much should I bid?"',
+            description: getToolDef('suggest_bid_amount').description,
             schema: z.object({
                 vertical: z.string().describe('Lead vertical'),
                 country: z.string().optional().default('US').describe('Country code'),
@@ -378,7 +333,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'ace_policy_check',
-            description: 'Check a wallet address against the on-chain ACECompliance registry (Chainlink ACE). Returns whether the wallet is compliant (KYC passed, not sanctioned), its KYC status code, and reputation score. Use before submitting a lead or placing a bid to confirm eligibility.',
+            description: getToolDef('ace_policy_check').description,
             schema: z.object({
                 walletAddress: z.string().describe('Ethereum wallet address to check (0x format)'),
             }),
@@ -397,7 +352,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'batched_private_score_request',
-            description: 'Request a Phase 2 batched confidential quality score for a lead. Runs quality score + ZK fraud signal + ACE compliance inside a single DON enclave computation and returns an AES-GCM encrypted envelope. Returns composite score, fraud bonus, and ACE compliance result. No PII is returned.',
+            description: getToolDef('batched_private_score_request').description,
             schema: z.object({
                 leadId: z.string().describe('The lead ID to score privately (UUID)'),
             }),
@@ -445,7 +400,7 @@ function buildTools() {
         }),
         new _DynamicStructuredTool({
             name: 'subscribe_to_live_leads',
-            description: 'Subscribe to real-time events for new leads and auction updates via Socket.IO. Use this to wait for live events. Returns the first event received.',
+            description: getToolDef('subscribe_to_live_leads').description,
             schema: z.object({
                 verticals: z.array(z.string()).optional().describe('Filter by vertical (e.g. solar). Omit for all.'),
             }),
@@ -469,7 +424,7 @@ function buildTools() {
 
                     socket.on('marketplace:lead:new', (data: any) => {
                         if (verts && data.lead && !verts.includes(data.lead.vertical)) return;
-                        aceDevBus.emit('ace:dev-log', { level: 'success', message: 'Agent received new lead via live stream', module: 'Agent' });
+                        aceDevBus.emit('ace:dev-log', { level: 'success', message: 'Agent subscribed to live lead via live stream', module: 'Agent' });
                         cleanup({ event: 'marketplace:lead:new', data });
                     });
 
@@ -480,6 +435,66 @@ function buildTools() {
                     setTimeout(() => cleanup({ status: 'timeout', message: 'No events received in 15 seconds. You can call subscribe again.' }), 15000);
                 });
             },
+        }),
+
+        // ── StrategySpec lifecycle (Option A — primary agent path) ──
+        new _DynamicStructuredTool({
+            name: 'list_strategies',
+            description: getToolDef('list_strategies').description,
+            schema: z.object({}),
+            func: async () => JSON.stringify(await executeMcpTool('list_strategies', {})),
+        }),
+        new _DynamicStructuredTool({
+            name: 'draft_strategy',
+            description: getToolDef('draft_strategy').description,
+            schema: z.object({
+                description: z.string().describe('Natural language buying rules and budget'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('draft_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'create_strategy',
+            description: getToolDef('create_strategy').description,
+            schema: z.object({
+                spec: z.any().describe('Validated StrategySpec JSON object'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('create_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'activate_strategy',
+            description: getToolDef('activate_strategy').description,
+            schema: z.object({
+                strategyId: z.string().describe('Strategy id from list_strategies or create_strategy'),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('activate_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'simulate_strategy',
+            description: getToolDef('simulate_strategy').description,
+            schema: z.object({
+                strategyId: z.string(),
+                days: z.number().optional().default(30),
+                limit: z.number().optional().default(50),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('simulate_strategy', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'get_decision_traces',
+            description: getToolDef('get_decision_traces').description,
+            schema: z.object({
+                limit: z.number().optional().default(20),
+                leadId: z.string().optional(),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('get_decision_traces', params)),
+        }),
+        new _DynamicStructuredTool({
+            name: 'register_agent',
+            description: getToolDef('register_agent').description,
+            schema: z.object({
+                displayName: z.string(),
+                walletAddress: z.string().optional(),
+            }),
+            func: async (params: Record<string, unknown>) => JSON.stringify(await executeMcpTool('register_agent', params)),
         }),
     ];
 }

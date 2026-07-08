@@ -82,10 +82,17 @@ contract PersonalEscrowVault is
         uint256 fee;         // convenience fee
         uint256 lockedAt;
         bool    settled;     // true if settled or refunded
+        bytes32 leadIdHash;  // keccak256(leadId) binding — 0x0 for legacy (unbound) locks
     }
 
     uint256 private _nextLockId;
     mapping(uint256 => BidLock) public bidLocks;
+
+    /// @notice Owner-registered seller binding per lead (Phase B3).
+    ///         When set, settleBid for that lead MUST pay this address —
+    ///         a compromised backend/relayer key cannot redirect funds.
+    ///         Registered by the owner (multisig), not the relayer.
+    mapping(bytes32 => address) public leadSellers;
 
     /// @dev Track active (unsettled) lock IDs for Automation sweep
     uint256[] private _activeLockIds;
@@ -119,6 +126,9 @@ contract PersonalEscrowVault is
     event ExpiredLocksRefunded(uint256 count, uint256 timestamp);
     event CallerAuthorized(address indexed caller, bool authorized);
     event PlatformWalletUpdated(address indexed oldWallet, address indexed newWallet);
+    event LeadBound(uint256 indexed lockId, bytes32 indexed leadIdHash);
+    event LeadSellerRegistered(bytes32 indexed leadIdHash, address indexed seller);
+    event BidSettledForLead(uint256 indexed lockId, bytes32 indexed leadIdHash, address indexed seller);
     event FeedUpdated(address indexed oldFeed, address indexed newFeed);
     event DemoModeUpdated(bool enabled);
 
@@ -234,7 +244,8 @@ contract PersonalEscrowVault is
 
     /**
      * @notice Lock funds for a bid (bidAmount + convenience fee).
-     *         Called by authorized backend when a bid is accepted.
+     *         Legacy unbound variant — kept for backwards compatibility.
+     *         Unbound locks can only be settled via the unbound settleBid.
      * @param user  The bidder's address
      * @param bidAmount  The bid amount in USDC
      * @return lockId  Unique lock identifier for settlement/refund
@@ -243,6 +254,32 @@ contract PersonalEscrowVault is
         address user,
         uint256 bidAmount
     ) external onlyAuthorizedCaller nonReentrant whenNotPaused returns (uint256) {
+        return _lockForBid(user, bidAmount, bytes32(0));
+    }
+
+    /**
+     * @notice Lock funds for a bid, bound to a specific lead (Phase B3).
+     *         A lead-bound lock can ONLY be settled with the matching leadIdHash,
+     *         and (if registered) only to the owner-registered seller for that lead.
+     * @param user        The bidder's address
+     * @param bidAmount   The bid amount in USDC
+     * @param leadIdHash  keccak256 of the platform lead ID (must be non-zero)
+     * @return lockId     Unique lock identifier for settlement/refund
+     */
+    function lockForBid(
+        address user,
+        uint256 bidAmount,
+        bytes32 leadIdHash
+    ) external onlyAuthorizedCaller nonReentrant whenNotPaused returns (uint256) {
+        require(leadIdHash != bytes32(0), "Zero leadIdHash");
+        return _lockForBid(user, bidAmount, leadIdHash);
+    }
+
+    function _lockForBid(
+        address user,
+        uint256 bidAmount,
+        bytes32 leadIdHash
+    ) internal returns (uint256) {
         // Chainlink Data Feed: require a valid, live USDC/ETH price before locking funds
         // demoMode=true bypasses this for testnet demos where the feed may be stale
         if (!demoMode) {
@@ -262,7 +299,8 @@ contract PersonalEscrowVault is
             amount: bidAmount,
             fee: CONVENIENCE_FEE,
             lockedAt: block.timestamp,
-            settled: false
+            settled: false,
+            leadIdHash: leadIdHash
         });
 
         // Track for Automation sweep
@@ -270,11 +308,27 @@ contract PersonalEscrowVault is
         _activeLockIds.push(lockId);
 
         emit BidLocked(lockId, user, bidAmount, CONVENIENCE_FEE);
+        if (leadIdHash != bytes32(0)) {
+            emit LeadBound(lockId, leadIdHash);
+        }
         return lockId;
     }
 
     /**
-     * @notice Settle a winning bid: transfer 95% of bid to seller, 5% cut + $1 fee to platform.
+     * @notice Register the seller address for a lead (Phase B3).
+     *         Owner-only (multisig) — the relayer key cannot change where
+     *         settlement funds go once the seller is registered.
+     */
+    function registerLeadSeller(bytes32 leadIdHash, address seller) external onlyOwner {
+        require(leadIdHash != bytes32(0), "Zero leadIdHash");
+        require(seller != address(0), "Zero seller");
+        leadSellers[leadIdHash] = seller;
+        emit LeadSellerRegistered(leadIdHash, seller);
+    }
+
+    /**
+     * @notice Settle a winning bid (legacy unbound variant).
+     *         Reverts for lead-bound locks — those must use the bound overload.
      * @param lockId  The bid lock to settle
      * @param seller  Seller address to receive payment
      */
@@ -282,6 +336,27 @@ contract PersonalEscrowVault is
         uint256 lockId,
         address seller
     ) external onlyAuthorizedCaller nonReentrant whenNotPaused {
+        _settleBid(lockId, seller, bytes32(0));
+    }
+
+    /**
+     * @notice Settle a winning bid bound to a lead (Phase B3).
+     *         The provided leadIdHash MUST match the hash stored at lock time,
+     *         and the seller MUST match the owner-registered seller (when set).
+     * @param lockId      The bid lock to settle
+     * @param seller      Seller address to receive payment
+     * @param leadIdHash  keccak256 of the platform lead ID
+     */
+    function settleBid(
+        uint256 lockId,
+        address seller,
+        bytes32 leadIdHash
+    ) external onlyAuthorizedCaller nonReentrant whenNotPaused {
+        require(leadIdHash != bytes32(0), "Zero leadIdHash");
+        _settleBid(lockId, seller, leadIdHash);
+    }
+
+    function _settleBid(uint256 lockId, address seller, bytes32 leadIdHash) internal {
         // Chainlink Data Feed: require a valid, live USDC/ETH price before settling
         // demoMode=true bypasses this for testnet demos where the feed may be stale
         if (!demoMode) {
@@ -293,6 +368,19 @@ contract PersonalEscrowVault is
         require(!lock.settled, "Already settled");
         require(lock.user != address(0), "Invalid lock");
         require(seller != address(0), "Zero seller");
+
+        // Lead binding: the settle call must carry the exact leadIdHash the
+        // funds were locked for (0x0 == 0x0 for legacy unbound locks).
+        require(lock.leadIdHash == leadIdHash, "Lead binding mismatch");
+
+        // Seller binding: when the owner (multisig) has registered the seller
+        // for this lead, the relayer cannot pay any other address.
+        if (leadIdHash != bytes32(0)) {
+            address boundSeller = leadSellers[leadIdHash];
+            if (boundSeller != address(0)) {
+                require(seller == boundSeller, "Seller binding mismatch");
+            }
+        }
 
         lock.settled = true;
         uint256 total = lock.amount + lock.fee;
@@ -314,6 +402,9 @@ contract PersonalEscrowVault is
         _removeActiveLock(lockId);
 
         emit BidSettled(lockId, lock.user, seller, sellerAmount, platformCut, lock.fee);
+        if (leadIdHash != bytes32(0)) {
+            emit BidSettledForLead(lockId, leadIdHash, seller);
+        }
     }
 
     /**

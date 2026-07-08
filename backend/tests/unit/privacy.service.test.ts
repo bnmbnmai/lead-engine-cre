@@ -178,4 +178,59 @@ describe('PrivacyService', () => {
             expect(privacyService.verifyCommitment(commitment, 'some-value', wrongSalt)).toBe(false);
         });
     });
+
+    // ─── Envelope Encryption (Phase B4) ──────────
+
+    describe('envelope encryption (per-payload DEK wrapped by master KEK)', () => {
+        it('should attach a wrapped DEK and key version to every new payload', () => {
+            const { encrypted } = privacyService.encryptLeadPII({ firstName: 'Eve' });
+
+            expect(encrypted.wrappedKey).toBeTruthy();
+            // iv(12) + tag(16) + dek(32) = 60 bytes = 120 hex chars
+            expect(encrypted.wrappedKey).toMatch(/^[a-f0-9]{120}$/);
+            expect(encrypted.keyVersion).toBeTruthy();
+        });
+
+        it('should use a unique DEK per payload (different wrappedKey)', () => {
+            const first = privacyService.encryptLeadPII({ a: 1 });
+            const second = privacyService.encryptLeadPII({ a: 1 });
+            expect(first.encrypted.wrappedKey).not.toEqual(second.encrypted.wrappedKey);
+        });
+
+        it('should decrypt legacy payloads encrypted directly with the master key', () => {
+            // Simulate a pre-B4 payload: AES-256-GCM with the master key, no wrappedKey
+            const crypto = require('crypto');
+            const masterKeyHex = process.env.PRIVACY_MASTER_KEY || process.env.PRIVACY_ENCRYPTION_KEY!;
+            let key = Buffer.from(masterKeyHex, 'hex');
+            if (key.length !== 32) key = crypto.createHash('sha256').update(masterKeyHex).digest();
+
+            const plaintext = JSON.stringify({ firstName: 'Legacy', email: 'old@data.com' });
+            const iv = crypto.randomBytes(12);
+            const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+            let ciphertext = cipher.update(plaintext, 'utf8', 'hex');
+            ciphertext += cipher.final('hex');
+
+            const legacyPayload = {
+                ciphertext,
+                iv: iv.toString('hex'),
+                tag: cipher.getAuthTag().toString('hex'),
+                commitment: '0x' + '0'.repeat(64),
+                // no wrappedKey / keyVersion — legacy format
+            };
+
+            const decrypted = privacyService.decryptLeadPII(legacyPayload as any);
+            expect(decrypted).toEqual({ firstName: 'Legacy', email: 'old@data.com' });
+        });
+
+        it('should throw when the wrapped DEK is tampered with', () => {
+            const { encrypted } = privacyService.encryptLeadPII({ firstName: 'Mallory' });
+            const flipped = encrypted.wrappedKey!.split('').map(c => {
+                const n = parseInt(c, 16);
+                return isNaN(n) ? c : ((n ^ 0xf).toString(16));
+            }).join('');
+
+            const tampered = { ...encrypted, wrappedKey: flipped };
+            expect(() => privacyService.decryptLeadPII(tampered)).toThrow();
+        });
+    });
 });

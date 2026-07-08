@@ -4,21 +4,25 @@
  * Evaluates incoming leads against buyer auto-bid rules and
  * automatically places bids for matching preference sets.
  *
- * Rules evaluated per preference set:
- *   1. Vertical match (exact or wildcard '*')
- *   2. Geo match (country + include/exclude states)
- *   3. Quality score gate (minQualityScore)
- *   4. Off-site toggle (acceptOffSite)
- *   5. Verified-only toggle (requireVerified)
- *   6. Daily budget enforcement
- *   7. Max bid per lead cap
+ * Deterministic gates 1–7 (vertical, geo country, geo state, quality score,
+ * off-site, verified, field filters) are delegated to the shared
+ * @lead-engine/rules-engine package — the same code that runs inside the
+ * Chainlink DON workflow. This service adds the REAL-TIME gates that depend
+ * on external state:
+ *   - Data Feeds floor adjustment + reserve price
+ *   - Max bid per lead cap
+ *   - Daily budget enforcement
+ *   - Vault lock / duplicate-bid checks
  */
 
 import { prisma } from '../lib/prisma';
 import { ethers } from 'ethers';
-import { evaluateFieldFilters, FieldFilterRule } from './field-filter.service';
+import { evaluatePreferenceSet, type LeadData } from '@lead-engine/rules-engine';
+import { toRulesPreferenceSet } from './rules-adapter';
 import { dataStreamsService } from './data-feeds.service';
 import { aceDevBus } from './ace.service';
+
+export type { LeadData } from '@lead-engine/rules-engine';
 
 // ============================================
 // On-chain config for USDC allowance checks
@@ -49,22 +53,6 @@ async function _getUsdcAllowance(ownerAddress: string, spenderAddress: string): 
 // Types
 // ============================================
 
-export interface LeadData {
-    id: string;
-    vertical: string;
-    geo: {
-        country: string;
-        state?: string;
-        city?: string;
-        zip?: string;
-    };
-    source: string;
-    qualityScore: number | null;
-    isVerified: boolean;
-    reservePrice: number;
-    parameters?: Record<string, any> | null; // Field-level data for autobid matching
-}
-
 export interface AutoBidResult {
     leadId: string;
     bidsPlaced: {
@@ -84,11 +72,22 @@ export interface AutoBidResult {
 // Core Engine
 // ============================================
 
+export interface AutoBidOptions {
+    /**
+     * Phase B5 (DON feedback loop): restrict evaluation to these preference
+     * set IDs — the sets the CRE workflow already matched under consensus.
+     * Gates 1–7 are still re-verified locally (deterministic, same package),
+     * but unmatched sets are not re-evaluated, so the DON verdict is the
+     * single evaluation of record.
+     */
+    onlyPreferenceSetIds?: string[];
+}
+
 /**
  * Evaluate a lead against all active auto-bid rules and place matching bids.
  * Called when a new lead is submitted or its status changes to ACTIVE.
  */
-export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidResult> {
+export async function evaluateLeadForAutoBid(lead: LeadData, options: AutoBidOptions = {}): Promise<AutoBidResult> {
     const result: AutoBidResult = {
         leadId: lead.id,
         bidsPlaced: [],
@@ -113,6 +112,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             isActive: true,
             autoBidEnabled: true,
             autoBidAmount: { not: null },
+            ...(options.onlyPreferenceSetIds ? { id: { in: options.onlyPreferenceSetIds } } : {}),
         },
         include: {
             buyerProfile: {
@@ -133,79 +133,16 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         const buyerId = prefSet.buyerProfile.userId;
         const setId = prefSet.id;
 
-        // ── 1. Geo country match ──
-        const geoCountries: string[] = Array.isArray(prefSet.geoCountries) ? prefSet.geoCountries : [prefSet.geoCountries || 'US'];
-        if (!geoCountries.includes(lead.geo.country)) {
-            result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Country mismatch: [${geoCountries.join(',')}] does not include ${lead.geo.country}` });
+        // ── Gates 1–7: deterministic evaluation via shared rules engine ──
+        // Same code that runs inside the Chainlink DON workflow, so the
+        // server-side path can never diverge from the DON path again.
+        const match = evaluatePreferenceSet(lead, toRulesPreferenceSet({ ...prefSet, buyerProfile: { userId: buyerId } } as any));
+        if (!match.matched) {
+            result.skipped.push({ buyerId, preferenceSetId: setId, reason: match.reason });
             continue;
         }
 
-        // ── 2. Geo state include/exclude ──
-        const state = lead.geo.state?.toUpperCase();
-        if (state && prefSet.geoInclude.length > 0) {
-            const included = prefSet.geoInclude.map((s: string) => s.toUpperCase());
-            if (!included.includes(state)) {
-                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `State ${state} not in include list` });
-                continue;
-            }
-        }
-        if (state && prefSet.geoExclude.length > 0) {
-            const excluded = prefSet.geoExclude.map((s: string) => s.toUpperCase());
-            if (excluded.includes(state)) {
-                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `State ${state} in exclude list` });
-                continue;
-            }
-        }
-
-        // ── 3. Quality score gate ──
-        // Buyer sets minQualityScore on 0-100 scale; internal score is 0-10,000
-        const prefMinScore = (prefSet as any).minQualityScore;
-        if (prefMinScore != null && prefMinScore > 0) {
-            const leadScore = lead.qualityScore ?? 0;
-            const internalThreshold = prefMinScore * 100; // 0-100 → 0-10,000
-            if (leadScore < internalThreshold) {
-                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Quality ${Math.floor(leadScore / 100)}/100 < min ${prefMinScore}/100` });
-                continue;
-            }
-        }
-
-        // ── 3.5. Field-level filter rules ──
-        const activeFilters = ((prefSet as any).fieldFilters || []) as Array<{
-            operator: string;
-            value: string;
-            verticalField: { key: string; isBiddable: boolean; isPii: boolean };
-        }>;
-        // Only evaluate biddable, non-PII fields (security gate)
-        const biddableRules: FieldFilterRule[] = activeFilters
-            .filter(f => f.verticalField.isBiddable && !f.verticalField.isPii)
-            .map(f => ({
-                fieldKey: f.verticalField.key,
-                operator: f.operator as any,
-                value: f.value,
-            }));
-
-        if (biddableRules.length > 0) {
-            const filterResult = evaluateFieldFilters(lead.parameters, biddableRules);
-            if (!filterResult.pass) {
-                const failedKeys = filterResult.failedRules.map(r => r.fieldKey).join(', ');
-                result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Field filter failed: ${failedKeys}` });
-                continue;
-            }
-        }
-
-        // ── 4. Off-site toggle ──
-        if (!prefSet.acceptOffSite && lead.source === 'OFFSITE') {
-            result.skipped.push({ buyerId, preferenceSetId: setId, reason: 'Off-site leads rejected' });
-            continue;
-        }
-
-        // ── 5. Verified-only ──
-        if (prefSet.requireVerified && !lead.isVerified) {
-            result.skipped.push({ buyerId, preferenceSetId: setId, reason: 'Requires verified lead' });
-            continue;
-        }
-
-        // ── 6. Bid amount calculation (Data Feeds floor-aware) ──
+        // ── Real-time gate: bid amount calculation (Data Feeds floor-aware) ──
         // Read real-time floor from Chainlink Data Feeds and adjust bid upward
         // to be competitive — but never exceed the buyer's maxBidPerLead cap.
         let bidAmount = Number(prefSet.autoBidAmount);
@@ -232,7 +169,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             continue;
         }
 
-        // ── 7. Max bid per lead cap ──
+        // ── Real-time gate: max bid per lead cap ──
         if (prefSet.maxBidPerLead) {
             const cap = Number(prefSet.maxBidPerLead);
             if (bidAmount > cap) {
@@ -241,7 +178,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             }
         }
 
-        // ── 8. Daily budget enforcement ──
+        // ── Real-time gate: daily budget enforcement ──
         if (prefSet.dailyBudget) {
             const todaySpend = await getDailySpend(buyerId);
             const budget = Number(prefSet.dailyBudget);
@@ -255,7 +192,7 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
         // not ERC20 approvals. Vault balance is checked during lockForBid below.
         const buyerWallet = prefSet.buyerProfile.user?.walletAddress;
 
-        // ── 9. Check for duplicate bid ──
+        // ── Real-time gate: duplicate bid check ──
         const existingBid = await prisma.bid.findFirst({
             where: { leadId: lead.id, buyerId: buyerId },
         });
@@ -264,42 +201,26 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
             continue;
         }
 
-        // ═══ Place the sealed bid ═══
+        // ═══ Place the sealed bid via the canonical BidService ═══
+        // Server-custody mode: the engine knows the amount, so BidService
+        // computes the domain-separated commitment, locks vault funds, and
+        // stores amount+salt for auto-reveal at close (with saga refund on
+        // DB failure). One bid path for humans, agents, and this engine.
         try {
-            // Generate sealed-bid commitment
-            const salt = ethers.hexlify(ethers.randomBytes(32));
-            const commitment = ethers.keccak256(
-                ethers.AbiCoder.defaultAbiCoder().encode(['uint96', 'bytes32'], [bidAmount, salt])
-            );
-
-            // Lock vault funds on-chain (bid + $1 fee)
-            let vaultLockId: number | undefined;
-            if (buyerWallet) {
-                const vaultService = await import('./vault.service');
-                const lockResult = await vaultService.lockForBid(buyerWallet, bidAmount, buyerId, lead.id);
-                if (!lockResult.success) {
-                    result.skipped.push({
-                        buyerId,
-                        preferenceSetId: setId,
-                        reason: `Vault lock failed: ${lockResult.error}`,
-                    });
-                    continue;
-                }
-                vaultLockId = lockResult.lockId;
-            }
-
-            await prisma.bid.create({
-                data: {
-                    leadId: lead.id,
-                    buyerId: buyerId,
-                    commitment,
-                    amount: bidAmount,
-                    salt,
-                    status: 'PENDING',
-                    source: 'AUTO_BID',
-                    escrowTxHash: vaultLockId ? `vaultLock:${vaultLockId}` : null,
-                },
+            const { placeSealedBid } = await import('./bid.service');
+            const placed = await placeSealedBid({
+                leadId: lead.id,
+                buyerId,
+                walletAddress: buyerWallet,
+                serverCustody: { amount: bidAmount },
+                source: 'AUTO_BID',
+                skipCompliance: true, // engine bids are pre-screened demo/auto buyers
             });
+
+            if (!placed.ok) {
+                result.skipped.push({ buyerId, preferenceSetId: setId, reason: placed.error || 'Bid placement failed' });
+                continue;
+            }
 
             // Log analytics event
             await prisma.analyticsEvent.create({
@@ -339,11 +260,41 @@ export async function evaluateLeadForAutoBid(lead: LeadData): Promise<AutoBidRes
                 floorAdjusted,
                 floorPrice,
                 ruleLabel: prefSet.label,
-                vaultLockId: vaultLockId ?? null,
                 message: `🤖 AI agent bid $${bidAmount} on ${lead.vertical} lead (rule: ${prefSet.label})`,
             });
         } catch (err: any) {
             result.skipped.push({ buyerId, preferenceSetId: setId, reason: `Bid creation failed: ${err.message}` });
+        }
+    }
+
+    // ── Phase C1: run ACTIVE agent strategies against this lead ──
+    // Strategies are user-authored StrategySpec documents executed by the
+    // deterministic engine (backend/src/agents/strategy). They bid through
+    // the same bid.service path; duplicate-bid upsert makes re-runs safe.
+    // Restricted (DON-ingest) evaluations skip this — strategies run once
+    // on the unrestricted trigger path.
+    if (!options.onlyPreferenceSetIds) {
+        try {
+            const { runStrategiesForLead } = await import('../agents/strategy/runner');
+            const outcomes = await runStrategiesForLead(lead);
+            for (const o of outcomes) {
+                if (o.bidPlaced && o.bidAmount != null) {
+                    result.bidsPlaced.push({
+                        buyerId: o.ownerId,
+                        preferenceSetId: `strategy:${o.strategyId}@v${o.version}`,
+                        amount: o.bidAmount,
+                        reason: `Strategy "${o.strategyName}" v${o.version}: ${o.reason}`,
+                    });
+                } else if (o.shouldBid && !o.bidPlaced) {
+                    result.skipped.push({
+                        buyerId: o.ownerId,
+                        preferenceSetId: `strategy:${o.strategyId}@v${o.version}`,
+                        reason: `Strategy bid failed: ${o.bidError ?? 'unknown'}`,
+                    });
+                }
+            }
+        } catch (err: any) {
+            console.warn(`[AUTO-BID] Strategy run failed for lead ${lead.id}: ${err.message}`);
         }
     }
 

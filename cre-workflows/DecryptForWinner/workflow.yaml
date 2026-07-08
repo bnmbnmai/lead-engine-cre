@@ -1,12 +1,18 @@
 # ==========================================================================
-# CRE WORKFLOW SETTINGS — DecryptForWinner
+# CRE WORKFLOW SETTINGS — DecryptForWinner (Phase B4 rebuild)
 # ==========================================================================
-# Winner-only PII decryption workflow. Uses Confidential HTTP to call the
-# Lead Engine backend's /decrypt-pii endpoint. The backend verifies that
-# the caller is the auction winner before returning decrypted PII.
+# Winner-only PII delivery workflow. Polls the Lead Engine backend's
+# /api/v1/cre/decrypt-pending queue via Confidential HTTP (x-cre-api-key
+# Vault DON secret). The backend re-verifies the winner at delivery time,
+# unwraps the per-lead DEK under the master KEK (envelope encryption) and
+# returns the PII through the confidential channel.
 #
-# encryptOutput: true ensures the PII response is encrypted for the
-# winner's DON node only — no other node can read the plaintext.
+# encryptOutput: true — the PII response payload is encrypted inside the
+# confidential context; node operators never see plaintext. The workflow's
+# consensus output is a delivery RECEIPT (requestId/leadId/dataHash) only.
+#
+# NOTE: Confidential HTTP is simulation-only until GA — keep the server-side
+# mTLS decrypt-pii fallback documented in docs/ENV_VARS.md until then.
 #
 # Reference: cre-templates/conf-http-demo/my-workflow/workflow.yaml
 

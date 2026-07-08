@@ -61,9 +61,10 @@ class LRURateLimitStore implements Store {
 // ============================================
 
 // General API - 100 requests per minute
-// In demo mode (non-production or DEMO_MODE=true), rate limiting is bypassed
-// to prevent "Too many requests" errors when using the Demo Control Panel.
-const isDemoMode = process.env.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true';
+// Rate limiting is bypassed ONLY in non-production environments (local dev /
+// demo panels). In production, limits are always enforced regardless of
+// DEMO_MODE — public deployments must never run unthrottled.
+const isDemoMode = process.env.NODE_ENV !== 'production';
 
 export const generalLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -116,6 +117,69 @@ export const leadSubmitLimiter = rateLimit({
         const authReq = req as AuthenticatedRequest;
         return authReq.user?.id || req.ip || 'anonymous';
     },
+});
+
+// Traffic ingest — per seller key / IP (default 100/hour ≈ 1.67/min windowed per minute bucket)
+export const ingestLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: isDemoMode ? 0 : Number(process.env.INGEST_RATE_LIMIT_PER_HOUR || 100),
+    message: { error: 'Ingest rate limit exceeded — reduce listing volume or raise SupplySpec caps' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new LRURateLimitStore(60 * 60 * 1000, 20000),
+    keyGenerator: (req: Request) => {
+        const authReq = req as AuthenticatedRequest;
+        const ingestAuth = (req as any).ingestAuth;
+        if (ingestAuth?.keyId) return `lsa:${ingestAuth.keyId}`;
+        if (ingestAuth?.sellerProfileId) return `seller:${ingestAuth.sellerProfileId}`;
+        const campaignId = (req.body as any)?.campaignId;
+        if (campaignId) return `campaign:${campaignId}`;
+        return authReq.user?.id || req.ip || 'anonymous';
+    },
+    skip: () => isDemoMode,
+});
+
+// Agent API surfaces — 60 req/min (production)
+export const agentApiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: isDemoMode ? 0 : 60,
+    message: { error: 'Agent API rate limit exceeded' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 10000),
+    keyGenerator: (req: Request) => {
+        const authReq = req as AuthenticatedRequest;
+        return authReq.user?.id || req.ip || 'anonymous';
+    },
+    skip: () => isDemoMode,
+});
+
+export const strategyApiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: isDemoMode ? 0 : 40,
+    message: { error: 'Strategy API rate limit exceeded' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 10000),
+    keyGenerator: (req: Request) => {
+        const authReq = req as AuthenticatedRequest;
+        return authReq.user?.id || req.ip || 'anonymous';
+    },
+    skip: () => isDemoMode,
+});
+
+export const mcpApiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: isDemoMode ? 0 : 20,
+    message: { error: 'MCP API rate limit exceeded' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new LRURateLimitStore(60_000, 5000),
+    keyGenerator: (req: Request) => {
+        const authReq = req as AuthenticatedRequest;
+        return authReq.user?.id || req.ip || 'anonymous';
+    },
+    skip: () => isDemoMode,
 });
 
 // Analytics - 30 per minute (prevent scraping)

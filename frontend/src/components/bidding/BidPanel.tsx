@@ -2,13 +2,18 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { keccak256, encodeAbiParameters, toHex } from 'viem';
 import { Gavel, Lock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
+import {
+    storeSealedBid,
+    getSealedBidRecord,
+    computeSealedBidCommitment,
+    generateBidSalt,
+} from '@/utils/sealedBid';
 
 const bidSchema = z.object({
     amount: z.number().positive('Amount must be positive'),
@@ -17,16 +22,23 @@ const bidSchema = z.object({
 type BidFormData = z.infer<typeof bidSchema>;
 
 interface BidPanelProps {
+    /** Lead being bid on — bound into the sealed-bid commitment hash. */
+    leadId: string;
+    /** Authenticated buyer id — bound into the commitment (anti-replay). */
+    buyerId?: string;
     reservePrice: number;
     highestBid?: number | null;
     phase: 'BIDDING' | 'REVEAL' | 'RESOLVED' | 'CANCELLED';
-    onPlaceBid: (data: { commitment: string; amount?: number }) => void;
+    /** SEALED-BID: only the commitment leaves the browser — never the amount. */
+    onPlaceBid: (data: { commitment: string }) => void;
     onRevealBid?: (amount: number, salt: string) => void;
     myPendingBid?: { commitment: string };
     isLoading?: boolean;
 }
 
 export function BidPanel({
+    leadId,
+    buyerId,
     reservePrice,
     highestBid,
     phase,
@@ -46,15 +58,12 @@ export function BidPanel({
         }).catch(() => setVaultBalance(0));
     }, []);
 
-    // Auto-populate reveal data from localStorage when entering REVEAL phase
+    // Auto-populate reveal data from sessionStorage when entering REVEAL phase
     useEffect(() => {
         if (phase === 'REVEAL' && myPendingBid?.commitment) {
-            const stored = localStorage.getItem(`bid_salt_${myPendingBid.commitment}`);
+            const stored = getSealedBidRecord(myPendingBid.commitment);
             if (stored) {
-                try {
-                    const { amount, salt } = JSON.parse(stored);
-                    setRevealData({ amount: String(amount), salt });
-                } catch { /* corrupt entry — user fills manually */ }
+                setRevealData({ amount: String(stored.amount), salt: stored.salt });
             }
         }
     }, [phase, myPendingBid?.commitment]);
@@ -72,19 +81,21 @@ export function BidPanel({
     const hasVaultFunds = vaultBalance !== null && vaultBalance >= requiredVault;
 
     const onSubmit = (data: BidFormData) => {
-        // Generate proper sealed commitment: keccak256(abi.encode([uint96, bytes32], [amountWei, salt]))
-        // Amount is in USDC with 6 decimals — convert to wei for on-chain matching
-        const amountWei = BigInt(Math.round(data.amount * 1e6));
-        const saltBytes = crypto.getRandomValues(new Uint8Array(32));
-        const salt = toHex(saltBytes);
-        const commitment = keccak256(
-            encodeAbiParameters(
-                [{ type: 'uint96' }, { type: 'bytes32' }],
-                [amountWei, salt as `0x${string}`]
-            )
-        );
-        localStorage.setItem(`bid_salt_${commitment}`, JSON.stringify({ amount: data.amount, salt }));
-        onPlaceBid({ commitment, amount: data.amount });
+        if (!buyerId) return; // commitment requires the authenticated buyer id
+        // Domain-separated sealed commitment (v1) — binds lead + bidder so a
+        // commitment can never be replayed by another buyer or on another lead.
+        // Matches backend/src/services/bid.service.ts byte-for-byte.
+        const salt = generateBidSalt();
+        const commitment = computeSealedBidCommitment({
+            leadId,
+            buyerId,
+            amount: data.amount,
+            salt,
+        });
+        // Tab-scoped sessionStorage — see utils/sealedBid.ts for rationale.
+        storeSealedBid(commitment, { amount: data.amount, salt, leadId });
+        // SEALED-BID: the amount never leaves the browser pre-reveal.
+        onPlaceBid({ commitment });
         setBidSubmitted(true);
     };
 

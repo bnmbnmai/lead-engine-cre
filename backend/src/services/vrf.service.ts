@@ -183,6 +183,7 @@ export async function waitForResolution(
 export async function getResolution(leadId: string): Promise<{
     winner: string;
     randomWord: bigint;
+    requestId: bigint;
     resolveType: ResolveType;
 } | null> {
     if (!isVrfConfigured()) return null;
@@ -198,6 +199,7 @@ export async function getResolution(leadId: string): Promise<{
         return {
             winner: res.winner,
             randomWord: BigInt(res.randomWord),
+            requestId: BigInt(res.requestId),
             resolveType: res.resolveType as ResolveType,
         };
     } catch (err: any) {

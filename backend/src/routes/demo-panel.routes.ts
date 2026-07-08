@@ -42,9 +42,14 @@ const router = Router();
 // ============================================
 
 const devOnly = (req: Request, res: Response, next: NextFunction) => {
-    // For hackathon demo: allow demo routes unless explicitly disabled
-    // Set DEMO_MODE=false to disable demo routes in production
-    if (process.env.DEMO_MODE === 'false') {
+    // Fail-closed: demo routes are hard-blocked in production unless the
+    // operator explicitly opts in with ALLOW_DEMO_ROUTES=true (e.g. for a
+    // hosted hackathon demo). DEMO_MODE=false always disables them.
+    const explicitlyDisabled = process.env.DEMO_MODE === 'false';
+    const blockedInProduction =
+        process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_ROUTES !== 'true';
+
+    if (explicitlyDisabled || blockedInProduction) {
         // Always include CORS headers so the browser doesn't hide the real error
         const origin = req.headers.origin;
         if (origin) {
@@ -1124,47 +1129,53 @@ router.post('/leads/:leadId/decrypt-pii', authMiddleware, async (req: Request, r
             return;
         }
 
-        // Ownership check: the caller must be the auction winner.
-        // 1. Check for a settled Transaction (production path / CRE-Native mode)
-        // 2. Fall back to checking for an ACCEPTED Bid record (demo path)
-        const settledTx = await prisma.transaction.findFirst({
-            where: { leadId, escrowReleased: true },
-            orderBy: { createdAt: 'desc' },
-        });
+        // Ownership check: the caller must ALWAYS be verified as the auction
+        // winner. A settled transaction alone is NOT sufficient — it must
+        // belong to the caller, otherwise any authenticated user could
+        // decrypt PII on every settled lead (winner-only bypass).
+        const callerWallet = authReq.user?.walletAddress?.toLowerCase();
 
-        if (!settledTx) {
-            // Demo path: check if the caller has an ACCEPTED bid on this lead
-            // First try direct userId match
-            let acceptedBid = userId
-                ? await prisma.bid.findFirst({
-                    where: { leadId, buyerId: userId, status: 'ACCEPTED' },
-                })
-                : null;
+        // 1. Settled Transaction owned by the caller (production / CRE-Native path)
+        const settledTx = userId
+            ? await prisma.transaction.findFirst({
+                where: { leadId, escrowReleased: true, buyerId: userId },
+                orderBy: { createdAt: 'desc' },
+            })
+            : null;
 
-            // Fallback: check by wallet address (handles duplicate User records for same wallet)
-            if (!acceptedBid) {
-                const authReqWallet = authReq.user?.walletAddress?.toLowerCase();
-                if (authReqWallet) {
-                    acceptedBid = await prisma.bid.findFirst({
-                        where: {
-                            leadId,
-                            status: 'ACCEPTED',
-                            buyer: { walletAddress: { equals: authReqWallet, mode: 'insensitive' } },
-                        },
-                    });
-                }
-            }
+        let isWinner = !!settledTx;
 
-            if (!acceptedBid) {
-                res.status(403).json({ error: 'Only the auction winner can decrypt PII after settlement' });
-                return;
-            }
+        // 2. ACCEPTED Bid owned by the caller (demo path)
+        if (!isWinner && userId) {
+            const acceptedBid = await prisma.bid.findFirst({
+                where: { leadId, buyerId: userId, status: 'ACCEPTED' },
+            });
+            isWinner = !!acceptedBid;
+        }
+
+        // 3. Wallet-address match (handles duplicate User records for same wallet)
+        if (!isWinner && callerWallet) {
+            const acceptedBid = await prisma.bid.findFirst({
+                where: {
+                    leadId,
+                    status: 'ACCEPTED',
+                    buyer: { walletAddress: { equals: callerWallet, mode: 'insensitive' } },
+                },
+            });
+            isWinner = !!acceptedBid;
+        }
+
+        if (!isWinner) {
+            res.status(403).json({ error: 'Only the auction winner can decrypt PII after settlement' });
+            return;
         }
 
         // ── Real PII Decryption (hosted lander / API leads) ─────────────
         // If the lead has real encrypted PII, decrypt it and return the actual
-        // form data. Only fall back to synthetic demo PII for demo-drip leads
-        // that were created without encrypted data.
+        // form data. Synthetic demo PII is ONLY ever generated in non-production
+        // demo environments — in production a missing/corrupt ciphertext is an
+        // error, never silently replaced with fabricated data.
+        const allowSyntheticPii = process.env.NODE_ENV !== 'production';
         let pii: Record<string, any>;
 
         if (lead.encryptedData) {
@@ -1175,10 +1186,19 @@ router.post('/leads/:leadId/decrypt-pii', authMiddleware, async (req: Request, r
                 pii = privacyService.decryptLeadPII(parsed);
                 console.log(`[DECRYPT-PII] Lead ${leadId}: decrypted real PII (${Object.keys(pii).length} fields)`);
             } catch (decryptErr: any) {
+                if (!allowSyntheticPii) {
+                    console.error(`[DECRYPT-PII] Lead ${leadId}: decryption failed — ${decryptErr.message?.slice(0, 120)}`);
+                    res.status(500).json({ error: 'PII decryption failed' });
+                    return;
+                }
                 console.warn(`[DECRYPT-PII] Lead ${leadId}: real decrypt failed, falling back to demo PII — ${decryptErr.message?.slice(0, 80)}`);
                 pii = generateDemoPii(leadId, lead.vertical);
             }
         } else {
+            if (!allowSyntheticPii) {
+                res.status(404).json({ error: 'Lead has no encrypted PII' });
+                return;
+            }
             // Demo-drip leads have no encrypted data — generate synthetic PII
             pii = generateDemoPii(leadId, lead.vertical);
         }
@@ -1354,12 +1374,11 @@ router.post('/auction', optionalAuthMiddleware, publicDemoBypass, async (req: Re
                         data: { bidCount: { increment: 1 }, highestBid: currentBid },
                     });
 
-                    // Emit real-time bid update
+                    // Emit real-time bid update (SEALED-BID: count only, no amount)
                     if (io) {
                         io.emit('marketplace:bid:update', {
                             leadId: lead.id,
                             bidCount: index + 1,
-                            highestBid: currentBid,
                             timestamp: new Date().toISOString(),
                         });
                     }
@@ -1718,9 +1737,10 @@ router.post('/settle', optionalAuthMiddleware, publicDemoBypass, async (req: Req
 
             const topBidFees = calculateFees(bidAmount, ((topBid as any).source || 'MANUAL') as BidSourceType);
 
-            // Create the missing Transaction record
-            transaction = await prisma.transaction.create({
-                data: {
+            // Create the missing Transaction record (idempotent on leadId+buyerId)
+            transaction = await prisma.transaction.upsert({
+                where: { leadId_buyerId: { leadId: candidateLead.id, buyerId: topBid.buyerId } },
+                create: {
                     leadId: candidateLead.id,
                     buyerId: topBid.buyerId,
                     amount: topBid.amount!,
@@ -1730,6 +1750,7 @@ router.post('/settle', optionalAuthMiddleware, publicDemoBypass, async (req: Req
                     status: 'PENDING',
                     escrowReleased: false,
                 },
+                update: {},
                 include: {
                     lead: {
                         select: {

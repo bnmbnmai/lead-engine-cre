@@ -36,6 +36,7 @@ import { toast } from '@/hooks/useToast';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
+import { useAuth } from '@/hooks/useAuth';
 
 // ─── Skeleton Card ──────────────────────────
 
@@ -113,25 +114,33 @@ export function BuyerPortfolio() {
     const [permanentUnlocks, setPermanentUnlocks] = useState<Set<string>>(new Set());
 
     // ── Permanent PII Unlock helpers ──
-    const STORAGE_KEY = 'leadEngine:permanentPII';
+    // SECURITY: the cache is scoped PER USER and kept in sessionStorage so
+    // decrypted PII never persists across sessions or leaks between personas
+    // sharing a browser. Legacy unscoped localStorage copies are purged.
+    const { user } = useAuth();
+    const STORAGE_KEY = user?.id
+        ? `leadEngine:permanentPII:${user.id}`
+        : 'leadEngine:permanentPII:anonymous';
 
     const loadPermanentPII = useCallback(() => {
         try {
-            const raw = localStorage.getItem(STORAGE_KEY);
+            // Purge the legacy unscoped, persistent cache (pre-security-fix)
+            localStorage.removeItem('leadEngine:permanentPII');
+            const raw = sessionStorage.getItem(STORAGE_KEY);
             if (!raw) return;
             const stored: Record<string, any> = JSON.parse(raw);
             const ids = new Set(Object.keys(stored));
             setPermanentUnlocks(ids);
             setDecryptedPII(prev => ({ ...prev, ...stored }));
         } catch { /* ignore corrupt storage */ }
-    }, []);
+    }, [STORAGE_KEY]);
 
     const savePermanentPII = (leadId: string, pii: any) => {
         try {
-            const raw = localStorage.getItem(STORAGE_KEY);
+            const raw = sessionStorage.getItem(STORAGE_KEY);
             const stored: Record<string, any> = raw ? JSON.parse(raw) : {};
             stored[leadId] = pii;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
             setPermanentUnlocks(prev => new Set(prev).add(leadId));
         } catch { /* storage full — degrade gracefully */ }
     };

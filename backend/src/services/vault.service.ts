@@ -17,7 +17,13 @@ import { aceDevBus } from './ace.service';
 
 const RPC_URL = process.env.RPC_URL_BASE_SEPOLIA || process.env.RPC_URL_SEPOLIA || 'https://sepolia.base.org';
 const VAULT_ADDRESS = process.env.VAULT_ADDRESS_BASE_SEPOLIA || '';
-const DEPLOYER_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+// Phase B3: settlement transactions are signed by a dedicated RELAYER key
+// (low-privilege authorizedCaller) — the DEPLOYER/owner key (multisig on
+// mainnet) is only a fallback for legacy single-key deployments.
+const RELAYER_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || '';
+// Phase B3: opt-in to the lead-bound lockForBid/settleBid overloads.
+// Requires a vault deployment that includes the leadIdHash binding.
+const LEAD_BINDING_ENABLED = process.env.VAULT_LEAD_BINDING === 'true';
 const CONVENIENCE_FEE_USD = 1.0;
 
 // ── ABI (minimal — only the functions we call from backend) ──
@@ -28,7 +34,9 @@ const VAULT_ABI = [
     'function totalBalanceOf(address user) view returns (uint256)',
     'function canBid(address user, uint256 bidAmount) view returns (bool)',
     'function lockForBid(address user, uint256 bidAmount) returns (uint256)',
+    'function lockForBid(address user, uint256 bidAmount, bytes32 leadIdHash) returns (uint256)',
     'function settleBid(uint256 lockId, address seller) external',
+    'function settleBid(uint256 lockId, address seller, bytes32 leadIdHash) external',
     'function refundBid(uint256 lockId) external',
     'function verifyReserves() returns (bool)',
     'function lastPorCheck() view returns (uint256)',
@@ -52,8 +60,13 @@ function getProvider() {
 }
 
 function getSigner() {
-    if (!DEPLOYER_KEY) throw new Error('DEPLOYER_PRIVATE_KEY not set');
-    return new ethers.Wallet(DEPLOYER_KEY, getProvider());
+    if (!RELAYER_KEY) throw new Error('RELAYER_PRIVATE_KEY / DEPLOYER_PRIVATE_KEY not set');
+    return new ethers.Wallet(RELAYER_KEY, getProvider());
+}
+
+/** keccak256 of the platform lead ID — matches the contract's leadIdHash binding. */
+export function hashLeadId(leadId: string): string {
+    return ethers.keccak256(ethers.toUtf8Bytes(leadId));
 }
 
 function getVaultContract(signerOrProvider?: ethers.Signer | ethers.Provider) {
@@ -161,24 +174,32 @@ export async function recordDeposit(userId: string, amount: number, txHash: stri
 
     const vault = await getOrCreateVault(userId);
 
-    const [updatedVault] = await prisma.$transaction([
-        prisma.escrowVault.update({
-            where: { id: vault.id },
-            data: {
-                balance: { increment: amount },
-                totalDeposited: { increment: amount },
-            },
-        }),
-        prisma.vaultTransaction.create({
-            data: {
-                vaultId: vault.id,
-                type: 'DEPOSIT',
-                amount,
-                reference: txHash,
-                note: `On-chain deposit $${amount.toFixed(2)} USDC`,
-            },
-        }),
-    ]);
+    let updatedVault;
+    try {
+        [updatedVault] = await prisma.$transaction([
+            prisma.escrowVault.update({
+                where: { id: vault.id },
+                data: {
+                    balance: { increment: amount },
+                    totalDeposited: { increment: amount },
+                },
+            }),
+            prisma.vaultTransaction.create({
+                data: {
+                    vaultId: vault.id,
+                    type: 'DEPOSIT',
+                    amount,
+                    reference: txHash,
+                    note: `On-chain deposit $${amount.toFixed(2)} USDC`,
+                },
+            }),
+        ]);
+    } catch (dbErr) {
+        // Duplicate txHash = deposit already recorded (frontend retry) — no-op
+        if (!(dbErr && typeof dbErr === 'object' && (dbErr as any).code === 'P2002')) throw dbErr;
+        console.warn(`[VaultService] Deposit ${txHash.slice(0, 14)}… already recorded — skipping duplicate`);
+        return { success: true, balance: Number(vault.balance) };
+    }
 
     aceDevBus.emit('ace:dev-log', {
         ts: new Date().toISOString(),
@@ -298,6 +319,11 @@ export async function recordWithdraw(userId: string, amount: number) {
 }
 
 
+/** Prisma P2002 = unique-constraint violation (duplicate ledger record). */
+function isUniqueViolation(err: unknown): boolean {
+    return !!err && typeof err === 'object' && (err as any).code === 'P2002';
+}
+
 /**
  * Lock funds for a bid on-chain (backend-signed, gas-sponsored).
  * Returns the lockId from the contract.
@@ -318,7 +344,11 @@ export async function lockForBid(
             return { success: false, error: 'Insufficient on-chain vault balance' };
         }
 
-        const tx = await contract.lockForBid(walletAddress, bidAmountUnits);
+        // Phase B3: bind the lock to the lead on-chain when supported.
+        // `reference` is the platform leadId at every call site (bid.service).
+        const tx = LEAD_BINDING_ENABLED
+            ? await contract['lockForBid(address,uint256,bytes32)'](walletAddress, bidAmountUnits, hashLeadId(reference))
+            : await contract['lockForBid(address,uint256)'](walletAddress, bidAmountUnits);
         const receipt = await tx.wait();
 
         // Parse lockId from event
@@ -330,27 +360,34 @@ export async function lockForBid(
         const parsed = lockEvent ? contract.interface.parseLog(lockEvent) : null;
         const lockId = parsed ? Number(parsed.args[0]) : 0;
 
-        // Cache in DB
+        // Cache in DB — ledger reference is unique per lock so the
+        // (vaultId, type, reference) constraint makes the write idempotent:
+        // a duplicate application rolls back the whole transaction (incl. balance).
         const vault = await getOrCreateVault(userId);
         const totalDeducted = bidAmount + CONVENIENCE_FEE_USD;
-        await prisma.$transaction([
-            prisma.escrowVault.update({
-                where: { id: vault.id },
-                data: {
-                    balance: { decrement: totalDeducted },
-                    totalSpent: { increment: totalDeducted },
-                },
-            }),
-            prisma.vaultTransaction.create({
-                data: {
-                    vaultId: vault.id,
-                    type: 'DEDUCT',
-                    amount: totalDeducted,
-                    reference,
-                    note: `Bid lock #${lockId}: $${bidAmount.toFixed(2)} + $1 fee (on-chain)`,
-                },
-            }),
-        ]);
+        try {
+            await prisma.$transaction([
+                prisma.escrowVault.update({
+                    where: { id: vault.id },
+                    data: {
+                        balance: { decrement: totalDeducted },
+                        totalSpent: { increment: totalDeducted },
+                    },
+                }),
+                prisma.vaultTransaction.create({
+                    data: {
+                        vaultId: vault.id,
+                        type: 'DEDUCT',
+                        amount: totalDeducted,
+                        reference: `${reference}:lock:${lockId}`,
+                        note: `Bid lock #${lockId}: $${bidAmount.toFixed(2)} + $1 fee (on-chain)`,
+                    },
+                }),
+            ]);
+        } catch (dbErr) {
+            if (!isUniqueViolation(dbErr)) throw dbErr;
+            console.warn(`[VaultService] lockForBid ledger entry already recorded for lock #${lockId} — skipping duplicate`);
+        }
 
         aceDevBus.emit('ace:dev-log', {
             ts: new Date().toISOString(),
@@ -381,7 +418,13 @@ export async function settleBid(
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
         const contract = getSignedVaultContract();
-        const tx = await contract.settleBid(lockId, sellerAddress);
+        // Phase B3: lead-bound settle — the contract verifies the lock was
+        // created for this exact lead (and the owner-registered seller, if set),
+        // so a compromised relayer key cannot redirect funds.
+        // `reference` is the platform leadId at every call site.
+        const tx = LEAD_BINDING_ENABLED
+            ? await contract['settleBid(uint256,address,bytes32)'](lockId, sellerAddress, hashLeadId(reference))
+            : await contract['settleBid(uint256,address)'](lockId, sellerAddress);
         const receipt = await tx.wait();
 
         // Parse settlement amounts from BidSettled event
@@ -402,7 +445,8 @@ export async function settleBid(
             }
         }
 
-        // Update DB cache: record the settlement transaction
+        // Update DB cache: record the settlement transaction (idempotent —
+        // duplicate retries hit the (vaultId, type, reference) unique constraint)
         try {
             const vault = await getOrCreateVault(userId);
             await prisma.vaultTransaction.create({
@@ -410,13 +454,17 @@ export async function settleBid(
                     vaultId: vault.id,
                     type: 'SETTLE',
                     amount: sellerAmount + platformCut + convenienceFee,
-                    reference,
+                    reference: `${reference}:lock:${lockId}`,
                     note: `Bid settled #${lockId}: $${sellerAmount.toFixed(2)} to seller, $${platformCut.toFixed(2)} platform cut (5%), $${convenienceFee.toFixed(2)} fee`,
                 },
             });
         } catch (dbErr) {
-            // Non-blocking: on-chain settlement succeeded, DB cache is secondary
-            console.warn('[VaultService] settleBid DB cache update failed:', (dbErr as Error).message);
+            if (isUniqueViolation(dbErr)) {
+                console.warn(`[VaultService] settleBid ledger entry already recorded for lock #${lockId} — skipping duplicate`);
+            } else {
+                // Non-blocking: on-chain settlement succeeded, DB cache is secondary
+                console.warn('[VaultService] settleBid DB cache update failed:', (dbErr as Error).message);
+            }
         }
 
         aceDevBus.emit('ace:dev-log', {
@@ -475,27 +523,34 @@ export async function refundBid(
             } catch { /* swallow — amount will be 0 in DB record */ }
         }
 
-        // Update DB cache
+        // Update DB cache — idempotent: if this refund was already recorded
+        // (retry after partial failure), the unique constraint rolls back the
+        // balance increment too, preventing double-crediting.
         const vault = await getOrCreateVault(userId);
 
-        await prisma.$transaction([
-            prisma.escrowVault.update({
-                where: { id: vault.id },
-                data: {
-                    balance: { increment: refundAmount },
-                    totalRefunded: { increment: refundAmount },
-                },
-            }),
-            prisma.vaultTransaction.create({
-                data: {
-                    vaultId: vault.id,
-                    type: 'REFUND',
-                    amount: refundAmount,
-                    reference,
-                    note: `Bid refund #${lockId}: $${refundAmount.toFixed(2)} (on-chain)`,
-                },
-            }),
-        ]);
+        try {
+            await prisma.$transaction([
+                prisma.escrowVault.update({
+                    where: { id: vault.id },
+                    data: {
+                        balance: { increment: refundAmount },
+                        totalRefunded: { increment: refundAmount },
+                    },
+                }),
+                prisma.vaultTransaction.create({
+                    data: {
+                        vaultId: vault.id,
+                        type: 'REFUND',
+                        amount: refundAmount,
+                        reference: `${reference}:lock:${lockId}`,
+                        note: `Bid refund #${lockId}: $${refundAmount.toFixed(2)} (on-chain)`,
+                    },
+                }),
+            ]);
+        } catch (dbErr) {
+            if (!isUniqueViolation(dbErr)) throw dbErr;
+            console.warn(`[VaultService] refundBid ledger entry already recorded for lock #${lockId} — skipping duplicate`);
+        }
 
         aceDevBus.emit('ace:dev-log', {
             ts: new Date().toISOString(),

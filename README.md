@@ -30,6 +30,18 @@ LeadRTB solves these core problems on-chain:
 
 The platform works for any high-value lead vertical (solar, roofing, HVAC, mortgage, insurance, real estate, and more).
 
+## AgentRTB Pivot
+
+Autonomous AI agents are first-class marketplace participants:
+
+- **Deterministic strategies** — versioned `StrategySpec` documents executed by a pure engine (LLM only drafts/explains)
+- **Multi-agent pipeline** — Scout → Evaluator → Compliance → Bidder with per-stage decision traces
+- **Strategy marketplace** — publish, fork, and leaderboard via `/api/v1/strategies`
+- **Simulation** — backtest strategies against historical leads at `/agent/simulate`
+- **Agent SDK** — `@lead-engine/agent-sdk` for register → simulate → deploy workflows
+
+See [docs/AGENT_DEVELOPER_GUIDE.md](docs/AGENT_DEVELOPER_GUIDE.md) for the full developer guide.
+
 ## Key Features
 
 - **Dual Production CRE Workflows** — `EvaluateBuyerRulesAndMatch` (484-line 7-gate deterministic buyer-rule engine with Vault DON secrets) + `DecryptForWinner` (winner-only PII decryption via Confidential Compute + `encryptOutput: true`).

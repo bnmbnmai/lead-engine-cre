@@ -12,21 +12,21 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma';
+import { requireSharedSecret } from '../middleware/secret-auth';
+import { ingestMatchResults, verifyMatchResultSignature } from '../services/cre-match-ingest.service';
 
 const router = Router();
 
 // ── API Key Validation Middleware ─────────────────────────────────────
+// Fail-closed: in production an unset CRE_API_KEY rejects all requests.
 
-const CRE_API_KEY = process.env.CRE_API_KEY || process.env.CRE_API_KEY_ALL || '';
-
-function validateCreApiKey(req: Request, res: Response, next: () => void) {
-    const apiKey = req.headers['x-cre-api-key'] as string;
-    if (!CRE_API_KEY || apiKey === CRE_API_KEY) {
-        return next();
-    }
-    res.status(401).json({ error: 'Invalid or missing CRE API key' });
-}
+const validateCreApiKey = requireSharedSecret({
+    header: 'x-cre-api-key',
+    envVars: ['CRE_API_KEY', 'CRE_API_KEY_ALL'],
+    label: 'CRE API key',
+});
 
 // ── GET /preference-sets?vertical={vertical} ─────────────────────────
 // Returns active buyer preference sets for a given vertical.
@@ -216,6 +216,71 @@ router.get('/evaluate-lead', validateCreApiKey, async (_req: Request, res: Respo
     } catch (error: any) {
         console.error('[CRE-ROUTE] evaluate-lead error:', error.message);
         res.status(500).json({ error: 'Failed to fetch evaluation data' });
+    }
+});
+
+// ── POST /match-results ───────────────────────────────────────────────
+// Phase B5: DON → backend feedback loop. The EvaluateBuyerRulesAndMatch
+// workflow POSTs its consensus match results here.
+//
+// Auth layers:
+//   1. x-cre-api-key shared secret (fail-closed, timing-safe) — always.
+//   2. x-cre-signature HMAC-SHA256 over the canonical payload string —
+//      verified whenever present, and REQUIRED when
+//      CRE_INGEST_REQUIRE_SIGNATURE=true. The DON path cannot compute the
+//      HMAC today because Vault DON secrets are template-substituted into
+//      request headers, never exposed to workflow JS; server-side callers
+//      (scripts, reconciliation jobs) must sign.
+//
+// Response is DETERMINISTIC ({ok, leadId}) even for duplicate deliveries:
+// each DON node may POST independently, and divergent bodies would break
+// consensusIdenticalAggregation on the workflow side.
+//
+// Idempotent: CreMatchResult UNIQUE(leadId) + FOR UPDATE SKIP LOCKED in
+// the ingestion service — replays and concurrent local/DON races no-op.
+
+const matchResultsSchema = z.object({
+    leadId: z.string().min(1),
+    evaluatedAt: z.string().min(1),
+    results: z.array(z.object({
+        preferenceSetId: z.string().min(1),
+        buyerId: z.string().min(1),
+        matched: z.boolean(),
+        reason: z.string().optional(),
+        bidAmount: z.number().optional(),
+    })).max(500),
+});
+
+router.post('/match-results', validateCreApiKey, async (req: Request, res: Response) => {
+    try {
+        const parsed = matchResultsSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({ error: 'Invalid match-results payload', details: parsed.error.flatten() });
+        }
+
+        const secret = process.env.CRE_API_KEY || process.env.CRE_API_KEY_ALL || '';
+        const signature = (req.headers['x-cre-signature'] as string) || '';
+        const signatureRequired = process.env.CRE_INGEST_REQUIRE_SIGNATURE === 'true';
+        if (signature || signatureRequired) {
+            if (!secret || !verifyMatchResultSignature(parsed.data, signature, secret)) {
+                return res.status(401).json({ error: 'Invalid or missing x-cre-signature' });
+            }
+        }
+
+        const outcome = await ingestMatchResults({
+            ...parsed.data,
+            source: 'DON',
+        });
+
+        // Deterministic receipt — duplicates/races are expected (mirror vs
+        // DON, node fan-out) and must yield the SAME body as the winning
+        // delivery so DON-side consensus on the receipt never diverges.
+        // The real outcome is logged + persisted in CreMatchResult.
+        console.log(`[CRE-ROUTE] match-results for ${parsed.data.leadId}: ${outcome.reason} (${outcome.bidsPlaced} bids)`);
+        res.json({ ok: true, leadId: parsed.data.leadId });
+    } catch (error: any) {
+        console.error('[CRE-ROUTE] match-results error:', error.message);
+        res.status(500).json({ error: 'Failed to ingest match results' });
     }
 });
 

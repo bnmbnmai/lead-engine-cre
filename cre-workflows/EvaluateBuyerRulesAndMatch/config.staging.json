@@ -1,5 +1,6 @@
 {
     "schedule": "* * * * *",
     "url": "https://api.leadrtb.com/api/v1/auto-bid/evaluate-lead",
+    "reportUrl": "https://api.leadrtb.com/api/v1/auto-bid/match-results",
     "owner": "0x6BBcf40316D7F9AE99A832DE3975e1e3a5F5e93b"
 }

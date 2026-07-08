@@ -59,4 +59,19 @@ contract ACELeadPolicy is Policy {
         }
         return IPolicyEngine.PolicyResult.Allowed;
     }
+
+    /**
+     * @notice PolicyEngine-compatible entry point for direct-call mode.
+     * @dev PolicyProtectedUpgradeable._runPolicy() invokes
+     *      `IPolicyEngine(engine).run(Payload)`. When this policy is attached
+     *      directly as the "engine" (no separate PolicyEngine contract), this
+     *      overload bridges that call into the standard policy check above.
+     *      Without it, every gated mint/transfer would revert with an unknown
+     *      function selector.
+     */
+    function run(IPolicyEngine.Payload calldata payload) external view {
+        if (!IACECompliance(aceCompliance).isCompliant(payload.sender)) {
+            revert IPolicyEngine.PolicyRejected("ACE: caller not compliant");
+        }
+    }
 }

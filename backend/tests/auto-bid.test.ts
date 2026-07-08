@@ -44,6 +44,14 @@ jest.mock('../src/services/vault.service', () => ({
     lockForBid: jest.fn().mockResolvedValue({ success: true, lockId: 1, txHash: '0xmock' }),
 }));
 
+// Mock the canonical BidService boundary (Phase B2): these tests target the
+// auto-bid engine's GATE logic; bid placement mechanics (commitment, vault
+// lock saga, upsert) are covered by tests/bid-service.test.ts.
+const mockPlaceSealedBid = jest.fn();
+jest.mock('../src/services/bid.service', () => ({
+    placeSealedBid: (...args: any[]) => mockPlaceSealedBid(...args),
+}));
+
 // ============================================
 // Helpers
 // ============================================
@@ -95,6 +103,12 @@ beforeEach(() => {
     mockFindFirst.mockResolvedValue(null);
     mockCreate.mockResolvedValue({ id: 'bid_1' });
     mockAggregate.mockResolvedValue({ _sum: { amount: 0 } });
+    mockPlaceSealedBid.mockResolvedValue({
+        ok: true,
+        bid: { id: 'bid_1', leadId: 'lead_test_1', status: 'PENDING', createdAt: new Date() },
+        isNewBid: true,
+        isHolder: false,
+    });
 });
 
 describe('Auto-Bid Service', () => {
@@ -387,7 +401,7 @@ describe('Auto-Bid Service', () => {
             mockFindMany.mockResolvedValue([makePrefSet()]);
             mockFindFirst.mockResolvedValue(null);
             mockAggregate.mockResolvedValue({ _sum: { amount: 0 } });
-            mockCreate.mockRejectedValue(new Error('DB constraint'));
+            mockPlaceSealedBid.mockRejectedValue(new Error('DB constraint'));
 
             const results = await batchEvaluateLeads(['batch-err-lead']);
             expect(results).toHaveLength(1);
@@ -612,49 +626,69 @@ describe('Auto-Bid Service', () => {
     // NEW: Sealed Commitment Validation
     // ============================================
 
-    describe('Sealed Commitment Format', () => {
-        it('should generate a valid keccak256 commitment hash', async () => {
-            const { ethers } = require('ethers');
-            mockFindMany.mockResolvedValue([makePrefSet({ autoBidAmount: 120 })]);
+    describe('Sealed Commitment Format (real bid.service scheme)', () => {
+        // Use the REAL implementation — bid.service is mocked module-wide above
+        const realBidService = jest.requireActual('../src/services/bid.service');
 
-            let capturedCommitment = '';
-            mockCreate.mockImplementation(({ data }: any) => {
-                capturedCommitment = data.commitment;
-                return Promise.resolve({ id: 'test-bid' });
+        it('should generate a valid domain-separated keccak256 commitment hash', () => {
+            const salt = realBidService.generateSalt();
+            const commitment = realBidService.computeBidCommitment({
+                leadId: 'lead_test_1',
+                buyerId: 'buyer_1',
+                amount: 120,
+                salt,
             });
-
-            await evaluateLeadForAutoBid(makeLead());
 
             // The commitment should be a 66-char hex string (0x + 64 hex chars)
-            expect(capturedCommitment).toMatch(/^0x[a-f0-9]{64}$/);
+            expect(commitment).toMatch(/^0x[a-f0-9]{64}$/);
+            expect(commitment.length).toBe(66);
 
-            // Verify it's a proper keccak256 hash (not btoa or other encoding)
-            expect(capturedCommitment.length).toBe(66);
+            // Round-trips through verification
+            expect(realBidService.verifyBidCommitment(commitment, {
+                leadId: 'lead_test_1', buyerId: 'buyer_1', amount: 120, salt,
+            })).toBe(true);
         });
 
-        it('should generate unique salts per bid', async () => {
-            const commitments: string[] = [];
-            mockFindMany.mockResolvedValue([
-                makePrefSet({
-                    id: 'pref_a',
-                    buyerProfile: { userId: 'buyer_a', user: { id: 'buyer_a', walletAddress: '0xA' } },
-                }),
-                makePrefSet({
-                    id: 'pref_b',
-                    buyerProfile: { userId: 'buyer_b', user: { id: 'buyer_b', walletAddress: '0xB' } },
-                }),
-            ]);
-
-            mockCreate.mockImplementation(({ data }: any) => {
-                commitments.push(data.commitment);
-                return Promise.resolve({ id: `bid-${commitments.length}` });
+        it('should bind the commitment to lead, buyer, and amount (anti-replay)', () => {
+            const salt = realBidService.generateSalt();
+            const commitment = realBidService.computeBidCommitment({
+                leadId: 'lead_test_1', buyerId: 'buyer_1', amount: 120, salt,
             });
 
-            await evaluateLeadForAutoBid(makeLead());
+            // Different buyer/lead/amount must NOT verify
+            expect(realBidService.verifyBidCommitment(commitment, {
+                leadId: 'lead_test_1', buyerId: 'buyer_2', amount: 120, salt,
+            })).toBe(false);
+            expect(realBidService.verifyBidCommitment(commitment, {
+                leadId: 'lead_other', buyerId: 'buyer_1', amount: 120, salt,
+            })).toBe(false);
+            expect(realBidService.verifyBidCommitment(commitment, {
+                leadId: 'lead_test_1', buyerId: 'buyer_1', amount: 121, salt,
+            })).toBe(false);
+        });
 
-            // Two different buyers → two different commitments (unique salts)
-            expect(commitments).toHaveLength(2);
-            expect(commitments[0]).not.toBe(commitments[1]);
+        it('should generate unique salts per bid', () => {
+            const saltA = realBidService.generateSalt();
+            const saltB = realBidService.generateSalt();
+            expect(saltA).not.toBe(saltB);
+
+            const a = realBidService.computeBidCommitment({ leadId: 'l', buyerId: 'b', amount: 50, salt: saltA });
+            const b = realBidService.computeBidCommitment({ leadId: 'l', buyerId: 'b', amount: 50, salt: saltB });
+            expect(a).not.toBe(b);
+        });
+
+        it('should accept legacy frontend commitments (amount*1e6 scheme)', () => {
+            const { ethers } = require('ethers');
+            const salt = realBidService.generateSalt();
+            const legacy = ethers.keccak256(
+                ethers.AbiCoder.defaultAbiCoder().encode(
+                    ['uint96', 'bytes32'],
+                    [BigInt(Math.round(75 * 1e6)), salt],
+                ),
+            );
+            expect(realBidService.verifyBidCommitment(legacy, {
+                leadId: 'any', buyerId: 'any', amount: 75, salt,
+            })).toBe(true);
         });
     });
 });

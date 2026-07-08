@@ -106,7 +106,7 @@ export function AuctionTimer({ phase, biddingEndsAt, revealEndsAt, onPhaseChange
     const isUrgent = timeRemaining > 0 && timeRemaining < 5 * 60 * 1000; // Less than 5 minutes
 
     return (
-        <div className={cn('rounded-2xl p-6 transition-all', phaseInfo.bgColor, isUrgent && 'animate-pulse')}>
+        <div className={cn('rounded-2xl p-6 transition-all', phaseInfo.bgColor, isUrgent && 'animate-pulse')} aria-live="polite">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                     <Icon className={cn('h-6 w-6', phaseInfo.color)} />

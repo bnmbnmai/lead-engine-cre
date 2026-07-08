@@ -316,16 +316,14 @@ class RTBEngine {
                         if (this.io) {
                             // Update the marketplace card bid counter
                             this.io.emit('marketplace:bid:update', { leadId, bidCount });
-                            // Surface each agent bid as a visible moment in the UI
-                            for (const bid of autoBidResult.bidsPlaced) {
+                            // Surface each agent bid as a visible moment in the UI.
+                            // SEALED-BID: no amount or bidder identity in the broadcast.
+                            for (const _bid of autoBidResult.bidsPlaced) {
                                 this.io.emit('agent:bid:placed', {
                                     leadId,
-                                    buyerId: bid.buyerId,
-                                    amount: bid.amount,
                                     vertical: lead.vertical,
-                                    ruleLabel: bid.reason,
                                     ts: Date.now(),
-                                    message: `🤖 AI agent bid $${bid.amount} on ${lead.vertical} lead`,
+                                    message: `🤖 AI agent placed a sealed bid on ${lead.vertical} lead`,
                                 });
                             }
                         }

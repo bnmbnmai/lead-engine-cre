@@ -6,7 +6,7 @@
     "main": "dist/index.js",
     "scripts": {
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-        "build": "npx prisma@5 generate && npx prisma@5 db push --accept-data-loss && tsc",
+        "build": "npx prisma@5 generate && npx prisma@5 migrate deploy && tsc",
         "start": "node dist/index.js",
         "lint": "eslint src --ext .ts",
         "test": "jest",
@@ -20,13 +20,18 @@
         "db:generate": "prisma generate",
         "db:studio": "prisma studio",
         "db:seed": "cross-env TEST_MODE=true ts-node prisma/seed.ts",
+        "db:bootstrap": "cross-env TEST_MODE=true ts-node --transpile-only scripts/db-bootstrap.ts",
         "db:clear-mock": "cross-env TEST_MODE=true ts-node prisma/clear.ts",
         "db:migrate-verticals": "cross-env TEST_MODE=true ts-node prisma/migrate-verticals.ts",
         "demo:seed": "tsx scripts/seed-demo-leads.ts",
-        "demo:clear": "tsx scripts/seed-demo-leads.ts clear"
+        "demo:clear": "tsx scripts/seed-demo-leads.ts clear",
+        "smoke:agentrtb": "npx tsx scripts/smoke-agentrtb.ts",
+        "bot:integrator": "npx tsx scripts/integrator-bot.ts"
     },
     "dependencies": {
         "@faker-js/faker": "^10.3.0",
+        "@lead-engine/agent-tools": "1.0.0",
+        "@lead-engine/rules-engine": "1.0.0",
         "@langchain/community": "^1.1.15",
         "@langchain/core": "^1.1.24",
         "@langchain/openai": "^1.2.7",

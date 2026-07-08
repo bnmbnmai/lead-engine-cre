@@ -16,9 +16,13 @@ import { formatCurrency, getStatusColor } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import { useSocketEvents } from '@/hooks/useSocketEvents';
 import { useFloorPrice } from '@/hooks/useFloorPrice';
+import useAuth from '@/hooks/useAuth';
+import { getSealedBidRecord } from '@/utils/sealedBid';
+import { SettlementTimeline, type SettlementStep } from '@/components/auction/SettlementTimeline';
 
 export function AuctionPage() {
     const { leadId } = useParams<{ leadId: string }>();
+    const { user } = useAuth();
     const [lead, setLead] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [bidLoading, setBidLoading] = useState(false);
@@ -70,7 +74,9 @@ export function AuctionPage() {
         fetchLead,
     );
 
-    const handlePlaceBid = async (data: { amount?: number; commitment?: string }) => {
+    // SEALED-BID (Phase B2): only the commitment crosses the wire. The amount
+    // stays in this tab's sessionStorage until reveal.
+    const handlePlaceBid = async (data: { commitment: string }) => {
         setBidLoading(true);
         try {
             // Await server confirmation — resolves on bid:confirmed, rejects on error/timeout
@@ -79,29 +85,15 @@ export function AuctionPage() {
             // Only update UI after server confirms the bid was persisted
             setLocalBidCount((prev) => (prev ?? auctionState?.bidCount ?? lead?._count?.bids ?? 0) + 1);
 
-            if (data.amount) {
-                setMyBidAmount(data.amount);
-                // Only track highest bid after bidding closes — sealed-bid UX
-                if (phase !== 'BIDDING') {
-                    if (!localHighestBid || data.amount > localHighestBid) {
-                        setLocalHighestBid(data.amount);
-                    }
-                }
-            }
+            // Local display only — read back from this tab's sealed-bid store
+            const stored = getSealedBidRecord(data.commitment);
+            if (stored) setMyBidAmount(stored.amount);
 
-            if (data.commitment) {
-                toast({
-                    type: 'success',
-                    title: '🔒 Sealed Bid Committed',
-                    description: `Your ${data.amount ? formatCurrency(data.amount) + ' ' : ''}bid has been encrypted and submitted.`,
-                });
-            } else if (data.amount) {
-                toast({
-                    type: 'success',
-                    title: '✅ Bid Placed!',
-                    description: `Bid of ${formatCurrency(data.amount)} placed successfully.`,
-                });
-            }
+            toast({
+                type: 'success',
+                title: '🔒 Sealed Bid Committed',
+                description: 'Your bid has been encrypted and submitted.',
+            });
         } catch (err: any) {
             // Bid was rejected by backend (KYC, rate limit, auction expired, etc.)
             toast({
@@ -239,6 +231,11 @@ export function AuctionPage() {
                             revealEndsAt={auctionState?.revealEndsAt}
                         />
 
+                        <SettlementTimeline
+                            completedThrough={(lead.settlementProgress as SettlementStep) ?? null}
+                            leadStatus={lead.status}
+                        />
+
                         {/* Lead Info */}
                         <Card>
                             <CardHeader>
@@ -292,6 +289,8 @@ export function AuctionPage() {
                     {/* Bid Panel */}
                     <div className="space-y-6">
                         <BidPanel
+                            leadId={lead.id}
+                            buyerId={user?.id}
                             reservePrice={lead.reservePrice}
                             highestBid={displayHighestBid}
                             phase={phase as any}

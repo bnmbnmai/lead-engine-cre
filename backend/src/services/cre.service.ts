@@ -761,20 +761,36 @@ class CREService {
             console.log(`${logPrefix}: Triggering automatic 1st retry...`);
             await this.requestOnChainQualityScore(leadId, tokenId, logPrefix, true);
         } else {
-            console.error(`${logPrefix}: ❌ DON Timeout after retry. Using fallback score 5000.`);
-            await prisma.lead.update({
-                where: { id: leadId },
-                data: { qualityScore: 5000 },
-            });
+            // FAIL CLOSED: never fabricate a score. A synthetic 5000 would let
+            // unverified leads pass buyer minQualityScore gates. The score
+            // stays null (= unscored), which downstream gates treat as 0, and
+            // a final delayed retry is scheduled.
+            console.error(`${logPrefix}: ❌ DON Timeout after retry — leaving lead unscored (no fallback score)`);
 
             import('./ace.service').then(({ aceDevBus }) => {
                 aceDevBus.emit('ace:dev-log', {
                     level: 'error',
-                    message: 'CRE/Functions timeout — using fallback score 5000',
+                    message: 'CRE/Functions timeout — lead left unscored, delayed retry scheduled',
                     module: 'CRE',
-                    context: { leadId }
+                    context: { leadId, tokenId: String(tokenId) }
                 });
             }).catch(() => { });
+
+            // One final re-dispatch after 10 minutes (fresh retry cycle).
+            const RETRY_DELAY_MS = 10 * 60 * 1000;
+            setTimeout(() => {
+                prisma.lead.findUnique({ where: { id: leadId }, select: { qualityScore: true } })
+                    .then((lead) => {
+                        if (lead && lead.qualityScore == null) {
+                            console.log(`${logPrefix}: Delayed CRE score retry firing`);
+                            return this.requestOnChainQualityScore(leadId, tokenId, `${logPrefix}-DELAYED`, true);
+                        }
+                        return undefined;
+                    })
+                    .catch((err: any) => {
+                        console.error(`${logPrefix}: delayed CRE score retry failed: ${err.message}`);
+                    });
+            }, RETRY_DELAY_MS).unref?.();
         }
     }
 
@@ -914,53 +930,18 @@ class CREService {
             bidPlaced?: boolean;
         }> = [];
 
-        let bidsPlaced = 0;
+        // All 7 deterministic gates via the shared rules engine — the exact
+        // code the DON runs (including Gate 7 field filters, which the old
+        // inline mirror here omitted).
+        const { evaluatePreferenceSet } = await import('@lead-engine/rules-engine');
+        const { toRulesPreferenceSet } = await import('./rules-adapter');
 
         for (const prefSet of matchingSets) {
             const buyerId = prefSet.buyerProfile.userId;
-            const geoCountries: string[] = Array.isArray(prefSet.geoCountries)
-                ? prefSet.geoCountries : [prefSet.geoCountries || 'US'];
+            const match = evaluatePreferenceSet(leadData, toRulesPreferenceSet(prefSet as any));
 
-            // Gate 1: Geo country
-            if (!geoCountries.includes(leadData.geo.country)) {
-                results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: `Country mismatch` });
-                continue;
-            }
-
-            // Gate 2: Geo state include/exclude
-            const state = leadData.geo.state?.toUpperCase();
-            if (state && prefSet.geoInclude.length > 0) {
-                if (!prefSet.geoInclude.map((s: string) => s.toUpperCase()).includes(state)) {
-                    results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: `State ${state} not in include list` });
-                    continue;
-                }
-            }
-            if (state && prefSet.geoExclude.length > 0) {
-                if (prefSet.geoExclude.map((s: string) => s.toUpperCase()).includes(state)) {
-                    results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: `State ${state} in exclude list` });
-                    continue;
-                }
-            }
-
-            // Gate 3: Quality score
-            const prefMinScore = (prefSet as any).minQualityScore;
-            if (prefMinScore != null && prefMinScore > 0) {
-                const leadScore = leadData.qualityScore ?? 0;
-                if (leadScore < prefMinScore * 100) {
-                    results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: `Quality score below threshold` });
-                    continue;
-                }
-            }
-
-            // Gate 4: Off-site toggle
-            if (!prefSet.acceptOffSite && leadData.source === 'OFFSITE') {
-                results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: `Off-site leads rejected` });
-                continue;
-            }
-
-            // Gate 5: Verified-only
-            if (prefSet.requireVerified && !leadData.isVerified) {
-                results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: `Requires verified lead` });
+            if (!match.matched) {
+                results.push({ preferenceSetId: prefSet.id, buyerId, matched: false, reason: match.reason });
                 continue;
             }
 
@@ -973,17 +954,29 @@ class CREService {
                 reason: `CRE gates passed: ${prefSet.label}`,
                 bidPlaced: true,
             });
-            bidsPlaced++;
         }
 
-        // Step 3: Execute local auto-bid for all CRE-approved matches
-        // The local engine handles budget, vault, duplicate, and bid placement
-        const autoBidResult = await evaluateLeadForAutoBid(leadData);
-
+        // Step 3 (Phase B5): submit through the idempotent match-result
+        // ingestion path — the same path the DON's POST /match-results uses.
+        // UNIQUE(leadId) + SKIP LOCKED means whichever evaluator (this local
+        // mirror or the DON workflow) gets here first wins; the other no-ops.
+        // Ends the cron split-brain where both evaluated and both bid.
+        const { ingestMatchResults } = await import('./cre-match-ingest.service');
+        const ingest = await ingestMatchResults({
+            leadId,
+            source: 'LOCAL',
+            evaluatedAt: new Date().toISOString(),
+            results: results.map(r => ({
+                preferenceSetId: r.preferenceSetId,
+                buyerId: r.buyerId,
+                matched: r.matched,
+                reason: r.reason,
+            })),
+        });
         console.log(
             `[CRE-WORKFLOW] Lead ${leadId}: ${matchingSets.length} prefs evaluated, ` +
             `${results.filter(r => r.matched).length} CRE-matched, ` +
-            `${autoBidResult.bidsPlaced.length} bids placed`
+            `${ingest.bidsPlaced} bids placed (ingest: ${ingest.reason})`
         );
 
         // Emit dev log for frontend visibility
@@ -995,9 +988,9 @@ class CREService {
                 leadId,
                 totalSets: matchingSets.length,
                 matchedSets: results.filter(r => r.matched).length,
-                bidsPlaced: autoBidResult.bidsPlaced.length,
+                bidsPlaced: ingest.bidsPlaced,
                 workflowEnabled: true,
-                message: `🔗 CRE Workflow evaluated ${matchingSets.length} buyer rules → ${autoBidResult.bidsPlaced.length} bids placed`,
+                message: `🔗 CRE Workflow evaluated ${matchingSets.length} buyer rules → ${ingest.bidsPlaced} bids placed`,
             });
         } catch { /* non-blocking */ }
 
@@ -1006,7 +999,7 @@ class CREService {
             leadId,
             totalPreferenceSets: matchingSets.length,
             matchedSets: results.filter(r => r.matched).length,
-            bidsPlaced: autoBidResult.bidsPlaced.length,
+            bidsPlaced: ingest.bidsPlaced,
             results,
         };
     }
@@ -1233,13 +1226,10 @@ class CREService {
      * Fire-and-forget — never blocks the caller.
      */
     afterLeadCreated(leadId: string): void {
-        this.triggerBuyerRulesWorkflow(leadId)
-            .then(r => {
-                console.log(`[CRE] afterLeadCreated: ${leadId} → ${r.matchedSets}/${r.totalPreferenceSets} matched, ${r.bidsPlaced} bids placed`);
-            })
-            .catch(err => {
-                console.warn(`[CRE] afterLeadCreated failed (non-fatal): ${(err as any)?.message?.slice(0, 80)}`);
-            });
+        import('../agents/orchestrator/queue')
+            .then(({ enqueueAgentPipeline }) => enqueueAgentPipeline({ leadId, trigger: 'lead-created' }))
+            .then(() => console.log(`[CRE] afterLeadCreated: ${leadId} → agent pipeline enqueued`))
+            .catch((err: any) => console.warn(`[CRE] afterLeadCreated failed (non-fatal): ${err?.message?.slice(0, 80)}`));
     }
 }
 

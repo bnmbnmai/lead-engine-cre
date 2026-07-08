@@ -1,0 +1,19 @@
+{
+    "name": "@lead-engine/agent-tools",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Canonical MCP tool registry + shared agent system prompt. Single source of truth consumed by the MCP server (JSON-RPC proxy), the backend chat route (OpenAI/Anthropic tool formats), and the LangChain agent.",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "prepare": "tsc"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.2"
+    }
+}
